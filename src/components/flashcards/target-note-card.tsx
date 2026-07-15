@@ -1,5 +1,5 @@
+import MusicStaff from "@/components/music-staff";
 import type { FeedbackState, TargetNote } from "@/types/practice";
-import StaffPlaceholder from "@/components/notation/staff-placeholder";
 
 type TargetNoteCardProps = Readonly<{
   feedback: FeedbackState;
@@ -34,7 +34,7 @@ export default function TargetNoteCard({
         {FEEDBACK_MESSAGES[feedback]}
       </p>
 
-      <StaffPlaceholder targetNote={targetNote} />
+      <MusicStaff targetNote={targetNote} />
 
       <div className="grid grid-cols-2 gap-3">
         <button
