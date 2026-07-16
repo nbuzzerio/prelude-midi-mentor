@@ -7,6 +7,7 @@ type LastAnswer = Readonly<{
 
 type PianoKeyboardProps = Readonly<{
   lastAnswer: LastAnswer | null;
+  onNotePlayed: (midiNumber: number) => void;
   minMidi?: number;
   maxMidi?: number;
 }>;
@@ -81,6 +82,7 @@ function getBlackKeyClass(result: AnswerResult | undefined): string {
 
 export default function PianoKeyboard({
   lastAnswer,
+  onNotePlayed,
   minMidi = 36,
   maxMidi = 83,
 }: PianoKeyboardProps) {
@@ -99,9 +101,11 @@ export default function PianoKeyboard({
 
           if (!key.isBlack) {
             return (
-              <div
+              <button
+                type="button"
+                onClick={() => onNotePlayed(key.midiNumber)}
                 key={key.midiNumber}
-                className={`absolute bottom-0 top-0 border-r border-zinc-400 transition-colors ${getWhiteKeyClass(
+                className={`absolute bottom-0 top-0 border-r border-zinc-400 transition-colors hover:bg-zinc-200 ${getWhiteKeyClass(
                   result,
                 )}`}
                 style={{
@@ -118,9 +122,11 @@ export default function PianoKeyboard({
             whiteKeyWidthPercent * 0.32;
 
           return (
-            <div
+            <button
+              type="button"
+              onClick={() => onNotePlayed(key.midiNumber)}
               key={key.midiNumber}
-              className={`absolute top-0 z-10 h-[62%] rounded-b-sm transition-colors ${getBlackKeyClass(
+              className={`absolute top-0 z-10 h-[62%] rounded-b-sm transition-colors hover:bg-zinc-800 ${getBlackKeyClass(
                 result,
               )}`}
               style={{

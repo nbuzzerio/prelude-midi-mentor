@@ -47,6 +47,15 @@ export default function FlashcardSession() {
     setStartedAt(Date.now());
   };
 
+  const handleNotePlayed = (midiNumber: number) => {
+    if (midiNumber === targetNote.midiNumber) {
+      handleCorrect();
+      return;
+    }
+
+    handleIncorrect();
+  };
+
   const handleModeChange = (nextMode: PracticeMode) => {
     setMode(nextMode);
     setLastAnswer(null);
@@ -127,7 +136,7 @@ export default function FlashcardSession() {
         />
       </div>
 
-      <PianoKeyboard lastAnswer={lastAnswer} />
+      <PianoKeyboard lastAnswer={lastAnswer} onNotePlayed={handleNotePlayed} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import MusicStaff from "@/components/music-staff";
+import MusicStaff from "@/components/notation/music-staff";
 import type { FeedbackState, TargetNote } from "@/types/practice";
 
 type TargetNoteCardProps = Readonly<{
