@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
 import TargetNoteCard from "@/components/flashcards/target-note-card";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
+import { useMidi } from "@/hooks/use-midi";
 import { generateTargetNote } from "@/lib/music/notes";
 import type {
   FeedbackState,
@@ -39,54 +40,92 @@ export default function FlashcardSession() {
   const [lastAnswer, setLastAnswer] = useState<LastAnswer | null>(null);
   const [startedAt, setStartedAt] = useState(0);
 
-  const generateNextNote = (nextMode: PracticeMode = mode) => {
-    setTargetNote(generateTargetNote(nextMode));
-    setFeedback("idle");
-    setStartedAt(Date.now());
-  };
+  const answerLockedRef = useRef(false);
+  const targetNoteRef = useRef(targetNote);
+
+  targetNoteRef.current = targetNote;
+
+  const generateNextNote = useCallback(
+    (nextMode: PracticeMode = mode) => {
+      const nextTarget = generateTargetNote(nextMode);
+
+      targetNoteRef.current = nextTarget;
+      answerLockedRef.current = false;
+
+      setTargetNote(nextTarget);
+      setFeedback("idle");
+      setStartedAt(Date.now());
+    },
+    [mode],
+  );
+
+  const handleNotePlayed = useCallback(
+    (midiNumber: number) => {
+      if (answerLockedRef.current) {
+        return;
+      }
+
+      const currentTarget = targetNoteRef.current;
+
+      if (midiNumber === currentTarget.midiNumber) {
+        answerLockedRef.current = true;
+
+        const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
+
+        setFeedback("correct");
+        setLastAnswer({
+          midiNumber,
+          result: "correct",
+        });
+
+        setStats((currentStats) => ({
+          ...currentStats,
+          correct: currentStats.correct + 1,
+          streak: currentStats.streak + 1,
+          totalResponseTimeMs:
+            currentStats.totalResponseTimeMs + responseTimeMs,
+        }));
+
+        window.setTimeout(() => {
+          generateNextNote();
+        }, 500);
+
+        return;
+      }
+
+      setFeedback("incorrect");
+      setLastAnswer({
+        midiNumber,
+        result: "incorrect",
+      });
+
+      setStats((currentStats) => ({
+        ...currentStats,
+        incorrect: currentStats.incorrect + 1,
+        streak: 0,
+      }));
+    },
+    [generateNextNote, startedAt],
+  );
+
+  const {
+    connectMidi,
+    deviceName,
+    error: midiError,
+    status: midiStatus,
+  } = useMidi({
+    onNotePlayed: handleNotePlayed,
+  });
 
   const handleCorrect = () => {
-    const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
-
-    setFeedback("correct");
-    setLastAnswer({
-      midiNumber: targetNote.midiNumber,
-      result: "correct",
-    });
-
-    setStats((currentStats) => ({
-      ...currentStats,
-      correct: currentStats.correct + 1,
-      streak: currentStats.streak + 1,
-      totalResponseTimeMs: currentStats.totalResponseTimeMs + responseTimeMs,
-    }));
-
-    window.setTimeout(() => {
-      generateNextNote();
-    }, 500);
+    handleNotePlayed(targetNoteRef.current.midiNumber);
   };
 
   const handleIncorrect = () => {
-    setFeedback("incorrect");
-    setLastAnswer({
-      midiNumber: targetNote.midiNumber,
-      result: "incorrect",
-    });
+    const incorrectMidiNumber =
+      targetNoteRef.current.midiNumber === 48 ? 49 : 48;
 
-    setStats((currentStats) => ({
-      ...currentStats,
-      incorrect: currentStats.incorrect + 1,
-      streak: 0,
-    }));
-  };
-
-  const handleNotePlayed = (midiNumber: number) => {
-    if (midiNumber === targetNote.midiNumber) {
-      handleCorrect();
-      return;
-    }
-
-    handleIncorrect();
+    handleNotePlayed(incorrectMidiNumber);
   };
 
   const handleModeChange = (nextMode: PracticeMode) => {
@@ -114,7 +153,14 @@ export default function FlashcardSession() {
           </h1>
         </div>
 
-        <MidiStatus connected={false} />
+        <MidiStatus
+          deviceName={deviceName}
+          error={midiError}
+          onConnect={() => {
+            void connectMidi();
+          }}
+          status={midiStatus}
+        />
       </header>
 
       <div className="practice-stage">

@@ -91,7 +91,7 @@ export default function PianoKeyboard({
   const whiteKeyWidthPercent = 100 / whiteKeyCount;
 
   return (
-    <div className="h-full min-h-40 rounded-2xl border border-zinc-300 bg-zinc-200 p-2 sm:min-h-52 sm:p-3">
+    <div className="h-full min-h-40 rounded-2xl border border-zinc-300 bg-zinc-200 p-2 sm:min-h-52 sm:p-3 max-h-80">
       <div className="relative mx-auto h-full min-h-36 w-full overflow-hidden rounded-lg border border-zinc-500 bg-white">
         {keys.map((key) => {
           const result =
