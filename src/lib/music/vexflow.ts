@@ -23,16 +23,16 @@ const STAVE_WIDTH = 300;
 const NOTE_FORMAT_WIDTH = 200;
 
 function toVexFlowPitch(targetNote: TargetNote): VexFlowPitch {
+  const accidental = targetNote.name.includes("♯")
+    ? "#"
+    : targetNote.name.includes("♭")
+      ? "b"
+      : null;
+
   const normalizedName = targetNote.name
     .replace("♯", "#")
     .replace("♭", "b")
     .toLowerCase();
-
-  const accidental = normalizedName.includes("#")
-    ? "#"
-    : normalizedName.includes("b")
-      ? "b"
-      : null;
 
   return {
     accidental,
@@ -78,4 +78,16 @@ export function renderTargetNote(
   new Formatter().joinVoices([voice]).format([voice], NOTE_FORMAT_WIDTH);
 
   voice.draw(context, stave);
+
+  const svg = container.querySelector("svg");
+
+  if (!svg) {
+    return;
+  }
+
+  svg.setAttribute("viewBox", `0 0 ${RENDERER_WIDTH} ${RENDERER_HEIGHT}`);
+  svg.setAttribute("width", "100%");
+  svg.setAttribute("height", "100%");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.style.display = "block";
 }

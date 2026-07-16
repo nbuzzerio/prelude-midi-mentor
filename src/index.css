@@ -17,3 +17,35 @@ body {
 button {
   font: inherit;
 }
+
+.practice-stage {
+  display: grid;
+  grid-template-rows: minmax(12rem, 35%) minmax(18rem, 65%);
+  gap: 0.75rem;
+  min-height: calc(100dvh - 6rem);
+}
+
+.practice-simulation-controls {
+  display: none;
+}
+
+/* Closed Fold or phone used horizontally */
+@media (orientation: landscape) and (max-height: 600px) {
+  .practice-stage {
+    grid-template-columns: minmax(18rem, 38%) minmax(0, 62%);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: calc(100dvh - 4.5rem);
+  }
+}
+
+/* Desktop keeps the focused stage, but does not need to fill the screen. */
+@media (min-width: 1024px) and (min-height: 700px) {
+  .practice-stage {
+    grid-template-rows: minmax(14rem, 38%) minmax(18rem, 62%);
+    min-height: 42rem;
+  }
+
+  .practice-simulation-controls {
+    display: grid;
+  }
+}

@@ -2,81 +2,28 @@
 
 ## Project Overview
 
-Prelude: MIDI Mentor is a browser-based piano sight-reading trainer built with Next.js, React, TypeScript, Tailwind CSS, and the Web MIDI API.
+Prelude: MIDI Mentor is a browser-based piano sight-reading trainer built with Vite, React, TypeScript, Tailwind CSS, VexFlow, and the Web MIDI API.
 
-The project began as a focused replacement for bass-clef flashcards that only use touch controls. The application will instead let the user read a note from a musical staff and answer using a real MIDI piano keyboard.
+The application displays one note at a time on a musical staff and lets the user answer using either a physical MIDI keyboard or the on-screen piano keyboard.
+
+The project began as a more useful replacement for bass-clef flashcards that rely only on touch controls.
 
 ## Current MVP Goal
 
-Display one note at a time and determine whether the correct piano key was played through MIDI input.
+Provide a complete sight-reading practice loop:
+
+1. Display a target note using standard musical notation.
+2. Receive note input from a MIDI keyboard or on-screen controls.
+3. Determine whether the played note is correct.
+4. Give immediate visual feedback.
+5. Track session performance.
 
 ## Current Status
 
-The initial front-end practice interface is complete.
+The MVP is functional and deployed.
 
-Implemented:
-
-- Bass, treble, and mixed practice modes
-- Random target-note generation
-- Simulated correct and incorrect answers
-- Correct, incorrect, streak, accuracy, and response-time statistics
-- Rudimentary four-octave piano keyboard
-- Latest-answer key highlighting
-- Responsive dark-mode layout
-- MIDI diagnostic component
-- Graceful empty-device handling
-
-Not yet implemented:
-
-- VexFlow notation rendering
-- Natural-note-only filtering
-- Real MIDI integration with the flashcard session
-- Chromebook hardware testing
-- Persistence
-- Difficulty levels
-
-## Hardware Status
-
-The original E-MU XMIDI 1x1 interface was not recognized by Windows or Chrome.
-
-A replacement class-compliant LEKATO USB MIDI interface is expected Thursday.
-
-The Yamaha keyboard uses traditional five-pin MIDI IN and MIDI OUT ports.
-
-Connection should be:
-
-Keyboard MIDI OUT → Interface MIDI IN → USB computer
-
-## Architecture
-
-`FlashcardSession` currently owns:
-
-- practice mode
-- target note
-- feedback
-- statistics
-- latest answer
-- response timing
-
-Presentational components include:
-
-- `MidiStatus`
-- `PracticeControls`
-- `PracticeStats`
-- `TargetNoteCard`
-- `PianoKeyboard`
-- `StaffPlaceholder`
-
-Music utilities are located under:
-
-- `src/lib/music`
-- `src/data`
-- `src/types`
-
-## Important Configuration
-
-The TypeScript alias is configured so that:
+Live application:
 
 ```text
-@/* → ./src/*
+https://nickbuzzerio.com/prelude/
 ```

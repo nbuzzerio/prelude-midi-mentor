@@ -25,7 +25,7 @@ export default function MusicStaff({ targetNote }: MusicStaffProps) {
     <div
       ref={containerRef}
       aria-label={`Musical staff showing ${targetNote.name}${targetNote.octave} in ${targetNote.clef} clef`}
-      className="mx-auto w-full max-w-80 invert"
+      className="mx-auto min-h-0 w-full flex justify-center items-center invert [&_svg]:h-[200%]! [&_svg]:w-auto!"
     />
   );
 }

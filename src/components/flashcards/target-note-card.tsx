@@ -21,8 +21,9 @@ export default function TargetNoteCard({
   onIncorrect,
 }: TargetNoteCardProps) {
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <section className="flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5">
       <p
+        aria-live="polite"
         className={`text-center text-sm font-semibold ${
           feedback === "correct"
             ? "text-green-400"
@@ -36,7 +37,7 @@ export default function TargetNoteCard({
 
       <MusicStaff targetNote={targetNote} />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="practice-simulation-controls grid grid-cols-2 gap-3">
         <button
           className="rounded-xl bg-green-700 px-4 py-3 font-semibold text-white hover:bg-green-600"
           onClick={onCorrect}

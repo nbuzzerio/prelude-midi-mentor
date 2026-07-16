@@ -91,8 +91,8 @@ export default function PianoKeyboard({
   const whiteKeyWidthPercent = 100 / whiteKeyCount;
 
   return (
-    <div className="rounded-2xl border border-zinc-300 bg-zinc-200 p-3">
-      <div className="relative mx-auto h-36 w-full overflow-hidden rounded-lg border border-zinc-500 bg-white">
+    <div className="h-full min-h-40 rounded-2xl border border-zinc-300 bg-zinc-200 p-2 sm:min-h-52 sm:p-3">
+      <div className="relative mx-auto h-full min-h-36 w-full overflow-hidden rounded-lg border border-zinc-500 bg-white">
         {keys.map((key) => {
           const result =
             lastAnswer?.midiNumber === key.midiNumber
@@ -105,7 +105,7 @@ export default function PianoKeyboard({
                 type="button"
                 onClick={() => onNotePlayed(key.midiNumber)}
                 key={key.midiNumber}
-                className={`absolute bottom-0 top-0 border-r border-zinc-400 transition-colors hover:bg-zinc-200 ${getWhiteKeyClass(
+                className={`absolute bottom-0 top-0 border-r border-zinc-400 transition-colors touch-manipulation select-none hover:bg-zinc-200 ${getWhiteKeyClass(
                   result,
                 )}`}
                 style={{
@@ -126,7 +126,7 @@ export default function PianoKeyboard({
               type="button"
               onClick={() => onNotePlayed(key.midiNumber)}
               key={key.midiNumber}
-              className={`absolute top-0 z-10 h-[62%] rounded-b-sm transition-colors hover:bg-zinc-800 ${getBlackKeyClass(
+              className={`absolute top-0 z-10 h-[62%] rounded-b-sm transition-colors touch-manipulation select-none hover:bg-zinc-800 ${getBlackKeyClass(
                 result,
               )}`}
               style={{

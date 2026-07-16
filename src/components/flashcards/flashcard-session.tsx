@@ -1,10 +1,8 @@
-"use client";
-
 import { useState } from "react";
-import MidiStatus from "@/components/midi/midi-status";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
 import TargetNoteCard from "@/components/flashcards/target-note-card";
+import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { generateTargetNote } from "@/lib/music/notes";
 import type {
@@ -47,21 +45,6 @@ export default function FlashcardSession() {
     setStartedAt(Date.now());
   };
 
-  const handleNotePlayed = (midiNumber: number) => {
-    if (midiNumber === targetNote.midiNumber) {
-      handleCorrect();
-      return;
-    }
-
-    handleIncorrect();
-  };
-
-  const handleModeChange = (nextMode: PracticeMode) => {
-    setMode(nextMode);
-    setLastAnswer(null);
-    generateNextNote(nextMode);
-  };
-
   const handleCorrect = () => {
     const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
 
@@ -97,6 +80,21 @@ export default function FlashcardSession() {
     }));
   };
 
+  const handleNotePlayed = (midiNumber: number) => {
+    if (midiNumber === targetNote.midiNumber) {
+      handleCorrect();
+      return;
+    }
+
+    handleIncorrect();
+  };
+
+  const handleModeChange = (nextMode: PracticeMode) => {
+    setMode(nextMode);
+    setLastAnswer(null);
+    generateNextNote(nextMode);
+  };
+
   const handleReset = () => {
     setStats(INITIAL_STATS);
     setLastAnswer(null);
@@ -104,14 +102,14 @@ export default function FlashcardSession() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <header className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wider text-white/60">
+          <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
             Sight-reading trainer
           </p>
 
-          <h1 className="mt-1 text-3xl font-bold text-white">
+          <h1 className="text-xl font-bold text-white sm:mt-1 sm:text-3xl">
             Prelude: MIDI Mentor
           </h1>
         </div>
@@ -119,9 +117,7 @@ export default function FlashcardSession() {
         <MidiStatus connected={false} />
       </header>
 
-      <PracticeStats stats={stats} />
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
+      <div className="practice-stage">
         <TargetNoteCard
           feedback={feedback}
           targetNote={targetNote}
@@ -129,14 +125,21 @@ export default function FlashcardSession() {
           onIncorrect={handleIncorrect}
         />
 
+        <PianoKeyboard
+          lastAnswer={lastAnswer}
+          onNotePlayed={handleNotePlayed}
+        />
+      </div>
+
+      <section className="grid gap-6 lg:grid-cols-[1fr_18rem]">
+        <PracticeStats stats={stats} />
+
         <PracticeControls
           mode={mode}
           onModeChange={handleModeChange}
           onReset={handleReset}
         />
-      </div>
-
-      <PianoKeyboard lastAnswer={lastAnswer} onNotePlayed={handleNotePlayed} />
+      </section>
     </div>
   );
 }
