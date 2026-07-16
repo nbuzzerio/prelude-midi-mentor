@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
 import TargetNoteCard from "@/components/flashcards/target-note-card";
@@ -43,7 +43,9 @@ export default function FlashcardSession() {
   const answerLockedRef = useRef(false);
   const targetNoteRef = useRef(targetNote);
 
-  targetNoteRef.current = targetNote;
+  useEffect(() => {
+    targetNoteRef.current = targetNote;
+  }, [targetNote]);
 
   const generateNextNote = useCallback(
     (nextMode: PracticeMode = mode) => {
