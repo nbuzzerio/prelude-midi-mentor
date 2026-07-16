@@ -3,7 +3,7 @@ name: Prelude CI and Deploy
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
