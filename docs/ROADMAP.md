@@ -1,87 +1,274 @@
-# Roadmap
+# Prelude: MIDI Mentor — ROADMAP
 
-## Phase 1 — MVP
+> This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
 
-### Practice Interface
+---
 
-- [x] Front-end practice interface
-- [x] Bass clef mode
-- [x] Treble clef mode
-- [x] Mixed practice mode
-- [x] Random target-note generation
-- [x] Simulated correct and incorrect detection
-- [x] Session statistics
-- [x] Four-octave piano visualization
-- [x] Latest-answer key highlighting
-- [x] On-screen piano input
-- [x] Responsive practice-stage layout
-- [x] Mobile portrait layout
-- [x] Mobile landscape layout
-- [x] Touch-friendly piano controls
+# ✅ Phase 1 — Core Flashcard MVP (Completed)
 
-### Notation
+## Foundation
 
-- [x] Render a single note using VexFlow
-- [x] Remove visible note-name placeholder
-- [x] Correct ledger-line rendering
-- [x] Natural-note rendering
-- [x] Sharp and flat rendering
-- [x] Responsive staff scaling
-
-### MIDI
-
-- [x] Detect MIDI connection
-- [x] Receive Note On events
-- [x] Compare played note with target note
-- [x] Connect MIDI input to the flashcard session
-- [x] Handle empty-device states
-- [ ] Complete disconnect and reconnect testing
-- [ ] Complete Chromebook hardware testing
-- [ ] Complete broader MIDI-interface testing
-
-### Deployment and Platform
-
-- [x] Migrate from Next.js to Vite
-- [x] Production build verification
-- [x] Initial DigitalOcean deployment
-- [x] Configure GitHub Actions deployment
-- [x] Configure self-hosted deployment runner
-- [x] Configure Nginx static hosting
-- [x] Deploy under `/prelude/`
-- [x] Add installable PWA support
-- [x] Add offline application-shell caching
-- [x] Add PWA and platform icons
-
-### MVP Completion
-
-- [x] Responsive tablet layout review
-- [x] Empty and error states
+- [x] Project architecture
+- [x] Vite + React + TypeScript setup
+- [x] Tailwind CSS
+- [x] Documentation
 - [x] Production deployment
-- [ ] Final cross-browser review
-- [ ] Final Chromebook MIDI verification
+- [x] GitHub Actions CI/CD
+- [x] DigitalOcean hosting
+- [x] Progressive Web App support
+- [x] Offline application shell
 
 ---
 
-## Phase 2 — Practice Expansion
+## Practice
 
-- [ ] Difficulty settings
-- [ ] Configurable note ranges
-- [ ] Natural-note-only beginner mode
-- [ ] Sharps and flats difficulty toggle
-- [ ] Intervals
-- [ ] Chords
-- [ ] Scales
-- [ ] Timed mode
-- [ ] Weak-note review
+- [x] Treble clef mode
+- [x] Bass clef mode
+- [x] Mixed mode
+- [x] Random note generation
+- [x] Immediate answer feedback
+- [x] Accuracy tracking
+- [x] Response-time tracking
+- [x] Streak tracking
+- [x] Session statistics
+
+---
+
+## Notation
+
+- [x] Dynamic notation rendering with VexFlow
+- [x] Ledger lines
+- [x] Responsive notation scaling
+- [x] Accidentals
+- [x] Grand staff support
+
+---
+
+## Input
+
+- [x] Physical MIDI keyboard support
+- [x] On-screen piano keyboard
+- [x] MIDI diagnostics
+- [x] Chromebook compatibility
+- [x] Mobile support
+
+---
+
+# 🚧 Phase 2 — Music Reading MVP (Current)
+
+Current focus is improving the flashcard experience before expanding into additional practice modes.
+
+## Notation
+
+- [ ] Improve enharmonic spelling (Sharps + Flats)
+- [ ] Optional Sharp-only / Flat-only / Mixed practice
+- [ ] Natural-notes-only beginner mode
+
+## Practice
+
+- [ ] Expanded configurable note ranges
+- [ ] Difficulty presets
 - [ ] Local progress persistence
+- [ ] Weak-note review
+
+## Platform
+
+- [ ] Final browser compatibility review
+- [ ] Additional MIDI interface testing
 
 ---
 
-## Phase 3 — Musicianship Tools
+# 🎹 Phase 3 — Harmony Trainer
+
+Introduce simultaneous note recognition.
+
+## Chords
+
+- [ ] Simultaneous MIDI note detection
+- [ ] Major chord flashcards
+- [ ] Minor chord flashcards
+- [ ] Diminished chords
+- [ ] Augmented chords
+- [ ] Suspended chords
+- [ ] Seventh chords
+- [ ] Chord inversions
+- [ ] Chord recognition mode
+
+---
+
+# 🎼 Phase 4 — Musicianship
+
+Expand beyond note recognition.
+
+## Intervals
+
+- [ ] Interval identification
+- [ ] Interval construction
+- [ ] Ascending / descending modes
+
+## Scales
+
+- [ ] Major scales
+- [ ] Natural minor scales
+- [ ] Harmonic minor scales
+- [ ] Melodic minor scales
+- [ ] Scale flashcards
+
+## Arpeggios
+
+- [ ] Major arpeggios
+- [ ] Minor arpeggios
+- [ ] Seventh arpeggios
+
+## Rhythm
 
 - [ ] Rhythm trainer
-- [ ] Ear training
-- [ ] Composer mode
-- [ ] Sight-reading phrases
-- [ ] Practice history
-- [ ] AI feedback
+- [ ] Tempo trainer
+- [ ] Metronome
+
+---
+
+# 📚 Phase 5 — Guided Lessons
+
+Move from isolated flashcards to structured lessons.
+
+## Lesson Engine
+
+- [ ] Lesson data model
+- [ ] Multi-measure lessons
+- [ ] Phrase practice
+- [ ] Left-hand practice
+- [ ] Right-hand practice
+- [ ] Both-hands practice
+- [ ] Loop selected measures
+- [ ] Adjustable tempo
+- [ ] Lesson progress tracking
+
+## Lesson Types
+
+- [ ] Scale lessons
+- [ ] Chord lessons
+- [ ] Arpeggio lessons
+- [ ] Cadence lessons
+- [ ] Ostinato exercises
+- [ ] Teacher-created exercises
+- [ ] Song studies
+
+---
+
+# ✏️ Phase 6 — Lesson Builder
+
+Allow users to create their own practice material.
+
+## MIDI Step Recorder
+
+- [ ] Measure editor
+- [ ] Beat/grid editor
+- [ ] Step recording using MIDI
+- [ ] Duration editing
+- [ ] Rest insertion
+- [ ] Playback preview
+
+## Lesson Editing
+
+- [ ] Edit existing lessons
+- [ ] Duplicate measures
+- [ ] Copy/Paste measures
+- [ ] JSON import/export
+- [ ] Local lesson library
+
+---
+
+# 🎻 Phase 7 — Playback & Ear Training
+
+Expand listening and orchestration capabilities.
+
+## Instrument Playback
+
+- [ ] Browser SoundFont playback
+- [ ] Piano
+- [ ] Strings
+- [ ] Violin
+- [ ] Cello
+- [ ] Choir
+- [ ] Organ
+- [ ] Brass
+- [ ] Drum kit
+
+## Audio Features
+
+- [ ] Layered instruments
+- [ ] Keyboard splits
+- [ ] Playback controls
+
+## Ear Training
+
+- [ ] Note identification
+- [ ] Interval recognition
+- [ ] Chord recognition by ear
+- [ ] Melody playback
+
+---
+
+# 🎼 Phase 8 — Composer Sandbox
+
+Turn Prelude into a lightweight composition and experimentation environment.
+
+## Composition
+
+- [ ] Phrase editor
+- [ ] Chord progression explorer
+- [ ] Harmony experimentation
+- [ ] Motif builder
+
+## Playback
+
+- [ ] Play composed phrases
+- [ ] Instrument switching
+- [ ] Tempo adjustments
+
+## Export
+
+- [ ] MIDI export
+- [ ] MusicXML export
+- [ ] Audio rendering
+
+---
+
+# 🌟 Future Ideas
+
+These ideas are intentionally outside the current roadmap but represent possible future directions.
+
+## Learning
+
+- [ ] Adaptive difficulty
+- [ ] AI-generated exercises
+- [ ] Personalized practice plans
+- [ ] Practice streak calendar
+- [ ] Heat maps for weak notes
+
+## Sharing
+
+- [ ] Community lesson library
+- [ ] Teacher lesson sharing
+- [ ] Lesson import from URL
+
+## Accessibility
+
+- [ ] Colorblind-friendly themes
+- [ ] Keyboard-only navigation
+- [ ] Screen-reader improvements
+
+## Platform
+
+- [ ] Desktop application
+- [ ] Cloud synchronization
+- [ ] User accounts (optional)
+
+---
+
+# Guiding Principle
+
+Prelude grows one musical concept at a time.
+
+Each phase should be fully polished before moving to the next, ensuring that every new feature builds naturally on the existing architecture while reinforcing real musicianship rather than simply adding functionality.

@@ -1,30 +1,109 @@
 # Prelude: MIDI Mentor
 
-Prelude is an open-source browser-based piano sight-reading trainer designed to improve note recognition through interactive MIDI-powered practice sessions.
+**Prelude is a browser-based piano sight-reading and musicianship trainer powered by real-time MIDI input.**
 
-Using either a physical MIDI keyboard or an on-screen piano, users identify randomly generated notes displayed on a musical staff while tracking accuracy, response time, and streaks over time.
+It displays notes using standard music notation, listens to a connected MIDI keyboard, and provides immediate feedback as the player practices.
 
-🌐 **Live Demo:** https://nickbuzzerio.com/prelude/
+The project began as a personal tool for improving note recognition and is being developed into a broader platform for learning how music works—not merely which keys to press.
+
+## Live Demo
+
+[Open Prelude: MIDI Mentor](https://nickbuzzerio.com/prelude/)
+
+No account or installation is required.
+
+A physical MIDI keyboard provides the full experience, but the on-screen keyboard can also be used.
 
 ---
 
 ## Features
 
-- 🎹 Real-time MIDI keyboard support
-- 🎼 Dynamic music notation rendered with VexFlow
-- 📱 Responsive desktop, tablet, and mobile interface
-- 🎯 Bass, treble, and mixed practice modes
-- 📊 Accuracy, streak, and response-time statistics
-- 🎹 Interactive four-octave on-screen piano
-- 📦 Installable Progressive Web App (PWA)
-- ⚡ Offline application support
-- 🚀 Automated deployment with GitHub Actions
+### Sight-Reading Flashcards
+
+- Treble clef practice
+- Bass clef practice
+- Mixed-clef practice
+- Randomized target notes
+- Standard staff notation rendered with VexFlow
+
+### Real-Time Input
+
+- Physical MIDI keyboard support
+- Interactive on-screen piano
+- Immediate correct and incorrect feedback
+- MIDI connection status and diagnostics
+
+### Practice Statistics
+
+- Accuracy
+- Current streak
+- Best streak
+- Response time
+- Session progress
+
+### Cross-Platform Experience
+
+- Responsive desktop and mobile layouts
+- Chromebook MIDI support
+- Installable Progressive Web App
+- Offline application shell
 
 ---
 
-## Tech Stack
+## Why Prelude?
 
-### Frontend
+Many piano-learning applications use falling notes, highlighted keys, or memorized finger patterns.
+
+Those tools can help someone reproduce a song, but they do not always develop skills that transfer to unfamiliar sheet music.
+
+Prelude takes a notation-first approach:
+
+```text
+Standard Notation
+        +
+Real-Time MIDI Input
+        +
+Immediate Feedback
+        =
+Transferable Musicianship
+```
+
+The goal is to connect three ideas:
+
+1. What a note looks like on the staff
+2. Where that note exists on the keyboard
+3. What that note sounds and feels like when played
+
+---
+
+## How It Works
+
+```text
+Generate Target Note
+        │
+        ▼
+Render Standard Notation
+        │
+        ▼
+Wait for MIDI or On-Screen Input
+        │
+        ▼
+Normalize the Played Pitch
+        │
+        ▼
+Compare It with the Target
+        │
+        ▼
+Provide Feedback and Update Statistics
+```
+
+Physical MIDI input and the on-screen keyboard share the same validation path, keeping the practice experience independent of the input device.
+
+---
+
+## Technology Stack
+
+### Application
 
 - React
 - TypeScript
@@ -33,158 +112,255 @@ Using either a physical MIDI keyboard or an on-screen piano, users identify rand
 
 ### Music
 
-- VexFlow
 - Web MIDI API
+- VexFlow
 
-### Tooling
+### Progressive Web App
 
 - vite-plugin-pwa
-- GitHub Actions
+- Workbox
 
-### Hosting
+### Deployment
 
-- Nginx
 - DigitalOcean
+- Nginx
+- GitHub Actions
+- Self-hosted deployment runner
 
 ---
 
-## Why I Built This
+## Getting Started
 
-As an adult piano student, I wanted a lightweight sight-reading trainer that worked directly with a MIDI keyboard without requiring desktop software or subscriptions.
+### Requirements
 
-Prelude explores how modern web technologies can provide an engaging music education experience entirely within the browser while remaining installable as a Progressive Web App.
+- Node.js
+- pnpm
+- A browser with Web MIDI support for physical keyboard input
 
----
+Google Chrome and other Chromium-based browsers generally provide the strongest Web MIDI support.
 
-## Technical Highlights
-
-- Real-time MIDI event handling using the Web MIDI API
-- Dynamic music notation rendering with VexFlow
-- Responsive interface supporting desktop, tablet, and mobile devices
-- Progressive Web App with offline functionality
-- Automated deployment pipeline using GitHub Actions
-
----
-
-## Running Locally
-
-Install dependencies:
+### Installation
 
 ```bash
+git clone https://github.com/nickbuzzerio/prelude-midi-mentor.git
+cd prelude-midi-mentor
 pnpm install
 ```
 
-Start the development server:
+### Start the Development Server
 
 ```bash
 pnpm dev
 ```
 
-Run linting:
+Open the local URL shown in the terminal.
 
-```bash
-pnpm lint
-```
-
-Create a production build:
+### Production Build
 
 ```bash
 pnpm build
 ```
 
-Preview the production build:
+### Preview the Production Build
 
 ```bash
 pnpm preview
 ```
 
----
+### Lint the Project
 
-## MIDI Setup
-
-Prelude uses the browser's Web MIDI API.
-
-Supported browsers:
-
-- Google Chrome
-- Microsoft Edge
-
-Connect a class-compliant USB MIDI interface before selecting **Connect MIDI**.
-
-Typical wiring:
-
-```text
-Keyboard MIDI OUT ───► Interface MIDI IN
-Keyboard MIDI IN  ◄─── Interface MIDI OUT
+```bash
+pnpm lint
 ```
 
 ---
 
-## Progressive Web App
+## Using a MIDI Keyboard
 
-Prelude can be installed on desktop and mobile devices.
+1. Connect the MIDI keyboard to the computer.
+2. Open Prelude in a supported browser.
+3. Grant MIDI access when prompted.
+4. Confirm that the device appears in the MIDI status area.
+5. Begin a flashcard session and play the displayed note.
 
-Features include:
-
-- Standalone application mode
-- Offline asset caching
-- Web App Manifest
-- Service worker powered by Workbox
-
----
-
-## Deployment
-
-Production deployment pipeline:
+Some MIDI interfaces label their cables from the interface's perspective:
 
 ```text
-GitHub Repository
-        │
-        ▼
-GitHub Actions CI/CD
-        │
-        ▼
-Self-hosted Runner
-        │
-        ▼
-Vite Production Build
-        │
-        ▼
-Nginx
-        │
-        ▼
-DigitalOcean
+Interface MIDI OUT → Keyboard MIDI IN
+Interface MIDI IN  → Keyboard MIDI OUT
 ```
 
-Production site:
-
-https://nickbuzzerio.com/prelude/
+When a device is not detected, check the cable direction and use Prelude's MIDI diagnostic display.
 
 ---
 
-## Roadmap
+## Project Structure
 
-### Phase 1 (MVP)
+```text
+src/
+├── components/
+│   ├── flashcards/    # Practice sessions, controls, and statistics
+│   ├── midi/          # MIDI status and diagnostic components
+│   ├── notation/      # Staff and piano keyboard rendering
+│   └── ui/            # Shared UI components
+│
+├── data/              # Static music and application data
+├── hooks/             # Reusable React hooks
+│
+├── lib/
+│   ├── midi/          # MIDI utilities
+│   ├── music/         # Note logic and VexFlow helpers
+│   ├── pwa/           # Progressive Web App utilities
+│   └── utils/         # General shared helpers
+│
+├── types/             # Shared TypeScript types
+├── App.tsx
+├── main.tsx
+└── index.css
+```
 
-- Difficulty settings
-- Configurable note ranges
-- Local progress persistence
+For a more detailed technical explanation, see
+[`ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
-### Phase 2
+---
 
-- Chords
+## Current Status
+
+Prelude's core sight-reading MVP is complete and usable.
+
+Current development is focused on expanding music-reading options and preparing the application for multi-note practice.
+
+Near-term work includes:
+
+- Improved enharmonic spelling
+- Natural-notes-only practice
+- Expanded practice ranges
+- Simultaneous MIDI note tracking
+- Chord flashcards
+- Chord inversions
+
+See [`ROADMAP.md`](./ROADMAP.md) for the broader development plan.
+
+---
+
+## Long-Term Direction
+
+Prelude is designed to grow from single-note recognition into a complete browser-based musicianship platform.
+
+Planned areas include:
+
+### Harmony
+
 - Intervals
+- Major and minor chords
+- Diminished and augmented chords
+- Suspended chords
+- Seventh chords
+- Chord inversions
+
+### Technique and Theory
+
 - Scales
-- Weak-note review
-- Timed practice mode
-
-### Phase 3
-
-- Rhythm training
+- Arpeggios
+- Key signatures
+- Cadences
+- Rhythm
 - Ear training
+
+### Guided Lessons
+
+- Short musical phrases
+- Left- and right-hand isolation
+- Ostinatos
+- Tempo control
+- Measure looping
+- Teacher-created exercises
+- Complete pieces
+
+### Lesson Creation
+
+A future MIDI step recorder will allow students and teachers to create exercises by:
+
+1. Selecting a rhythmic position
+2. Playing notes through MIDI
+3. Assigning a duration
+4. Previewing the result
+5. Saving or exporting the lesson
+
+### Creative Exploration
+
+Long-term composition tools may include:
+
+- Phrase building
+- Chord progression experiments
+- Motif development
+- Instrument playback
+- MIDI export
+- MusicXML export
+
+Prelude is not intended to become a professional DAW or full notation editor. Creative tools will remain focused on learning and experimentation.
+
+---
+
+## Architectural Direction
+
+The current application uses a single target note for each flashcard.
+
+Over time, Prelude will evolve toward a shared musical lesson model:
+
+```text
+Lesson
+    │
+    ▼
+Measures
+    │
+    ▼
+Events
+    │
+    ▼
+Notes
+```
+
+That model can support:
+
+- Flashcards
+- Chords
+- Scales
+- Arpeggios
+- Guided exercises
+- Songs
+- Composition tools
+
+In this architecture, a flashcard is simply the smallest possible lesson.
+
+---
+
+## Documentation
+
+- [`ONBOARDING.md`](./docs/ONBOARDING.md) — Project orientation and development context
+- [`VISION.md`](./docs/VISION.md) — Product purpose and learning philosophy
+- [`ROADMAP.md`](./docs/ROADMAP.md) — Planned development phases
+- [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Current structure and technical direction
+- [`DECISIONS.md`](./docs/DECISIONS.md) — Important product and architectural decisions
+
+---
+
+## Product Principles
+
+Prelude is guided by several principles:
+
+- Learning before novelty
+- Standard notation before imitation
+- Understanding before speed
+- Progression before complexity
+- Reuse before duplication
+- Browser-first accessibility
+- Simple, coherent milestones
+
+Every new feature should strengthen the student's understanding of music.
 
 ---
 
 ## License
 
-MIT
+This project is available under the [MIT License](./LICENSE).
