@@ -6,7 +6,7 @@ import {
   StaveNote,
   Voice,
 } from "vexflow";
-import type { TargetNote } from "@/types/practice";
+import type { PracticeTarget } from "@/types/practice";
 
 type VexFlowAccidental = "#" | "b";
 
@@ -22,27 +22,27 @@ const STAVE_Y = 30;
 const STAVE_WIDTH = 300;
 const NOTE_FORMAT_WIDTH = 200;
 
-function toVexFlowPitch(targetNote: TargetNote): VexFlowPitch {
-  const accidental = targetNote.name.includes("♯")
+function toVexFlowPitch(practiceTarget: PracticeTarget): VexFlowPitch {
+  const accidental = practiceTarget.name.includes("♯")
     ? "#"
-    : targetNote.name.includes("♭")
+    : practiceTarget.name.includes("♭")
       ? "b"
       : null;
 
-  const normalizedName = targetNote.name
+  const normalizedName = practiceTarget.name
     .replace("♯", "#")
     .replace("♭", "b")
     .toLowerCase();
 
   return {
     accidental,
-    key: `${normalizedName}/${targetNote.octave}`,
+    key: `${normalizedName}/${practiceTarget.octave}`,
   };
 }
 
 export function renderTargetNote(
   container: HTMLDivElement,
-  targetNote: TargetNote,
+  practiceTarget: PracticeTarget,
 ): void {
   container.replaceChildren();
 
@@ -53,13 +53,13 @@ export function renderTargetNote(
   const context = renderer.getContext();
   const stave = new Stave(STAVE_X, STAVE_Y, STAVE_WIDTH);
 
-  stave.addClef(targetNote.clef);
+  stave.addClef(practiceTarget.clef);
   stave.setContext(context).draw();
 
-  const { accidental, key } = toVexFlowPitch(targetNote);
+  const { accidental, key } = toVexFlowPitch(practiceTarget);
 
   const note = new StaveNote({
-    clef: targetNote.clef,
+    clef: practiceTarget.clef,
     keys: [key],
     duration: "q",
   });

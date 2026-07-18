@@ -1,9 +1,9 @@
 import MusicStaff from "@/components/notation/music-staff";
-import type { FeedbackState, TargetNote } from "@/types/practice";
+import type { FeedbackState, PracticeTarget } from "@/types/practice";
 
-type TargetNoteCardProps = Readonly<{
+type PracticeCard = Readonly<{
   feedback: FeedbackState;
-  targetNote: TargetNote;
+  practiceTarget: PracticeTarget;
   onCorrect: () => void;
   onIncorrect: () => void;
 }>;
@@ -14,12 +14,12 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
   incorrect: "Try again.",
 };
 
-export default function TargetNoteCard({
+export default function PracticeCard({
   feedback,
-  targetNote,
+  practiceTarget,
   onCorrect,
   onIncorrect,
-}: TargetNoteCardProps) {
+}: PracticeCard) {
   return (
     <section className="flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5">
       <p
@@ -35,7 +35,7 @@ export default function TargetNoteCard({
         {FEEDBACK_MESSAGES[feedback]}
       </p>
 
-      <MusicStaff targetNote={targetNote} />
+      <MusicStaff practiceTarget={practiceTarget} />
 
       <div className="practice-simulation-controls grid grid-cols-2 gap-3">
         <button

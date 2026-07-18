@@ -1,5 +1,5 @@
 import { NOTE_RANGES } from "../../data/note-ranges";
-import type { Clef, PracticeMode, TargetNote } from "../../types/practice";
+import type { Clef, PracticeMode, PracticeTarget } from "../../types/practice";
 
 const NOTE_NAMES = [
   "C",
@@ -40,7 +40,7 @@ function getClefForMode(mode: PracticeMode): Clef {
   return Math.random() < 0.5 ? "bass" : "treble";
 }
 
-export function generateTargetNote(mode: PracticeMode): TargetNote {
+export function generatePracticeTarget(mode: PracticeMode): PracticeTarget {
   const clef = getClefForMode(mode);
   const range = NOTE_RANGES[clef];
   const midiNumber = getRandomInteger(range.minMidi, range.maxMidi);

@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
-import TargetNoteCard from "@/components/flashcards/target-note-card";
+import PracticeCard from "@/components/flashcards/practice-card";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useMidi } from "@/hooks/use-midi";
-import { generateTargetNote } from "@/lib/music/notes";
+import { generatePracticeTarget } from "@/lib/music/notes";
 import type {
   FeedbackState,
   PracticeMode,
   PracticeStats as PracticeStatsType,
-  TargetNote,
+  PracticeTarget,
 } from "@/types/practice";
 
 type LastAnswer = Readonly<{
@@ -25,7 +25,7 @@ const INITIAL_STATS: PracticeStatsType = {
   totalResponseTimeMs: 0,
 };
 
-const INITIAL_TARGET_NOTE: TargetNote = {
+const INITIAL_PRACTICE_TARGET: PracticeTarget = {
   clef: "bass",
   midiNumber: 48,
   name: "C",
@@ -34,27 +34,29 @@ const INITIAL_TARGET_NOTE: TargetNote = {
 
 export default function FlashcardSession() {
   const [mode, setMode] = useState<PracticeMode>("bass");
-  const [targetNote, setTargetNote] = useState<TargetNote>(INITIAL_TARGET_NOTE);
+  const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
+    INITIAL_PRACTICE_TARGET,
+  );
   const [feedback, setFeedback] = useState<FeedbackState>("idle");
   const [stats, setStats] = useState<PracticeStatsType>(INITIAL_STATS);
   const [lastAnswer, setLastAnswer] = useState<LastAnswer | null>(null);
   const [startedAt, setStartedAt] = useState(0);
 
   const answerLockedRef = useRef(false);
-  const targetNoteRef = useRef(targetNote);
+  const practiceTargetRef = useRef(practiceTarget);
 
   useEffect(() => {
-    targetNoteRef.current = targetNote;
-  }, [targetNote]);
+    practiceTargetRef.current = practiceTarget;
+  }, [practiceTarget]);
 
   const generateNextNote = useCallback(
     (nextMode: PracticeMode = mode) => {
-      const nextTarget = generateTargetNote(nextMode);
+      const nextTarget = generatePracticeTarget(nextMode);
 
-      targetNoteRef.current = nextTarget;
+      practiceTargetRef.current = nextTarget;
       answerLockedRef.current = false;
 
-      setTargetNote(nextTarget);
+      setPracticeTarget(nextTarget);
       setFeedback("idle");
       setStartedAt(Date.now());
     },
@@ -67,7 +69,7 @@ export default function FlashcardSession() {
         return;
       }
 
-      const currentTarget = targetNoteRef.current;
+      const currentTarget = practiceTargetRef.current;
 
       if (midiNumber === currentTarget.midiNumber) {
         answerLockedRef.current = true;
@@ -120,12 +122,12 @@ export default function FlashcardSession() {
   });
 
   const handleCorrect = () => {
-    handleNotePlayed(targetNoteRef.current.midiNumber);
+    handleNotePlayed(practiceTargetRef.current.midiNumber);
   };
 
   const handleIncorrect = () => {
     const incorrectMidiNumber =
-      targetNoteRef.current.midiNumber === 48 ? 49 : 48;
+      practiceTargetRef.current.midiNumber === 48 ? 49 : 48;
 
     handleNotePlayed(incorrectMidiNumber);
   };
@@ -166,9 +168,9 @@ export default function FlashcardSession() {
       </header>
 
       <div className="practice-stage">
-        <TargetNoteCard
+        <PracticeCard
           feedback={feedback}
-          targetNote={targetNote}
+          practiceTarget={practiceTarget}
           onCorrect={handleCorrect}
           onIncorrect={handleIncorrect}
         />

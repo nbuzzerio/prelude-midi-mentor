@@ -4,7 +4,7 @@ export type PracticeMode = Clef | "mixed";
 
 export type FeedbackState = "idle" | "correct" | "incorrect";
 
-export type TargetNote = Readonly<{
+export type PracticeTarget = Readonly<{
   clef: Clef;
   midiNumber: number;
   name: string;
