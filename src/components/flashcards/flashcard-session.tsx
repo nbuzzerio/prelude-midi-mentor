@@ -8,13 +8,14 @@ import { useMidi } from "@/hooks/use-midi";
 import { generatePracticeTarget } from "@/lib/music/notes";
 import type {
   FeedbackState,
-  PracticeMode,
+  PracticeClefMode,
+  PracticeExerciseType,
   PracticeStats as PracticeStatsType,
   PracticeTarget,
 } from "@/types/practice";
 
 type LastAnswer = Readonly<{
-  midiNumber: number;
+  midiNumbers: ReadonlySet<number>;
   result: "correct" | "incorrect";
 }>;
 
@@ -47,14 +48,37 @@ function heldNotesMatchTarget(
   return practiceTarget.notes.every((note) => heldNotes.has(note.midiNumber));
 }
 
+function getTargetMidiNumbers(
+  practiceTarget: PracticeTarget,
+): ReadonlySet<number> {
+  return new Set(practiceTarget.notes.map((note) => note.midiNumber));
+}
+
 export default function FlashcardSession() {
-  const [mode, setMode] = useState<PracticeMode>("bass");
+  const [mode, setMode] = useState<PracticeClefMode>("bass");
+
+  const [enabledExerciseTypes, setEnabledExerciseTypes] = useState<
+    ReadonlySet<PracticeExerciseType>
+  >(new Set(["notes"]));
+
   const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
     INITIAL_PRACTICE_TARGET,
   );
+
+  const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+
+  const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+
   const [feedback, setFeedback] = useState<FeedbackState>("idle");
+
   const [stats, setStats] = useState<PracticeStatsType>(INITIAL_STATS);
+
   const [lastAnswer, setLastAnswer] = useState<LastAnswer | null>(null);
+
   const [startedAt, setStartedAt] = useState(0);
 
   const answerLockedRef = useRef(false);
@@ -65,21 +89,24 @@ export default function FlashcardSession() {
   }, [practiceTarget]);
 
   const generateNextTarget = useCallback(
-    (nextMode: PracticeMode = mode) => {
-      const nextTarget = generatePracticeTarget(nextMode);
+    (nextMode: PracticeClefMode = mode) => {
+      const nextTarget = generatePracticeTarget(nextMode, enabledExerciseTypes);
 
       practiceTargetRef.current = nextTarget;
       answerLockedRef.current = false;
 
       setPracticeTarget(nextTarget);
+      setVirtualHeldNotes(new Set());
+      setMidiHeldNotes(new Set());
       setFeedback("idle");
+      setLastAnswer(null);
       setStartedAt(Date.now());
     },
-    [mode],
+    [enabledExerciseTypes, mode],
   );
 
   const handleCorrectAnswer = useCallback(
-    (midiNumber: number) => {
+    (midiNumbers: ReadonlySet<number>) => {
       if (answerLockedRef.current) {
         return;
       }
@@ -89,8 +116,9 @@ export default function FlashcardSession() {
       const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
 
       setFeedback("correct");
+
       setLastAnswer({
-        midiNumber,
+        midiNumbers: new Set(midiNumbers),
         result: "correct",
       });
 
@@ -108,26 +136,32 @@ export default function FlashcardSession() {
     [generateNextTarget, startedAt],
   );
 
-  const handleIncorrectAnswer = useCallback((midiNumber: number) => {
-    if (answerLockedRef.current) {
-      return;
-    }
+  const handleIncorrectAnswer = useCallback(
+    (midiNumbers: ReadonlySet<number>) => {
+      if (answerLockedRef.current) {
+        return;
+      }
 
-    setFeedback("incorrect");
-    setLastAnswer({
-      midiNumber,
-      result: "incorrect",
-    });
+      setFeedback("incorrect");
 
-    setStats((currentStats) => ({
-      ...currentStats,
-      incorrect: currentStats.incorrect + 1,
-      streak: 0,
-    }));
-  }, []);
+      setLastAnswer({
+        midiNumbers: new Set(midiNumbers),
+        result: "incorrect",
+      });
+
+      setStats((currentStats) => ({
+        ...currentStats,
+        incorrect: currentStats.incorrect + 1,
+        streak: 0,
+      }));
+    },
+    [],
+  );
 
   const handleHeldNotesChanged = useCallback(
     (heldNotes: ReadonlySet<number>) => {
+      setMidiHeldNotes(new Set(heldNotes));
+
       if (answerLockedRef.current) {
         return;
       }
@@ -138,13 +172,37 @@ export default function FlashcardSession() {
         return;
       }
 
-      const firstExpectedNote = currentTarget.notes[0];
+      handleCorrectAnswer(heldNotes);
+    },
+    [handleCorrectAnswer],
+  );
 
-      if (!firstExpectedNote) {
+  const handleVirtualNoteToggle = useCallback(
+    (midiNumber: number) => {
+      if (answerLockedRef.current) {
         return;
       }
 
-      handleCorrectAnswer(firstExpectedNote.midiNumber);
+      setLastAnswer(null);
+      setFeedback("idle");
+
+      setVirtualHeldNotes((currentNotes) => {
+        const nextNotes = new Set<number>(currentNotes);
+
+        if (nextNotes.has(midiNumber)) {
+          nextNotes.delete(midiNumber);
+        } else {
+          nextNotes.add(midiNumber);
+        }
+
+        const currentTarget = practiceTargetRef.current;
+
+        if (heldNotesMatchTarget(nextNotes, currentTarget)) {
+          handleCorrectAnswer(nextNotes);
+        }
+
+        return nextNotes;
+      });
     },
     [handleCorrectAnswer],
   );
@@ -156,22 +214,22 @@ export default function FlashcardSession() {
       }
 
       const currentTarget = practiceTargetRef.current;
-      const expectedMidiNumbers = new Set(
-        currentTarget.notes.map((note) => note.midiNumber),
-      );
+
+      const expectedMidiNumbers = getTargetMidiNumbers(currentTarget);
 
       if (!expectedMidiNumbers.has(midiNumber)) {
-        handleIncorrectAnswer(midiNumber);
+        handleIncorrectAnswer(new Set([midiNumber]));
+
         return;
       }
 
       /*
-       * Mouse clicks and simulation controls do not currently publish a
-       * held-note set. Preserve single-note practice behavior for those
-       * input methods.
+       * Physical MIDI chord validation is handled by
+       * handleHeldNotesChanged. A standalone note-on event
+       * can complete only a single-note target.
        */
       if (currentTarget.notes.length === 1) {
-        handleCorrectAnswer(midiNumber);
+        handleCorrectAnswer(new Set([midiNumber]));
       }
     },
     [handleCorrectAnswer, handleIncorrectAnswer],
@@ -188,38 +246,54 @@ export default function FlashcardSession() {
   });
 
   const handleCorrect = () => {
-    const firstExpectedNote = practiceTargetRef.current.notes[0];
+    const currentTarget = practiceTargetRef.current;
 
-    if (!firstExpectedNote) {
-      return;
-    }
-
-    handleNotePlayed(firstExpectedNote.midiNumber);
+    handleCorrectAnswer(getTargetMidiNumbers(currentTarget));
   };
 
   const handleIncorrect = () => {
-    const firstExpectedNote = practiceTargetRef.current.notes[0];
+    const currentTarget = practiceTargetRef.current;
 
-    if (!firstExpectedNote) {
-      return;
+    const expectedMidiNumbers = getTargetMidiNumbers(currentTarget);
+
+    let incorrectMidiNumber = 48;
+
+    while (expectedMidiNumbers.has(incorrectMidiNumber)) {
+      incorrectMidiNumber += 1;
     }
 
-    const incorrectMidiNumber = firstExpectedNote.midiNumber === 48 ? 49 : 48;
-
-    handleNotePlayed(incorrectMidiNumber);
+    handleIncorrectAnswer(new Set([incorrectMidiNumber]));
   };
 
-  const handleModeChange = (nextMode: PracticeMode) => {
+  const handleModeChange = (nextMode: PracticeClefMode) => {
     setMode(nextMode);
-    setLastAnswer(null);
     generateNextTarget(nextMode);
+  };
+
+  const handleExerciseTypeToggle = (exerciseType: PracticeExerciseType) => {
+    setEnabledExerciseTypes((currentTypes) => {
+      const nextTypes = new Set(currentTypes);
+
+      if (nextTypes.has(exerciseType)) {
+        if (nextTypes.size === 1) {
+          return currentTypes;
+        }
+
+        nextTypes.delete(exerciseType);
+      } else {
+        nextTypes.add(exerciseType);
+      }
+
+      return nextTypes;
+    });
   };
 
   const handleReset = () => {
     setStats(INITIAL_STATS);
-    setLastAnswer(null);
     generateNextTarget();
   };
+
+  const displayedMidiNumbers = new Set([...virtualHeldNotes, ...midiHeldNotes]);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -254,7 +328,9 @@ export default function FlashcardSession() {
 
         <PianoKeyboard
           lastAnswer={lastAnswer}
-          onNotePlayed={handleNotePlayed}
+          selectedMidiNumbers={displayedMidiNumbers}
+          targetMidiNumbers={getTargetMidiNumbers(practiceTarget)}
+          onNoteToggle={handleVirtualNoteToggle}
         />
       </div>
 
@@ -262,7 +338,9 @@ export default function FlashcardSession() {
         <PracticeStats stats={stats} />
 
         <PracticeControls
+          enabledExerciseTypes={enabledExerciseTypes}
           mode={mode}
+          onExerciseTypeToggle={handleExerciseTypeToggle}
           onModeChange={handleModeChange}
           onReset={handleReset}
         />

@@ -1,13 +1,15 @@
 type AnswerResult = "correct" | "incorrect";
 
 type LastAnswer = Readonly<{
-  midiNumber: number;
+  midiNumbers: ReadonlySet<number>;
   result: AnswerResult;
 }>;
 
 type PianoKeyboardProps = Readonly<{
   lastAnswer: LastAnswer | null;
-  onNotePlayed: (midiNumber: number) => void;
+  selectedMidiNumbers: ReadonlySet<number>;
+  targetMidiNumbers: ReadonlySet<number>;
+  onNoteToggle: (midiNumber: number) => void;
   minMidi?: number;
   maxMidi?: number;
 }>;
@@ -37,82 +39,111 @@ const NOTE_NAMES = [
 function createKeys(minMidi: number, maxMidi: number): PianoKey[] {
   let whiteKeyCount = 0;
 
-  return Array.from({ length: maxMidi - minMidi + 1 }, (_, index): PianoKey => {
-    const midiNumber = minMidi + index;
-    const name = NOTE_NAMES[midiNumber % 12] ?? "";
-    const isBlack = name.includes("♯");
-    const whiteKeyIndex = whiteKeyCount;
+  return Array.from(
+    {
+      length: maxMidi - minMidi + 1,
+    },
+    (_, index): PianoKey => {
+      const midiNumber = minMidi + index;
+      const name = NOTE_NAMES[midiNumber % 12] ?? "";
 
-    if (!isBlack) {
-      whiteKeyCount += 1;
-    }
+      const isBlack = name.includes("♯");
+      const whiteKeyIndex = whiteKeyCount;
 
-    return {
-      isBlack,
-      midiNumber,
-      name,
-      whiteKeyIndex,
-    };
-  });
+      if (!isBlack) {
+        whiteKeyCount += 1;
+      }
+
+      return {
+        isBlack,
+        midiNumber,
+        name,
+        whiteKeyIndex,
+      };
+    },
+  );
 }
 
-function getWhiteKeyClass(result: AnswerResult | undefined): string {
+function getKeyBackgroundColor({
+  isBlack,
+  isSelected,
+  isTargetNote,
+  result,
+}: Readonly<{
+  isBlack: boolean;
+  isSelected: boolean;
+  isTargetNote: boolean;
+  result: AnswerResult | undefined;
+}>): string {
   if (result === "correct") {
-    return "bg-green-400";
+    return isBlack ? "#16a34a" : "#4ade80";
   }
 
   if (result === "incorrect") {
-    return "bg-red-400";
+    return isBlack ? "#dc2626" : "#f87171";
   }
 
-  return "bg-white";
-}
-
-function getBlackKeyClass(result: AnswerResult | undefined): string {
-  if (result === "correct") {
-    return "bg-green-600";
+  if (isSelected && isTargetNote) {
+    return isBlack ? "#0284c7" : "#7dd3fc";
   }
 
-  if (result === "incorrect") {
-    return "bg-red-600";
+  if (isSelected && !isTargetNote) {
+    return isBlack ? "#dc2626" : "#f87171";
   }
 
-  return "bg-zinc-950";
+  return isBlack ? "#09090b" : "#ffffff";
 }
 
 export default function PianoKeyboard({
   lastAnswer,
-  onNotePlayed,
+  selectedMidiNumbers,
+  targetMidiNumbers,
+  onNoteToggle,
   minMidi = 36,
   maxMidi = 83,
 }: PianoKeyboardProps) {
   const keys = createKeys(minMidi, maxMidi);
+
   const whiteKeyCount = keys.filter((key) => !key.isBlack).length;
+
   const whiteKeyWidthPercent = 100 / whiteKeyCount;
 
   return (
-    <div className="h-full min-h-40 rounded-2xl border border-zinc-300 bg-zinc-200 p-2 sm:min-h-52 sm:p-3 max-h-80">
+    <div className="h-full max-h-80 min-h-40 rounded-2xl border border-zinc-300 bg-zinc-200 p-2 sm:min-h-52 sm:p-3">
       <div className="relative mx-auto h-full min-h-36 w-full overflow-hidden rounded-lg border border-zinc-500 bg-white">
         {keys.map((key) => {
-          const result =
-            lastAnswer?.midiNumber === key.midiNumber
-              ? lastAnswer.result
-              : undefined;
+          const isSelected = selectedMidiNumbers.has(key.midiNumber);
+
+          const isTargetNote = targetMidiNumbers.has(key.midiNumber);
+
+          const result = lastAnswer?.midiNumbers.has(key.midiNumber)
+            ? lastAnswer.result
+            : undefined;
+
+          const backgroundColor = getKeyBackgroundColor({
+            isBlack: key.isBlack,
+            isSelected,
+            isTargetNote,
+            result,
+          });
 
           if (!key.isBlack) {
             return (
               <button
-                type="button"
-                onClick={() => onNotePlayed(key.midiNumber)}
                 key={key.midiNumber}
-                className={`absolute bottom-0 top-0 border-r border-zinc-400 transition-colors touch-manipulation select-none hover:bg-zinc-200 ${getWhiteKeyClass(
-                  result,
-                )}`}
+                aria-label={`${key.name}, MIDI ${key.midiNumber}`}
+                aria-pressed={isSelected}
+                className="touch-manipulation absolute bottom-0 top-0 select-none border-r border-zinc-400 transition-colors"
+                onClick={() => {
+                  onNoteToggle(key.midiNumber);
+                }}
                 style={{
+                  backgroundColor,
                   left: `${key.whiteKeyIndex * whiteKeyWidthPercent}%`,
                   width: `${whiteKeyWidthPercent}%`,
                 }}
                 title={`${key.name} · MIDI ${key.midiNumber}`}
+                type="button"
               />
             );
           }
@@ -123,17 +154,20 @@ export default function PianoKeyboard({
 
           return (
             <button
-              type="button"
-              onClick={() => onNotePlayed(key.midiNumber)}
               key={key.midiNumber}
-              className={`absolute top-0 z-10 h-[62%] rounded-b-sm transition-colors touch-manipulation select-none hover:bg-zinc-800 ${getBlackKeyClass(
-                result,
-              )}`}
+              aria-label={`${key.name}, MIDI ${key.midiNumber}`}
+              aria-pressed={isSelected}
+              className="touch-manipulation absolute top-0 z-10 h-[62%] select-none rounded-b-sm transition-colors"
+              onClick={() => {
+                onNoteToggle(key.midiNumber);
+              }}
               style={{
+                backgroundColor,
                 left: `${blackKeyLeft}%`,
                 width: `${whiteKeyWidthPercent * 0.64}%`,
               }}
               title={`${key.name} · MIDI ${key.midiNumber}`}
+              type="button"
             />
           );
         })}

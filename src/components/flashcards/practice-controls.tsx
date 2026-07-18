@@ -1,29 +1,41 @@
-import type { PracticeMode } from "@/types/practice";
+import type { PracticeClefMode, PracticeExerciseType } from "@/types/practice";
 
 type PracticeControlsProps = Readonly<{
-  mode: PracticeMode;
-  onModeChange: (mode: PracticeMode) => void;
+  enabledExerciseTypes: ReadonlySet<PracticeExerciseType>;
+  mode: PracticeClefMode;
+  onExerciseTypeToggle: (exerciseType: PracticeExerciseType) => void;
+  onModeChange: (mode: PracticeClefMode) => void;
   onReset: () => void;
 }>;
 
 const MODES: ReadonlyArray<{
   label: string;
-  value: PracticeMode;
+  value: PracticeClefMode;
 }> = [
   { label: "Bass", value: "bass" },
   { label: "Treble", value: "treble" },
   { label: "Mixed", value: "mixed" },
 ];
 
+const EXERCISE_TYPES: ReadonlyArray<{
+  label: string;
+  value: PracticeExerciseType;
+}> = [
+  { label: "Notes", value: "notes" },
+  { label: "Triads", value: "triads" },
+];
+
 export default function PracticeControls({
+  enabledExerciseTypes,
   mode,
+  onExerciseTypeToggle,
   onModeChange,
   onReset,
 }: PracticeControlsProps) {
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-4">
       <div>
-        <p className="mb-2 text-sm font-medium text-zinc-700">Practice mode</p>
+        <p className="mb-2 text-sm font-medium text-zinc-700">Clef</p>
 
         <div className="grid grid-cols-3 gap-2">
           {MODES.map((option) => {
@@ -42,6 +54,31 @@ export default function PracticeControls({
               >
                 {option.label}
               </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium text-zinc-700">Exercise types</p>
+
+        <div className="flex flex-col gap-2">
+          {EXERCISE_TYPES.map((option) => {
+            const isSelected = enabledExerciseTypes.has(option.value);
+
+            return (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200"
+              >
+                <input
+                  checked={isSelected}
+                  onChange={() => onExerciseTypeToggle(option.value)}
+                  type="checkbox"
+                />
+
+                {option.label}
+              </label>
             );
           })}
         </div>

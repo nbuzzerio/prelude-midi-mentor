@@ -1,6 +1,8 @@
 export type Clef = "bass" | "treble";
 
-export type PracticeMode = Clef | "mixed";
+export type PracticeClefMode = Clef | "mixed";
+
+export type PracticeExerciseType = "notes" | "triads";
 
 export type FeedbackState = "idle" | "correct" | "incorrect";
 
