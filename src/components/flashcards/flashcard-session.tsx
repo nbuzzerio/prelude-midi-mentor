@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import PracticeCard from "@/components/flashcards/practice-card";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
-import PracticeCard from "@/components/flashcards/practice-card";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useMidi } from "@/hooks/use-midi";
@@ -27,9 +27,13 @@ const INITIAL_STATS: PracticeStatsType = {
 
 const INITIAL_PRACTICE_TARGET: PracticeTarget = {
   clef: "bass",
-  midiNumber: 48,
-  name: "C",
-  octave: 3,
+  notes: [
+    {
+      midiNumber: 48,
+      name: "C",
+      octave: 3,
+    },
+  ],
 };
 
 export default function FlashcardSession() {
@@ -49,7 +53,7 @@ export default function FlashcardSession() {
     practiceTargetRef.current = practiceTarget;
   }, [practiceTarget]);
 
-  const generateNextNote = useCallback(
+  const generateNextTarget = useCallback(
     (nextMode: PracticeMode = mode) => {
       const nextTarget = generatePracticeTarget(nextMode);
 
@@ -70,8 +74,13 @@ export default function FlashcardSession() {
       }
 
       const currentTarget = practiceTargetRef.current;
+      const expectedNote = currentTarget.notes[0];
 
-      if (midiNumber === currentTarget.midiNumber) {
+      if (!expectedNote) {
+        return;
+      }
+
+      if (midiNumber === expectedNote.midiNumber) {
         answerLockedRef.current = true;
 
         const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
@@ -91,7 +100,7 @@ export default function FlashcardSession() {
         }));
 
         window.setTimeout(() => {
-          generateNextNote();
+          generateNextTarget();
         }, 500);
 
         return;
@@ -109,7 +118,7 @@ export default function FlashcardSession() {
         streak: 0,
       }));
     },
-    [generateNextNote, startedAt],
+    [generateNextTarget, startedAt],
   );
 
   const {
@@ -122,12 +131,23 @@ export default function FlashcardSession() {
   });
 
   const handleCorrect = () => {
-    handleNotePlayed(practiceTargetRef.current.midiNumber);
+    const expectedNote = practiceTargetRef.current.notes[0];
+
+    if (!expectedNote) {
+      return;
+    }
+
+    handleNotePlayed(expectedNote.midiNumber);
   };
 
   const handleIncorrect = () => {
-    const incorrectMidiNumber =
-      practiceTargetRef.current.midiNumber === 48 ? 49 : 48;
+    const expectedNote = practiceTargetRef.current.notes[0];
+
+    if (!expectedNote) {
+      return;
+    }
+
+    const incorrectMidiNumber = expectedNote.midiNumber === 48 ? 49 : 48;
 
     handleNotePlayed(incorrectMidiNumber);
   };
@@ -135,13 +155,13 @@ export default function FlashcardSession() {
   const handleModeChange = (nextMode: PracticeMode) => {
     setMode(nextMode);
     setLastAnswer(null);
-    generateNextNote(nextMode);
+    generateNextTarget(nextMode);
   };
 
   const handleReset = () => {
     setStats(INITIAL_STATS);
     setLastAnswer(null);
-    generateNextNote();
+    generateNextTarget();
   };
 
   return (

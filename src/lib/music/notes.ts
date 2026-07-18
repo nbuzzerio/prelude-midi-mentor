@@ -47,8 +47,12 @@ export function generatePracticeTarget(mode: PracticeMode): PracticeTarget {
 
   return {
     clef,
-    midiNumber,
-    name: getNoteName(midiNumber),
-    octave: getNoteOctave(midiNumber),
+    notes: [
+      {
+        midiNumber,
+        name: getNoteName(midiNumber),
+        octave: getNoteOctave(midiNumber),
+      },
+    ],
   };
 }

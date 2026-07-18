@@ -4,11 +4,15 @@ export type PracticeMode = Clef | "mixed";
 
 export type FeedbackState = "idle" | "correct" | "incorrect";
 
-export type PracticeTarget = Readonly<{
-  clef: Clef;
+export type PracticeNote = Readonly<{
   midiNumber: number;
   name: string;
   octave: number;
+}>;
+
+export type PracticeTarget = Readonly<{
+  clef: Clef;
+  notes: ReadonlyArray<PracticeNote>;
 }>;
 
 export type PracticeStats = Readonly<{
