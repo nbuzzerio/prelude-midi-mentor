@@ -36,6 +36,17 @@ const INITIAL_PRACTICE_TARGET: PracticeTarget = {
   ],
 };
 
+function heldNotesMatchTarget(
+  heldNotes: ReadonlySet<number>,
+  practiceTarget: PracticeTarget,
+): boolean {
+  if (heldNotes.size !== practiceTarget.notes.length) {
+    return false;
+  }
+
+  return practiceTarget.notes.every((note) => heldNotes.has(note.midiNumber));
+}
+
 export default function FlashcardSession() {
   const [mode, setMode] = useState<PracticeMode>("bass");
   const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
@@ -67,6 +78,77 @@ export default function FlashcardSession() {
     [mode],
   );
 
+  const handleCorrectAnswer = useCallback(
+    (midiNumber: number) => {
+      if (answerLockedRef.current) {
+        return;
+      }
+
+      answerLockedRef.current = true;
+
+      const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
+
+      setFeedback("correct");
+      setLastAnswer({
+        midiNumber,
+        result: "correct",
+      });
+
+      setStats((currentStats) => ({
+        ...currentStats,
+        correct: currentStats.correct + 1,
+        streak: currentStats.streak + 1,
+        totalResponseTimeMs: currentStats.totalResponseTimeMs + responseTimeMs,
+      }));
+
+      window.setTimeout(() => {
+        generateNextTarget();
+      }, 500);
+    },
+    [generateNextTarget, startedAt],
+  );
+
+  const handleIncorrectAnswer = useCallback((midiNumber: number) => {
+    if (answerLockedRef.current) {
+      return;
+    }
+
+    setFeedback("incorrect");
+    setLastAnswer({
+      midiNumber,
+      result: "incorrect",
+    });
+
+    setStats((currentStats) => ({
+      ...currentStats,
+      incorrect: currentStats.incorrect + 1,
+      streak: 0,
+    }));
+  }, []);
+
+  const handleHeldNotesChanged = useCallback(
+    (heldNotes: ReadonlySet<number>) => {
+      if (answerLockedRef.current) {
+        return;
+      }
+
+      const currentTarget = practiceTargetRef.current;
+
+      if (!heldNotesMatchTarget(heldNotes, currentTarget)) {
+        return;
+      }
+
+      const firstExpectedNote = currentTarget.notes[0];
+
+      if (!firstExpectedNote) {
+        return;
+      }
+
+      handleCorrectAnswer(firstExpectedNote.midiNumber);
+    },
+    [handleCorrectAnswer],
+  );
+
   const handleNotePlayed = useCallback(
     (midiNumber: number) => {
       if (answerLockedRef.current) {
@@ -74,51 +156,25 @@ export default function FlashcardSession() {
       }
 
       const currentTarget = practiceTargetRef.current;
-      const expectedNote = currentTarget.notes[0];
+      const expectedMidiNumbers = new Set(
+        currentTarget.notes.map((note) => note.midiNumber),
+      );
 
-      if (!expectedNote) {
+      if (!expectedMidiNumbers.has(midiNumber)) {
+        handleIncorrectAnswer(midiNumber);
         return;
       }
 
-      if (midiNumber === expectedNote.midiNumber) {
-        answerLockedRef.current = true;
-
-        const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
-
-        setFeedback("correct");
-        setLastAnswer({
-          midiNumber,
-          result: "correct",
-        });
-
-        setStats((currentStats) => ({
-          ...currentStats,
-          correct: currentStats.correct + 1,
-          streak: currentStats.streak + 1,
-          totalResponseTimeMs:
-            currentStats.totalResponseTimeMs + responseTimeMs,
-        }));
-
-        window.setTimeout(() => {
-          generateNextTarget();
-        }, 500);
-
-        return;
+      /*
+       * Mouse clicks and simulation controls do not currently publish a
+       * held-note set. Preserve single-note practice behavior for those
+       * input methods.
+       */
+      if (currentTarget.notes.length === 1) {
+        handleCorrectAnswer(midiNumber);
       }
-
-      setFeedback("incorrect");
-      setLastAnswer({
-        midiNumber,
-        result: "incorrect",
-      });
-
-      setStats((currentStats) => ({
-        ...currentStats,
-        incorrect: currentStats.incorrect + 1,
-        streak: 0,
-      }));
     },
-    [generateNextTarget, startedAt],
+    [handleCorrectAnswer, handleIncorrectAnswer],
   );
 
   const {
@@ -127,27 +183,28 @@ export default function FlashcardSession() {
     error: midiError,
     status: midiStatus,
   } = useMidi({
+    onHeldNotesChanged: handleHeldNotesChanged,
     onNotePlayed: handleNotePlayed,
   });
 
   const handleCorrect = () => {
-    const expectedNote = practiceTargetRef.current.notes[0];
+    const firstExpectedNote = practiceTargetRef.current.notes[0];
 
-    if (!expectedNote) {
+    if (!firstExpectedNote) {
       return;
     }
 
-    handleNotePlayed(expectedNote.midiNumber);
+    handleNotePlayed(firstExpectedNote.midiNumber);
   };
 
   const handleIncorrect = () => {
-    const expectedNote = practiceTargetRef.current.notes[0];
+    const firstExpectedNote = practiceTargetRef.current.notes[0];
 
-    if (!expectedNote) {
+    if (!firstExpectedNote) {
       return;
     }
 
-    const incorrectMidiNumber = expectedNote.midiNumber === 48 ? 49 : 48;
+    const incorrectMidiNumber = firstExpectedNote.midiNumber === 48 ? 49 : 48;
 
     handleNotePlayed(incorrectMidiNumber);
   };

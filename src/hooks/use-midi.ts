@@ -8,6 +8,7 @@ type MidiConnectionStatus =
   | "error";
 
 type UseMidiOptions = Readonly<{
+  onHeldNotesChanged?: (heldNotes: ReadonlySet<number>) => void;
   onNotePlayed: (midiNumber: number) => void;
 }>;
 
@@ -18,13 +19,22 @@ type UseMidiResult = Readonly<{
   status: MidiConnectionStatus;
 }>;
 
-export function useMidi({ onNotePlayed }: UseMidiOptions): UseMidiResult {
+export function useMidi({
+  onHeldNotesChanged,
+  onNotePlayed,
+}: UseMidiOptions): UseMidiResult {
   const [status, setStatus] = useState<MidiConnectionStatus>("disconnected");
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [midiAccess, setMidiAccess] = useState<MIDIAccess | null>(null);
 
+  const heldNotesRef = useRef<Set<number>>(new Set());
+  const onHeldNotesChangedRef = useRef(onHeldNotesChanged);
   const onNotePlayedRef = useRef(onNotePlayed);
+
+  useEffect(() => {
+    onHeldNotesChangedRef.current = onHeldNotesChanged;
+  }, [onHeldNotesChanged]);
 
   useEffect(() => {
     onNotePlayedRef.current = onNotePlayed;
@@ -34,6 +44,12 @@ export function useMidi({ onNotePlayed }: UseMidiOptions): UseMidiResult {
     if (!midiAccess) {
       return;
     }
+
+    const heldNotes = heldNotesRef.current;
+
+    const publishHeldNotes = () => {
+      onHeldNotesChangedRef.current?.(new Set(heldNotes));
+    };
 
     const handleMidiMessage = (event: MIDIMessageEvent) => {
       const data = event.data;
@@ -56,12 +72,20 @@ export function useMidi({ onNotePlayed }: UseMidiOptions): UseMidiResult {
 
       const command = statusByte & 0xf0;
       const isNoteOn = command === 0x90 && velocity > 0;
+      const isNoteOff =
+        command === 0x80 || (command === 0x90 && velocity === 0);
 
-      if (!isNoteOn) {
+      if (isNoteOn) {
+        heldNotes.add(noteNumber);
+        publishHeldNotes();
+        onNotePlayedRef.current(noteNumber);
         return;
       }
 
-      onNotePlayedRef.current(noteNumber);
+      if (isNoteOff) {
+        heldNotes.delete(noteNumber);
+        publishHeldNotes();
+      }
     };
 
     const attachInputListeners = () => {
@@ -77,6 +101,9 @@ export function useMidi({ onNotePlayed }: UseMidiOptions): UseMidiResult {
         setStatus("connected");
         setError(null);
       } else {
+        heldNotes.clear();
+        publishHeldNotes();
+
         setDeviceName(null);
         setStatus("disconnected");
       }
@@ -95,6 +122,8 @@ export function useMidi({ onNotePlayed }: UseMidiOptions): UseMidiResult {
       for (const input of midiAccess.inputs.values()) {
         input.removeEventListener("midimessage", handleMidiMessage);
       }
+
+      heldNotes.clear();
     };
   }, [midiAccess]);
 
