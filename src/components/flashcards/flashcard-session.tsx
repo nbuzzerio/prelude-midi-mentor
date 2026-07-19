@@ -33,7 +33,8 @@ type LastAnswer = Readonly<{
 type AnswerSource = "midi" | "virtual" | "simulation";
 
 const CHORD_ATTEMPT_GRACE_MS = 225;
-const CORRECT_FEEDBACK_MINIMUM_MS = 500;
+const CORRECT_FEEDBACK_MINIMUM_MS = 2_000;
+const CORRECT_VIRTUAL_CHORD_REPLAY_DELAY_MS = 1_000;
 
 const INITIAL_STATS: PracticeStatsType = {
   correct: 0,
@@ -234,7 +235,9 @@ export default function FlashcardSession() {
         midiNumbers.size > 1 &&
         replayCorrectVirtualChords
       ) {
-        playGrandPianoChord(midiNumbers);
+        window.setTimeout(() => {
+          playGrandPianoChord(midiNumbers);
+        }, CORRECT_VIRTUAL_CHORD_REPLAY_DELAY_MS);
       }
 
       setVirtualHeldNotes(new Set());
