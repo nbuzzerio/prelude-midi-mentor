@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import PracticeCard from "@/components/flashcards/practice-card";
+import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
 import MidiStatus from "@/components/midi/midi-status";
@@ -9,6 +10,11 @@ import {
   playCorrectFeedback,
   playIncorrectFeedback,
 } from "@/lib/audio/feedback";
+import {
+  playGrandPianoChord,
+  playGrandPianoNote,
+  preloadGrandPianoSamples,
+} from "@/lib/audio/grand-piano";
 import { generatePracticeTarget } from "@/lib/music/notes";
 import type {
   FeedbackState,
@@ -67,6 +73,9 @@ function getTargetMidiNumbers(
 export default function FlashcardSession() {
   const [mode, setMode] = useState<PracticeClefMode>("bass");
 
+  const [replayCorrectVirtualChords, setReplayCorrectVirtualChords] =
+    useState(true);
+
   const [enabledExerciseTypes, setEnabledExerciseTypes] = useState<
     ReadonlySet<PracticeExerciseType>
   >(new Set(["notes"]));
@@ -118,6 +127,10 @@ export default function FlashcardSession() {
   const generateNextTargetRef = useRef<(nextMode?: PracticeClefMode) => void>(
     () => undefined,
   );
+
+  useEffect(() => {
+    preloadGrandPianoSamples();
+  }, []);
 
   useEffect(() => {
     practiceTargetRef.current = practiceTarget;
@@ -215,6 +228,15 @@ export default function FlashcardSession() {
 
       setFeedback("correct");
       playCorrectFeedback();
+
+      if (
+        source === "virtual" &&
+        midiNumbers.size > 1 &&
+        replayCorrectVirtualChords
+      ) {
+        playGrandPianoChord(midiNumbers);
+      }
+
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
 
@@ -240,6 +262,7 @@ export default function FlashcardSession() {
     [
       clearCorrectFeedbackTimer,
       clearMidiAttempt,
+      replayCorrectVirtualChords,
       startedAt,
       tryAdvanceAfterCorrectAnswer,
     ],
@@ -361,6 +384,8 @@ export default function FlashcardSession() {
 
   const handleMidiNotePlayed = useCallback(
     (midiNumber: number) => {
+      playGrandPianoNote(midiNumber);
+
       if (answerLockedRef.current) {
         return;
       }
@@ -433,6 +458,8 @@ export default function FlashcardSession() {
           nextNotes.delete(midiNumber);
         } else {
           nextNotes.add(midiNumber);
+
+          playGrandPianoNote(midiNumber);
         }
 
         if (notesMatchTarget(nextNotes, currentTarget)) {
@@ -565,6 +592,11 @@ export default function FlashcardSession() {
         <PracticeStats stats={stats} />
 
         <div className="flex flex-col gap-4">
+          <InstrumentVolumeControl
+            replayCorrectVirtualChords={replayCorrectVirtualChords}
+            onReplayCorrectVirtualChordsChange={setReplayCorrectVirtualChords}
+          />
+
           <FeedbackVolumeControl />
 
           <PracticeControls
