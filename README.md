@@ -18,12 +18,13 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
-### Sight-Reading Flashcards
+### Sight-Reading Practice
 
 - Treble clef practice
 - Bass clef practice
 - Mixed-clef practice
-- Randomized target notes
+- Single-note flashcards
+- Diatonic triad flashcards
 - Standard staff notation rendered with VexFlow
 
 ### Real-Time Input
@@ -32,6 +33,9 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Interactive on-screen piano
 - Immediate correct and incorrect feedback
 - MIDI connection status and diagnostics
+- Simultaneous MIDI note tracking
+- Rolled chord support
+- Exact chord validation
 
 ### Practice Statistics
 
@@ -228,7 +232,7 @@ For a more detailed technical explanation, see
 
 Prelude's core sight-reading MVP is complete and usable.
 
-Current development is focused on expanding music-reading options and preparing the application for multi-note practice.
+Current development is focused on expanding music-reading options and expanding the musicianship engine beyond notes and triads.
 
 Near-term work includes:
 
@@ -239,7 +243,7 @@ Near-term work includes:
 - Chord flashcards
 - Chord inversions
 
-See [`ROADMAP.md`](./ROADMAP.md) for the broader development plan.
+See [`ROADMAP.md`](./docs/ROADMAP.md) for the broader development plan.
 
 ---
 

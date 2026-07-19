@@ -8,7 +8,9 @@
 
 Prelude is a browser-based musicianship platform focused on teaching piano through standard music notation and real-time MIDI interaction.
 
-The current application centers around single-note sight-reading flashcards, but the architecture is intentionally designed to expand into chords, scales, guided lessons, ear training, and composition tools without requiring major rewrites.
+The current application centers around a generalized practice engine capable of presenting both single-note and multi-note musical targets.
+
+The initial implementation supports single-note and diatonic triad flashcards while laying the groundwork for intervals, chords, scales, guided lessons, and additional musicianship exercises.
 
 Prelude is currently a frontend-only application and requires no backend services, authentication, or database.
 
@@ -56,13 +58,14 @@ Every major feature should build upon existing systems rather than introducing p
 
 # High-Level Architecture
 
-Today, Prelude revolves around a single flashcard practice session.
+Today, Prelude revolves around a single practice session capable of presenting multiple exercise types.
 
 ```text
 App
 │
 ├── Flashcard Session
 │     ├── Practice Controls
+│     ├── Practice Generator
 │     ├── Music Staff
 │     ├── Piano Keyboard
 │     └── Practice Statistics
@@ -72,9 +75,9 @@ App
 │     └── Diagnostic
 │
 └── Music Library
+      ├── Practice Target
       ├── Notes
-      ├── VexFlow
-      └── MIDI Helpers
+      └── VexFlow
 ```
 
 Each area has a single responsibility, making future expansion straightforward.
@@ -197,28 +200,75 @@ Shared TypeScript interfaces and types used throughout the application.
 The application's primary loop is currently:
 
 ```text
-Generate Target Note
+Generate Practice Target
         │
         ▼
-Render Staff with VexFlow
+Render Staff
         │
         ▼
-Wait for MIDI / On-Screen Input
+Wait for MIDI / Virtual Input
         │
         ▼
-Normalize Played Note
+Collect Input
         │
         ▼
-Compare Against Target
+Validate Against Practice Target
         │
         ▼
 Update Statistics
         │
         ▼
-Generate Next Note
+Generate Next Practice Target
 ```
 
 Everything in Prelude currently supports this practice loop.
+
+---
+
+# Practice Target Model
+
+The current practice engine is centered around the `PracticeTarget` model.
+
+A practice target represents one musical prompt that the student must perform.
+
+Today this may contain:
+
+- a single note
+- a triad
+
+Future exercises may also use the same model for:
+
+- intervals
+- chord qualities
+- other isolated musical structures
+
+By treating one-note and multi-note prompts identically, the practice engine avoids maintaining separate rendering and validation systems for each exercise type.
+
+---
+
+# Multi-Note Validation
+
+Single-note answers are evaluated immediately.
+
+Multi-note MIDI answers use a short collection window, allowing players to perform naturally rolled chords rather than requiring every key to be depressed simultaneously.
+
+Once the collection window closes, the performed note set is compared against the expected note set.
+
+Validation is based on exact pitch-set equality:
+
+- missing notes fail
+- extra notes fail
+- note order does not matter
+
+---
+
+# Audio Feedback
+
+Prelude currently uses the Web Audio API to generate lightweight interface sounds.
+
+These sounds provide immediate success and failure feedback while remaining completely independent from future instrument playback.
+
+A single shared volume preference is stored locally and applies to all interface feedback.
 
 ---
 
@@ -231,9 +281,11 @@ The primary application state currently lives inside:
 It owns:
 
 - practice mode
-- target note
-- played note
-- feedback
+- enabled exercise types
+- current practice target
+- currently held MIDI notes
+- currently held virtual notes
+- feedback state
 - streak
 - accuracy
 - response time
@@ -249,7 +301,7 @@ Presentation components remain as stateless as practical and communicate through
 Prelude intentionally separates music concepts from rendering.
 
 ```text
-Target Note
+PracticeTarget
 
 ↓
 
@@ -263,6 +315,10 @@ VexFlow Renderer
 
 Rendered Staff
 ```
+
+A `PracticeTarget` represents one or more notes to be rendered and validated.
+
+Single-note flashcards and triad flashcards therefore share the same rendering pipeline, allowing new isolated practice types (such as intervals or additional chord qualities) to reuse the same notation and validation systems.
 
 Likewise, MIDI input is separated from notation rendering.
 
@@ -321,7 +377,7 @@ This unified model naturally supports:
 - Songs
 - Composition Tools
 
-Flashcards simply become the smallest possible lesson.
+The current `PracticeTarget` model intentionally stops short of introducing lessons prematurely, but it provides a natural stepping stone toward this architecture if and when sequence-based practice becomes a core feature.
 
 ---
 

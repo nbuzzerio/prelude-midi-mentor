@@ -54,7 +54,7 @@ Prelude should combine:
 ```text
 Standard Notation
         +
-Real-Time MIDI Input
+Real-Time Musical Interaction
         +
 Immediate Feedback
         +

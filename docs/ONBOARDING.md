@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Version:** 1.0
+> **Version:** 1.1
 > **Last Updated:** July 2026
-> **Current Milestone:** Music Reading MVP
+> **Current Milestone:** Multi-Note Musicianship MVP
 
 ---
 
@@ -62,7 +62,7 @@ Features should never exist simply because they are technically interesting—th
 
 # Current MVP Goal
 
-The current milestone focuses on building a complete music-reading practice loop.
+The current milestone focuses on building a complete multi-note musicianship practice loop.
 
 Users should be able to:
 
@@ -70,9 +70,10 @@ Users should be able to:
 2. Play the answer using either:
    - a MIDI keyboard
    - the on-screen keyboard
-3. Receive immediate feedback.
-4. Track performance over time.
-5. Practice anywhere using an installable Progressive Web App.
+3. Receive immediate visual and audio feedback.
+4. Practice both single notes and triads.
+5. Track performance over time.
+6. Practice anywhere using an installable Progressive Web App.
 
 ---
 
@@ -87,7 +88,10 @@ Completed features include:
 - Treble clef mode
 - Bass clef mode
 - Mixed mode
-- Random note generation
+- Single-note flashcards
+- Diatonic triad flashcards
+- Configurable exercise types
+- Random target generation
 - Session statistics
 - Accuracy tracking
 - Response-time tracking
@@ -97,8 +101,19 @@ Completed features include:
 
 - Physical MIDI keyboard support
 - On-screen piano keyboard
-- Chromebook compatibility
+- Simultaneous MIDI note tracking
+- Timed chord collection
+- Rolled chord support
+- Exact chord validation
 - MIDI diagnostics
+- Chromebook compatibility
+
+## Feedback
+
+- Immediate visual feedback
+- Browser-generated audio feedback
+- Adjustable feedback volume
+- Persistent local preferences
 
 ## Notation
 
@@ -125,19 +140,31 @@ Development is currently focused on expanding the flashcard engine into a more c
 
 Immediate priorities are:
 
-1. Improve enharmonic spelling support (Sharps + Flats)
-2. Natural-notes-only beginner mode
-3. Simultaneous MIDI note detection
-4. Chord flashcards
-5. Lesson architecture
+1. Interval practice
+2. Additional chord qualities
+3. Expanded practice settings
+4. Scale practice
+5. Improved enharmonic spelling
+6. Long-term lesson architecture
 
 ---
 
 # Long-Term Architecture
 
-Prelude is intentionally being designed so that simple flashcards naturally evolve into guided lessons.
+Prelude is intentionally being designed so that today's flashcard system can evolve naturally into tomorrow's guided lesson system.
 
-Rather than treating every practice mode as a separate system, the long-term architecture will support:
+The current practice engine is built around a generalized `PracticeTarget` model rather than a single target note.
+
+A `PracticeTarget` can represent one or more notes, allowing the same validation and rendering systems to support:
+
+- Single-note flashcards
+- Triad flashcards
+- Future interval exercises
+- Future chord exercises
+
+This provides a simple, reusable foundation while keeping the current practice engine focused on isolated musical concepts.
+
+Long-term, Prelude may evolve toward a structured lesson architecture:
 
 Lesson
 
@@ -153,7 +180,7 @@ Events
 
 Notes
 
-This allows one engine to power:
+This larger model could power:
 
 - Flashcards
 - Chord practice
@@ -162,6 +189,8 @@ This allows one engine to power:
 - Guided lessons
 - Songs
 - Composition tools
+
+The current `PracticeTarget` model should remain the foundation for isolated practice exercises until sequence-based features (such as rhythm, phrases, and complete lessons) justify introducing the larger lesson architecture.
 
 ---
 
@@ -189,6 +218,7 @@ Songs become one application of these skills rather than the primary learning me
 When contributing to Prelude:
 
 - Favor small, focused commits.
+- Update documentation when meaningful architectural changes occur.
 - Keep components modular.
 - Document architectural decisions.
 - Prefer simple solutions before introducing abstractions.
@@ -209,5 +239,5 @@ Project documentation consists of:
 - VISION.md — Long-term goals and design philosophy
 - README.md — Public project overview
 
-New contributors should read these documents before beginning 
+New contributors should read these documents before beginning
 development.

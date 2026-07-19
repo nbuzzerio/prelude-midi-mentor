@@ -54,7 +54,7 @@
 
 ---
 
-# 🚧 Phase 2 — Music Reading MVP (Current)
+# 🚧 Phase 2 — Musicianship MVP (Current)
 
 Current focus is improving the flashcard experience before expanding into additional practice modes.
 
@@ -66,6 +66,11 @@ Current focus is improving the flashcard experience before expanding into additi
 
 ## Practice
 
+- [x] Diatonic triad flashcards
+- [x] Generalized practice target model
+- [x] Simultaneous MIDI note validation
+- [x] Browser audio feedback
+- [x] Adjustable feedback volume
 - [ ] Expanded configurable note ranges
 - [ ] Difficulty presets
 - [ ] Local progress persistence
@@ -80,11 +85,12 @@ Current focus is improving the flashcard experience before expanding into additi
 
 # 🎹 Phase 3 — Harmony Trainer
 
-Introduce simultaneous note recognition.
+Expand the existing multi-note practice engine into a complete harmony trainer.
 
 ## Chords
 
-- [ ] Simultaneous MIDI note detection
+- [x] Simultaneous MIDI note detection
+- [x] Diatonic triad practice
 - [ ] Major chord flashcards
 - [ ] Minor chord flashcards
 - [ ] Diminished chords
@@ -98,7 +104,7 @@ Introduce simultaneous note recognition.
 
 # 🎼 Phase 4 — Musicianship
 
-Expand beyond note recognition.
+Expand beyond isolated note and chord recognition.
 
 ## Intervals
 
@@ -246,6 +252,7 @@ These ideas are intentionally outside the current roadmap but represent possible
 - [ ] Personalized practice plans
 - [ ] Practice streak calendar
 - [ ] Heat maps for weak notes
+- [ ] Practice analytics dashboard
 
 ## Sharing
 

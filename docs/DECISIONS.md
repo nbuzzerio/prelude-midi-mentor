@@ -171,9 +171,10 @@ Adding chords as an isolated special case would create unnecessary duplication.
 ## Consequences
 
 - Input state will eventually support multiple held MIDI notes.
-- Practice targets may contain one or more expected notes.
-- Chord comparison should be independent of the order in which notes are pressed.
+- The `PracticeTarget` model represents one or more expected notes.
+- Chord comparison is based on note sets rather than the order in which notes are pressed.
 - Timing rules may be needed to determine when a group of notes counts as one answer.
+- Single-note and multi-note exercises share the same rendering and validation pipeline.
 
 ---
 
@@ -384,6 +385,27 @@ Whole
 - Keyboard shortcuts may later be added for speed.
 - The interface should make the selected duration obvious.
 - Duration values should be stored independently of visual notation symbols.
+
+---
+
+# 2026-07 — Interface Feedback Uses the Web Audio API
+
+## Decision
+
+Prelude generates interface feedback sounds using the browser's Web Audio API rather than bundled audio files.
+
+## Reason
+
+The application requires lightweight success and failure feedback without introducing external assets or dependencies.
+
+Generating sounds programmatically keeps feedback responsive while remaining independent of future instrument playback.
+
+## Consequences
+
+- No audio files need to be bundled with the application.
+- Feedback sounds remain lightweight and responsive.
+- Interface feedback stays separate from future playback systems and SoundFonts.
+- A single shared volume preference controls all interface feedback.
 
 ---
 
