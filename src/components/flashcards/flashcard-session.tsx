@@ -5,6 +5,10 @@ import PracticeStats from "@/components/flashcards/practice-stats";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useMidi } from "@/hooks/use-midi";
+import {
+  playCorrectFeedback,
+  playIncorrectFeedback,
+} from "@/lib/audio/feedback";
 import { generatePracticeTarget } from "@/lib/music/notes";
 import type {
   FeedbackState,
@@ -13,6 +17,7 @@ import type {
   PracticeStats as PracticeStatsType,
   PracticeTarget,
 } from "@/types/practice";
+import FeedbackVolumeControl from "../audio/feedback-volume-control";
 
 type LastAnswer = Readonly<{
   midiNumbers: ReadonlySet<number>;
@@ -209,6 +214,7 @@ export default function FlashcardSession() {
       const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
 
       setFeedback("correct");
+      playCorrectFeedback();
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
 
@@ -245,6 +251,7 @@ export default function FlashcardSession() {
     }
 
     setFeedback("incorrect");
+    playIncorrectFeedback();
     setLastFailedAttemptNotes(new Set());
 
     setLastAnswer({
@@ -266,6 +273,7 @@ export default function FlashcardSession() {
       }
 
       setFeedback("incorrect");
+      playIncorrectFeedback();
       setLastAnswer(null);
 
       setLastFailedAttemptNotes(new Set(midiNumbers));
@@ -556,13 +564,17 @@ export default function FlashcardSession() {
       <section className="grid gap-6 lg:grid-cols-[1fr_18rem]">
         <PracticeStats stats={stats} />
 
-        <PracticeControls
-          enabledExerciseTypes={enabledExerciseTypes}
-          mode={mode}
-          onExerciseTypeToggle={handleExerciseTypeToggle}
-          onModeChange={handleModeChange}
-          onReset={handleReset}
-        />
+        <div className="flex flex-col gap-4">
+          <FeedbackVolumeControl />
+
+          <PracticeControls
+            enabledExerciseTypes={enabledExerciseTypes}
+            mode={mode}
+            onExerciseTypeToggle={handleExerciseTypeToggle}
+            onModeChange={handleModeChange}
+            onReset={handleReset}
+          />
+        </div>
       </section>
     </div>
   );
