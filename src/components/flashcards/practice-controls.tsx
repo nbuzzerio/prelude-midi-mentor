@@ -1,10 +1,16 @@
-import type { PracticeClefMode, PracticeExerciseType } from "@/types/practice";
+import type {
+  PracticeClefMode,
+  PracticeExerciseType,
+  PracticeNoteCategory,
+} from "@/types/practice";
 
 type PracticeControlsProps = Readonly<{
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>;
+  enabledNoteCategories: ReadonlySet<PracticeNoteCategory>;
   mode: PracticeClefMode;
   onExerciseTypeToggle: (exerciseType: PracticeExerciseType) => void;
   onModeChange: (mode: PracticeClefMode) => void;
+  onNoteCategoryToggle: (category: PracticeNoteCategory) => void;
   onReset: () => void;
 }>;
 
@@ -17,21 +23,26 @@ const MODES: ReadonlyArray<{
   { label: "Mixed", value: "mixed" },
 ];
 
-const EXERCISE_TYPES: ReadonlyArray<{
+const NOTE_CATEGORIES: ReadonlyArray<{
   label: string;
-  value: PracticeExerciseType;
+  value: PracticeNoteCategory;
 }> = [
-  { label: "Notes", value: "notes" },
-  { label: "Triads", value: "triads" },
+  { label: "Naturals", value: "naturals" },
+  { label: "Accidentals", value: "accidentals" },
 ];
 
 export default function PracticeControls({
   enabledExerciseTypes,
+  enabledNoteCategories,
   mode,
   onExerciseTypeToggle,
   onModeChange,
+  onNoteCategoryToggle,
   onReset,
 }: PracticeControlsProps) {
+  const individualNotesEnabled = enabledExerciseTypes.has("notes");
+  const triadsEnabled = enabledExerciseTypes.has("triads");
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-4">
       <div>
@@ -63,24 +74,42 @@ export default function PracticeControls({
         <p className="mb-2 text-sm font-medium text-zinc-700">Exercise types</p>
 
         <div className="flex flex-col gap-2">
-          {EXERCISE_TYPES.map((option) => {
-            const isSelected = enabledExerciseTypes.has(option.value);
+          <div className="rounded-xl bg-zinc-100">
+            <label className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
+              <input
+                checked={individualNotesEnabled}
+                onChange={() => onExerciseTypeToggle("notes")}
+                type="checkbox"
+              />
+              Individual notes
+            </label>
 
-            return (
-              <label
-                key={option.value}
-                className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200"
-              >
-                <input
-                  checked={isSelected}
-                  onChange={() => onExerciseTypeToggle(option.value)}
-                  type="checkbox"
-                />
+            <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 pl-10">
+              {NOTE_CATEGORIES.map((option) => (
+                <label
+                  key={option.value}
+                  className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
+                >
+                  <input
+                    checked={enabledNoteCategories.has(option.value)}
+                    onChange={() => onNoteCategoryToggle(option.value)}
+                    type="checkbox"
+                  />
 
-                {option.label}
-              </label>
-            );
-          })}
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
+            <input
+              checked={triadsEnabled}
+              onChange={() => onExerciseTypeToggle("triads")}
+              type="checkbox"
+            />
+            Triads
+          </label>
         </div>
       </div>
 

@@ -4,6 +4,8 @@ export type PracticeClefMode = Clef | "mixed";
 
 export type PracticeExerciseType = "notes" | "triads";
 
+export type PracticeNoteCategory = "naturals" | "accidentals";
+
 export type FeedbackState = "idle" | "correct" | "incorrect";
 
 export type PracticeNote = Readonly<{

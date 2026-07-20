@@ -17,6 +17,7 @@ import type {
   FeedbackState,
   PracticeClefMode,
   PracticeExerciseType,
+  PracticeNoteCategory,
   PracticeStats as PracticeStatsType,
   PracticeTarget,
 } from "@/types/practice";
@@ -85,6 +86,10 @@ export default function FlashcardSession() {
   const [enabledExerciseTypes, setEnabledExerciseTypes] = useState<
     ReadonlySet<PracticeExerciseType>
   >(new Set(["notes"]));
+
+  const [enabledNoteCategories, setEnabledNoteCategories] = useState<
+    ReadonlySet<PracticeNoteCategory>
+  >(new Set(["naturals"]));
 
   const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
     INITIAL_PRACTICE_TARGET,
@@ -207,7 +212,11 @@ export default function FlashcardSession() {
 
   const generateNextTarget = useCallback(
     (nextMode: PracticeClefMode = mode) => {
-      const nextTarget = generatePracticeTarget(nextMode, enabledExerciseTypes);
+      const nextTarget = generatePracticeTarget(
+        nextMode,
+        enabledExerciseTypes,
+        enabledNoteCategories,
+      );
 
       clearMidiAttempt();
       clearCorrectFeedbackTimers();
@@ -223,7 +232,13 @@ export default function FlashcardSession() {
       setLastAnswer(null);
       setStartedAt(Date.now());
     },
-    [clearCorrectFeedbackTimers, clearMidiAttempt, enabledExerciseTypes, mode],
+    [
+      clearCorrectFeedbackTimers,
+      clearMidiAttempt,
+      enabledExerciseTypes,
+      enabledNoteCategories,
+      mode,
+    ],
   );
 
   useEffect(() => {
@@ -416,7 +431,6 @@ export default function FlashcardSession() {
 
   const handleMidiNotePlayed = useCallback(
     (midiNumber: number) => {
-
       if (answerLockedRef.current) {
         return;
       }
@@ -570,6 +584,24 @@ export default function FlashcardSession() {
     });
   };
 
+  const handleNoteCategoryToggle = (category: PracticeNoteCategory) => {
+    setEnabledNoteCategories((currentCategories) => {
+      const nextCategories = new Set(currentCategories);
+
+      if (nextCategories.has(category)) {
+        if (nextCategories.size === 1) {
+          return currentCategories;
+        }
+
+        nextCategories.delete(category);
+      } else {
+        nextCategories.add(category);
+      }
+
+      return nextCategories;
+    });
+  };
+
   const handleReset = () => {
     setStats(INITIAL_STATS);
     generateNextTarget();
@@ -634,9 +666,11 @@ export default function FlashcardSession() {
 
           <PracticeControls
             enabledExerciseTypes={enabledExerciseTypes}
+            enabledNoteCategories={enabledNoteCategories}
             mode={mode}
             onExerciseTypeToggle={handleExerciseTypeToggle}
             onModeChange={handleModeChange}
+            onNoteCategoryToggle={handleNoteCategoryToggle}
             onReset={handleReset}
           />
         </div>

@@ -4,10 +4,13 @@ import type {
   PracticeClefMode,
   PracticeExerciseType,
   PracticeNote,
+  PracticeNoteCategory,
   PracticeTarget,
 } from "../../types/practice";
 
-const NOTE_NAMES = [
+type AccidentalSpelling = "sharp" | "flat";
+
+const SHARP_NOTE_NAMES = [
   "C",
   "C♯",
   "D",
@@ -22,6 +25,23 @@ const NOTE_NAMES = [
   "B",
 ] as const;
 
+const FLAT_NOTE_NAMES = [
+  "C",
+  "D♭",
+  "D",
+  "E♭",
+  "E",
+  "F",
+  "G♭",
+  "G",
+  "A♭",
+  "A",
+  "B♭",
+  "B",
+] as const;
+
+const NATURAL_PITCH_CLASSES = new Set([0, 2, 4, 5, 7, 9, 11]);
+
 type TriadDefinition = Readonly<{
   bassMidiNumbers: readonly [number, number, number];
   trebleMidiNumbers: readonly [number, number, number];
@@ -29,37 +49,41 @@ type TriadDefinition = Readonly<{
 
 const C_MAJOR_TRIADS: ReadonlyArray<TriadDefinition> = [
   {
-    bassMidiNumbers: [36, 40, 43], // C2 E2 G2
-    trebleMidiNumbers: [60, 64, 67], // C4 E4 G4
+    bassMidiNumbers: [36, 40, 43],
+    trebleMidiNumbers: [60, 64, 67],
   },
   {
-    bassMidiNumbers: [38, 41, 45], // D2 F2 A2
-    trebleMidiNumbers: [62, 65, 69], // D4 F4 A4
+    bassMidiNumbers: [38, 41, 45],
+    trebleMidiNumbers: [62, 65, 69],
   },
   {
-    bassMidiNumbers: [40, 43, 47], // E2 G2 B2
-    trebleMidiNumbers: [64, 67, 71], // E4 G4 B4
+    bassMidiNumbers: [40, 43, 47],
+    trebleMidiNumbers: [64, 67, 71],
   },
   {
-    bassMidiNumbers: [41, 45, 48], // F2 A2 C3
-    trebleMidiNumbers: [65, 69, 72], // F4 A4 C5
+    bassMidiNumbers: [41, 45, 48],
+    trebleMidiNumbers: [65, 69, 72],
   },
   {
-    bassMidiNumbers: [43, 47, 50], // G2 B2 D3
-    trebleMidiNumbers: [67, 71, 74], // G4 B4 D5
+    bassMidiNumbers: [43, 47, 50],
+    trebleMidiNumbers: [67, 71, 74],
   },
   {
-    bassMidiNumbers: [45, 48, 52], // A2 C3 E3
-    trebleMidiNumbers: [69, 72, 76], // A4 C5 E5
+    bassMidiNumbers: [45, 48, 52],
+    trebleMidiNumbers: [69, 72, 76],
   },
   {
-    bassMidiNumbers: [47, 50, 53], // B2 D3 F3
-    trebleMidiNumbers: [71, 74, 77], // B4 D5 F5
+    bassMidiNumbers: [47, 50, 53],
+    trebleMidiNumbers: [71, 74, 77],
   },
 ];
 
-function getRandomInteger(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function getPitchClass(midiNumber: number): number {
+  return ((midiNumber % 12) + 12) % 12;
+}
+
+function isNaturalMidiNumber(midiNumber: number): boolean {
+  return NATURAL_PITCH_CLASSES.has(getPitchClass(midiNumber));
 }
 
 function getRandomItem<T>(items: ReadonlyArray<T>): T {
@@ -72,16 +96,31 @@ function getRandomItem<T>(items: ReadonlyArray<T>): T {
   return item;
 }
 
-export function getNoteName(midiNumber: number): string {
-  return NOTE_NAMES[midiNumber % 12] ?? "";
+function getRandomAccidentalSpelling(): AccidentalSpelling {
+  return Math.random() < 0.5 ? "sharp" : "flat";
+}
+
+export function getNoteName(
+  midiNumber: number,
+  accidentalSpelling: AccidentalSpelling = "sharp",
+): string {
+  const noteNames =
+    accidentalSpelling === "flat" ? FLAT_NOTE_NAMES : SHARP_NOTE_NAMES;
+
+  return noteNames[getPitchClass(midiNumber)] ?? "";
 }
 
 export function getNoteOctave(midiNumber: number): number {
   return Math.floor(midiNumber / 12) - 1;
 }
 
-export function getFullNoteName(midiNumber: number): string {
-  return `${getNoteName(midiNumber)}${getNoteOctave(midiNumber)}`;
+export function getFullNoteName(
+  midiNumber: number,
+  accidentalSpelling: AccidentalSpelling = "sharp",
+): string {
+  return `${getNoteName(midiNumber, accidentalSpelling)}${getNoteOctave(
+    midiNumber,
+  )}`;
 }
 
 function getClefForMode(mode: PracticeClefMode): Clef {
@@ -98,22 +137,73 @@ function getRandomExerciseType(
   return getRandomItem(Array.from(enabledExerciseTypes));
 }
 
-function createPracticeNote(midiNumber: number): PracticeNote {
-  const name = NOTE_NAMES[midiNumber % NOTE_NAMES.length];
+function createPracticeNote(
+  midiNumber: number,
+  accidentalSpelling: AccidentalSpelling = "sharp",
+): PracticeNote {
+  const name = getNoteName(midiNumber, accidentalSpelling);
 
-  if (name === undefined) {
+  if (name === "") {
     throw new Error(`Unable to resolve note name for MIDI ${midiNumber}.`);
   }
 
   return {
     midiNumber,
     name,
-    octave: Math.floor(midiNumber / 12) - 1,
+    octave: getNoteOctave(midiNumber),
   };
 }
 
-function generateTriadTarget(mode: PracticeClefMode): PracticeTarget {
-  const clef = getClefForMode(mode);
+function getEligibleIndividualNoteMidiNumbers(
+  clef: Clef,
+  enabledNoteCategories: ReadonlySet<PracticeNoteCategory>,
+): ReadonlyArray<number> {
+  const range = NOTE_RANGES[clef];
+  const eligibleMidiNumbers: number[] = [];
+
+  for (
+    let midiNumber = range.minMidi;
+    midiNumber <= range.maxMidi;
+    midiNumber += 1
+  ) {
+    const category: PracticeNoteCategory = isNaturalMidiNumber(midiNumber)
+      ? "naturals"
+      : "accidentals";
+
+    if (enabledNoteCategories.has(category)) {
+      eligibleMidiNumbers.push(midiNumber);
+    }
+  }
+
+  return eligibleMidiNumbers;
+}
+
+function generateIndividualNoteTarget(
+  clef: Clef,
+  enabledNoteCategories: ReadonlySet<PracticeNoteCategory>,
+): PracticeTarget {
+  if (enabledNoteCategories.size === 0) {
+    throw new Error("At least one individual note category must be enabled.");
+  }
+
+  const eligibleMidiNumbers = getEligibleIndividualNoteMidiNumbers(
+    clef,
+    enabledNoteCategories,
+  );
+
+  const midiNumber = getRandomItem(eligibleMidiNumbers);
+
+  const accidentalSpelling = isNaturalMidiNumber(midiNumber)
+    ? "sharp"
+    : getRandomAccidentalSpelling();
+
+  return {
+    clef,
+    notes: [createPracticeNote(midiNumber, accidentalSpelling)],
+  };
+}
+
+function generateTriadTarget(clef: Clef): PracticeTarget {
   const triad = getRandomItem(C_MAJOR_TRIADS);
 
   const midiNumbers =
@@ -121,35 +211,27 @@ function generateTriadTarget(mode: PracticeClefMode): PracticeTarget {
 
   return {
     clef,
-    notes: midiNumbers.map(createPracticeNote),
+    notes: midiNumbers.map((midiNumber) =>
+      createPracticeNote(midiNumber, "sharp"),
+    ),
   };
 }
 
 export function generatePracticeTarget(
   mode: PracticeClefMode,
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>,
+  enabledNoteCategories: ReadonlySet<PracticeNoteCategory>,
 ): PracticeTarget {
-  const clef = getClefForMode(mode);
-  const range = NOTE_RANGES[clef];
-  const midiNumber = getRandomInteger(range.minMidi, range.maxMidi);
-  const exerciseType = getRandomExerciseType(enabledExerciseTypes);
-
-  if (exerciseType === "triads") {
-    return generateTriadTarget(mode);
-  }
-
   if (enabledExerciseTypes.size === 0) {
     throw new Error("At least one practice exercise type must be enabled.");
   }
 
-  return {
-    clef,
-    notes: [
-      {
-        midiNumber,
-        name: getNoteName(midiNumber),
-        octave: getNoteOctave(midiNumber),
-      },
-    ],
-  };
+  const clef = getClefForMode(mode);
+  const exerciseType = getRandomExerciseType(enabledExerciseTypes);
+
+  if (exerciseType === "triads") {
+    return generateTriadTarget(clef);
+  }
+
+  return generateIndividualNoteTarget(clef, enabledNoteCategories);
 }
