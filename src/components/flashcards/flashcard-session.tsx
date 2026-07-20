@@ -6,10 +6,7 @@ import PracticeStats from "@/components/flashcards/practice-stats";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useMidi } from "@/hooks/use-midi";
-import {
-  playCorrectFeedback,
-  playIncorrectFeedback,
-} from "@/lib/audio/feedback";
+import { playSuccessChirp, playIncorrectFeedback } from "@/lib/audio/feedback";
 import {
   playGrandPianoChord,
   playGrandPianoNote,
@@ -33,8 +30,16 @@ type LastAnswer = Readonly<{
 type AnswerSource = "midi" | "virtual" | "simulation";
 
 const CHORD_ATTEMPT_GRACE_MS = 225;
-const CORRECT_FEEDBACK_MINIMUM_MS = 2_000;
-const CORRECT_VIRTUAL_CHORD_REPLAY_DELAY_MS = 1_000;
+
+const PIANO_NOTE_DURATION_MS = 850;
+const SUCCESS_CHIRP_DELAY_MS = 900;
+const NEXT_TARGET_DELAY_MS = 1_250;
+
+const VIRTUAL_CHORD_REPLAY_DELAY_MS = 900;
+const VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS =
+  VIRTUAL_CHORD_REPLAY_DELAY_MS + SUCCESS_CHIRP_DELAY_MS;
+const VIRTUAL_CHORD_NEXT_TARGET_DELAY_MS =
+  VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS + 350;
 
 const INITIAL_STATS: PracticeStatsType = {
   correct: 0,
@@ -120,6 +125,7 @@ export default function FlashcardSession() {
 
   const midiAttemptTimerRef = useRef<number | null>(null);
 
+  const successChirpTimerRef = useRef<number | null>(null);
   const correctFeedbackTimerRef = useRef<number | null>(null);
 
   const correctFeedbackReadyRef = useRef(false);
@@ -150,7 +156,13 @@ export default function FlashcardSession() {
     setMidiAttemptNotes(new Set());
   }, []);
 
-  const clearCorrectFeedbackTimer = useCallback(() => {
+  const clearCorrectFeedbackTimers = useCallback(() => {
+    if (successChirpTimerRef.current !== null) {
+      window.clearTimeout(successChirpTimerRef.current);
+
+      successChirpTimerRef.current = null;
+    }
+
     if (correctFeedbackTimerRef.current !== null) {
       window.clearTimeout(correctFeedbackTimerRef.current);
 
@@ -183,6 +195,10 @@ export default function FlashcardSession() {
         window.clearTimeout(midiAttemptTimerRef.current);
       }
 
+      if (successChirpTimerRef.current !== null) {
+        window.clearTimeout(successChirpTimerRef.current);
+      }
+
       if (correctFeedbackTimerRef.current !== null) {
         window.clearTimeout(correctFeedbackTimerRef.current);
       }
@@ -194,7 +210,7 @@ export default function FlashcardSession() {
       const nextTarget = generatePracticeTarget(nextMode, enabledExerciseTypes);
 
       clearMidiAttempt();
-      clearCorrectFeedbackTimer();
+      clearCorrectFeedbackTimers();
 
       practiceTargetRef.current = nextTarget;
       answerLockedRef.current = false;
@@ -207,7 +223,7 @@ export default function FlashcardSession() {
       setLastAnswer(null);
       setStartedAt(Date.now());
     },
-    [clearCorrectFeedbackTimer, clearMidiAttempt, enabledExerciseTypes, mode],
+    [clearCorrectFeedbackTimers, clearMidiAttempt, enabledExerciseTypes, mode],
   );
 
   useEffect(() => {
@@ -223,22 +239,35 @@ export default function FlashcardSession() {
       answerLockedRef.current = true;
 
       clearMidiAttempt();
-      clearCorrectFeedbackTimer();
+      clearCorrectFeedbackTimers();
 
       const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
 
-      setFeedback("correct");
-      playCorrectFeedback();
-
-      if (
+      const shouldReplayVirtualChord =
         source === "virtual" &&
         midiNumbers.size > 1 &&
-        replayCorrectVirtualChords
-      ) {
+        replayCorrectVirtualChords;
+
+      const successChirpDelayMs = shouldReplayVirtualChord
+        ? VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS
+        : SUCCESS_CHIRP_DELAY_MS;
+
+      const nextTargetDelayMs = shouldReplayVirtualChord
+        ? VIRTUAL_CHORD_NEXT_TARGET_DELAY_MS
+        : NEXT_TARGET_DELAY_MS;
+
+      setFeedback("correct");
+
+      if (shouldReplayVirtualChord) {
         window.setTimeout(() => {
-          playGrandPianoChord(midiNumbers);
-        }, CORRECT_VIRTUAL_CHORD_REPLAY_DELAY_MS);
+          playGrandPianoChord(midiNumbers, PIANO_NOTE_DURATION_MS);
+        }, VIRTUAL_CHORD_REPLAY_DELAY_MS);
       }
+
+      successChirpTimerRef.current = window.setTimeout(() => {
+        successChirpTimerRef.current = null;
+        playSuccessChirp();
+      }, successChirpDelayMs);
 
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
@@ -260,10 +289,10 @@ export default function FlashcardSession() {
       correctFeedbackTimerRef.current = window.setTimeout(() => {
         correctFeedbackReadyRef.current = true;
         tryAdvanceAfterCorrectAnswer();
-      }, CORRECT_FEEDBACK_MINIMUM_MS);
+      }, nextTargetDelayMs);
     },
     [
-      clearCorrectFeedbackTimer,
+      clearCorrectFeedbackTimers,
       clearMidiAttempt,
       replayCorrectVirtualChords,
       startedAt,
@@ -387,7 +416,6 @@ export default function FlashcardSession() {
 
   const handleMidiNotePlayed = useCallback(
     (midiNumber: number) => {
-      playGrandPianoNote(midiNumber);
 
       if (answerLockedRef.current) {
         return;
@@ -435,6 +463,8 @@ export default function FlashcardSession() {
       const targetMidiNumbers = getTargetMidiNumbers(currentTarget);
 
       if (currentTarget.notes.length === 1) {
+        playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
+
         if (targetMidiNumbers.has(midiNumber)) {
           handleCorrectAnswer(new Set([midiNumber]), "virtual");
 
@@ -462,7 +492,7 @@ export default function FlashcardSession() {
         } else {
           nextNotes.add(midiNumber);
 
-          playGrandPianoNote(midiNumber);
+          playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
         }
 
         if (notesMatchTarget(nextNotes, currentTarget)) {

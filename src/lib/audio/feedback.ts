@@ -107,7 +107,7 @@ function playTone(
   oscillator.stop(startTime + durationSeconds);
 }
 
-export function playCorrectFeedback(): void {
+export function playSuccessChirp(): void {
   const context = getAudioContext();
 
   if (!context || getFeedbackVolume() === 0) {
