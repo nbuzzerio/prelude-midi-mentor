@@ -20,6 +20,7 @@ import type {
   PracticeNoteCategory,
   PracticeStats as PracticeStatsType,
   PracticeTarget,
+  PracticeTriadQuality,
 } from "@/types/practice";
 import FeedbackVolumeControl from "../audio/feedback-volume-control";
 
@@ -90,6 +91,10 @@ export default function FlashcardSession() {
   const [enabledNoteCategories, setEnabledNoteCategories] = useState<
     ReadonlySet<PracticeNoteCategory>
   >(new Set(["naturals"]));
+
+  const [enabledTriadQualities, setEnabledTriadQualities] = useState<
+    ReadonlySet<PracticeTriadQuality>
+  >(new Set(["major"]));
 
   const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
     INITIAL_PRACTICE_TARGET,
@@ -216,6 +221,7 @@ export default function FlashcardSession() {
         nextMode,
         enabledExerciseTypes,
         enabledNoteCategories,
+        enabledTriadQualities,
       );
 
       clearMidiAttempt();
@@ -237,6 +243,7 @@ export default function FlashcardSession() {
       clearMidiAttempt,
       enabledExerciseTypes,
       enabledNoteCategories,
+      enabledTriadQualities,
       mode,
     ],
   );
@@ -602,6 +609,24 @@ export default function FlashcardSession() {
     });
   };
 
+  const handleTriadQualityToggle = (quality: PracticeTriadQuality) => {
+    setEnabledTriadQualities((currentQualities) => {
+      const nextQualities = new Set(currentQualities);
+
+      if (nextQualities.has(quality)) {
+        if (nextQualities.size === 1) {
+          return currentQualities;
+        }
+
+        nextQualities.delete(quality);
+      } else {
+        nextQualities.add(quality);
+      }
+
+      return nextQualities;
+    });
+  };
+
   const handleReset = () => {
     setStats(INITIAL_STATS);
     generateNextTarget();
@@ -653,10 +678,9 @@ export default function FlashcardSession() {
         />
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_18rem]">
-        <PracticeStats stats={stats} />
-
-        <div className="flex flex-col gap-4">
+      {/* TODO(v1): Remove temporary negative margin after final page layout pass. */}
+      <section className="relative -my-72 flex flex-col gap-6">
+        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr]">
           <InstrumentVolumeControl
             replayCorrectVirtualChords={replayCorrectVirtualChords}
             onReplayCorrectVirtualChordsChange={setReplayCorrectVirtualChords}
@@ -667,13 +691,17 @@ export default function FlashcardSession() {
           <PracticeControls
             enabledExerciseTypes={enabledExerciseTypes}
             enabledNoteCategories={enabledNoteCategories}
+            enabledTriadQualities={enabledTriadQualities}
             mode={mode}
             onExerciseTypeToggle={handleExerciseTypeToggle}
             onModeChange={handleModeChange}
             onNoteCategoryToggle={handleNoteCategoryToggle}
             onReset={handleReset}
+            onTriadQualityToggle={handleTriadQualityToggle}
           />
         </div>
+
+        <PracticeStats stats={stats} />
       </section>
     </div>
   );

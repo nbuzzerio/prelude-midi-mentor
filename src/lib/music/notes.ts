@@ -1,4 +1,5 @@
 import { NOTE_RANGES } from "../../data/note-ranges";
+import { generateTriadTarget } from "./generators/triads";
 import type {
   Clef,
   PracticeClefMode,
@@ -6,6 +7,7 @@ import type {
   PracticeNote,
   PracticeNoteCategory,
   PracticeTarget,
+  PracticeTriadQuality,
 } from "../../types/practice";
 
 type AccidentalSpelling = "sharp" | "flat";
@@ -41,42 +43,6 @@ const FLAT_NOTE_NAMES = [
 ] as const;
 
 const NATURAL_PITCH_CLASSES = new Set([0, 2, 4, 5, 7, 9, 11]);
-
-type TriadDefinition = Readonly<{
-  bassMidiNumbers: readonly [number, number, number];
-  trebleMidiNumbers: readonly [number, number, number];
-}>;
-
-const C_MAJOR_TRIADS: ReadonlyArray<TriadDefinition> = [
-  {
-    bassMidiNumbers: [36, 40, 43],
-    trebleMidiNumbers: [60, 64, 67],
-  },
-  {
-    bassMidiNumbers: [38, 41, 45],
-    trebleMidiNumbers: [62, 65, 69],
-  },
-  {
-    bassMidiNumbers: [40, 43, 47],
-    trebleMidiNumbers: [64, 67, 71],
-  },
-  {
-    bassMidiNumbers: [41, 45, 48],
-    trebleMidiNumbers: [65, 69, 72],
-  },
-  {
-    bassMidiNumbers: [43, 47, 50],
-    trebleMidiNumbers: [67, 71, 74],
-  },
-  {
-    bassMidiNumbers: [45, 48, 52],
-    trebleMidiNumbers: [69, 72, 76],
-  },
-  {
-    bassMidiNumbers: [47, 50, 53],
-    trebleMidiNumbers: [71, 74, 77],
-  },
-];
 
 function getPitchClass(midiNumber: number): number {
   return ((midiNumber % 12) + 12) % 12;
@@ -203,24 +169,11 @@ function generateIndividualNoteTarget(
   };
 }
 
-function generateTriadTarget(clef: Clef): PracticeTarget {
-  const triad = getRandomItem(C_MAJOR_TRIADS);
-
-  const midiNumbers =
-    clef === "bass" ? triad.bassMidiNumbers : triad.trebleMidiNumbers;
-
-  return {
-    clef,
-    notes: midiNumbers.map((midiNumber) =>
-      createPracticeNote(midiNumber, "sharp"),
-    ),
-  };
-}
-
 export function generatePracticeTarget(
   mode: PracticeClefMode,
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>,
   enabledNoteCategories: ReadonlySet<PracticeNoteCategory>,
+  enabledTriadQualities: ReadonlySet<PracticeTriadQuality>,
 ): PracticeTarget {
   if (enabledExerciseTypes.size === 0) {
     throw new Error("At least one practice exercise type must be enabled.");
@@ -230,7 +183,7 @@ export function generatePracticeTarget(
   const exerciseType = getRandomExerciseType(enabledExerciseTypes);
 
   if (exerciseType === "triads") {
-    return generateTriadTarget(clef);
+    return generateTriadTarget(clef, enabledTriadQualities);
   }
 
   return generateIndividualNoteTarget(clef, enabledNoteCategories);

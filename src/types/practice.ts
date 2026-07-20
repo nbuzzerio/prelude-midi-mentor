@@ -6,6 +6,12 @@ export type PracticeExerciseType = "notes" | "triads";
 
 export type PracticeNoteCategory = "naturals" | "accidentals";
 
+export type PracticeTriadQuality =
+  | "major"
+  | "minor"
+  | "diminished"
+  | "augmented";
+
 export type FeedbackState = "idle" | "correct" | "incorrect";
 
 export type PracticeNote = Readonly<{

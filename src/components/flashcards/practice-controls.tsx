@@ -2,16 +2,19 @@ import type {
   PracticeClefMode,
   PracticeExerciseType,
   PracticeNoteCategory,
+  PracticeTriadQuality,
 } from "@/types/practice";
 
 type PracticeControlsProps = Readonly<{
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>;
   enabledNoteCategories: ReadonlySet<PracticeNoteCategory>;
+  enabledTriadQualities: ReadonlySet<PracticeTriadQuality>;
   mode: PracticeClefMode;
   onExerciseTypeToggle: (exerciseType: PracticeExerciseType) => void;
   onModeChange: (mode: PracticeClefMode) => void;
   onNoteCategoryToggle: (category: PracticeNoteCategory) => void;
   onReset: () => void;
+  onTriadQualityToggle: (quality: PracticeTriadQuality) => void;
 }>;
 
 const MODES: ReadonlyArray<{
@@ -31,14 +34,26 @@ const NOTE_CATEGORIES: ReadonlyArray<{
   { label: "Accidentals", value: "accidentals" },
 ];
 
+const TRIAD_QUALITIES: ReadonlyArray<{
+  label: string;
+  value: PracticeTriadQuality;
+}> = [
+  { label: "Major", value: "major" },
+  { label: "Minor", value: "minor" },
+  { label: "Diminished", value: "diminished" },
+  { label: "Augmented", value: "augmented" },
+];
+
 export default function PracticeControls({
   enabledExerciseTypes,
   enabledNoteCategories,
+  enabledTriadQualities,
   mode,
   onExerciseTypeToggle,
   onModeChange,
   onNoteCategoryToggle,
   onReset,
+  onTriadQualityToggle,
 }: PracticeControlsProps) {
   const individualNotesEnabled = enabledExerciseTypes.has("notes");
   const triadsEnabled = enabledExerciseTypes.has("triads");
@@ -102,14 +117,33 @@ export default function PracticeControls({
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
-            <input
-              checked={triadsEnabled}
-              onChange={() => onExerciseTypeToggle("triads")}
-              type="checkbox"
-            />
-            Triads
-          </label>
+          <div className="rounded-xl bg-zinc-100">
+            <label className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
+              <input
+                checked={triadsEnabled}
+                onChange={() => onExerciseTypeToggle("triads")}
+                type="checkbox"
+              />
+              Triads
+            </label>
+
+            <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 pl-10">
+              {TRIAD_QUALITIES.map((option) => (
+                <label
+                  key={option.value}
+                  className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
+                >
+                  <input
+                    checked={enabledTriadQualities.has(option.value)}
+                    onChange={() => onTriadQualityToggle(option.value)}
+                    type="checkbox"
+                  />
+
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
