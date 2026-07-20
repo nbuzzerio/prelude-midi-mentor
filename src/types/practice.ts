@@ -12,6 +12,8 @@ export type PracticeTriadQuality =
   | "diminished"
   | "augmented";
 
+export type PracticeTriadPosition = "root" | "first" | "second";
+
 export type FeedbackState = "idle" | "correct" | "incorrect";
 
 export type PracticeNote = Readonly<{
@@ -20,8 +22,14 @@ export type PracticeNote = Readonly<{
   octave: number;
 }>;
 
+export type PracticeTargetName = Readonly<{
+  primary: string;
+  secondary?: string;
+}>;
+
 export type PracticeTarget = Readonly<{
   clef: Clef;
+  name: PracticeTargetName;
   notes: ReadonlyArray<PracticeNote>;
 }>;
 

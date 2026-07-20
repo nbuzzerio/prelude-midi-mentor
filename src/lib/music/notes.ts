@@ -1,5 +1,4 @@
 import { NOTE_RANGES } from "../../data/note-ranges";
-import { generateTriadTarget } from "./generators/triads";
 import type {
   Clef,
   PracticeClefMode,
@@ -7,8 +6,10 @@ import type {
   PracticeNote,
   PracticeNoteCategory,
   PracticeTarget,
+  PracticeTriadPosition,
   PracticeTriadQuality,
 } from "../../types/practice";
+import { generateTriadTarget } from "./generators/triads";
 
 type AccidentalSpelling = "sharp" | "flat";
 
@@ -163,9 +164,15 @@ function generateIndividualNoteTarget(
     ? "sharp"
     : getRandomAccidentalSpelling();
 
+  const note = createPracticeNote(midiNumber, accidentalSpelling);
+
   return {
     clef,
-    notes: [createPracticeNote(midiNumber, accidentalSpelling)],
+    name: {
+      primary: `${note.name}${note.octave}`,
+      secondary: "Individual note",
+    },
+    notes: [note],
   };
 }
 
@@ -174,6 +181,7 @@ export function generatePracticeTarget(
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>,
   enabledNoteCategories: ReadonlySet<PracticeNoteCategory>,
   enabledTriadQualities: ReadonlySet<PracticeTriadQuality>,
+  enabledTriadPositions: ReadonlySet<PracticeTriadPosition>,
 ): PracticeTarget {
   if (enabledExerciseTypes.size === 0) {
     throw new Error("At least one practice exercise type must be enabled.");
@@ -183,7 +191,11 @@ export function generatePracticeTarget(
   const exerciseType = getRandomExerciseType(enabledExerciseTypes);
 
   if (exerciseType === "triads") {
-    return generateTriadTarget(clef, enabledTriadQualities);
+    return generateTriadTarget(
+      clef,
+      enabledTriadQualities,
+      enabledTriadPositions,
+    );
   }
 
   return generateIndividualNoteTarget(clef, enabledNoteCategories);

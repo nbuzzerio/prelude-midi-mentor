@@ -2,18 +2,23 @@ import type {
   PracticeClefMode,
   PracticeExerciseType,
   PracticeNoteCategory,
+  PracticeTriadPosition,
   PracticeTriadQuality,
 } from "@/types/practice";
 
 type PracticeControlsProps = Readonly<{
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>;
   enabledNoteCategories: ReadonlySet<PracticeNoteCategory>;
+  enabledTriadPositions: ReadonlySet<PracticeTriadPosition>;
   enabledTriadQualities: ReadonlySet<PracticeTriadQuality>;
   mode: PracticeClefMode;
+  showTargetName: boolean;
   onExerciseTypeToggle: (exerciseType: PracticeExerciseType) => void;
   onModeChange: (mode: PracticeClefMode) => void;
   onNoteCategoryToggle: (category: PracticeNoteCategory) => void;
   onReset: () => void;
+  onShowTargetNameChange: (showTargetName: boolean) => void;
+  onTriadPositionToggle: (position: PracticeTriadPosition) => void;
   onTriadQualityToggle: (quality: PracticeTriadQuality) => void;
 }>;
 
@@ -44,15 +49,28 @@ const TRIAD_QUALITIES: ReadonlyArray<{
   { label: "Augmented", value: "augmented" },
 ];
 
+const TRIAD_POSITIONS: ReadonlyArray<{
+  label: string;
+  value: PracticeTriadPosition;
+}> = [
+  { label: "Root position", value: "root" },
+  { label: "First inversion", value: "first" },
+  { label: "Second inversion", value: "second" },
+];
+
 export default function PracticeControls({
   enabledExerciseTypes,
   enabledNoteCategories,
+  enabledTriadPositions,
   enabledTriadQualities,
   mode,
+  showTargetName,
   onExerciseTypeToggle,
   onModeChange,
   onNoteCategoryToggle,
   onReset,
+  onShowTargetNameChange,
+  onTriadPositionToggle,
   onTriadQualityToggle,
 }: PracticeControlsProps) {
   const individualNotesEnabled = enabledExerciseTypes.has("notes");
@@ -127,24 +145,68 @@ export default function PracticeControls({
               Triads
             </label>
 
-            <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 pl-10">
-              {TRIAD_QUALITIES.map((option) => (
-                <label
-                  key={option.value}
-                  className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
-                >
-                  <input
-                    checked={enabledTriadQualities.has(option.value)}
-                    onChange={() => onTriadQualityToggle(option.value)}
-                    type="checkbox"
-                  />
+            <div className="grid gap-4 border-t border-zinc-200 px-4 py-3 pl-10 sm:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Qualities
+                </p>
 
-                  {option.label}
-                </label>
-              ))}
+                <div className="flex flex-col gap-2">
+                  {TRIAD_QUALITIES.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
+                    >
+                      <input
+                        checked={enabledTriadQualities.has(option.value)}
+                        onChange={() => onTriadQualityToggle(option.value)}
+                        type="checkbox"
+                      />
+
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Positions
+                </p>
+
+                <div className="flex flex-col gap-2">
+                  {TRIAD_POSITIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
+                    >
+                      <input
+                        checked={enabledTriadPositions.has(option.value)}
+                        onChange={() => onTriadPositionToggle(option.value)}
+                        type="checkbox"
+                      />
+
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium text-zinc-700">Display</p>
+
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
+          <input
+            checked={showTargetName}
+            onChange={(event) => onShowTargetNameChange(event.target.checked)}
+            type="checkbox"
+          />
+          Show target name
+        </label>
       </div>
 
       <button

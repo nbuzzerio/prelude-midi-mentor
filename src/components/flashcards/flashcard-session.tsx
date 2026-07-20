@@ -20,6 +20,7 @@ import type {
   PracticeNoteCategory,
   PracticeStats as PracticeStatsType,
   PracticeTarget,
+  PracticeTriadPosition,
   PracticeTriadQuality,
 } from "@/types/practice";
 import FeedbackVolumeControl from "../audio/feedback-volume-control";
@@ -52,6 +53,10 @@ const INITIAL_STATS: PracticeStatsType = {
 
 const INITIAL_PRACTICE_TARGET: PracticeTarget = {
   clef: "bass",
+  name: {
+    primary: "C3",
+    secondary: "Individual note",
+  },
   notes: [
     {
       midiNumber: 48,
@@ -81,6 +86,8 @@ function getTargetMidiNumbers(
 export default function FlashcardSession() {
   const [mode, setMode] = useState<PracticeClefMode>("bass");
 
+  const [showTargetName, setShowTargetName] = useState(false);
+
   const [replayCorrectVirtualChords, setReplayCorrectVirtualChords] =
     useState(true);
 
@@ -95,6 +102,10 @@ export default function FlashcardSession() {
   const [enabledTriadQualities, setEnabledTriadQualities] = useState<
     ReadonlySet<PracticeTriadQuality>
   >(new Set(["major"]));
+
+  const [enabledTriadPositions, setEnabledTriadPositions] = useState<
+    ReadonlySet<PracticeTriadPosition>
+  >(new Set(["root"]));
 
   const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
     INITIAL_PRACTICE_TARGET,
@@ -222,6 +233,7 @@ export default function FlashcardSession() {
         enabledExerciseTypes,
         enabledNoteCategories,
         enabledTriadQualities,
+        enabledTriadPositions,
       );
 
       clearMidiAttempt();
@@ -243,6 +255,7 @@ export default function FlashcardSession() {
       clearMidiAttempt,
       enabledExerciseTypes,
       enabledNoteCategories,
+      enabledTriadPositions,
       enabledTriadQualities,
       mode,
     ],
@@ -627,6 +640,24 @@ export default function FlashcardSession() {
     });
   };
 
+  const handleTriadPositionToggle = (position: PracticeTriadPosition) => {
+    setEnabledTriadPositions((currentPositions) => {
+      const nextPositions = new Set(currentPositions);
+
+      if (nextPositions.has(position)) {
+        if (nextPositions.size === 1) {
+          return currentPositions;
+        }
+
+        nextPositions.delete(position);
+      } else {
+        nextPositions.add(position);
+      }
+
+      return nextPositions;
+    });
+  };
+
   const handleReset = () => {
     setStats(INITIAL_STATS);
     generateNextTarget();
@@ -665,6 +696,7 @@ export default function FlashcardSession() {
         <PracticeCard
           feedback={feedback}
           practiceTarget={practiceTarget}
+          showTargetName={showTargetName}
           onCorrect={handleCorrect}
           onIncorrect={handleIncorrect}
         />
@@ -687,16 +719,19 @@ export default function FlashcardSession() {
           />
 
           <FeedbackVolumeControl />
-
           <PracticeControls
             enabledExerciseTypes={enabledExerciseTypes}
             enabledNoteCategories={enabledNoteCategories}
+            enabledTriadPositions={enabledTriadPositions}
             enabledTriadQualities={enabledTriadQualities}
             mode={mode}
+            showTargetName={showTargetName}
             onExerciseTypeToggle={handleExerciseTypeToggle}
             onModeChange={handleModeChange}
             onNoteCategoryToggle={handleNoteCategoryToggle}
             onReset={handleReset}
+            onShowTargetNameChange={setShowTargetName}
+            onTriadPositionToggle={handleTriadPositionToggle}
             onTriadQualityToggle={handleTriadQualityToggle}
           />
         </div>
