@@ -1,18 +1,34 @@
 import { useCallback, useState } from "react";
-import PracticeCard from "@/components/flashcards/practice-card";
+
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
+import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
+import PracticeCard from "@/components/flashcards/practice-card";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
+
+import { useCorrectAnswerSequence } from "@/features/flashcards/hooks/use-correct-answer-sequence";
+import { useFlashcardSettings } from "@/features/flashcards/hooks/use-flashcard-settings";
+import { useFlashcardTarget } from "@/features/flashcards/hooks/use-flashcard-target";
+import { useMidiChordAttempt } from "@/features/flashcards/hooks/use-midi-chord-attempt";
+import {
+  CHORD_ATTEMPT_GRACE_MS,
+  NEXT_TARGET_DELAY_MS,
+  PIANO_NOTE_DURATION_MS,
+  SUCCESS_CHIRP_DELAY_MS,
+  VIRTUAL_CHORD_NEXT_TARGET_DELAY_MS,
+  VIRTUAL_CHORD_REPLAY_DELAY_MS,
+  VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS,
+} from "@/features/flashcards/flashcard-timing";
+
 import { useMidi } from "@/hooks/use-midi";
-import { playSuccessChirp, playIncorrectFeedback } from "@/lib/audio/feedback";
+
+import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import {
   playGrandPianoChord,
   playGrandPianoNote,
 } from "@/lib/audio/grand-piano";
-import type { FeedbackState, PracticeClefMode } from "@/types/practice";
-import FeedbackVolumeControl from "../audio/feedback-volume-control";
 import {
   getTargetMidiNumbers,
   notesMatchTarget,
@@ -22,19 +38,8 @@ import {
   applyIncorrectAttempt,
   INITIAL_PRACTICE_STATS,
 } from "@/lib/practice/session-stats";
-import {
-  VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS,
-  SUCCESS_CHIRP_DELAY_MS,
-  VIRTUAL_CHORD_NEXT_TARGET_DELAY_MS,
-  NEXT_TARGET_DELAY_MS,
-  PIANO_NOTE_DURATION_MS,
-  VIRTUAL_CHORD_REPLAY_DELAY_MS,
-  CHORD_ATTEMPT_GRACE_MS,
-} from "@/features/flashcards/flashcard-timing";
-import { useMidiChordAttempt } from "@/features/flashcards/hooks/use-midi-chord-attempt";
-import { useCorrectAnswerSequence } from "@/features/flashcards/hooks/use-correct-answer-sequence";
-import { useFlashcardSettings } from "@/features/flashcards/hooks/use-flashcard-settings";
-import { useFlashcardTarget } from "@/features/flashcards/hooks/use-flashcard-target";
+
+import type { FeedbackState, PracticeClefMode } from "@/types/practice";
 
 type LastAnswer = Readonly<{
   midiNumbers: ReadonlySet<number>;
@@ -44,6 +49,7 @@ type LastAnswer = Readonly<{
 type AnswerSource = "midi" | "virtual" | "simulation";
 
 export default function FlashcardSession() {
+  // Practice configuration
   const {
     enabledExerciseTypes,
     enabledNoteCategories,
@@ -61,6 +67,7 @@ export default function FlashcardSession() {
     toggleTriadQuality,
   } = useFlashcardSettings();
 
+  // Current practice target
   const {
     generateNextTarget: generateTarget,
     getCurrentTarget,
@@ -76,6 +83,7 @@ export default function FlashcardSession() {
     mode,
   });
 
+  // Session presentation state
   const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
   );
@@ -94,6 +102,7 @@ export default function FlashcardSession() {
 
   const [lastAnswer, setLastAnswer] = useState<LastAnswer | null>(null);
 
+  // MIDI chord-attempt lifecycle
   const {
     addNoteToAttempt: addNoteToMidiAttempt,
     attemptNotes: midiAttemptNotes,
@@ -102,6 +111,7 @@ export default function FlashcardSession() {
     startAttempt: startMidiAttempt,
   } = useMidiChordAttempt(CHORD_ATTEMPT_GRACE_MS);
 
+  // Target transitions
   const generateNextTarget = useCallback(
     (nextMode?: PracticeClefMode) => {
       clearMidiAttempt();
@@ -116,6 +126,7 @@ export default function FlashcardSession() {
     [clearMidiAttempt, generateTarget],
   );
 
+  // Correct-answer lifecycle
   const {
     clearSequence: clearCorrectAnswerSequence,
     startSequence: startCorrectAnswerSequence,
@@ -185,6 +196,7 @@ export default function FlashcardSession() {
     ],
   );
 
+  // Incorrect-answer handling
   const handleSingleIncorrectAnswer = useCallback(
     (midiNumber: number) => {
       if (isAnswerLocked()) {
@@ -222,6 +234,7 @@ export default function FlashcardSession() {
     [isAnswerLocked],
   );
 
+  // MIDI input
   const finalizeMidiAttempt = useCallback(
     (completedAttempt: ReadonlySet<number>) => {
       if (isAnswerLocked() || completedAttempt.size === 0) {
@@ -308,6 +321,7 @@ export default function FlashcardSession() {
     ],
   );
 
+  // Virtual keyboard input
   const handleVirtualNoteToggle = useCallback(
     (midiNumber: number) => {
       if (isAnswerLocked()) {
@@ -372,13 +386,14 @@ export default function FlashcardSession() {
     onNotePlayed: handleMidiNotePlayed,
   });
 
-  const handleCorrect = () => {
+  // Development simulation controls
+  const handleSimulateCorrect = () => {
     const currentTarget = getCurrentTarget();
 
     handleCorrectAnswer(getTargetMidiNumbers(currentTarget), "simulation");
   };
 
-  const handleIncorrect = () => {
+  const handleSimulateIncorrect = () => {
     const currentTarget = getCurrentTarget();
 
     const targetMidiNumbers = getTargetMidiNumbers(currentTarget);
@@ -409,6 +424,7 @@ export default function FlashcardSession() {
     handleFailedChordAttempt(simulatedAttempt);
   };
 
+  // Session controls
   const handleModeChange = (nextMode: PracticeClefMode) => {
     clearCorrectAnswerSequence();
     setMode(nextMode);
@@ -421,6 +437,7 @@ export default function FlashcardSession() {
     generateNextTarget();
   };
 
+  // Derived display state
   const activeMidiNumbers = new Set([
     ...virtualHeldNotes,
     ...midiAttemptNotes,
@@ -455,8 +472,8 @@ export default function FlashcardSession() {
           feedback={feedback}
           practiceTarget={practiceTarget}
           showTargetName={showTargetName}
-          onCorrect={handleCorrect}
-          onIncorrect={handleIncorrect}
+          onCorrect={handleSimulateCorrect}
+          onIncorrect={handleSimulateIncorrect}
         />
 
         <PianoKeyboard
