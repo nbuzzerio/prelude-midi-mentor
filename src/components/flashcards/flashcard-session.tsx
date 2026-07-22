@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import PracticeCard from "@/components/flashcards/practice-card";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import PracticeControls from "@/components/flashcards/practice-controls";
@@ -10,20 +10,31 @@ import { playSuccessChirp, playIncorrectFeedback } from "@/lib/audio/feedback";
 import {
   playGrandPianoChord,
   playGrandPianoNote,
-  preloadGrandPianoSamples,
 } from "@/lib/audio/grand-piano";
-import { generatePracticeTarget } from "@/lib/music/notes";
-import type {
-  FeedbackState,
-  PracticeClefMode,
-  PracticeExerciseType,
-  PracticeNoteCategory,
-  PracticeStats as PracticeStatsType,
-  PracticeTarget,
-  PracticeTriadPosition,
-  PracticeTriadQuality,
-} from "@/types/practice";
+import type { FeedbackState, PracticeClefMode } from "@/types/practice";
 import FeedbackVolumeControl from "../audio/feedback-volume-control";
+import {
+  getTargetMidiNumbers,
+  notesMatchTarget,
+} from "@/lib/practice/answer-validation";
+import {
+  applyCorrectAttempt,
+  applyIncorrectAttempt,
+  INITIAL_PRACTICE_STATS,
+} from "@/lib/practice/session-stats";
+import {
+  VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS,
+  SUCCESS_CHIRP_DELAY_MS,
+  VIRTUAL_CHORD_NEXT_TARGET_DELAY_MS,
+  NEXT_TARGET_DELAY_MS,
+  PIANO_NOTE_DURATION_MS,
+  VIRTUAL_CHORD_REPLAY_DELAY_MS,
+  CHORD_ATTEMPT_GRACE_MS,
+} from "@/features/flashcards/flashcard-timing";
+import { useMidiChordAttempt } from "@/features/flashcards/hooks/use-midi-chord-attempt";
+import { useCorrectAnswerSequence } from "@/features/flashcards/hooks/use-correct-answer-sequence";
+import { useFlashcardSettings } from "@/features/flashcards/hooks/use-flashcard-settings";
+import { useFlashcardTarget } from "@/features/flashcards/hooks/use-flashcard-target";
 
 type LastAnswer = Readonly<{
   midiNumbers: ReadonlySet<number>;
@@ -32,84 +43,38 @@ type LastAnswer = Readonly<{
 
 type AnswerSource = "midi" | "virtual" | "simulation";
 
-const CHORD_ATTEMPT_GRACE_MS = 225;
-
-const PIANO_NOTE_DURATION_MS = 850;
-const SUCCESS_CHIRP_DELAY_MS = 900;
-const NEXT_TARGET_DELAY_MS = 1_250;
-
-const VIRTUAL_CHORD_REPLAY_DELAY_MS = 900;
-const VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS =
-  VIRTUAL_CHORD_REPLAY_DELAY_MS + SUCCESS_CHIRP_DELAY_MS;
-const VIRTUAL_CHORD_NEXT_TARGET_DELAY_MS =
-  VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS + 350;
-
-const INITIAL_STATS: PracticeStatsType = {
-  correct: 0,
-  incorrect: 0,
-  streak: 0,
-  totalResponseTimeMs: 0,
-};
-
-const INITIAL_PRACTICE_TARGET: PracticeTarget = {
-  clef: "bass",
-  name: {
-    primary: "C3",
-    secondary: "Individual note",
-  },
-  notes: [
-    {
-      midiNumber: 48,
-      name: "C",
-      octave: 3,
-    },
-  ],
-};
-
-function notesMatchTarget(
-  playedNotes: ReadonlySet<number>,
-  practiceTarget: PracticeTarget,
-): boolean {
-  if (playedNotes.size !== practiceTarget.notes.length) {
-    return false;
-  }
-
-  return practiceTarget.notes.every((note) => playedNotes.has(note.midiNumber));
-}
-
-function getTargetMidiNumbers(
-  practiceTarget: PracticeTarget,
-): ReadonlySet<number> {
-  return new Set(practiceTarget.notes.map((note) => note.midiNumber));
-}
-
 export default function FlashcardSession() {
-  const [mode, setMode] = useState<PracticeClefMode>("bass");
+  const {
+    enabledExerciseTypes,
+    enabledNoteCategories,
+    enabledTriadPositions,
+    enabledTriadQualities,
+    mode,
+    replayCorrectVirtualChords,
+    setMode,
+    setReplayCorrectVirtualChords,
+    setShowTargetName,
+    showTargetName,
+    toggleExerciseType,
+    toggleNoteCategory,
+    toggleTriadPosition,
+    toggleTriadQuality,
+  } = useFlashcardSettings();
 
-  const [showTargetName, setShowTargetName] = useState(false);
-
-  const [replayCorrectVirtualChords, setReplayCorrectVirtualChords] =
-    useState(true);
-
-  const [enabledExerciseTypes, setEnabledExerciseTypes] = useState<
-    ReadonlySet<PracticeExerciseType>
-  >(new Set(["notes"]));
-
-  const [enabledNoteCategories, setEnabledNoteCategories] = useState<
-    ReadonlySet<PracticeNoteCategory>
-  >(new Set(["naturals"]));
-
-  const [enabledTriadQualities, setEnabledTriadQualities] = useState<
-    ReadonlySet<PracticeTriadQuality>
-  >(new Set(["major"]));
-
-  const [enabledTriadPositions, setEnabledTriadPositions] = useState<
-    ReadonlySet<PracticeTriadPosition>
-  >(new Set(["root"]));
-
-  const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
-    INITIAL_PRACTICE_TARGET,
-  );
+  const {
+    generateNextTarget: generateTarget,
+    getCurrentTarget,
+    isAnswerLocked,
+    lockAnswer,
+    practiceTarget,
+    startedAt,
+  } = useFlashcardTarget({
+    enabledExerciseTypes,
+    enabledNoteCategories,
+    enabledTriadPositions,
+    enabledTriadQualities,
+    mode,
+  });
 
   const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
@@ -119,162 +84,55 @@ export default function FlashcardSession() {
     new Set(),
   );
 
-  const [midiAttemptNotes, setMidiAttemptNotes] = useState<ReadonlySet<number>>(
-    new Set(),
-  );
-
   const [lastFailedAttemptNotes, setLastFailedAttemptNotes] = useState<
     ReadonlySet<number>
   >(new Set());
 
   const [feedback, setFeedback] = useState<FeedbackState>("idle");
 
-  const [stats, setStats] = useState<PracticeStatsType>(INITIAL_STATS);
+  const [stats, setStats] = useState(INITIAL_PRACTICE_STATS);
 
   const [lastAnswer, setLastAnswer] = useState<LastAnswer | null>(null);
 
-  const [startedAt, setStartedAt] = useState(0);
-
-  const answerLockedRef = useRef(false);
-  const practiceTargetRef = useRef(practiceTarget);
-
-  const midiHeldNotesRef = useRef<Set<number>>(new Set());
-
-  const midiAttemptNotesRef = useRef<Set<number>>(new Set());
-
-  const midiAttemptActiveRef = useRef(false);
-
-  const midiAttemptTimerRef = useRef<number | null>(null);
-
-  const successChirpTimerRef = useRef<number | null>(null);
-  const correctFeedbackTimerRef = useRef<number | null>(null);
-
-  const correctFeedbackReadyRef = useRef(false);
-  const waitingForMidiReleaseRef = useRef(false);
-
-  const generateNextTargetRef = useRef<(nextMode?: PracticeClefMode) => void>(
-    () => undefined,
-  );
-
-  useEffect(() => {
-    preloadGrandPianoSamples();
-  }, []);
-
-  useEffect(() => {
-    practiceTargetRef.current = practiceTarget;
-  }, [practiceTarget]);
-
-  const clearMidiAttempt = useCallback(() => {
-    if (midiAttemptTimerRef.current !== null) {
-      window.clearTimeout(midiAttemptTimerRef.current);
-
-      midiAttemptTimerRef.current = null;
-    }
-
-    midiAttemptActiveRef.current = false;
-    midiAttemptNotesRef.current = new Set();
-
-    setMidiAttemptNotes(new Set());
-  }, []);
-
-  const clearCorrectFeedbackTimers = useCallback(() => {
-    if (successChirpTimerRef.current !== null) {
-      window.clearTimeout(successChirpTimerRef.current);
-
-      successChirpTimerRef.current = null;
-    }
-
-    if (correctFeedbackTimerRef.current !== null) {
-      window.clearTimeout(correctFeedbackTimerRef.current);
-
-      correctFeedbackTimerRef.current = null;
-    }
-
-    correctFeedbackReadyRef.current = false;
-    waitingForMidiReleaseRef.current = false;
-  }, []);
-
-  const tryAdvanceAfterCorrectAnswer = useCallback(() => {
-    if (!correctFeedbackReadyRef.current) {
-      return;
-    }
-
-    if (waitingForMidiReleaseRef.current && midiHeldNotesRef.current.size > 0) {
-      return;
-    }
-
-    correctFeedbackTimerRef.current = null;
-    correctFeedbackReadyRef.current = false;
-    waitingForMidiReleaseRef.current = false;
-
-    generateNextTargetRef.current();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (midiAttemptTimerRef.current !== null) {
-        window.clearTimeout(midiAttemptTimerRef.current);
-      }
-
-      if (successChirpTimerRef.current !== null) {
-        window.clearTimeout(successChirpTimerRef.current);
-      }
-
-      if (correctFeedbackTimerRef.current !== null) {
-        window.clearTimeout(correctFeedbackTimerRef.current);
-      }
-    };
-  }, []);
+  const {
+    addNoteToAttempt: addNoteToMidiAttempt,
+    attemptNotes: midiAttemptNotes,
+    clearAttempt: clearMidiAttempt,
+    isAttemptActive: isMidiAttemptActive,
+    startAttempt: startMidiAttempt,
+  } = useMidiChordAttempt(CHORD_ATTEMPT_GRACE_MS);
 
   const generateNextTarget = useCallback(
-    (nextMode: PracticeClefMode = mode) => {
-      const nextTarget = generatePracticeTarget(
-        nextMode,
-        enabledExerciseTypes,
-        enabledNoteCategories,
-        enabledTriadQualities,
-        enabledTriadPositions,
-      );
-
+    (nextMode?: PracticeClefMode) => {
       clearMidiAttempt();
-      clearCorrectFeedbackTimers();
 
-      practiceTargetRef.current = nextTarget;
-      answerLockedRef.current = false;
-
-      setPracticeTarget(nextTarget);
       setVirtualHeldNotes(new Set());
-      setMidiAttemptNotes(new Set());
       setLastFailedAttemptNotes(new Set());
       setFeedback("idle");
       setLastAnswer(null);
-      setStartedAt(Date.now());
+
+      generateTarget(nextMode);
     },
-    [
-      clearCorrectFeedbackTimers,
-      clearMidiAttempt,
-      enabledExerciseTypes,
-      enabledNoteCategories,
-      enabledTriadPositions,
-      enabledTriadQualities,
-      mode,
-    ],
+    [clearMidiAttempt, generateTarget],
   );
 
-  useEffect(() => {
-    generateNextTargetRef.current = generateNextTarget;
-  }, [generateNextTarget]);
+  const {
+    clearSequence: clearCorrectAnswerSequence,
+    startSequence: startCorrectAnswerSequence,
+    updateMidiHeldNotes: updateCorrectAnswerMidiHeldNotes,
+  } = useCorrectAnswerSequence({
+    onAdvance: generateNextTarget,
+    onSuccessFeedback: playSuccessChirp,
+  });
 
   const handleCorrectAnswer = useCallback(
     (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
-      if (answerLockedRef.current) {
+      if (!lockAnswer()) {
         return;
       }
 
-      answerLockedRef.current = true;
-
       clearMidiAttempt();
-      clearCorrectFeedbackTimers();
+      clearCorrectAnswerSequence();
 
       const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
 
@@ -299,11 +157,6 @@ export default function FlashcardSession() {
         }, VIRTUAL_CHORD_REPLAY_DELAY_MS);
       }
 
-      successChirpTimerRef.current = window.setTimeout(() => {
-        successChirpTimerRef.current = null;
-        playSuccessChirp();
-      }, successChirpDelayMs);
-
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
 
@@ -312,53 +165,49 @@ export default function FlashcardSession() {
         result: "correct",
       });
 
-      setStats((currentStats) => ({
-        ...currentStats,
-        correct: currentStats.correct + 1,
-        streak: currentStats.streak + 1,
-        totalResponseTimeMs: currentStats.totalResponseTimeMs + responseTimeMs,
-      }));
+      setStats((currentStats) =>
+        applyCorrectAttempt(currentStats, responseTimeMs),
+      );
 
-      waitingForMidiReleaseRef.current = source === "midi";
-
-      correctFeedbackTimerRef.current = window.setTimeout(() => {
-        correctFeedbackReadyRef.current = true;
-        tryAdvanceAfterCorrectAnswer();
-      }, nextTargetDelayMs);
+      startCorrectAnswerSequence({
+        nextTargetDelayMs,
+        successChirpDelayMs,
+        waitForMidiRelease: source === "midi",
+      });
     },
     [
-      clearCorrectFeedbackTimers,
+      clearCorrectAnswerSequence,
       clearMidiAttempt,
+      lockAnswer,
       replayCorrectVirtualChords,
+      startCorrectAnswerSequence,
       startedAt,
-      tryAdvanceAfterCorrectAnswer,
     ],
   );
 
-  const handleSingleIncorrectAnswer = useCallback((midiNumber: number) => {
-    if (answerLockedRef.current) {
-      return;
-    }
+  const handleSingleIncorrectAnswer = useCallback(
+    (midiNumber: number) => {
+      if (isAnswerLocked()) {
+        return;
+      }
 
-    setFeedback("incorrect");
-    playIncorrectFeedback();
-    setLastFailedAttemptNotes(new Set());
+      setFeedback("incorrect");
+      playIncorrectFeedback();
+      setLastFailedAttemptNotes(new Set());
 
-    setLastAnswer({
-      midiNumbers: new Set([midiNumber]),
-      result: "incorrect",
-    });
+      setLastAnswer({
+        midiNumbers: new Set([midiNumber]),
+        result: "incorrect",
+      });
 
-    setStats((currentStats) => ({
-      ...currentStats,
-      incorrect: currentStats.incorrect + 1,
-      streak: 0,
-    }));
-  }, []);
+      setStats(applyIncorrectAttempt);
+    },
+    [isAnswerLocked],
+  );
 
   const handleFailedChordAttempt = useCallback(
     (midiNumbers: ReadonlySet<number>) => {
-      if (answerLockedRef.current || midiNumbers.size === 0) {
+      if (isAnswerLocked() || midiNumbers.size === 0) {
         return;
       }
 
@@ -368,94 +217,64 @@ export default function FlashcardSession() {
 
       setLastFailedAttemptNotes(new Set(midiNumbers));
 
-      setStats((currentStats) => ({
-        ...currentStats,
-        incorrect: currentStats.incorrect + 1,
-        streak: 0,
-      }));
+      setStats(applyIncorrectAttempt);
     },
-    [],
+    [isAnswerLocked],
   );
 
-  const finalizeMidiAttempt = useCallback(() => {
-    const completedAttempt = new Set(midiAttemptNotesRef.current);
+  const finalizeMidiAttempt = useCallback(
+    (completedAttempt: ReadonlySet<number>) => {
+      if (isAnswerLocked() || completedAttempt.size === 0) {
+        return;
+      }
 
-    midiAttemptTimerRef.current = null;
-    midiAttemptActiveRef.current = false;
-    midiAttemptNotesRef.current = new Set();
+      const currentTarget = getCurrentTarget();
 
-    setMidiAttemptNotes(new Set());
+      if (notesMatchTarget(completedAttempt, currentTarget)) {
+        handleCorrectAnswer(completedAttempt, "midi");
 
-    if (answerLockedRef.current || completedAttempt.size === 0) {
-      return;
-    }
+        return;
+      }
 
-    const currentTarget = practiceTargetRef.current;
+      handleFailedChordAttempt(completedAttempt);
+    },
+    [
+      handleCorrectAnswer,
+      handleFailedChordAttempt,
+      getCurrentTarget,
+      isAnswerLocked,
+    ],
+  );
 
-    if (notesMatchTarget(completedAttempt, currentTarget)) {
-      handleCorrectAnswer(completedAttempt, "midi");
-
-      return;
-    }
-
-    handleFailedChordAttempt(completedAttempt);
-  }, [handleCorrectAnswer, handleFailedChordAttempt]);
-
-  const startMidiAttempt = useCallback(
+  const handleStartMidiAttempt = useCallback(
     (midiNumber: number) => {
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
       setLastAnswer(null);
       setFeedback("idle");
 
-      const firstAttemptNotes = new Set([midiNumber]);
-
-      midiAttemptActiveRef.current = true;
-      midiAttemptNotesRef.current = firstAttemptNotes;
-
-      setMidiAttemptNotes(firstAttemptNotes);
-
-      midiAttemptTimerRef.current = window.setTimeout(
-        finalizeMidiAttempt,
-        CHORD_ATTEMPT_GRACE_MS,
-      );
+      startMidiAttempt(midiNumber, finalizeMidiAttempt);
     },
-    [finalizeMidiAttempt],
+    [finalizeMidiAttempt, startMidiAttempt],
   );
-
-  const addNoteToMidiAttempt = useCallback((midiNumber: number) => {
-    const nextAttemptNotes = new Set(midiAttemptNotesRef.current);
-
-    nextAttemptNotes.add(midiNumber);
-
-    midiAttemptNotesRef.current = nextAttemptNotes;
-
-    setMidiAttemptNotes(nextAttemptNotes);
-  }, []);
 
   const handleMidiHeldNotesChanged = useCallback(
     (heldNotes: ReadonlySet<number>) => {
       const nextHeldNotes = new Set(heldNotes);
 
-      midiHeldNotesRef.current = nextHeldNotes;
       setMidiHeldNotes(nextHeldNotes);
-
-      if (nextHeldNotes.size !== 0) {
-        return;
-      }
-
-      tryAdvanceAfterCorrectAnswer();
+      updateCorrectAnswerMidiHeldNotes(nextHeldNotes);
     },
-    [tryAdvanceAfterCorrectAnswer],
+    [updateCorrectAnswerMidiHeldNotes],
   );
 
   const handleMidiNotePlayed = useCallback(
     (midiNumber: number) => {
-      if (answerLockedRef.current) {
+      if (isAnswerLocked()) {
         return;
       }
 
-      const currentTarget = practiceTargetRef.current;
+      const currentTarget = getCurrentTarget();
 
       const targetMidiNumbers = getTargetMidiNumbers(currentTarget);
 
@@ -471,8 +290,8 @@ export default function FlashcardSession() {
         return;
       }
 
-      if (!midiAttemptActiveRef.current) {
-        startMidiAttempt(midiNumber);
+      if (!isMidiAttemptActive()) {
+        handleStartMidiAttempt(midiNumber);
         return;
       }
 
@@ -482,17 +301,20 @@ export default function FlashcardSession() {
       addNoteToMidiAttempt,
       handleCorrectAnswer,
       handleSingleIncorrectAnswer,
-      startMidiAttempt,
+      handleStartMidiAttempt,
+      isMidiAttemptActive,
+      getCurrentTarget,
+      isAnswerLocked,
     ],
   );
 
   const handleVirtualNoteToggle = useCallback(
     (midiNumber: number) => {
-      if (answerLockedRef.current) {
+      if (isAnswerLocked()) {
         return;
       }
 
-      const currentTarget = practiceTargetRef.current;
+      const currentTarget = getCurrentTarget();
 
       const targetMidiNumbers = getTargetMidiNumbers(currentTarget);
 
@@ -536,7 +358,13 @@ export default function FlashcardSession() {
         return nextNotes;
       });
     },
-    [clearMidiAttempt, handleCorrectAnswer, handleSingleIncorrectAnswer],
+    [
+      clearMidiAttempt,
+      handleCorrectAnswer,
+      handleSingleIncorrectAnswer,
+      getCurrentTarget,
+      isAnswerLocked,
+    ],
   );
 
   const { connectMidi, deviceName, error, status } = useMidi({
@@ -545,13 +373,13 @@ export default function FlashcardSession() {
   });
 
   const handleCorrect = () => {
-    const currentTarget = practiceTargetRef.current;
+    const currentTarget = getCurrentTarget();
 
     handleCorrectAnswer(getTargetMidiNumbers(currentTarget), "simulation");
   };
 
   const handleIncorrect = () => {
-    const currentTarget = practiceTargetRef.current;
+    const currentTarget = getCurrentTarget();
 
     const targetMidiNumbers = getTargetMidiNumbers(currentTarget);
 
@@ -582,84 +410,14 @@ export default function FlashcardSession() {
   };
 
   const handleModeChange = (nextMode: PracticeClefMode) => {
+    clearCorrectAnswerSequence();
     setMode(nextMode);
     generateNextTarget(nextMode);
   };
 
-  const handleExerciseTypeToggle = (exerciseType: PracticeExerciseType) => {
-    setEnabledExerciseTypes((currentTypes) => {
-      const nextTypes = new Set(currentTypes);
-
-      if (nextTypes.has(exerciseType)) {
-        if (nextTypes.size === 1) {
-          return currentTypes;
-        }
-
-        nextTypes.delete(exerciseType);
-      } else {
-        nextTypes.add(exerciseType);
-      }
-
-      return nextTypes;
-    });
-  };
-
-  const handleNoteCategoryToggle = (category: PracticeNoteCategory) => {
-    setEnabledNoteCategories((currentCategories) => {
-      const nextCategories = new Set(currentCategories);
-
-      if (nextCategories.has(category)) {
-        if (nextCategories.size === 1) {
-          return currentCategories;
-        }
-
-        nextCategories.delete(category);
-      } else {
-        nextCategories.add(category);
-      }
-
-      return nextCategories;
-    });
-  };
-
-  const handleTriadQualityToggle = (quality: PracticeTriadQuality) => {
-    setEnabledTriadQualities((currentQualities) => {
-      const nextQualities = new Set(currentQualities);
-
-      if (nextQualities.has(quality)) {
-        if (nextQualities.size === 1) {
-          return currentQualities;
-        }
-
-        nextQualities.delete(quality);
-      } else {
-        nextQualities.add(quality);
-      }
-
-      return nextQualities;
-    });
-  };
-
-  const handleTriadPositionToggle = (position: PracticeTriadPosition) => {
-    setEnabledTriadPositions((currentPositions) => {
-      const nextPositions = new Set(currentPositions);
-
-      if (nextPositions.has(position)) {
-        if (nextPositions.size === 1) {
-          return currentPositions;
-        }
-
-        nextPositions.delete(position);
-      } else {
-        nextPositions.add(position);
-      }
-
-      return nextPositions;
-    });
-  };
-
   const handleReset = () => {
-    setStats(INITIAL_STATS);
+    clearCorrectAnswerSequence();
+    setStats(INITIAL_PRACTICE_STATS);
     generateNextTarget();
   };
 
@@ -726,13 +484,13 @@ export default function FlashcardSession() {
             enabledTriadQualities={enabledTriadQualities}
             mode={mode}
             showTargetName={showTargetName}
-            onExerciseTypeToggle={handleExerciseTypeToggle}
             onModeChange={handleModeChange}
-            onNoteCategoryToggle={handleNoteCategoryToggle}
             onReset={handleReset}
             onShowTargetNameChange={setShowTargetName}
-            onTriadPositionToggle={handleTriadPositionToggle}
-            onTriadQualityToggle={handleTriadQualityToggle}
+            onExerciseTypeToggle={toggleExerciseType}
+            onNoteCategoryToggle={toggleNoteCategory}
+            onTriadPositionToggle={toggleTriadPosition}
+            onTriadQualityToggle={toggleTriadQuality}
           />
         </div>
 
