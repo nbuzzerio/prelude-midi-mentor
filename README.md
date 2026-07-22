@@ -24,7 +24,9 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Bass clef practice
 - Mixed-clef practice
 - Single-note flashcards
-- Diatonic triad flashcards
+- Single-note flashcards
+- Major, minor, diminished, and augmented triad flashcards
+- Root position, first inversion, and second inversion
 - Standard staff notation rendered with VexFlow
 
 ### Real-Time Input
@@ -35,7 +37,7 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - MIDI connection status and diagnostics
 - Simultaneous MIDI note tracking
 - Rolled chord support
-- Exact chord validation
+- Grace-based rolled chord detection
 
 ### Practice Statistics
 
@@ -83,19 +85,19 @@ The goal is to connect three ideas:
 ## How It Works
 
 ```text
-Generate Target Note
+Generate Practice Target
         │
         ▼
 Render Standard Notation
         │
         ▼
-Wait for MIDI or On-Screen Input
+Wait for MIDI or Virtual Piano Input
         │
         ▼
-Normalize the Played Pitch
+Collect Input Attempt
         │
         ▼
-Compare It with the Target
+Validate Against Practice Target
         │
         ▼
 Provide Feedback and Update Statistics
@@ -118,6 +120,7 @@ Physical MIDI input and the on-screen keyboard share the same validation path, k
 
 - Web MIDI API
 - VexFlow
+- Sample-based piano playback
 
 ### Progressive Web App
 
@@ -202,26 +205,46 @@ When a device is not detected, check the cable direction and use Prelude's MIDI 
 
 ```text
 src/
-├── components/
-│   ├── flashcards/    # Practice sessions, controls, and statistics
-│   ├── midi/          # MIDI status and diagnostic components
-│   ├── notation/      # Staff and piano keyboard rendering
-│   └── ui/            # Shared UI components
+├── assets/
+│   └── audio/
 │
-├── data/              # Static music and application data
-├── hooks/             # Reusable React hooks
+├── components/
+│   ├── audio/
+│   ├── flashcards/
+│   ├── midi/
+│   ├── notation/
+│   └── ui/
+│
+├── data/
+│
+├── features/
+│   └── flashcards/
+│       └── hooks/
+│
+├── hooks/
 │
 ├── lib/
-│   ├── midi/          # MIDI utilities
-│   ├── music/         # Note logic and VexFlow helpers
-│   ├── pwa/           # Progressive Web App utilities
-│   └── utils/         # General shared helpers
+│   ├── audio/
+│   ├── midi/
+│   ├── music/
+│   │   └── generators/
+│   ├── practice/
+│   ├── pwa/
+│   └── utils/
 │
-├── types/             # Shared TypeScript types
+├── types/
+│
 ├── App.tsx
 ├── main.tsx
 └── index.css
 ```
+
+- **components/** — React UI components organized by feature and presentation.
+- **data/** — Static musical data used by the application.
+- **features/** — Feature-specific state, orchestration, and hooks.
+- **hooks/** — Cross-feature reusable React hooks.
+- **lib/** — Reusable audio, music, practice, MIDI, and platform logic that is independent of React.
+- **types/** — Shared TypeScript models used throughout the application.
 
 For a more detailed technical explanation, see
 [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
@@ -232,16 +255,14 @@ For a more detailed technical explanation, see
 
 Prelude's core sight-reading MVP is complete and usable.
 
-Current development is focused on expanding music-reading options and expanding the musicianship engine beyond notes and triads.
+Current development is focused on stabilizing the v1.0 release.
 
-Near-term work includes:
+Current priorities include:
 
-- Improved enharmonic spelling
-- Natural-notes-only practice
-- Expanded practice ranges
-- Simultaneous MIDI note tracking
-- Chord flashcards
-- Chord inversions
+- Architecture documentation
+- Automated testing
+- Documentation refinement
+- Initial public release
 
 See [`ROADMAP.md`](./docs/ROADMAP.md) for the broader development plan.
 
@@ -308,34 +329,13 @@ Prelude is not intended to become a professional DAW or full notation editor. Cr
 
 ## Architectural Direction
 
-The current application uses a single target note for each flashcard.
+The current practice engine is built around isolated `PracticeTarget`s.
 
-Over time, Prelude will evolve toward a shared musical lesson model:
+Each target represents a single musical concept such as a note or triad and is shared across rendering, playback, and validation.
 
-```text
-Lesson
-    │
-    ▼
-Measures
-    │
-    ▼
-Events
-    │
-    ▼
-Notes
-```
+Future lesson-based features will likely introduce a separate sequence-oriented model while continuing to reuse Prelude's underlying music primitives.
 
-That model can support:
-
-- Flashcards
-- Chords
-- Scales
-- Arpeggios
-- Guided exercises
-- Songs
-- Composition tools
-
-In this architecture, a flashcard is simply the smallest possible lesson.
+This keeps today's flashcard engine simple without constraining future guided lessons.
 
 ---
 

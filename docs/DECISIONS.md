@@ -388,7 +388,7 @@ Whole
 
 ---
 
-# 2026-07 — Interface Feedback Uses the Web Audio API
+## 2026-07 — Interface Feedback Uses a Dedicated Audio Layer
 
 ## Decision
 
@@ -527,6 +527,97 @@ Incremental development makes it easier to:
 - Unrelated changes should not be grouped together.
 - Architecture should evolve only when a current feature justifies it.
 - Documentation should be updated at meaningful checkpoints.
+
+---
+
+---
+
+# 2026-07 — PracticeTarget Is the Core Practice Primitive
+
+## Decision
+
+Prelude's isolated practice engine is built around a generalized `PracticeTarget` model rather than separate models for notes, chords, intervals, or future exercises.
+
+## Reason
+
+Many practice modes share the same responsibilities:
+
+- rendering notation
+- validating user input
+- providing feedback
+- tracking statistics
+
+Using a single abstraction allows new musical concepts to be introduced without duplicating the surrounding practice infrastructure.
+
+## Consequences
+
+- New isolated exercises should integrate with `PracticeTarget` whenever practical.
+- Rendering, playback, and validation consume the same practice model.
+- Future lesson systems may build upon this foundation while introducing higher-level sequence models.
+
+---
+
+# 2026-07 — Feature Modules Own Practice State
+
+## Decision
+
+Prelude organizes feature-specific logic into dedicated feature modules rather than concentrating application behavior inside React components.
+
+## Reason
+
+As the project expanded beyond simple note flashcards, separating orchestration from presentation made the codebase easier to maintain and extend.
+
+Components should primarily render UI, while feature modules coordinate practice behavior and state.
+
+## Consequences
+
+- Feature-specific hooks belong within their feature module.
+- UI components remain focused on presentation.
+- Shared utilities continue to live outside React in reusable libraries.
+
+---
+
+# 2026-07 — Rendering, Validation, and Audio Remain Independent
+
+## Decision
+
+Notation rendering, answer validation, and audio playback are separate systems that communicate through shared application models rather than directly with one another.
+
+## Reason
+
+Each subsystem has a distinct responsibility:
+
+- notation displays music
+- validation evaluates user input
+- audio produces sound
+
+Keeping these responsibilities independent reduces coupling and makes future enhancements easier.
+
+## Consequences
+
+- Audio systems can evolve without changing validation logic.
+- New rendering or playback technologies can be introduced with minimal architectural impact.
+- Practice logic remains independent of presentation and output.
+
+---
+
+# 2026-07 — Stabilization Before Expansion
+
+## Decision
+
+Prelude reaches a stable v1.0 release before expanding into additional musicianship features.
+
+## Reason
+
+As the architecture matured, documentation and automated testing became more valuable than introducing additional feature work.
+
+Establishing a well-documented, well-tested foundation reduces future maintenance costs and provides a stronger base for continued development.
+
+## Consequences
+
+- Major documentation is completed before new feature development resumes.
+- Automated testing is prioritized alongside implementation.
+- Future milestones can build upon a stable, documented architecture rather than revisiting earlier design decisions.
 
 ---
 

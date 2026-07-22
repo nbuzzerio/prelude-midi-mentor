@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Version:** 1.1
+> **Version:** 1.0
 > **Last Updated:** July 2026
-> **Current Milestone:** Multi-Note Musicianship MVP
+> **Current Milestone:** v1.0 Stabilization
 
 ---
 
@@ -62,7 +62,9 @@ Features should never exist simply because they are technically interesting—th
 
 # Current MVP Goal
 
-The current milestone focuses on building a complete multi-note musicianship practice loop.
+The current milestone focuses on stabilizing Prelude for its v1.0 public release.
+
+The core flashcard engine is feature-complete, with current work centered on documentation, testing, and polish before expanding into additional practice modes.
 
 Users should be able to:
 
@@ -89,7 +91,11 @@ Completed features include:
 - Bass clef mode
 - Mixed mode
 - Single-note flashcards
-- Diatonic triad flashcards
+- Major triad flashcards
+- Minor triad flashcards
+- Diminished triad flashcards
+- Augmented triad flashcards
+- Root position, first inversion, and second inversion
 - Configurable exercise types
 - Random target generation
 - Session statistics
@@ -111,7 +117,7 @@ Completed features include:
 ## Feedback
 
 - Immediate visual feedback
-- Browser-generated audio feedback
+- Sample-based piano playback
 - Adjustable feedback volume
 - Persistent local preferences
 
@@ -136,22 +142,22 @@ Completed features include:
 
 # Current Development Focus
 
-Development is currently focused on expanding the flashcard engine into a more complete musicianship platform.
+Development is currently focused on preparing Prelude for its initial public release.
 
 Immediate priorities are:
 
-1. Interval practice
-2. Additional chord qualities
-3. Expanded practice settings
-4. Scale practice
-5. Improved enharmonic spelling
-6. Long-term lesson architecture
+1. Complete architecture documentation
+2. Add automated test coverage
+3. Final documentation review
+4. v1.0 public release
+
+Following the v1.0 release, development will continue with additional musicianship features such as intervals, scales, and guided lessons.
 
 ---
 
 # Long-Term Architecture
 
-Prelude is intentionally being designed so that today's flashcard system can evolve naturally into tomorrow's guided lesson system.
+Prelude is intentionally designed so today's isolated practice engine can evolve naturally into tomorrow's guided lesson system without requiring major architectural rewrites.
 
 The current practice engine is built around a generalized `PracticeTarget` model rather than a single target note.
 
@@ -218,7 +224,7 @@ Songs become one application of these skills rather than the primary learning me
 When contributing to Prelude:
 
 - Favor small, focused commits.
-- Update documentation when meaningful architectural changes occur.
+- Keep documentation synchronized with the implementation.
 - Keep components modular.
 - Document architectural decisions.
 - Prefer simple solutions before introducing abstractions.

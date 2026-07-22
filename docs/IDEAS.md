@@ -2,7 +2,7 @@
 
 A place to quickly capture ideas without interrupting development.
 
-Current Ideas
+## Current Ideas
 
 - Rhythm Lab
 - Composer Mode

@@ -54,22 +54,25 @@
 
 ---
 
-# 🚧 Phase 2 — Musicianship MVP (Current)
+# 🚧 Phase 2 — v1.0 Stabilization (Current)
 
-Current focus is improving the flashcard experience before expanding into additional practice modes.
+Current focus is stabilizing the existing flashcard engine through documentation, testing, and release preparation before expanding into additional practice modes.
 
 ## Notation
 
-- [ ] Improve enharmonic spelling (Sharps + Flats)
-- [ ] Optional Sharp-only / Flat-only / Mixed practice
+- [x] Support sharps and flats
+- [x] Sharp-only / Flat-only / Mixed practice modes
 - [ ] Natural-notes-only beginner mode
 
 ## Practice
 
-- [x] Diatonic triad flashcards
+- [x] Major triad flashcards
+- [x] Minor triad flashcards
+- [x] Diminished triad flashcards
+- [x] Augmented triad flashcards
 - [x] Generalized practice target model
-- [x] Simultaneous MIDI note validation
-- [x] Browser audio feedback
+- [x] Grace-based simultaneous MIDI note validation
+- [x] Sampled piano playback
 - [x] Adjustable feedback volume
 - [ ] Expanded configurable note ranges
 - [ ] Difficulty presets
@@ -91,13 +94,15 @@ Expand the existing multi-note practice engine into a complete harmony trainer.
 
 - [x] Simultaneous MIDI note detection
 - [x] Diatonic triad practice
-- [ ] Major chord flashcards
-- [ ] Minor chord flashcards
-- [ ] Diminished chords
-- [ ] Augmented chords
+- [x] Major chord flashcards
+- [x] Minor chord flashcards
+- [x] Diminished chord flashcards
+- [x] Augmented chord flashcards
 - [ ] Suspended chords
 - [ ] Seventh chords
-- [ ] Chord inversions
+- [x] Root position (Chord Inversions)
+- [x] First inversion (Chord Inversions)
+- [x] Second inversion (Chord Inversions)
 - [ ] Chord recognition mode
 
 ---

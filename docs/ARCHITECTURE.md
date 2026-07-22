@@ -1,40 +1,45 @@
 # Prelude: MIDI Mentor — ARCHITECTURE
 
-> This document describes the technical architecture of Prelude: MIDI Mentor, how the project is currently organized, and the long-term architectural direction.
+> This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
 ---
 
 # Overview
 
-Prelude is a browser-based musicianship platform focused on teaching piano through standard music notation and real-time MIDI interaction.
+Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application centers around a generalized practice engine capable of presenting both single-note and multi-note musical targets.
+The current application provides a flashcard-based practice engine supporting:
 
-The initial implementation supports single-note and diatonic triad flashcards while laying the groundwork for intervals, chords, scales, guided lessons, and additional musicianship exercises.
+- Treble, bass, and mixed clefs
+- Natural notes and accidentals
+- Single notes and triads
+- Major, minor, diminished, and augmented triads
+- Root position, first inversion, and second inversion
+- Physical MIDI keyboards
+- Virtual piano input
+- Visual and audio feedback
+- Session statistics
 
-Prelude is currently a frontend-only application and requires no backend services, authentication, or database.
+Prelude is currently a frontend-only application built with React and Vite.
 
 ---
 
 # Design Goals
 
-Prelude is built around several core architectural principles.
+The architecture follows a few simple principles:
 
-- Modular React components
-- Clear separation of UI and music logic
-- Browser-first development
-- Progressive enhancement
-- Reusable systems over one-off features
-- Small, maintainable components
-- Long-term extensibility
-
-Every major feature should build upon existing systems rather than introducing parallel implementations.
+- Keep music logic separate from React UI.
+- Keep reusable logic separate from feature-specific state.
+- Prefer small focused modules over large components.
+- Share one music model across rendering, playback, and validation.
+- Avoid premature abstractions.
+- Build features incrementally.
 
 ---
 
 # Technology Stack
 
-## Frontend
+## Application
 
 - React
 - TypeScript
@@ -45,11 +50,11 @@ Every major feature should build upon existing systems rather than introducing p
 
 - Web MIDI API
 - VexFlow
+- Web Audio API
 
 ## Platform
 
 - vite-plugin-pwa
-- Workbox
 - GitHub Actions
 - Nginx
 - DigitalOcean
@@ -58,29 +63,20 @@ Every major feature should build upon existing systems rather than introducing p
 
 # High-Level Architecture
 
-Today, Prelude revolves around a single practice session capable of presenting multiple exercise types.
-
 ```text
 App
 │
-├── Flashcard Session
-│     ├── Practice Controls
-│     ├── Practice Generator
-│     ├── Music Staff
-│     ├── Piano Keyboard
-│     └── Practice Statistics
-│
-├── MIDI
-│     ├── Status
-│     └── Diagnostic
-│
-└── Music Library
-      ├── Practice Target
-      ├── Notes
-      └── VexFlow
+└── FlashcardSession
+    ├── Feature Hooks
+    ├── Practice Logic
+    ├── Music Rendering
+    ├── MIDI Input
+    ├── Virtual Piano
+    ├── Audio
+    └── Statistics
 ```
 
-Each area has a single responsibility, making future expansion straightforward.
+`FlashcardSession` coordinates the practice experience by composing focused hooks, utilities, and presentation components.
 
 ---
 
@@ -88,353 +84,285 @@ Each area has a single responsibility, making future expansion straightforward.
 
 ```text
 src/
+├── assets/
 ├── components/
-│   ├── flashcards/
-│   │   ├── flashcard-session.tsx
-│   │   ├── practice-controls.tsx
-│   │   ├── practice-stats.tsx
-│   │   └── target-note-card.tsx
-│   │
-│   ├── midi/
-│   │   ├── midi-diagnostic.tsx
-│   │   └── midi-status.tsx
-│   │
-│   ├── notation/
-│   │   ├── music-staff.tsx
-│   │   └── piano-keyboard.tsx
-│   │
-│   └── ui/
-│
 ├── data/
-│   └── note-ranges.ts
-│
+├── features/
 ├── hooks/
-│
 ├── lib/
-│   ├── midi/
-│   ├── music/
-│   │   ├── notes.ts
-│   │   └── vexflow.ts
-│   ├── pwa/
-│   └── utils/
-│
 ├── types/
-│
 ├── App.tsx
-├── main.tsx
-└── index.css
+└── main.tsx
 ```
 
----
-
-# Current Folder Responsibilities
+The repository is organized into a few major layers.
 
 ## components/
 
-Reusable React UI components grouped by feature.
+React presentation components.
 
-### flashcards/
+Important groups include:
 
-Contains the primary practice experience including session logic, controls, statistics, and target note display.
+- audio
+- flashcards
+- midi
+- notation
+- ui
 
-### midi/
+`flashcard-session.tsx` is the primary coordinator for the flashcard feature.
 
-Displays MIDI connection status and diagnostic tools.
+## features/
 
-### notation/
+Contains stateful behavior that belongs to a specific feature.
 
-Responsible for rendering the music staff and interactive piano keyboard.
+The current flashcard feature owns:
 
-### ui/
+- practice settings
+- target lifecycle
+- MIDI attempt collection
+- correct-answer sequencing
+- timing constants
 
-Generic reusable UI components that are not music-specific.
+Current hooks include:
 
----
-
-## data/
-
-Static application data.
-
-Examples include note ranges and future configuration data.
-
----
+- `useFlashcardSettings`
+- `useFlashcardTarget`
+- `useMidiChordAttempt`
+- `useCorrectAnswerSequence`
 
 ## hooks/
 
-Custom React hooks.
+Reusable hooks shared outside a single feature.
 
-Currently lightweight, but intended to house reusable application logic as the project grows.
-
----
+Currently this contains browser-level MIDI integration (`useMidi`).
 
 ## lib/
 
-Reusable business logic separated from React.
+Reusable domain logic independent of React.
 
-### lib/midi/
+Current domains include:
 
-MIDI utilities.
+### audio/
 
-### lib/music/
+Interface feedback and piano playback.
 
-Music theory, note utilities, notation helpers, and VexFlow rendering.
+### music/
 
-### lib/pwa/
+Music models, notation helpers, and generators.
 
-Progressive Web App utilities.
+### practice/
 
-### lib/utils/
+Reusable practice logic including:
 
-General shared helper functions.
+- answer validation
+- session statistics
 
----
+### pwa/
+
+Progressive Web App registration.
+
+## data/
+
+Static application data such as note ranges.
 
 ## types/
 
-Shared TypeScript interfaces and types used throughout the application.
+Shared TypeScript models used throughout the application.
 
 ---
 
-# Current Runtime Flow
+# Flashcard Session
 
-The application's primary loop is currently:
+`FlashcardSession` coordinates the current practice loop.
 
-```text
-Generate Practice Target
-        │
-        ▼
-Render Staff
-        │
-        ▼
-Wait for MIDI / Virtual Input
-        │
-        ▼
-Collect Input
-        │
-        ▼
-Validate Against Practice Target
-        │
-        ▼
-Update Statistics
-        │
-        ▼
-Generate Next Practice Target
-```
+Its responsibilities include:
 
-Everything in Prelude currently supports this practice loop.
+- rendering the current target
+- coordinating feature hooks
+- updating statistics
+- triggering feedback
+- advancing to the next target
+
+Most implementation details live in hooks and reusable utilities rather than inside the component itself.
 
 ---
 
-# Practice Target Model
+# Feature Hooks
 
-The current practice engine is centered around the `PracticeTarget` model.
+## useFlashcardSettings
 
-A practice target represents one musical prompt that the student must perform.
+Owns practice configuration.
 
-Today this may contain:
+Examples include:
 
-- a single note
-- a triad
+- clef selection
+- enabled exercises
+- enabled chord qualities
+- enabled inversions
+- display preferences
 
-Future exercises may also use the same model for:
+## useFlashcardTarget
 
-- intervals
-- chord qualities
-- other isolated musical structures
+Owns the lifecycle of the current practice target.
 
-By treating one-note and multi-note prompts identically, the practice engine avoids maintaining separate rendering and validation systems for each exercise type.
+Responsibilities include:
 
----
+- generating targets
+- storing the active target
+- locking answers
+- advancing after success
 
-# Multi-Note Validation
+## useMidiChordAttempt
 
-Single-note answers are evaluated immediately.
+Collects nearby MIDI note events into a single attempt.
 
-Multi-note MIDI answers use a short collection window, allowing players to perform naturally rolled chords rather than requiring every key to be depressed simultaneously.
+This hook does not determine correctness.
 
-Once the collection window closes, the performed note set is compared against the expected note set.
+Its only responsibility is deciding which notes belong to one performed attempt.
 
-Validation is based on exact pitch-set equality:
+## useCorrectAnswerSequence
 
-- missing notes fail
-- extra notes fail
-- note order does not matter
-
----
-
-# Audio Feedback
-
-Prelude currently uses the Web Audio API to generate lightweight interface sounds.
-
-These sounds provide immediate success and failure feedback while remaining completely independent from future instrument playback.
-
-A single shared volume preference is stored locally and applies to all interface feedback.
+Coordinates the delayed actions that occur after a correct answer, such as timing and target advancement.
 
 ---
 
-# State Ownership
+# Practice Logic
 
-The primary application state currently lives inside:
+Reusable practice rules live in `lib/practice`.
 
-`FlashcardSession`
+These utilities are intentionally independent of React so they can be reused and tested independently.
 
-It owns:
+Current responsibilities include:
 
-- practice mode
-- enabled exercise types
-- current practice target
-- currently held MIDI notes
-- currently held virtual notes
-- feedback state
-- streak
-- accuracy
-- response time
-- statistics
-- MIDI interaction
-
-Presentation components remain as stateless as practical and communicate through props and callbacks.
+- answer validation
+- session statistics
 
 ---
 
 # Music Architecture
 
-Prelude intentionally separates music concepts from rendering.
+Prelude keeps musical data separate from notation rendering.
 
 ```text
 PracticeTarget
-
-↓
-
+      │
+      ▼
 Music Model
-
-↓
-
-VexFlow Renderer
-
-↓
-
-Rendered Staff
+      │
+      ▼
+VexFlow
 ```
 
-A `PracticeTarget` represents one or more notes to be rendered and validated.
+VexFlow renders notation but does not own Prelude's musical model.
 
-Single-note flashcards and triad flashcards therefore share the same rendering pipeline, allowing new isolated practice types (such as intervals or additional chord qualities) to reuse the same notation and validation systems.
+---
 
-Likewise, MIDI input is separated from notation rendering.
+# Input Flow
 
 ```text
-MIDI Input
-
-↓
-
-Normalize Note
-
-↓
-
-Practice Engine
-
-↓
-
-Feedback
+MIDI Keyboard / Virtual Piano
+            │
+            ▼
+     Input Collection
+            │
+            ▼
+     Answer Validation
+            │
+     ┌──────┴──────┐
+     ▼             ▼
+ Correct      Incorrect
+     │
+     ▼
+ Next Target
 ```
 
-This separation allows new practice modes to reuse the same underlying music systems.
+Both physical MIDI and virtual piano ultimately use the same validation rules.
 
 ---
 
-# Long-Term Architecture
+# Audio
 
-Prelude is intentionally evolving toward a generalized lesson engine.
+Prelude currently has two audio systems.
 
-Rather than every practice mode implementing its own logic, everything will eventually be represented using the same hierarchy.
+**Interface feedback**
+
+- success sounds
+- incorrect sounds
+
+**Instrument playback**
+
+- piano samples
+- virtual key playback
+- chord playback
+
+Keeping these systems separate makes each easier to evolve independently.
+
+---
+
+# State Ownership
+
+State is distributed according to responsibility.
+
+## FlashcardSession
+
+Coordinates the overall practice session.
+
+## useFlashcardSettings
+
+Owns configuration state.
+
+## useFlashcardTarget
+
+Owns target lifecycle.
+
+## useMidiChordAttempt
+
+Owns the current MIDI attempt.
+
+## useCorrectAnswerSequence
+
+Owns post-success timing.
+
+## useMidi
+
+Owns browser MIDI integration.
+
+---
+
+# Current Runtime Flow
 
 ```text
-Lesson
-│
-├── Measures
-│
-├── Events
-│
-└── Notes
+Read Settings
+      │
+      ▼
+Generate Target
+      │
+      ▼
+Render Notation
+      │
+      ▼
+Receive Input
+      │
+      ▼
+Validate Attempt
+      │
+  ┌───┴────┐
+  ▼        ▼
+Correct  Incorrect
+  │
+  ▼
+Next Target
 ```
 
-An Event may represent:
-
-- single note
-- interval
-- chord
-- rest
-- sustained note
-- future articulations
-
-This unified model naturally supports:
-
-- Flashcards
-- Chord Trainer
-- Scale Trainer
-- Arpeggio Trainer
-- Guided Lessons
-- Songs
-- Composition Tools
-
-The current `PracticeTarget` model intentionally stops short of introducing lessons prematurely, but it provides a natural stepping stone toward this architecture if and when sequence-based practice becomes a core feature.
-
 ---
 
-# Future Lesson Builder
-
-Lesson playback and lesson creation are intentionally separate systems.
-
-The planned Lesson Builder will allow users to create exercises using MIDI step recording rather than graphical notation editing.
-
-Planned capabilities include:
-
-- measure editor
-- beat/grid editor
-- MIDI step recording
-- duration editing
-- playback preview
-- JSON import/export
-
-This approach provides a much simpler workflow for students, teachers, and composers while avoiding the complexity of a traditional notation editor.
-
----
-
-# Future Audio Architecture
-
-Current versions rely on the user's physical keyboard for audio.
-
-Future versions may optionally support browser-based playback using SoundFonts.
-
-```text
-MIDI Keyboard
-      │
-      ▼
-Prelude
-      │
-      ▼
-Playback Engine
-      │
-      ▼
-SoundFont Library
-      │
-      ▼
-Speakers
-```
-
-Keeping playback separate from lesson logic allows different instrument libraries to be swapped without affecting the rest of the application.
-
----
-
-# Guiding Principles
+# Architectural Principles
 
 When extending Prelude:
 
-- Build one musical concept at a time.
-- Prefer reusable systems over duplicated logic.
-- Keep UI separate from music logic.
-- Build the simplest useful version first.
-- Avoid premature abstraction.
-- Document important architectural decisions.
-
-The long-term goal is to build a cohesive musicianship platform where every new feature naturally extends the existing architecture rather than replacing it.
+- Keep music logic independent of React.
+- Keep validation separate from input collection.
+- Prefer reusable domain logic over duplicated component logic.
+- Let feature hooks own coherent behavior.
+- Let `FlashcardSession` coordinate rather than implement everything.
+- Keep documentation synchronized with architectural changes.

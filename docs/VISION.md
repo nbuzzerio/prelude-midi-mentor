@@ -8,7 +8,7 @@
 
 Prelude exists to make music learning more interactive, accessible, and understandable.
 
-The project began as a MIDI-powered sight-reading trainer, but its long-term purpose is broader:
+The project began as a MIDI-powered sight-reading trainer, but has grown into a broader browser-based musicianship platform:
 
 - teach standard notation
 - connect written music to the keyboard
@@ -54,11 +54,11 @@ Prelude should combine:
 ```text
 Standard Notation
         +
-Real-Time Musical Interaction
+Real-Time Practice
         +
 Immediate Feedback
         +
-Structured Musical Lessons
+Progressive Musicianship
 ```
 
 The result should feel more interactive than a method book and more educational than a rhythm game.
@@ -111,7 +111,8 @@ A physical keyboard becomes more than an instrument. It becomes an interactive l
 
 MIDI enables Prelude to provide:
 
-- immediate note validation
+- immediate practice validation
+- simultaneous note detection
 - chord recognition
 - timing feedback
 - rhythm analysis
@@ -349,6 +350,12 @@ Advanced features should emerge gradually from simple concepts.
 ## Reuse Before Duplication
 
 Flashcards, chords, lessons, and songs should share common systems whenever possible.
+
+## Architecture Before Expansion
+
+Prelude should establish a stable, well-documented foundation before introducing major new features.
+
+Thoughtful architecture and clear documentation make future musicianship features easier to build, understand, and maintain.
 
 ## Browser First
 
