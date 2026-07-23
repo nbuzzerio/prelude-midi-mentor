@@ -2,7 +2,7 @@
 
 > **Version:** 1.0
 > **Last Updated:** July 2026
-> **Current Milestone:** v1.0 Stabilization
+> **Current Milestone:** v1.0 Released
 
 ---
 
@@ -60,7 +60,7 @@ Features should never exist simply because they are technically interesting—th
 
 ---
 
-# Current MVP Goal
+# v1.0 Goal
 
 The current milestone focuses on stabilizing Prelude for its v1.0 public release.
 
@@ -138,20 +138,30 @@ Completed features include:
 - Automated deployment
 - Production hosting on DigitalOcean
 
+## Quality
+
+- Vitest test runner
+- React Testing Library
+- Pure music-theory tests
+- Stateful hook tests
+- Web MIDI integration tests
+- Flashcard session integration tests
+- 140 passing automated tests across 11 test files
+
 ---
 
 # Current Development Focus
 
-Development is currently focused on preparing Prelude for its initial public release.
+Prelude v1.0 has been completed.
 
-Immediate priorities are:
+Future work should proceed according to [`ROADMAP.md`](./ROADMAP.md).
 
-1. Complete architecture documentation
-2. Add automated test coverage
-3. Final documentation review
-4. v1.0 public release
+The next major feature areas are expected to include:
 
-Following the v1.0 release, development will continue with additional musicianship features such as intervals, scales, and guided lessons.
+- intervals
+- scales
+- ear training
+- guided lessons
 
 ---
 
@@ -229,6 +239,7 @@ When contributing to Prelude:
 - Document architectural decisions.
 - Prefer simple solutions before introducing abstractions.
 - Build features that can be expanded rather than rewritten.
+- Test musical behavior at the lowest useful layer.
 
 Every new feature should fit naturally into the long-term vision of the application.
 
@@ -244,6 +255,7 @@ Project documentation consists of:
 - DECISIONS.md — Record of important architectural decisions
 - VISION.md — Long-term goals and design philosophy
 - README.md — Public project overview
+- TESTING.md — Testing philosophy and coverage
 
 New contributors should read these documents before beginning
 development.

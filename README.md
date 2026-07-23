@@ -182,6 +182,27 @@ pnpm lint
 
 ---
 
+### Run the Test Suite
+
+```bash
+pnpm test
+```
+
+Prelude uses **Vitest** and **React Testing Library** for automated testing.
+
+The v1.0 release is verified by **140 passing tests across 11 test files**, covering:
+
+- music theory utilities
+- answer validation
+- session statistics
+- flashcard state hooks
+- Web MIDI integration
+- flashcard session orchestration
+
+See [`TESTING.md`](./docs/TESTING.md) for the complete testing philosophy and coverage.
+
+---
+
 ## Using a MIDI Keyboard
 
 1. Connect the MIDI keyboard to the computer.
@@ -346,6 +367,7 @@ This keeps today's flashcard engine simple without constraining future guided le
 - [`ROADMAP.md`](./docs/ROADMAP.md) — Planned development phases
 - [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Current structure and technical direction
 - [`DECISIONS.md`](./docs/DECISIONS.md) — Important product and architectural decisions
+- [`TESTING.md`](./docs/TESTING.md) — Testing philosophy and coverage
 
 ---
 
