@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isNaturalMidiNumber } from "../note-utils";
-import {
-  generateMelodicIntervalTarget,
-  getIntervalSemitones,
-} from "./intervals";
+import { generateSequenceTarget, getIntervalSemitones } from "./sequences";
 
 describe("getIntervalSemitones", () => {
   it.each([
@@ -24,9 +21,10 @@ describe("getIntervalSemitones", () => {
   });
 });
 
-describe("generateMelodicIntervalTarget", () => {
+describe("generateSequenceTarget", () => {
   it("generates an ascending interval with the correct distance", () => {
-    const target = generateMelodicIntervalTarget({
+    const target = generateSequenceTarget({
+      exerciseType: "intervals",
       clef: "treble",
       enabledDirections: new Set(["ascending"]),
       enabledIntervals: new Set(["major-third"]),
@@ -44,7 +42,8 @@ describe("generateMelodicIntervalTarget", () => {
   });
 
   it("generates a descending interval with the correct distance", () => {
-    const target = generateMelodicIntervalTarget({
+    const target = generateSequenceTarget({
+      exerciseType: "intervals",
       clef: "treble",
       enabledDirections: new Set(["descending"]),
       enabledIntervals: new Set(["perfect-fifth"]),
@@ -60,8 +59,9 @@ describe("generateMelodicIntervalTarget", () => {
   });
 
   it("honors the natural-note filter", () => {
-    for (let i = 0; i < 50; i++) {
-      const target = generateMelodicIntervalTarget({
+    for (let i = 0; i < 50; i += 1) {
+      const target = generateSequenceTarget({
+        exerciseType: "intervals",
         clef: "treble",
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
@@ -75,8 +75,9 @@ describe("generateMelodicIntervalTarget", () => {
   });
 
   it("honors the accidental-note filter", () => {
-    for (let i = 0; i < 50; i++) {
-      const target = generateMelodicIntervalTarget({
+    for (let i = 0; i < 50; i += 1) {
+      const target = generateSequenceTarget({
+        exerciseType: "intervals",
         clef: "treble",
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
@@ -91,7 +92,8 @@ describe("generateMelodicIntervalTarget", () => {
 
   it("throws when no directions are enabled", () => {
     expect(() =>
-      generateMelodicIntervalTarget({
+      generateSequenceTarget({
+        exerciseType: "intervals",
         clef: "treble",
         enabledDirections: new Set(),
         enabledIntervals: new Set(["major-second"]),
@@ -102,7 +104,8 @@ describe("generateMelodicIntervalTarget", () => {
 
   it("throws when no intervals are enabled", () => {
     expect(() =>
-      generateMelodicIntervalTarget({
+      generateSequenceTarget({
+        exerciseType: "intervals",
         clef: "treble",
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(),
@@ -113,7 +116,8 @@ describe("generateMelodicIntervalTarget", () => {
 
   it("throws when no note categories are enabled", () => {
     expect(() =>
-      generateMelodicIntervalTarget({
+      generateSequenceTarget({
+        exerciseType: "intervals",
         clef: "treble",
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),

@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateMelodicIntervalTarget } from "@/lib/music/generators/intervals";
+import { generateSequenceTarget } from "@/lib/music/generators/sequences";
 import { getClefForMode } from "@/lib/music/note-utils";
 import type {
   PracticeClefMode,
@@ -13,8 +13,8 @@ import type {
 
 import { useSequenceTarget } from "./use-sequence-target";
 
-vi.mock("@/lib/music/generators/intervals", () => ({
-  generateMelodicIntervalTarget: vi.fn(),
+vi.mock("@/lib/music/generators/sequences", () => ({
+  generateSequenceTarget: vi.fn(),
 }));
 
 vi.mock("@/lib/music/note-utils", () => ({
@@ -60,7 +60,7 @@ describe("useSequenceTarget", () => {
     vi.clearAllMocks();
 
     vi.mocked(getClefForMode).mockReturnValue("bass");
-    vi.mocked(generateMelodicIntervalTarget).mockReturnValue(GENERATED_TARGET);
+    vi.mocked(generateSequenceTarget).mockReturnValue(GENERATED_TARGET);
   });
 
   it("starts with the initial sequence target", () => {
@@ -183,7 +183,8 @@ describe("useSequenceTarget", () => {
 
     expect(getClefForMode).toHaveBeenCalledWith("treble");
 
-    expect(generateMelodicIntervalTarget).toHaveBeenCalledWith({
+    expect(generateSequenceTarget).toHaveBeenCalledWith({
+      exerciseType: "intervals",
       clef: "bass",
       enabledDirections: ENABLED_DIRECTIONS,
       enabledIntervals: ENABLED_INTERVALS,
@@ -319,7 +320,8 @@ describe("useSequenceTarget", () => {
 
     expect(getClefForMode).toHaveBeenCalledWith("bass");
 
-    expect(generateMelodicIntervalTarget).toHaveBeenCalledWith({
+    expect(generateSequenceTarget).toHaveBeenCalledWith({
+      exerciseType: "intervals",
       clef: "bass",
       enabledDirections: updatedDirections,
       enabledIntervals: updatedIntervals,

@@ -42,7 +42,15 @@ const INTERVAL_LABELS: Readonly<Record<SequenceInterval, string>> = {
   octave: "Octave",
 };
 
-type GenerateMelodicIntervalTargetOptions = Readonly<{
+type GenerateIntervalTargetOptions = Readonly<{
+  clef: Clef;
+  enabledDirections: ReadonlySet<SequenceDirection>;
+  enabledIntervals: ReadonlySet<SequenceInterval>;
+  enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+}>;
+
+export type GenerateSequenceTargetOptions = Readonly<{
+  exerciseType: "intervals";
   clef: Clef;
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
@@ -103,12 +111,12 @@ export function getIntervalSemitones(interval: SequenceInterval): number {
   return INTERVAL_SEMITONES[interval];
 }
 
-export function generateMelodicIntervalTarget({
+function generateIntervalTarget({
   clef,
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
-}: GenerateMelodicIntervalTargetOptions): SequenceTarget {
+}: GenerateIntervalTargetOptions): SequenceTarget {
   if (enabledDirections.size === 0) {
     throw new Error("At least one sequence direction must be enabled.");
   }
@@ -122,7 +130,6 @@ export function generateMelodicIntervalTarget({
   }
 
   const direction = getRandomItem(Array.from(enabledDirections));
-
   const interval = getRandomItem(Array.from(enabledIntervals));
 
   const eligibleStartingMidiNumbers = getEligibleStartingMidiNumbers({
@@ -182,4 +189,13 @@ export function generateMelodicIntervalTarget({
       },
     ],
   };
+}
+
+export function generateSequenceTarget(
+  options: GenerateSequenceTargetOptions,
+): SequenceTarget {
+  switch (options.exerciseType) {
+    case "intervals":
+      return generateIntervalTarget(options);
+  }
 }

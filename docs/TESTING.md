@@ -86,7 +86,7 @@ Tests should be grouped by public behavior and use musical terminology in their 
 - [x] Block 6 — Sequence Practice
   - [x] `src/lib/practice/sequence-validation.test.ts`
   - [x] `src/lib/practice/sequence-stats.test.ts`
-  - [x] `src/lib/music/generators/intervals.test.ts`
+  - [x] `src/lib/music/generators/sequences.test.ts`
   - [x] `src/features/sequences/hooks/use-sequence-settings.test.ts`
   - [x] `src/features/sequences/hooks/use-sequence-attempt.test.ts`
   - [x] `src/features/sequences/hooks/use-sequence-target.test.ts`

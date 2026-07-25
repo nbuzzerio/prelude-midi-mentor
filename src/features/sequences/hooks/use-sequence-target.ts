@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-import { generateMelodicIntervalTarget } from "@/lib/music/generators/intervals";
+import { generateSequenceTarget } from "@/lib/music/generators/sequences";
 import { getClefForMode } from "@/lib/music/note-utils";
 import type {
   PracticeClefMode,
@@ -58,14 +58,14 @@ export function useSequenceTarget({
   const [startedAt, setStartedAt] = useState(0);
 
   const sequenceTargetRef = useRef(sequenceTarget);
-
   const sequenceLockedRef = useRef(false);
 
   const generateNextTarget = useCallback(
     (nextMode: PracticeClefMode = mode) => {
       const clef = getClefForMode(nextMode);
 
-      const nextTarget = generateMelodicIntervalTarget({
+      const nextTarget = generateSequenceTarget({
+        exerciseType: "intervals",
         clef,
         enabledDirections,
         enabledIntervals,
