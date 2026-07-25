@@ -3,7 +3,6 @@ import type {
   Clef,
   PracticeClefMode,
   PracticeExerciseType,
-  PracticeNote,
   PracticeNoteCategory,
   PracticeTarget,
   PracticeTriadPosition,
@@ -16,50 +15,10 @@ import {
   getClefForMode,
   getRandomAccidentalSpelling,
   getRandomItem,
-  getNoteName,
-  getNoteOctave,
   isNaturalMidiNumber,
 } from "./note-utils";
 
 export { getFullNoteName, getNoteName, getNoteOctave } from "./note-utils";
-
-type AccidentalSpelling = "sharp" | "flat";
-
-const SHARP_NOTE_NAMES = [
-  "C",
-  "C♯",
-  "D",
-  "D♯",
-  "E",
-  "F",
-  "F♯",
-  "G",
-  "G♯",
-  "A",
-  "A♯",
-  "B",
-] as const;
-
-const FLAT_NOTE_NAMES = [
-  "C",
-  "D♭",
-  "D",
-  "E♭",
-  "E",
-  "F",
-  "G♭",
-  "G",
-  "A♭",
-  "A",
-  "B♭",
-  "B",
-] as const;
-
-const NATURAL_PITCH_CLASSES = new Set([0, 2, 4, 5, 7, 9, 11]);
-
-function getPitchClass(midiNumber: number): number {
-  return ((midiNumber % 12) + 12) % 12;
-}
 
 function getRandomExerciseType(
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>,

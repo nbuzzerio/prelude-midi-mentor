@@ -151,7 +151,7 @@ Completed features include:
 - Stateful hook tests
 - Web MIDI integration tests
 - Flashcard session integration tests
-- 224 passing automated tests across 18 test files
+- 223 passing automated tests across 18 test files
 
 ---
 

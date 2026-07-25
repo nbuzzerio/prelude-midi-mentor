@@ -1,5 +1,5 @@
 import { SequenceTarget } from "@/types/practice";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export type SequenceAttemptState =
   | "waiting-for-step"
@@ -22,7 +22,6 @@ export function useSequenceAttempt({
   sequenceTarget,
 }: UseSequenceAttemptOptions) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-
   const [state, setState] = useState<SequenceAttemptState>("waiting-for-step");
 
   const currentStepIndexRef = useRef(currentStepIndex);
@@ -42,10 +41,6 @@ export function useSequenceAttempt({
     setStepIndex(0);
     setAttemptState("waiting-for-step");
   }, [setAttemptState, setStepIndex]);
-
-  useEffect(() => {
-    resetAttempt();
-  }, [resetAttempt, sequenceTarget]);
 
   const getCurrentStepIndex = useCallback(
     () => currentStepIndexRef.current,
@@ -91,7 +86,6 @@ export function useSequenceAttempt({
 
   const completeCurrentStep = useCallback((): CompleteSequenceStepResult => {
     const completedStepIndex = currentStepIndexRef.current;
-
     const isFinalStep = completedStepIndex >= sequenceTarget.steps.length - 1;
 
     if (isFinalStep) {

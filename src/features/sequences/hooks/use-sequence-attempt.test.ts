@@ -199,41 +199,6 @@ describe("useSequenceAttempt", () => {
     expect(result.current.state).toBe("waiting-for-step");
   });
 
-  it("resets automatically when the sequence target changes", () => {
-    const { result, rerender } = renderHook(
-      ({ target }) =>
-        useSequenceAttempt({
-          sequenceTarget: target,
-        }),
-      {
-        initialProps: {
-          target: TARGET,
-        },
-      },
-    );
-
-    act(() => {
-      result.current.showCorrectFeedback();
-      result.current.completeCurrentStep();
-    });
-
-    expect(result.current.currentStepIndex).toBe(1);
-
-    const nextTarget: SequenceTarget = {
-      ...TARGET,
-      name: {
-        primary: "Perfect fifth",
-      },
-    };
-
-    rerender({
-      target: nextTarget,
-    });
-
-    expect(result.current.currentStepIndex).toBe(0);
-    expect(result.current.state).toBe("waiting-for-step");
-  });
-
   it("exposes the current state through the getters", () => {
     const { result } = renderHook(() =>
       useSequenceAttempt({

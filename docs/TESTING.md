@@ -94,7 +94,7 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Final Result**
 
-- **224 passing tests across 18 test files**
+- **223 passing tests across 18 test files**
 - **All planned v1.0 testing objectives completed**
 
 ## Testing Blocks
@@ -302,7 +302,7 @@ Automated testing results:
 
 ```text
 Test Files  18 passed
-Tests       224 passed
+Tests       223 passed
 ```
 
 ### Manual Verification
