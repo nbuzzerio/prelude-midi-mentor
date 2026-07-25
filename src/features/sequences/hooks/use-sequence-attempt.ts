@@ -1,6 +1,5 @@
+import { SequenceTarget } from "@/types/practice";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import type { SequenceTarget } from "../../types/practice";
 
 export type SequenceAttemptState =
   | "waiting-for-step"

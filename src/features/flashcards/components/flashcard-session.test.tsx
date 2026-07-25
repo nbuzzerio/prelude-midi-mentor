@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import FlashcardSession from "@/components/flashcards/flashcard-session";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import FlashcardSession from "./flashcard-session";
 
 const mocks = vi.hoisted(() => ({
   addNoteToMidiAttempt: vi.fn(),
@@ -155,7 +155,7 @@ vi.mock("@/components/midi/midi-status", () => ({
   ),
 }));
 
-vi.mock("@/components/flashcards/flashcard-card", () => ({
+vi.mock("@/features/flashcards/components/flashcard-card", () => ({
   default: ({
     feedback,
     onCorrect,
@@ -179,7 +179,7 @@ vi.mock("@/components/flashcards/flashcard-card", () => ({
   ),
 }));
 
-vi.mock("@/components/flashcards/practice-controls", () => ({
+vi.mock("@/features/flashcards/components/practice-controls", () => ({
   default: ({
     onModeChange,
     onReset,
@@ -199,7 +199,7 @@ vi.mock("@/components/flashcards/practice-controls", () => ({
   ),
 }));
 
-vi.mock("@/components/flashcards/practice-stats", () => ({
+vi.mock("@/features/flashcards/components/practice-stats", () => ({
   default: ({ stats }: { stats: Readonly<{ state: string }> }) => (
     <div>Stats: {stats.state}</div>
   ),

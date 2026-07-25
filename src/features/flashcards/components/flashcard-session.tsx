@@ -2,8 +2,6 @@ import { useCallback, useState } from "react";
 
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
-import PracticeControls from "@/components/flashcards/practice-controls";
-import PracticeStats from "@/components/flashcards/practice-stats";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 
@@ -40,6 +38,8 @@ import {
 
 import type { FeedbackState, PracticeClefMode } from "@/types/practice";
 import FlashcardCard from "./flashcard-card";
+import PracticeControls from "./practice-controls";
+import PracticeStats from "./practice-stats";
 
 type LastAnswer = Readonly<{
   midiNumbers: ReadonlySet<number>;

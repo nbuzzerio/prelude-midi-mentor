@@ -5,7 +5,7 @@ import {
   SEQUENCE_INCORRECT_FEEDBACK_MS,
   SEQUENCE_STEP_DELAY_MS,
   SUCCESS_CHIRP_DELAY_MS,
-} from "./sequence-timing";
+} from "../sequence-timing";
 
 type StartStepTransitionOptions = Readonly<{
   stepDelayMs?: number;

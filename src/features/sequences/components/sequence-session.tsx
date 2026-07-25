@@ -4,9 +4,6 @@ import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
-import SequenceCard from "@/components/sequence/sequence-card";
-import SequenceControls from "@/components/sequence/sequence-controls";
-import SequenceStats from "@/components/sequence/sequence-stats";
 import { useMidi } from "@/hooks/use-midi";
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import { playGrandPianoNote } from "@/lib/audio/grand-piano";
@@ -27,11 +24,14 @@ import {
   PIANO_NOTE_DURATION_MS,
   SEQUENCE_STEP_DELAY_MS,
   SUCCESS_CHIRP_DELAY_MS,
-} from "./sequence-timing";
-import { useSequenceAttempt } from "./use-sequence-attempt";
-import { useSequenceSettings } from "./use-sequence-settings";
-import { useSequenceTarget } from "./use-sequence-target";
-import { useSequenceTransition } from "./use-sequence-transition";
+} from "../sequence-timing";
+import { useSequenceAttempt } from "../hooks/use-sequence-attempt";
+import { useSequenceSettings } from "../hooks/use-sequence-settings";
+import { useSequenceTarget } from "../hooks/use-sequence-target";
+import { useSequenceTransition } from "../hooks/use-sequence-transition";
+import SequenceStats from "./sequence-stats";
+import SequenceCard from "./sequence-card";
+import SequenceControls from "./sequence-controls";
 
 type AnswerSource = "midi" | "virtual" | "simulation";
 

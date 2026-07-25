@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import FlashcardSession from "@/components/flashcards/flashcard-session";
-import SequenceSession from "@/components/sequence/sequence-session";
+import FlashcardSession from "./features/flashcards/components/flashcard-session";
+import SequenceSession from "./features/sequences/components/sequence-session";
 
 type PracticeSection = "flashcards" | "sequence";
 
