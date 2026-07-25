@@ -6,8 +6,10 @@ import { getClefForMode } from "@/lib/music/note-utils";
 import type {
   PracticeClefMode,
   SequenceDirection,
+  SequenceExerciseType,
   SequenceInterval,
   SequenceNoteCategory,
+  SequenceScale,
   SequenceTarget,
 } from "@/types/practice";
 
@@ -26,6 +28,10 @@ const ENABLED_DIRECTIONS = new Set<SequenceDirection>(["ascending"]);
 const ENABLED_INTERVALS = new Set<SequenceInterval>(["major-third"]);
 
 const ENABLED_NOTE_CATEGORIES = new Set<SequenceNoteCategory>(["naturals"]);
+
+const ENABLED_SCALES = new Set<SequenceScale>(["major"]);
+
+const EXERCISE_TYPE: SequenceExerciseType = "intervals";
 
 const GENERATED_TARGET: SequenceTarget = {
   clef: "bass",
@@ -69,6 +75,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -110,6 +118,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -125,6 +135,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -138,6 +150,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -155,6 +169,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -173,6 +189,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -189,6 +207,7 @@ describe("useSequenceTarget", () => {
       enabledDirections: ENABLED_DIRECTIONS,
       enabledIntervals: ENABLED_INTERVALS,
       enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+      enabledScales: ENABLED_SCALES,
     });
   });
 
@@ -198,6 +217,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -215,6 +236,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -235,6 +258,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -252,6 +277,8 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: EXERCISE_TYPE,
         mode: "treble",
       }),
     );
@@ -279,29 +306,41 @@ describe("useSequenceTarget", () => {
       "accidentals",
     ]);
 
+    const updatedScales = new Set<SequenceScale>(["natural-minor"]);
+
+    const updatedExerciseType: SequenceExerciseType = "scales";
+
     const { result, rerender } = renderHook(
       ({
         directions,
+        exerciseType,
         intervals,
         noteCategories,
+        scales,
         mode,
       }: {
         directions: ReadonlySet<SequenceDirection>;
+        exerciseType: SequenceExerciseType;
         intervals: ReadonlySet<SequenceInterval>;
         noteCategories: ReadonlySet<SequenceNoteCategory>;
+        scales: ReadonlySet<SequenceScale>;
         mode: PracticeClefMode;
       }) =>
         useSequenceTarget({
           enabledDirections: directions,
           enabledIntervals: intervals,
           enabledNoteCategories: noteCategories,
+          enabledScales: scales,
+          exerciseType,
           mode,
         }),
       {
         initialProps: {
           directions: ENABLED_DIRECTIONS,
+          exerciseType: EXERCISE_TYPE,
           intervals: ENABLED_INTERVALS,
           noteCategories: ENABLED_NOTE_CATEGORIES,
+          scales: ENABLED_SCALES,
           mode: "treble",
         },
       },
@@ -309,8 +348,10 @@ describe("useSequenceTarget", () => {
 
     rerender({
       directions: updatedDirections,
+      exerciseType: updatedExerciseType,
       intervals: updatedIntervals,
       noteCategories: updatedNoteCategories,
+      scales: updatedScales,
       mode: "bass",
     });
 
@@ -321,11 +362,12 @@ describe("useSequenceTarget", () => {
     expect(getClefForMode).toHaveBeenCalledWith("bass");
 
     expect(generateSequenceTarget).toHaveBeenCalledWith({
-      exerciseType: "intervals",
+      exerciseType: updatedExerciseType,
       clef: "bass",
       enabledDirections: updatedDirections,
       enabledIntervals: updatedIntervals,
       enabledNoteCategories: updatedNoteCategories,
+      enabledScales: updatedScales,
     });
   });
 });

@@ -5,8 +5,10 @@ import { getClefForMode } from "@/lib/music/note-utils";
 import type {
   PracticeClefMode,
   SequenceDirection,
+  SequenceExerciseType,
   SequenceInterval,
   SequenceNoteCategory,
+  SequenceScale,
   SequenceTarget,
 } from "@/types/practice";
 
@@ -42,6 +44,8 @@ type UseSequenceTargetOptions = Readonly<{
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+  enabledScales: ReadonlySet<SequenceScale>;
+  exerciseType: SequenceExerciseType;
   mode: PracticeClefMode;
 }>;
 
@@ -49,6 +53,8 @@ export function useSequenceTarget({
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
+  enabledScales,
+  exerciseType,
   mode,
 }: UseSequenceTargetOptions) {
   const [sequenceTarget, setSequenceTarget] = useState<SequenceTarget>(
@@ -65,11 +71,12 @@ export function useSequenceTarget({
       const clef = getClefForMode(nextMode);
 
       const nextTarget = generateSequenceTarget({
-        exerciseType: "intervals",
+        exerciseType,
         clef,
         enabledDirections,
         enabledIntervals,
         enabledNoteCategories,
+        enabledScales,
       });
 
       sequenceTargetRef.current = nextTarget;
@@ -78,7 +85,14 @@ export function useSequenceTarget({
       setSequenceTarget(nextTarget);
       setStartedAt(Date.now());
     },
-    [enabledDirections, enabledIntervals, enabledNoteCategories, mode],
+    [
+      enabledDirections,
+      enabledIntervals,
+      enabledNoteCategories,
+      enabledScales,
+      exerciseType,
+      mode,
+    ],
   );
 
   const getCurrentTarget = useCallback(() => sequenceTargetRef.current, []);

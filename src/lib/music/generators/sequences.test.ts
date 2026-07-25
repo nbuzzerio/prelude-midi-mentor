@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { isNaturalMidiNumber } from "../note-utils";
 import { generateSequenceTarget, getIntervalSemitones } from "./sequences";
 
+const ENABLED_SCALES = new Set(["major"] as const);
+
 describe("getIntervalSemitones", () => {
   it.each([
     ["minor-second", 1],
@@ -29,6 +31,7 @@ describe("generateSequenceTarget", () => {
       enabledDirections: new Set(["ascending"]),
       enabledIntervals: new Set(["major-third"]),
       enabledNoteCategories: new Set(["naturals", "accidentals"]),
+      enabledScales: ENABLED_SCALES,
     });
 
     expect(target.steps).toHaveLength(2);
@@ -48,6 +51,7 @@ describe("generateSequenceTarget", () => {
       enabledDirections: new Set(["descending"]),
       enabledIntervals: new Set(["perfect-fifth"]),
       enabledNoteCategories: new Set(["naturals", "accidentals"]),
+      enabledScales: ENABLED_SCALES,
     });
 
     const first = target.steps[0].notes[0].midiNumber;
@@ -66,6 +70,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["naturals"]),
+        enabledScales: ENABLED_SCALES,
       });
 
       const first = target.steps[0].notes[0];
@@ -82,6 +87,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["accidentals"]),
+        enabledScales: ENABLED_SCALES,
       });
 
       const first = target.steps[0].notes[0];
@@ -98,6 +104,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["naturals"]),
+        enabledScales: ENABLED_SCALES,
       }),
     ).toThrow(/direction/i);
   });
@@ -110,6 +117,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(),
         enabledNoteCategories: new Set(["naturals"]),
+        enabledScales: ENABLED_SCALES,
       }),
     ).toThrow(/interval/i);
   });
@@ -122,6 +130,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(),
+        enabledScales: ENABLED_SCALES,
       }),
     ).toThrow(/note category/i);
   });

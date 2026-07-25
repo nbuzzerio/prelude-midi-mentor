@@ -1,12 +1,14 @@
 import { useCallback, useState } from "react";
 
+import { toggleRequiredSetValue } from "@/lib/toggle-required-set-value";
 import type {
   PracticeClefMode,
   SequenceDirection,
+  SequenceExerciseType,
   SequenceInterval,
   SequenceNoteCategory,
+  SequenceScale,
 } from "@/types/practice";
-import { toggleRequiredSetValue } from "@/lib/toggle-required-set-value";
 
 const DEFAULT_ENABLED_DIRECTIONS = new Set<SequenceDirection>(["ascending"]);
 
@@ -21,7 +23,12 @@ const DEFAULT_ENABLED_NOTE_CATEGORIES = new Set<SequenceNoteCategory>([
   "naturals",
 ]);
 
+const DEFAULT_ENABLED_SCALES = new Set<SequenceScale>(["major"]);
+
 export function useSequenceSettings() {
+  const [exerciseType, setExerciseType] =
+    useState<SequenceExerciseType>("intervals");
+
   const [mode, setMode] = useState<PracticeClefMode>("treble");
 
   const [showTargetName, setShowTargetName] = useState(false);
@@ -37,6 +44,10 @@ export function useSequenceSettings() {
   const [enabledNoteCategories, setEnabledNoteCategories] = useState<
     ReadonlySet<SequenceNoteCategory>
   >(DEFAULT_ENABLED_NOTE_CATEGORIES);
+
+  const [enabledScales, setEnabledScales] = useState<
+    ReadonlySet<SequenceScale>
+  >(DEFAULT_ENABLED_SCALES);
 
   const toggleDirection = useCallback((direction: SequenceDirection) => {
     setEnabledDirections((currentDirections) =>
@@ -56,16 +67,26 @@ export function useSequenceSettings() {
     );
   }, []);
 
+  const toggleScale = useCallback((scale: SequenceScale) => {
+    setEnabledScales((currentScales) =>
+      toggleRequiredSetValue(currentScales, scale),
+    );
+  }, []);
+
   return {
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
+    enabledScales,
+    exerciseType,
     mode,
+    setExerciseType,
     setMode,
     setShowTargetName,
     showTargetName,
     toggleDirection,
     toggleInterval,
     toggleNoteCategory,
+    toggleScale,
   };
 }

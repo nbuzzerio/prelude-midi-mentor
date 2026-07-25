@@ -1,21 +1,27 @@
 import type {
   PracticeClefMode,
   SequenceDirection,
+  SequenceExerciseType,
   SequenceInterval,
   SequenceNoteCategory,
+  SequenceScale,
 } from "@/types/practice";
 
 type SequenceControlsProps = Readonly<{
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+  enabledScales: ReadonlySet<SequenceScale>;
+  exerciseType: SequenceExerciseType;
   mode: PracticeClefMode;
   showTargetName: boolean;
   onDirectionToggle: (direction: SequenceDirection) => void;
+  onExerciseTypeChange: (exerciseType: SequenceExerciseType) => void;
   onIntervalToggle: (interval: SequenceInterval) => void;
   onModeChange: (mode: PracticeClefMode) => void;
   onNoteCategoryToggle: (category: SequenceNoteCategory) => void;
   onReset: () => void;
+  onScaleToggle: (scale: SequenceScale) => void;
   onShowTargetNameChange: (enabled: boolean) => void;
 }>;
 
@@ -24,6 +30,22 @@ type ToggleButtonProps = Readonly<{
   label: string;
   onClick: () => void;
 }>;
+
+const EXERCISE_TYPE_OPTIONS: ReadonlyArray<
+  Readonly<{
+    label: string;
+    value: SequenceExerciseType;
+  }>
+> = [
+  {
+    label: "Intervals",
+    value: "intervals",
+  },
+  {
+    label: "Scales",
+    value: "scales",
+  },
+];
 
 const CLEF_OPTIONS: ReadonlyArray<
   Readonly<{
@@ -129,6 +151,22 @@ const INTERVAL_OPTIONS: ReadonlyArray<
   },
 ];
 
+const SCALE_OPTIONS: ReadonlyArray<
+  Readonly<{
+    label: string;
+    value: SequenceScale;
+  }>
+> = [
+  {
+    label: "Major",
+    value: "major",
+  },
+  {
+    label: "Natural Minor",
+    value: "natural-minor",
+  },
+];
+
 function ToggleButton({ enabled, label, onClick }: ToggleButtonProps) {
   return (
     <button
@@ -150,15 +188,27 @@ export default function SequenceControls({
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
+  enabledScales,
+  exerciseType,
   mode,
   onDirectionToggle,
+  onExerciseTypeChange,
   onIntervalToggle,
   onModeChange,
   onNoteCategoryToggle,
   onReset,
+  onScaleToggle,
   onShowTargetNameChange,
   showTargetName,
 }: SequenceControlsProps) {
+  const targetNameLabel =
+    exerciseType === "intervals" ? "Show interval name" : "Show scale name";
+
+  const targetNameDescription =
+    exerciseType === "intervals"
+      ? "Display the interval and direction above the notation."
+      : "Display the scale and direction above the notation.";
+
   return (
     <section
       aria-label="Sequence settings"
@@ -169,7 +219,7 @@ export default function SequenceControls({
           <h2 className="text-base font-bold text-white">Sequence settings</h2>
 
           <p className="mt-1 text-sm text-white/50">
-            Configure melodic interval practice.
+            Configure melodic practice.
           </p>
         </div>
 
@@ -181,6 +231,25 @@ export default function SequenceControls({
           Reset session
         </button>
       </div>
+
+      <fieldset className="mt-5">
+        <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+          Exercise
+        </legend>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {EXERCISE_TYPE_OPTIONS.map((option) => (
+            <ToggleButton
+              enabled={exerciseType === option.value}
+              key={option.value}
+              label={option.label}
+              onClick={() => {
+                onExerciseTypeChange(option.value);
+              }}
+            />
+          ))}
+        </div>
+      </fieldset>
 
       <fieldset className="mt-5">
         <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
@@ -239,33 +308,54 @@ export default function SequenceControls({
         </div>
       </fieldset>
 
-      <fieldset className="mt-5">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
-          Intervals
-        </legend>
+      {exerciseType === "intervals" ? (
+        <fieldset className="mt-5">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+            Intervals
+          </legend>
 
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {INTERVAL_OPTIONS.map((option) => (
-            <ToggleButton
-              enabled={enabledIntervals.has(option.value)}
-              key={option.value}
-              label={option.label}
-              onClick={() => {
-                onIntervalToggle(option.value);
-              }}
-            />
-          ))}
-        </div>
-      </fieldset>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {INTERVAL_OPTIONS.map((option) => (
+              <ToggleButton
+                enabled={enabledIntervals.has(option.value)}
+                key={option.value}
+                label={option.label}
+                onClick={() => {
+                  onIntervalToggle(option.value);
+                }}
+              />
+            ))}
+          </div>
+        </fieldset>
+      ) : (
+        <fieldset className="mt-5">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+            Scales
+          </legend>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {SCALE_OPTIONS.map((option) => (
+              <ToggleButton
+                enabled={enabledScales.has(option.value)}
+                key={option.value}
+                label={option.label}
+                onClick={() => {
+                  onScaleToggle(option.value);
+                }}
+              />
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/10 px-3 py-3">
         <span>
           <span className="block text-sm font-semibold text-white">
-            Show interval name
+            {targetNameLabel}
           </span>
 
           <span className="mt-1 block text-xs text-white/50">
-            Display the interval and direction above the notation.
+            {targetNameDescription}
           </span>
         </span>
 

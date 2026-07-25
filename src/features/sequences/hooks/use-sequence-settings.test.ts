@@ -8,7 +8,12 @@ describe("useSequenceSettings", () => {
     const { result } = renderHook(() => useSequenceSettings());
 
     expect(result.current.mode).toBe("treble");
+
     expect(result.current.showTargetName).toBe(false);
+
+    expect(result.current.exerciseType).toBe("intervals");
+
+    expect(result.current.enabledScales).toEqual(new Set(["major"]));
 
     expect(result.current.enabledDirections).toEqual(new Set(["ascending"]));
 
@@ -195,6 +200,67 @@ describe("useSequenceSettings", () => {
       expect(result.current.enabledNoteCategories).toEqual(
         new Set(["naturals"]),
       );
+    });
+  });
+
+  describe("exercise type", () => {
+    it("can switch to scale practice", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.setExerciseType("scales");
+      });
+
+      expect(result.current.exerciseType).toBe("scales");
+    });
+
+    it("can switch back to interval practice", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.setExerciseType("scales");
+        result.current.setExerciseType("intervals");
+      });
+
+      expect(result.current.exerciseType).toBe("intervals");
+    });
+  });
+
+  describe("scales", () => {
+    it("can enable another scale", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.toggleScale("natural-minor");
+      });
+
+      expect(result.current.enabledScales).toEqual(
+        new Set(["major", "natural-minor"]),
+      );
+    });
+
+    it("can disable an enabled scale when another remains", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.toggleScale("natural-minor");
+      });
+
+      act(() => {
+        result.current.toggleScale("major");
+      });
+
+      expect(result.current.enabledScales).toEqual(new Set(["natural-minor"]));
+    });
+
+    it("does not disable the final enabled scale", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.toggleScale("major");
+      });
+
+      expect(result.current.enabledScales).toEqual(new Set(["major"]));
     });
   });
 });
