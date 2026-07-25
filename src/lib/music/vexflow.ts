@@ -6,7 +6,13 @@ import {
   StaveNote,
   Voice,
 } from "vexflow";
-import type { PracticeNote, PracticeTarget } from "@/types/practice";
+
+import type {
+  Clef,
+  PracticeNote,
+  PracticeTarget,
+  SequenceTarget,
+} from "@/types/practice";
 
 type VexFlowAccidental = "#" | "b";
 
@@ -15,12 +21,21 @@ type VexFlowPitch = Readonly<{
   key: string;
 }>;
 
-const RENDERER_WIDTH = 320;
+type StaffNoteGroup = ReadonlyArray<PracticeNote>;
+
+type StaffNotation = Readonly<{
+  activeGroupIndex?: number;
+  clef: Clef;
+  noteGroups: ReadonlyArray<StaffNoteGroup>;
+}>;
+
+const MIN_RENDERER_WIDTH = 320;
 const RENDERER_HEIGHT = 180;
 const STAVE_X = 10;
 const STAVE_Y = 30;
-const STAVE_WIDTH = 300;
-const NOTE_FORMAT_WIDTH = 200;
+const HORIZONTAL_PADDING = 20;
+const CLEF_AND_NOTE_PADDING = 100;
+const NOTE_GROUP_WIDTH = 90;
 
 function toVexFlowPitch(practiceNote: PracticeNote): VexFlowPitch {
   const accidental = practiceNote.name.includes("♯")
@@ -40,44 +55,78 @@ function toVexFlowPitch(practiceNote: PracticeNote): VexFlowPitch {
   };
 }
 
-export function renderPracticeTarget(
-  container: HTMLDivElement,
-  practiceTarget: PracticeTarget,
-): void {
-  container.replaceChildren();
+function createStaveNote(
+  clef: Clef,
+  notes: StaffNoteGroup,
+  isActive: boolean,
+): StaveNote {
+  const pitches = notes.map(toVexFlowPitch);
 
-  const renderer = new Renderer(container, Renderer.Backends.SVG);
-
-  renderer.resize(RENDERER_WIDTH, RENDERER_HEIGHT);
-
-  const context = renderer.getContext();
-  const stave = new Stave(STAVE_X, STAVE_Y, STAVE_WIDTH);
-
-  stave.addClef(practiceTarget.clef);
-  stave.setContext(context).draw();
-
-  const pitches = practiceTarget.notes.map(toVexFlowPitch);
-
-  const note = new StaveNote({
-    clef: practiceTarget.clef,
-    keys: pitches.map((pitch) => pitch.key),
+  const staveNote = new StaveNote({
+    clef,
     duration: "q",
+    keys: pitches.map((pitch) => pitch.key),
   });
 
   pitches.forEach((pitch, index) => {
     if (pitch.accidental) {
-      note.addModifier(new Accidental(pitch.accidental), index);
+      staveNote.addModifier(new Accidental(pitch.accidental), index);
     }
   });
 
-  const voice = new Voice({
-    numBeats: 1,
-    beatValue: 4,
+  staveNote.setStyle({
+    fillStyle: isActive ? "#000000" : "#a1a1aa",
+    strokeStyle: isActive ? "#000000" : "#a1a1aa",
   });
 
-  voice.addTickables([note]);
+  return staveNote;
+}
 
-  new Formatter().joinVoices([voice]).format([voice], NOTE_FORMAT_WIDTH);
+function renderStaffNotation(
+  container: HTMLDivElement,
+  notation: StaffNotation,
+): void {
+  container.replaceChildren();
+
+  if (notation.noteGroups.length === 0) {
+    return;
+  }
+
+  const rendererWidth = Math.max(
+    MIN_RENDERER_WIDTH,
+    CLEF_AND_NOTE_PADDING + notation.noteGroups.length * NOTE_GROUP_WIDTH,
+  );
+
+  const staveWidth = rendererWidth - HORIZONTAL_PADDING;
+  const noteFormatWidth = rendererWidth - CLEF_AND_NOTE_PADDING;
+
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+
+  renderer.resize(rendererWidth, RENDERER_HEIGHT);
+
+  const context = renderer.getContext();
+  const stave = new Stave(STAVE_X, STAVE_Y, staveWidth);
+
+  stave.addClef(notation.clef);
+  stave.setContext(context).draw();
+
+  const staveNotes = notation.noteGroups.map((notes, index) =>
+    createStaveNote(
+      notation.clef,
+      notes,
+      notation.activeGroupIndex === undefined ||
+        notation.activeGroupIndex === index,
+    ),
+  );
+
+  const voice = new Voice({
+    beatValue: 4,
+    numBeats: staveNotes.length,
+  });
+
+  voice.addTickables(staveNotes);
+
+  new Formatter().joinVoices([voice]).format([voice], noteFormatWidth);
 
   voice.draw(context, stave);
 
@@ -87,9 +136,31 @@ export function renderPracticeTarget(
     return;
   }
 
-  svg.setAttribute("viewBox", `0 0 ${RENDERER_WIDTH} ${RENDERER_HEIGHT}`);
+  svg.setAttribute("viewBox", `0 0 ${rendererWidth} ${RENDERER_HEIGHT}`);
   svg.setAttribute("width", "100%");
   svg.setAttribute("height", "100%");
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svg.style.display = "block";
+}
+
+export function renderPracticeTarget(
+  container: HTMLDivElement,
+  practiceTarget: PracticeTarget,
+): void {
+  renderStaffNotation(container, {
+    clef: practiceTarget.clef,
+    noteGroups: [practiceTarget.notes],
+  });
+}
+
+export function renderSequenceTarget(
+  container: HTMLDivElement,
+  sequenceTarget: SequenceTarget,
+  currentStepIndex: number,
+): void {
+  renderStaffNotation(container, {
+    activeGroupIndex: currentStepIndex,
+    clef: sequenceTarget.clef,
+    noteGroups: sequenceTarget.steps.map((step) => step.notes),
+  });
 }

@@ -1,0 +1,11 @@
+export const SEQUENCE_STEP_FEEDBACK_MS = 500;
+
+export const SEQUENCE_STEP_DELAY_MS = 750;
+
+export const SEQUENCE_INCORRECT_FEEDBACK_MS = 750;
+
+export const PIANO_NOTE_DURATION_MS = 850;
+
+export const SUCCESS_CHIRP_DELAY_MS = 900;
+
+export const NEXT_SEQUENCE_DELAY_MS = 1250;

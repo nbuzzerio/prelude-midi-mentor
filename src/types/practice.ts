@@ -39,3 +39,37 @@ export type PracticeStats = Readonly<{
   streak: number;
   totalResponseTimeMs: number;
 }>;
+
+export type SequenceStep = Readonly<{
+  notes: ReadonlyArray<PracticeNote>;
+}>;
+
+export type SequenceTarget = Readonly<{
+  clef: Clef;
+  name: PracticeTargetName;
+  steps: ReadonlyArray<SequenceStep>;
+}>;
+
+export type SequenceStats = Readonly<{
+  completed: number;
+  incorrectAttempts: number;
+  streak: number;
+  totalSequenceTimeMs: number;
+}>;
+
+export type SequenceDirection = "ascending" | "descending";
+
+export type SequenceInterval =
+  | "minor-second"
+  | "major-second"
+  | "minor-third"
+  | "major-third"
+  | "perfect-fourth"
+  | "perfect-fifth"
+  | "minor-sixth"
+  | "major-sixth"
+  | "minor-seventh"
+  | "major-seventh"
+  | "octave";
+
+export type SequenceNoteCategory = "naturals" | "accidentals";

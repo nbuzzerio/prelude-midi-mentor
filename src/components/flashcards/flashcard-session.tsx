@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
-import PracticeCard from "@/components/flashcards/practice-card";
 import PracticeControls from "@/components/flashcards/practice-controls";
 import PracticeStats from "@/components/flashcards/practice-stats";
 import MidiStatus from "@/components/midi/midi-status";
@@ -40,6 +39,7 @@ import {
 } from "@/lib/practice/session-stats";
 
 import type { FeedbackState, PracticeClefMode } from "@/types/practice";
+import FlashcardCard from "./flashcard-card";
 
 type LastAnswer = Readonly<{
   midiNumbers: ReadonlySet<number>;
@@ -71,8 +71,8 @@ export default function FlashcardSession() {
   const {
     generateNextTarget: generateTarget,
     getCurrentTarget,
-    isAnswerLocked,
-    lockAnswer,
+    isFlashcardTargetLocked,
+    lockFlashcardTarget,
     practiceTarget,
     startedAt,
   } = useFlashcardTarget({
@@ -138,7 +138,7 @@ export default function FlashcardSession() {
 
   const handleCorrectAnswer = useCallback(
     (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
-      if (!lockAnswer()) {
+      if (!lockFlashcardTarget()) {
         return;
       }
 
@@ -189,7 +189,7 @@ export default function FlashcardSession() {
     [
       clearCorrectAnswerSequence,
       clearMidiAttempt,
-      lockAnswer,
+      lockFlashcardTarget,
       replayCorrectVirtualChords,
       startCorrectAnswerSequence,
       startedAt,
@@ -199,7 +199,7 @@ export default function FlashcardSession() {
   // Incorrect-answer handling
   const handleSingleIncorrectAnswer = useCallback(
     (midiNumber: number) => {
-      if (isAnswerLocked()) {
+      if (isFlashcardTargetLocked()) {
         return;
       }
 
@@ -214,12 +214,12 @@ export default function FlashcardSession() {
 
       setStats(applyIncorrectAttempt);
     },
-    [isAnswerLocked],
+    [isFlashcardTargetLocked],
   );
 
   const handleFailedChordAttempt = useCallback(
     (midiNumbers: ReadonlySet<number>) => {
-      if (isAnswerLocked() || midiNumbers.size === 0) {
+      if (isFlashcardTargetLocked() || midiNumbers.size === 0) {
         return;
       }
 
@@ -231,13 +231,13 @@ export default function FlashcardSession() {
 
       setStats(applyIncorrectAttempt);
     },
-    [isAnswerLocked],
+    [isFlashcardTargetLocked],
   );
 
   // MIDI input
   const finalizeMidiAttempt = useCallback(
     (completedAttempt: ReadonlySet<number>) => {
-      if (isAnswerLocked() || completedAttempt.size === 0) {
+      if (isFlashcardTargetLocked() || completedAttempt.size === 0) {
         return;
       }
 
@@ -255,7 +255,7 @@ export default function FlashcardSession() {
       handleCorrectAnswer,
       handleFailedChordAttempt,
       getCurrentTarget,
-      isAnswerLocked,
+      isFlashcardTargetLocked,
     ],
   );
 
@@ -283,7 +283,7 @@ export default function FlashcardSession() {
 
   const handleMidiNotePlayed = useCallback(
     (midiNumber: number) => {
-      if (isAnswerLocked()) {
+      if (isFlashcardTargetLocked()) {
         return;
       }
 
@@ -317,14 +317,14 @@ export default function FlashcardSession() {
       handleStartMidiAttempt,
       isMidiAttemptActive,
       getCurrentTarget,
-      isAnswerLocked,
+      isFlashcardTargetLocked,
     ],
   );
 
   // Virtual keyboard input
   const handleVirtualNoteToggle = useCallback(
     (midiNumber: number) => {
-      if (isAnswerLocked()) {
+      if (isFlashcardTargetLocked()) {
         return;
       }
 
@@ -377,7 +377,7 @@ export default function FlashcardSession() {
       handleCorrectAnswer,
       handleSingleIncorrectAnswer,
       getCurrentTarget,
-      isAnswerLocked,
+      isFlashcardTargetLocked,
     ],
   );
 
@@ -468,7 +468,7 @@ export default function FlashcardSession() {
       </header>
 
       <div className="practice-stage">
-        <PracticeCard
+        <FlashcardCard
           feedback={feedback}
           practiceTarget={practiceTarget}
           showTargetName={showTargetName}

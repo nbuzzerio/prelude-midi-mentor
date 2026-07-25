@@ -78,7 +78,7 @@ describe("useFlashcardTarget", () => {
     expect(result.current.getCurrentTarget()).toEqual(
       result.current.practiceTarget,
     );
-    expect(result.current.isAnswerLocked()).toBe(false);
+    expect(result.current.isFlashcardTargetLocked()).toBe(false);
   });
 
   it("generates a target using the current settings", () => {
@@ -140,13 +140,13 @@ describe("useFlashcardTarget", () => {
     let secondResult = false;
 
     act(() => {
-      firstResult = result.current.lockAnswer();
-      secondResult = result.current.lockAnswer();
+      firstResult = result.current.lockFlashcardTarget();
+      secondResult = result.current.lockFlashcardTarget();
     });
 
     expect(firstResult).toBe(true);
     expect(secondResult).toBe(false);
-    expect(result.current.isAnswerLocked()).toBe(true);
+    expect(result.current.isFlashcardTargetLocked()).toBe(true);
   });
 
   it("unlocks the answer when a new target is generated", () => {
@@ -155,16 +155,16 @@ describe("useFlashcardTarget", () => {
     const { result } = renderHook(() => useFlashcardTarget(DEFAULT_OPTIONS));
 
     act(() => {
-      result.current.lockAnswer();
+      result.current.lockFlashcardTarget();
     });
 
-    expect(result.current.isAnswerLocked()).toBe(true);
+    expect(result.current.isFlashcardTargetLocked()).toBe(true);
 
     act(() => {
       result.current.generateNextTarget();
     });
 
-    expect(result.current.isAnswerLocked()).toBe(false);
+    expect(result.current.isFlashcardTargetLocked()).toBe(false);
   });
 
   it("uses updated settings after rerendering", () => {

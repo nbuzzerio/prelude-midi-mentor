@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 
 dev-dist/
 dist/
+
+.dev
+src-tree.txt

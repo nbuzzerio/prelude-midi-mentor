@@ -73,17 +73,14 @@ export function useFlashcardTarget({
     ],
   );
 
-  const getCurrentTarget = useCallback(
-    () => practiceTargetRef.current,
-    [],
-  );
+  const getCurrentTarget = useCallback(() => practiceTargetRef.current, []);
 
-  const isAnswerLocked = useCallback(
+  const isFlashcardTargetLocked = useCallback(
     () => answerLockedRef.current,
     [],
   );
 
-  const lockAnswer = useCallback(() => {
+  const lockFlashcardTarget = useCallback(() => {
     if (answerLockedRef.current) {
       return false;
     }
@@ -96,8 +93,8 @@ export function useFlashcardTarget({
   return {
     generateNextTarget,
     getCurrentTarget,
-    isAnswerLocked,
-    lockAnswer,
+    isFlashcardTargetLocked,
+    lockFlashcardTarget,
     practiceTarget,
     startedAt,
   };

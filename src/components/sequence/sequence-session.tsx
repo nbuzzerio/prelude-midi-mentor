@@ -1,0 +1,472 @@
+import { useCallback, useState } from "react";
+
+import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
+import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
+import MidiStatus from "@/components/midi/midi-status";
+import PianoKeyboard from "@/components/notation/piano-keyboard";
+import SequenceCard from "@/components/sequence/sequence-card";
+import SequenceControls from "@/components/sequence/sequence-controls";
+import SequenceStats from "@/components/sequence/sequence-stats";
+import { useMidi } from "@/hooks/use-midi";
+import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
+import { playGrandPianoNote } from "@/lib/audio/grand-piano";
+import {
+  getCurrentSequenceStepMidiNumbers,
+  getSequenceTargetMidiNumbers,
+  sequenceStepMatchesInput,
+} from "@/lib/practice/sequence-validation";
+import {
+  applyCompletedSequence,
+  applyIncorrectSequenceAttempt,
+  INITIAL_SEQUENCE_STATS,
+} from "@/lib/practice/sequence-stats";
+import type { FeedbackState, PracticeClefMode } from "@/types/practice";
+
+import {
+  NEXT_SEQUENCE_DELAY_MS,
+  PIANO_NOTE_DURATION_MS,
+  SEQUENCE_STEP_DELAY_MS,
+  SUCCESS_CHIRP_DELAY_MS,
+} from "./sequence-timing";
+import { useSequenceAttempt } from "./use-sequence-attempt";
+import { useSequenceSettings } from "./use-sequence-settings";
+import { useSequenceTarget } from "./use-sequence-target";
+import { useSequenceTransition } from "./use-sequence-transition";
+
+type AnswerSource = "midi" | "virtual" | "simulation";
+
+type SequenceStepResult = "correct" | "incorrect";
+
+type LastStepAnswer = Readonly<{
+  midiNumbers: ReadonlySet<number>;
+  result: SequenceStepResult;
+}>;
+
+export default function SequenceSession() {
+  // Sequence configuration
+  const {
+    enabledDirections,
+    enabledIntervals,
+    enabledNoteCategories,
+    mode,
+    setMode,
+    setShowTargetName,
+    showTargetName,
+    toggleDirection,
+    toggleInterval,
+    toggleNoteCategory,
+  } = useSequenceSettings();
+
+  // Current sequence target
+  const {
+    generateNextTarget: generateSequenceTarget,
+    getCurrentTarget,
+    isSequenceTargetLocked,
+    lockSequenceTarget,
+    sequenceTarget,
+    startedAt,
+  } = useSequenceTarget({
+    enabledDirections,
+    enabledIntervals,
+    enabledNoteCategories,
+    mode,
+  });
+
+  // Current attempt and step progress
+  const {
+    beginNextStep,
+    completeCurrentStep,
+    currentStepIndex,
+    isWaitingForStep,
+    resetAttempt,
+    retrySequence,
+    showCorrectFeedback,
+    showIncorrectFeedback,
+    state: sequenceAttemptState,
+    waitForRelease,
+  } = useSequenceAttempt({
+    sequenceTarget,
+  });
+
+  // Presentation state
+  const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+
+  const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+
+  const [lastFailedAttemptNotes, setLastFailedAttemptNotes] = useState<
+    ReadonlySet<number>
+  >(new Set());
+
+  const [feedback, setFeedback] = useState<FeedbackState>("idle");
+
+  const [lastStepAnswer, setLastStepAnswer] = useState<LastStepAnswer | null>(
+    null,
+  );
+
+  const [stats, setStats] = useState(INITIAL_SEQUENCE_STATS);
+
+  // Sequence target transitions
+  const generateNextSequence = useCallback(
+    (nextMode?: PracticeClefMode) => {
+      resetAttempt();
+
+      setVirtualHeldNotes(new Set());
+      setMidiHeldNotes(new Set());
+      setLastFailedAttemptNotes(new Set());
+      setLastStepAnswer(null);
+      setFeedback("idle");
+
+      generateSequenceTarget(nextMode);
+    },
+    [generateSequenceTarget, resetAttempt],
+  );
+
+  // Timed transitions between steps and complete sequences
+  const {
+    clearTransition,
+    startIncorrectStepTransition,
+    startSequenceCompletionTransition,
+    startStepTransition,
+    updateMidiHeldNotes: updateTransitionMidiHeldNotes,
+  } = useSequenceTransition({
+    onAdvanceSequence: generateNextSequence,
+    onAdvanceStep: beginNextStep,
+    onRetrySequence: retrySequence,
+    onSuccessFeedback: playSuccessChirp,
+  });
+
+  // Complete sequence handling
+  const handleCompletedSequence = useCallback(
+    (source: AnswerSource) => {
+      if (!lockSequenceTarget()) {
+        return;
+      }
+
+      clearTransition();
+
+      const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
+
+      setFeedback("correct");
+      setLastFailedAttemptNotes(new Set());
+
+      setStats((currentStats) =>
+        applyCompletedSequence(currentStats, responseTimeMs),
+      );
+
+      startSequenceCompletionTransition({
+        nextSequenceDelayMs: NEXT_SEQUENCE_DELAY_MS,
+        successChirpDelayMs: SUCCESS_CHIRP_DELAY_MS,
+        waitForMidiRelease: source === "midi",
+      });
+    },
+    [
+      clearTransition,
+      lockSequenceTarget,
+      startSequenceCompletionTransition,
+      startedAt,
+    ],
+  );
+
+  // Correct step handling
+  const handleCorrectStep = useCallback(
+    (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
+      if (isSequenceTargetLocked() || !showCorrectFeedback()) {
+        return;
+      }
+
+      setFeedback("correct");
+      setLastFailedAttemptNotes(new Set());
+
+      setLastStepAnswer({
+        midiNumbers: new Set(midiNumbers),
+        result: "correct",
+      });
+
+      const result = completeCurrentStep();
+
+      if (result.sequenceComplete) {
+        handleCompletedSequence(source);
+        return;
+      }
+
+      if (source === "midi") {
+        waitForRelease();
+      }
+
+      startStepTransition({
+        stepDelayMs: SEQUENCE_STEP_DELAY_MS,
+        waitForMidiRelease: source === "midi",
+      });
+    },
+    [
+      completeCurrentStep,
+      handleCompletedSequence,
+      isSequenceTargetLocked,
+      showCorrectFeedback,
+      startStepTransition,
+      waitForRelease,
+    ],
+  );
+
+  // Incorrect step handling
+  const handleIncorrectStep = useCallback(
+    (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
+      if (
+        isSequenceTargetLocked() ||
+        midiNumbers.size === 0 ||
+        !showIncorrectFeedback()
+      ) {
+        return;
+      }
+
+      clearTransition();
+
+      setFeedback("incorrect");
+      playIncorrectFeedback();
+
+      setLastFailedAttemptNotes(new Set(midiNumbers));
+
+      setLastStepAnswer({
+        midiNumbers: new Set(midiNumbers),
+        result: "incorrect",
+      });
+
+      setStats((currentStats) => applyIncorrectSequenceAttempt(currentStats));
+
+      setVirtualHeldNotes(new Set());
+
+      startIncorrectStepTransition({
+        waitForMidiRelease: source === "midi",
+      });
+    },
+    [
+      clearTransition,
+      isSequenceTargetLocked,
+      showIncorrectFeedback,
+      startIncorrectStepTransition,
+    ],
+  );
+
+  // Shared step grading
+  const gradeCurrentStep = useCallback(
+    (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
+      if (
+        isSequenceTargetLocked() ||
+        !isWaitingForStep() ||
+        midiNumbers.size === 0
+      ) {
+        return;
+      }
+
+      const target = getCurrentTarget();
+
+      const isCorrect = sequenceStepMatchesInput({
+        inputMidiNumbers: midiNumbers,
+        sequenceTarget: target,
+        stepIndex: currentStepIndex,
+      });
+
+      if (isCorrect) {
+        handleCorrectStep(midiNumbers, source);
+        return;
+      }
+
+      handleIncorrectStep(midiNumbers, source);
+    },
+    [
+      currentStepIndex,
+      getCurrentTarget,
+      handleCorrectStep,
+      handleIncorrectStep,
+      isSequenceTargetLocked,
+      isWaitingForStep,
+    ],
+  );
+
+  // MIDI input
+  const handleMidiNotePlayed = useCallback(
+    (midiNumber: number) => {
+      if (isSequenceTargetLocked() || !isWaitingForStep()) {
+        return;
+      }
+
+      setVirtualHeldNotes(new Set());
+      setLastFailedAttemptNotes(new Set());
+      setLastStepAnswer(null);
+      setFeedback("idle");
+
+      gradeCurrentStep(new Set([midiNumber]), "midi");
+    },
+    [gradeCurrentStep, isSequenceTargetLocked, isWaitingForStep],
+  );
+
+  const handleMidiHeldNotesChanged = useCallback(
+    (heldNotes: ReadonlySet<number>) => {
+      const nextHeldNotes = new Set(heldNotes);
+
+      setMidiHeldNotes(nextHeldNotes);
+      updateTransitionMidiHeldNotes(nextHeldNotes);
+    },
+    [updateTransitionMidiHeldNotes],
+  );
+
+  const { connectMidi, deviceName, error, status } = useMidi({
+    onHeldNotesChanged: handleMidiHeldNotesChanged,
+    onNotePlayed: handleMidiNotePlayed,
+  });
+
+  // Virtual keyboard input
+  const handleVirtualNoteToggle = useCallback(
+    (midiNumber: number) => {
+      if (isSequenceTargetLocked() || !isWaitingForStep()) {
+        return;
+      }
+
+      setLastFailedAttemptNotes(new Set());
+      setLastStepAnswer(null);
+      setFeedback("idle");
+
+      playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
+
+      /*
+       * TODO(PianoKeyboard refactor):
+       * Sequence Mode treats a click as a discrete
+       * note attempt rather than a persistent selection.
+       */
+      setVirtualHeldNotes(new Set([midiNumber]));
+
+      gradeCurrentStep(new Set([midiNumber]), "virtual");
+    },
+    [gradeCurrentStep, isSequenceTargetLocked, isWaitingForStep],
+  );
+
+  // Development simulation controls
+  const handleSimulateCorrect = () => {
+    const target = getCurrentTarget();
+
+    const correctMidiNumbers = getCurrentSequenceStepMidiNumbers(
+      target,
+      currentStepIndex,
+    );
+
+    gradeCurrentStep(correctMidiNumbers, "simulation");
+  };
+
+  const handleSimulateIncorrect = () => {
+    const target = getCurrentTarget();
+
+    const targetMidiNumbers = getSequenceTargetMidiNumbers(target);
+
+    let incorrectMidiNumber = 48;
+
+    while (targetMidiNumbers.has(incorrectMidiNumber)) {
+      incorrectMidiNumber += 1;
+    }
+
+    gradeCurrentStep(new Set([incorrectMidiNumber]), "simulation");
+  };
+
+  // Session controls
+  const handleModeChange = (nextMode: PracticeClefMode) => {
+    clearTransition();
+    setMode(nextMode);
+    generateNextSequence(nextMode);
+  };
+
+  const handleReset = () => {
+    clearTransition();
+    setStats(INITIAL_SEQUENCE_STATS);
+    generateNextSequence();
+  };
+
+  // Derived display state
+  const activeMidiNumbers = new Set([...virtualHeldNotes, ...midiHeldNotes]);
+
+  const currentStepMidiNumbers = getCurrentSequenceStepMidiNumbers(
+    sequenceTarget,
+    currentStepIndex,
+  );
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      {import.meta.env.DEV ? (
+        <div className="rounded bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
+          State: {sequenceAttemptState} | Step: {currentStepIndex + 1}
+        </div>
+      ) : null}
+
+      <header className="flex items-center justify-between gap-4">
+        <div>
+          <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
+            Sequence trainer
+          </p>
+
+          <h1 className="text-xl font-bold text-white sm:mt-1 sm:text-3xl">
+            Prelude: MIDI Mentor
+          </h1>
+        </div>
+
+        <MidiStatus
+          deviceName={deviceName}
+          error={error}
+          onConnect={() => {
+            void connectMidi();
+          }}
+          status={status}
+        />
+      </header>
+
+      <div className="practice-stage">
+        <SequenceCard
+          currentStepIndex={currentStepIndex}
+          feedback={feedback}
+          onCorrect={handleSimulateCorrect}
+          onIncorrect={handleSimulateIncorrect}
+          sequenceTarget={sequenceTarget}
+          showTargetName={showTargetName}
+        />
+
+        <PianoKeyboard
+          activeMidiNumbers={activeMidiNumbers}
+          failedMidiNumbers={lastFailedAttemptNotes}
+          lastAnswer={lastStepAnswer}
+          onNoteToggle={handleVirtualNoteToggle}
+          targetMidiNumbers={currentStepMidiNumbers}
+        />
+      </div>
+
+      <section className="relative -my-20 flex flex-col gap-6">
+        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr]">
+          <InstrumentVolumeControl
+            onReplayCorrectVirtualChordsChange={() => {
+              // Sequence Mode does not currently replay chords.
+            }}
+            replayCorrectVirtualChords={false}
+          />
+
+          <FeedbackVolumeControl />
+
+          <SequenceControls
+            enabledDirections={enabledDirections}
+            enabledIntervals={enabledIntervals}
+            enabledNoteCategories={enabledNoteCategories}
+            mode={mode}
+            onDirectionToggle={toggleDirection}
+            onIntervalToggle={toggleInterval}
+            onModeChange={handleModeChange}
+            onNoteCategoryToggle={toggleNoteCategory}
+            onReset={handleReset}
+            onShowTargetNameChange={setShowTargetName}
+            showTargetName={showTargetName}
+          />
+        </div>
+
+        <SequenceStats stats={stats} />
+      </section>
+    </div>
+  );
+}

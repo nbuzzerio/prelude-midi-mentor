@@ -6,25 +6,7 @@ import type {
   PracticeTriadPosition,
   PracticeTriadQuality,
 } from "@/types/practice";
-
-function toggleRequiredSetValue<T>(
-  currentValues: ReadonlySet<T>,
-  value: T,
-): ReadonlySet<T> {
-  const nextValues = new Set(currentValues);
-
-  if (nextValues.has(value)) {
-    if (nextValues.size === 1) {
-      return currentValues;
-    }
-
-    nextValues.delete(value);
-  } else {
-    nextValues.add(value);
-  }
-
-  return nextValues;
-}
+import { toggleRequiredSetValue } from "@/lib/toggle-required-set-value";
 
 export function useFlashcardSettings() {
   const [mode, setMode] = useState<PracticeClefMode>("bass");
