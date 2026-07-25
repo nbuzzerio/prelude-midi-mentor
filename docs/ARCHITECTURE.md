@@ -8,7 +8,7 @@
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides a flashcard-based practice engine supporting:
+The current application provides flashcard-based and sequence-based practice engines supporting:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals
@@ -19,6 +19,9 @@ The current application provides a flashcard-based practice engine supporting:
 - Virtual piano input
 - Visual and audio feedback
 - Session statistics
+- Ascending and descending melodic interval sequences
+- Ordered step validation
+- Sequence completion statistics
 
 Prelude is currently a frontend-only application built with React and Vite.
 
@@ -66,14 +69,22 @@ The architecture follows a few simple principles:
 ```text
 App
 │
-└── FlashcardSession
-    ├── Feature Hooks
-    ├── Practice Logic
-    ├── Music Rendering
-    ├── MIDI Input
-    ├── Virtual Piano
-    ├── Audio
-    └── Statistics
+├── FlashcardSession
+│   ├── Flashcard Feature Hooks
+│   ├── Practice Logic
+│   └── Target Validation
+│
+└── SequenceSession
+    ├── Sequence Feature Hooks
+    ├── Sequence Logic
+    └── Step Validation
+
+Shared Systems
+├── Music Rendering
+├── MIDI Input
+├── Virtual Piano
+├── Audio
+└── Statistics
 ```
 
 `FlashcardSession` coordinates the practice experience by composing focused hooks, utilities, and presentation components.
@@ -115,13 +126,23 @@ Important groups include:
 
 Contains stateful behavior that belongs to a specific feature.
 
-The current flashcard feature owns:
+The `features/` directory contains independent practice modes.
 
-- practice settings
-- target lifecycle
-- MIDI attempt collection
+The flashcard feature owns:
+
+- flashcard settings
+- isolated target lifecycle
+- MIDI chord-attempt collection
 - correct-answer sequencing
-- timing constants
+- flashcard timing constants
+
+The sequence feature owns:
+
+- sequence settings
+- ordered target lifecycle
+- sequence attempt state
+- delayed step and completion transitions
+- sequence timing constants
 
 Current hooks include:
 
@@ -129,6 +150,10 @@ Current hooks include:
 - `useFlashcardTarget`
 - `useMidiChordAttempt`
 - `useCorrectAnswerSequence`
+- `useSequenceSettings`
+- `useSequenceTarget`
+- `useSequenceAttempt`
+- `useSequenceTransition`
 
 ## hooks/
 
@@ -223,6 +248,22 @@ Its only responsibility is deciding which notes belong to one performed attempt.
 ## useCorrectAnswerSequence
 
 Coordinates the delayed actions that occur after a correct answer, such as timing and target advancement.
+
+## useSequenceSettings
+
+Owns Sequence Mode configuration, including enabled directions, intervals, note categories, clef mode, and display preferences.
+
+## useSequenceTarget
+
+Owns the lifecycle and locking of the active sequence target.
+
+## useSequenceAttempt
+
+Owns the ordered attempt state machine, including the current step, feedback states, retries, and sequence completion.
+
+## useSequenceTransition
+
+Coordinates delayed step advancement, retry behavior, MIDI release, success feedback, and progression to the next sequence.
 
 ---
 

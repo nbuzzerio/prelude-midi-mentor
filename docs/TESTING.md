@@ -1,7 +1,7 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** v1.0 Complete
-> **Current milestone:** v1.0 Released
+> **Status:** v1.1 Core Suite Complete
+> **Current milestone:** v1.1 Sequence Mode
 > **Last updated:** July 2026
 
 ## Purpose
@@ -32,7 +32,7 @@ Prelude uses:
 
 End-to-end testing and visual regression testing are not required for the initial v1.0 release.
 
-Tooling will be finalized only after the remaining source-tree audit.
+The current Vitest and React Testing Library workflow is established and should remain the default testing approach for new features.
 
 ## Test Organization
 
@@ -83,9 +83,18 @@ Tests should be grouped by public behavior and use musical terminology in their 
   - [x] Testing methodology documented
   - [x] v1.0 release ready
 
+- [x] Block 6 — Sequence Practice
+  - [x] `src/lib/practice/sequence-validation.test.ts`
+  - [x] `src/lib/practice/sequence-stats.test.ts`
+  - [x] `src/lib/music/generators/intervals.test.ts`
+  - [x] `src/features/sequences/hooks/use-sequence-settings.test.ts`
+  - [x] `src/features/sequences/hooks/use-sequence-attempt.test.ts`
+  - [x] `src/features/sequences/hooks/use-sequence-target.test.ts`
+  - [x] `src/features/sequences/hooks/use-sequence-transition.test.ts`
+
 **Final Result**
 
-- **140 passing tests across 11 test files**
+- **224 passing tests across 18 test files**
 - **All planned v1.0 testing objectives completed**
 
 ## Testing Blocks
@@ -192,6 +201,34 @@ Possible test:
 
 Avoid a broad `FlashcardSession` test that mocks most of the application.
 
+### Block 6 — Sequence Practice
+
+Test the ordered practice behavior introduced by Sequence Mode.
+
+Sequence logic:
+
+- exact step validation
+- completed-step tracking
+- sequence completion statistics
+- immutable statistic updates
+
+Interval generation:
+
+- semitone distances
+- ascending and descending directions
+- natural-note and accidental-note filters
+- invalid empty configurations
+
+Sequence hooks:
+
+- required settings remain enabled
+- attempt-state transitions
+- target locking and regeneration
+- MIDI-release-aware delayed transitions
+- timer cleanup and cancellation
+
+These tests should verify the public state-machine contracts rather than internal refs or implementation structure.
+
 ## Intentionally Not Tested for v1.0
 
 The initial suite should not deeply test:
@@ -264,8 +301,8 @@ pnpm build
 Automated testing results:
 
 ```text
-Test Files  11 passed
-Tests       140 passed
+Test Files  18 passed
+Tests       224 passed
 ```
 
 ### Manual Verification

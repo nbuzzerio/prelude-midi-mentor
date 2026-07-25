@@ -54,7 +54,7 @@
 
 ---
 
-# 🚧 Phase 2 — v1.0 Stabilization (Current)
+# ✅ Phase 2 — v1.0 Stabilization (Completed)
 
 Current focus is stabilizing the existing flashcard engine through documentation, testing, and release preparation before expanding into additional practice modes.
 
@@ -86,6 +86,26 @@ Current focus is stabilizing the existing flashcard engine through documentation
 
 ---
 
+# ✅ Phase 2.5 — v1.1 Sequence Mode (Completed)
+
+Introduce the first ordered, multi-step practice mode while preserving the existing flashcard architecture.
+
+## Sequence Practice
+
+- [x] Dedicated Sequence Mode
+- [x] Ascending melodic intervals
+- [x] Descending melodic intervals
+- [x] Configurable interval selection
+- [x] Natural-note and accidental-note filters
+- [x] Step-by-step answer validation
+- [x] Correct and incorrect step feedback
+- [x] MIDI-release-aware transitions
+- [x] Sequence completion statistics
+- [x] Dedicated sequence feature module
+- [x] Automated tests for sequence logic, hooks, and generators
+
+---
+
 # 🎹 Phase 3 — Harmony Trainer
 
 Expand the existing multi-note practice engine into a complete harmony trainer.
@@ -113,9 +133,11 @@ Expand beyond isolated note and chord recognition.
 
 ## Intervals
 
+- [x] Melodic interval construction
+- [x] Ascending / descending modes
 - [ ] Interval identification
-- [ ] Interval construction
-- [ ] Ascending / descending modes
+- [ ] Harmonic interval practice
+- [ ] Expanded interval difficulty settings
 
 ## Scales
 

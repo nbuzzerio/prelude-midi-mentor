@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Version:** 1.0
+> **Version:** 1.1
 > **Last Updated:** July 2026
-> **Current Milestone:** v1.0 Released
+> **Current Milestone:** v1.1 Sequence Mode
 
 ---
 
@@ -81,7 +81,7 @@ Users should be able to:
 
 # Current Status
 
-The core flashcard system is functional.
+The core flashcard and melodic-sequence systems are functional.
 
 Completed features include:
 
@@ -102,6 +102,11 @@ Completed features include:
 - Accuracy tracking
 - Response-time tracking
 - Streak tracking
+- Ascending and descending melodic interval sequences
+- Configurable interval selection
+- Natural-note and accidental-note filters
+- Step-by-step sequence validation
+- Sequence accuracy and completion statistics
 
 ## Input
 
@@ -146,19 +151,21 @@ Completed features include:
 - Stateful hook tests
 - Web MIDI integration tests
 - Flashcard session integration tests
-- 140 passing automated tests across 11 test files
+- 224 passing automated tests across 18 test files
 
 ---
 
 # Current Development Focus
 
-Prelude v1.0 has been completed.
+Prelude v1.0 has been released, and the initial v1.1 Sequence Mode milestone is complete.
+
+Current work is focused on cleanup, documentation, and release verification before continuing with additional musicianship features.
 
 Future work should proceed according to [`ROADMAP.md`](./ROADMAP.md).
 
 The next major feature areas are expected to include:
 
-- intervals
+- expanded interval practice
 - scales
 - ear training
 - guided lessons
