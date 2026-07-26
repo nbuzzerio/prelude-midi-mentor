@@ -46,6 +46,7 @@ type LastStepAnswer = Readonly<{
 export default function SequenceSession() {
   // Sequence configuration
   const {
+    enabledArpeggios,
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
@@ -56,6 +57,7 @@ export default function SequenceSession() {
     setMode,
     setShowTargetName,
     showTargetName,
+    toggleArpeggio,
     toggleDirection,
     toggleInterval,
     toggleNoteCategory,
@@ -71,6 +73,7 @@ export default function SequenceSession() {
     sequenceTarget,
     startedAt,
   } = useSequenceTarget({
+    enabledArpeggios,
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
@@ -473,12 +476,14 @@ export default function SequenceSession() {
           <FeedbackVolumeControl />
 
           <SequenceControls
+            enabledArpeggios={enabledArpeggios}
             enabledDirections={enabledDirections}
             enabledIntervals={enabledIntervals}
             enabledNoteCategories={enabledNoteCategories}
             enabledScales={enabledScales}
             exerciseType={exerciseType}
             mode={mode}
+            onArpeggioToggle={toggleArpeggio}
             onDirectionToggle={toggleDirection}
             onExerciseTypeChange={setExerciseType}
             onIntervalToggle={toggleInterval}

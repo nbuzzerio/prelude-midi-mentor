@@ -1,6 +1,7 @@
 import { NOTE_RANGES } from "@/data/note-ranges";
 import type {
   Clef,
+  SequenceArpeggio,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -56,6 +57,18 @@ const SCALE_LABELS: Readonly<Record<SequenceScale, string>> = {
   "natural-minor": "Natural minor scale",
 };
 
+const ARPEGGIO_SEMITONE_PATTERNS: Readonly<
+  Record<SequenceArpeggio, ReadonlyArray<number>>
+> = {
+  major: [0, 4, 7, 12],
+  minor: [0, 3, 7, 12],
+};
+
+const ARPEGGIO_LABELS: Readonly<Record<SequenceArpeggio, string>> = {
+  major: "Major arpeggio",
+  minor: "Minor arpeggio",
+};
+
 type GenerateIntervalTargetOptions = Readonly<{
   clef: Clef;
   enabledDirections: ReadonlySet<SequenceDirection>;
@@ -70,9 +83,17 @@ type GenerateScaleTargetOptions = Readonly<{
   enabledScales: ReadonlySet<SequenceScale>;
 }>;
 
+type GenerateArpeggioTargetOptions = Readonly<{
+  clef: Clef;
+  enabledArpeggios: ReadonlySet<SequenceArpeggio>;
+  enabledDirections: ReadonlySet<SequenceDirection>;
+  enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+}>;
+
 export type GenerateSequenceTargetOptions = Readonly<{
   exerciseType: SequenceExerciseType;
   clef: Clef;
+  enabledArpeggios: ReadonlySet<SequenceArpeggio>;
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
@@ -137,7 +158,7 @@ function getEligibleIntervalStartingMidiNumbers({
   return eligibleMidiNumbers;
 }
 
-function getEligibleScaleStartingMidiNumbers({
+function getEligibleOneOctaveStartingMidiNumbers({
   clef,
   direction,
   enabledNoteCategories,
@@ -260,7 +281,7 @@ function generateScaleTarget({
   const direction = getRandomItem(Array.from(enabledDirections));
   const scale = getRandomItem(Array.from(enabledScales));
 
-  const eligibleStartingMidiNumbers = getEligibleScaleStartingMidiNumbers({
+  const eligibleStartingMidiNumbers = getEligibleOneOctaveStartingMidiNumbers({
     clef,
     direction,
     enabledNoteCategories,
@@ -294,6 +315,61 @@ function generateScaleTarget({
   };
 }
 
+function generateArpeggioTarget({
+  clef,
+  enabledArpeggios,
+  enabledDirections,
+  enabledNoteCategories,
+}: GenerateArpeggioTargetOptions): SequenceTarget {
+  if (enabledDirections.size === 0) {
+    throw new Error("At least one sequence direction must be enabled.");
+  }
+
+  if (enabledArpeggios.size === 0) {
+    throw new Error("At least one sequence arpeggio must be enabled.");
+  }
+
+  if (enabledNoteCategories.size === 0) {
+    throw new Error("At least one sequence note category must be enabled.");
+  }
+
+  const direction = getRandomItem(Array.from(enabledDirections));
+  const arpeggio = getRandomItem(Array.from(enabledArpeggios));
+
+  const eligibleStartingMidiNumbers = getEligibleOneOctaveStartingMidiNumbers({
+    clef,
+    direction,
+    enabledNoteCategories,
+  });
+
+  if (eligibleStartingMidiNumbers.length === 0) {
+    throw new Error(
+      `No valid ${direction} ${arpeggio} arpeggio targets exist for the current settings.`,
+    );
+  }
+
+  const startingMidiNumber = getRandomItem(eligibleStartingMidiNumbers);
+  const directionMultiplier = getDirectionMultiplier(direction);
+
+  const steps = ARPEGGIO_SEMITONE_PATTERNS[arpeggio].map((semitones) => ({
+    notes: [
+      getPracticeNote(startingMidiNumber + semitones * directionMultiplier),
+    ],
+  }));
+
+  return {
+    clef,
+    name: {
+      primary: ARPEGGIO_LABELS[arpeggio],
+      secondary:
+        direction === "ascending"
+          ? "Ascending one-octave arpeggio"
+          : "Descending one-octave arpeggio",
+    },
+    steps,
+  };
+}
+
 export function generateSequenceTarget(
   options: GenerateSequenceTargetOptions,
 ): SequenceTarget {
@@ -303,5 +379,8 @@ export function generateSequenceTarget(
 
     case "scales":
       return generateScaleTarget(options);
+
+    case "arpeggios":
+      return generateArpeggioTarget(options);
   }
 }

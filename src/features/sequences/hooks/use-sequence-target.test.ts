@@ -5,6 +5,7 @@ import { generateSequenceTarget } from "@/lib/music/generators/sequences";
 import { getClefForMode } from "@/lib/music/note-utils";
 import type {
   PracticeClefMode,
+  SequenceArpeggio,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -22,6 +23,8 @@ vi.mock("@/lib/music/generators/sequences", () => ({
 vi.mock("@/lib/music/note-utils", () => ({
   getClefForMode: vi.fn(),
 }));
+
+const ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
 
 const ENABLED_DIRECTIONS = new Set<SequenceDirection>(["ascending"]);
 
@@ -72,6 +75,7 @@ describe("useSequenceTarget", () => {
   it("starts with the initial sequence target", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -115,6 +119,7 @@ describe("useSequenceTarget", () => {
   it("returns the current target through the ref-backed getter", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -132,6 +137,7 @@ describe("useSequenceTarget", () => {
   it("starts unlocked", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -147,6 +153,7 @@ describe("useSequenceTarget", () => {
   it("locks the current target", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -166,6 +173,7 @@ describe("useSequenceTarget", () => {
   it("does not lock an already locked target again", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -186,6 +194,7 @@ describe("useSequenceTarget", () => {
   it("generates a target using the current mode and enabled settings", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -204,6 +213,7 @@ describe("useSequenceTarget", () => {
     expect(generateSequenceTarget).toHaveBeenCalledWith({
       exerciseType: "intervals",
       clef: "bass",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
       enabledDirections: ENABLED_DIRECTIONS,
       enabledIntervals: ENABLED_INTERVALS,
       enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -214,6 +224,7 @@ describe("useSequenceTarget", () => {
   it("can generate a target using an explicit next mode", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -233,6 +244,7 @@ describe("useSequenceTarget", () => {
   it("updates the rendered target and current-target ref", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -255,6 +267,7 @@ describe("useSequenceTarget", () => {
 
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -274,6 +287,7 @@ describe("useSequenceTarget", () => {
   it("unlocks the target when generating the next target", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -298,6 +312,8 @@ describe("useSequenceTarget", () => {
   });
 
   it("uses updated settings after the hook rerenders", () => {
+    const updatedArpeggios = new Set<SequenceArpeggio>(["minor"]);
+
     const updatedDirections = new Set<SequenceDirection>(["descending"]);
 
     const updatedIntervals = new Set<SequenceInterval>(["perfect-fifth"]);
@@ -312,6 +328,7 @@ describe("useSequenceTarget", () => {
 
     const { result, rerender } = renderHook(
       ({
+        arpeggios,
         directions,
         exerciseType,
         intervals,
@@ -319,6 +336,7 @@ describe("useSequenceTarget", () => {
         scales,
         mode,
       }: {
+        arpeggios: ReadonlySet<SequenceArpeggio>;
         directions: ReadonlySet<SequenceDirection>;
         exerciseType: SequenceExerciseType;
         intervals: ReadonlySet<SequenceInterval>;
@@ -327,6 +345,7 @@ describe("useSequenceTarget", () => {
         mode: PracticeClefMode;
       }) =>
         useSequenceTarget({
+          enabledArpeggios: arpeggios,
           enabledDirections: directions,
           enabledIntervals: intervals,
           enabledNoteCategories: noteCategories,
@@ -336,6 +355,7 @@ describe("useSequenceTarget", () => {
         }),
       {
         initialProps: {
+          arpeggios: ENABLED_ARPEGGIOS,
           directions: ENABLED_DIRECTIONS,
           exerciseType: EXERCISE_TYPE,
           intervals: ENABLED_INTERVALS,
@@ -347,6 +367,7 @@ describe("useSequenceTarget", () => {
     );
 
     rerender({
+      arpeggios: updatedArpeggios,
       directions: updatedDirections,
       exerciseType: updatedExerciseType,
       intervals: updatedIntervals,
@@ -364,6 +385,7 @@ describe("useSequenceTarget", () => {
     expect(generateSequenceTarget).toHaveBeenCalledWith({
       exerciseType: updatedExerciseType,
       clef: "bass",
+      enabledArpeggios: updatedArpeggios,
       enabledDirections: updatedDirections,
       enabledIntervals: updatedIntervals,
       enabledNoteCategories: updatedNoteCategories,

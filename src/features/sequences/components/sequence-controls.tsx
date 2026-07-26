@@ -1,5 +1,6 @@
 import type {
   PracticeClefMode,
+  SequenceArpeggio,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -8,6 +9,7 @@ import type {
 } from "@/types/practice";
 
 type SequenceControlsProps = Readonly<{
+  enabledArpeggios: ReadonlySet<SequenceArpeggio>;
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
@@ -15,6 +17,7 @@ type SequenceControlsProps = Readonly<{
   exerciseType: SequenceExerciseType;
   mode: PracticeClefMode;
   showTargetName: boolean;
+  onArpeggioToggle: (arpeggio: SequenceArpeggio) => void;
   onDirectionToggle: (direction: SequenceDirection) => void;
   onExerciseTypeChange: (exerciseType: SequenceExerciseType) => void;
   onIntervalToggle: (interval: SequenceInterval) => void;
@@ -44,6 +47,10 @@ const EXERCISE_TYPE_OPTIONS: ReadonlyArray<
   {
     label: "Scales",
     value: "scales",
+  },
+  {
+    label: "Arpeggios",
+    value: "arpeggios",
   },
 ];
 
@@ -167,6 +174,22 @@ const SCALE_OPTIONS: ReadonlyArray<
   },
 ];
 
+const ARPEGGIO_OPTIONS: ReadonlyArray<
+  Readonly<{
+    label: string;
+    value: SequenceArpeggio;
+  }>
+> = [
+  {
+    label: "Major",
+    value: "major",
+  },
+  {
+    label: "Minor",
+    value: "minor",
+  },
+];
+
 function ToggleButton({ enabled, label, onClick }: ToggleButtonProps) {
   return (
     <button
@@ -185,12 +208,14 @@ function ToggleButton({ enabled, label, onClick }: ToggleButtonProps) {
 }
 
 export default function SequenceControls({
+  enabledArpeggios,
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
   enabledScales,
   exerciseType,
   mode,
+  onArpeggioToggle,
   onDirectionToggle,
   onExerciseTypeChange,
   onIntervalToggle,
@@ -202,12 +227,18 @@ export default function SequenceControls({
   showTargetName,
 }: SequenceControlsProps) {
   const targetNameLabel =
-    exerciseType === "intervals" ? "Show interval name" : "Show scale name";
+    exerciseType === "intervals"
+      ? "Show interval name"
+      : exerciseType === "scales"
+        ? "Show scale name"
+        : "Show arpeggio name";
 
   const targetNameDescription =
     exerciseType === "intervals"
       ? "Display the interval and direction above the notation."
-      : "Display the scale and direction above the notation.";
+      : exerciseType === "scales"
+        ? "Display the scale and direction above the notation."
+        : "Display the arpeggio and direction above the notation.";
 
   return (
     <section
@@ -327,7 +358,7 @@ export default function SequenceControls({
             ))}
           </div>
         </fieldset>
-      ) : (
+      ) : exerciseType === "scales" ? (
         <fieldset className="mt-5">
           <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
             Scales
@@ -339,9 +370,24 @@ export default function SequenceControls({
                 enabled={enabledScales.has(option.value)}
                 key={option.value}
                 label={option.label}
-                onClick={() => {
-                  onScaleToggle(option.value);
-                }}
+                onClick={() => onScaleToggle(option.value)}
+              />
+            ))}
+          </div>
+        </fieldset>
+      ) : (
+        <fieldset className="mt-5">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+            Arpeggios
+          </legend>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {ARPEGGIO_OPTIONS.map((option) => (
+              <ToggleButton
+                enabled={enabledArpeggios.has(option.value)}
+                key={option.value}
+                label={option.label}
+                onClick={() => onArpeggioToggle(option.value)}
               />
             ))}
           </div>

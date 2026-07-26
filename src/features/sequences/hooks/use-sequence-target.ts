@@ -2,8 +2,10 @@ import { useCallback, useRef, useState } from "react";
 
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
 import { getClefForMode } from "@/lib/music/note-utils";
+
 import type {
   PracticeClefMode,
+  SequenceArpeggio,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -41,6 +43,7 @@ const INITIAL_SEQUENCE_TARGET: SequenceTarget = {
 };
 
 type UseSequenceTargetOptions = Readonly<{
+  enabledArpeggios: ReadonlySet<SequenceArpeggio>;
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
@@ -50,6 +53,7 @@ type UseSequenceTargetOptions = Readonly<{
 }>;
 
 export function useSequenceTarget({
+  enabledArpeggios,
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
@@ -73,6 +77,7 @@ export function useSequenceTarget({
       const nextTarget = generateSequenceTarget({
         exerciseType,
         clef,
+        enabledArpeggios,
         enabledDirections,
         enabledIntervals,
         enabledNoteCategories,
@@ -86,6 +91,7 @@ export function useSequenceTarget({
       setStartedAt(Date.now());
     },
     [
+      enabledArpeggios,
       enabledDirections,
       enabledIntervals,
       enabledNoteCategories,

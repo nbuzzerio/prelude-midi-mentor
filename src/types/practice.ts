@@ -57,7 +57,7 @@ export type SequenceStats = Readonly<{
   totalSequenceTimeMs: number;
 }>;
 
-export type SequenceExerciseType = "intervals" | "scales";
+export type SequenceExerciseType = "intervals" | "scales" | "arpeggios";
 
 export type SequenceDirection = "ascending" | "descending";
 
@@ -75,5 +75,7 @@ export type SequenceInterval =
   | "octave";
 
 export type SequenceScale = "major" | "natural-minor";
+
+export type SequenceArpeggio = "major" | "minor";
 
 export type SequenceNoteCategory = "naturals" | "accidentals";

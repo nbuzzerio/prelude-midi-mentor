@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import type { SequenceArpeggio } from "@/types/practice";
+
 import { isNaturalMidiNumber } from "../note-utils";
 import { generateSequenceTarget, getIntervalSemitones } from "./sequences";
+
+const ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
 
 const ENABLED_SCALES = new Set(["major"] as const);
 
@@ -28,6 +32,7 @@ describe("generateSequenceTarget", () => {
     const target = generateSequenceTarget({
       exerciseType: "intervals",
       clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
       enabledDirections: new Set(["ascending"]),
       enabledIntervals: new Set(["major-third"]),
       enabledNoteCategories: new Set(["naturals", "accidentals"]),
@@ -48,6 +53,7 @@ describe("generateSequenceTarget", () => {
     const target = generateSequenceTarget({
       exerciseType: "intervals",
       clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
       enabledDirections: new Set(["descending"]),
       enabledIntervals: new Set(["perfect-fifth"]),
       enabledNoteCategories: new Set(["naturals", "accidentals"]),
@@ -67,6 +73,7 @@ describe("generateSequenceTarget", () => {
       const target = generateSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["naturals"]),
@@ -84,6 +91,7 @@ describe("generateSequenceTarget", () => {
       const target = generateSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["accidentals"]),
@@ -101,6 +109,7 @@ describe("generateSequenceTarget", () => {
       generateSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: new Set(),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["naturals"]),
@@ -114,6 +123,7 @@ describe("generateSequenceTarget", () => {
       generateSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(),
         enabledNoteCategories: new Set(["naturals"]),
@@ -127,6 +137,7 @@ describe("generateSequenceTarget", () => {
       generateSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(),

@@ -1,8 +1,10 @@
 import { useCallback, useState } from "react";
 
 import { toggleRequiredSetValue } from "@/lib/toggle-required-set-value";
+
 import type {
   PracticeClefMode,
+  SequenceArpeggio,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -24,6 +26,8 @@ const DEFAULT_ENABLED_NOTE_CATEGORIES = new Set<SequenceNoteCategory>([
 ]);
 
 const DEFAULT_ENABLED_SCALES = new Set<SequenceScale>(["major"]);
+
+const DEFAULT_ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
 
 export function useSequenceSettings() {
   const [exerciseType, setExerciseType] =
@@ -49,6 +53,10 @@ export function useSequenceSettings() {
     ReadonlySet<SequenceScale>
   >(DEFAULT_ENABLED_SCALES);
 
+  const [enabledArpeggios, setEnabledArpeggios] = useState<
+    ReadonlySet<SequenceArpeggio>
+  >(DEFAULT_ENABLED_ARPEGGIOS);
+
   const toggleDirection = useCallback((direction: SequenceDirection) => {
     setEnabledDirections((currentDirections) =>
       toggleRequiredSetValue(currentDirections, direction),
@@ -73,7 +81,14 @@ export function useSequenceSettings() {
     );
   }, []);
 
+  const toggleArpeggio = useCallback((arpeggio: SequenceArpeggio) => {
+    setEnabledArpeggios((currentArpeggios) =>
+      toggleRequiredSetValue(currentArpeggios, arpeggio),
+    );
+  }, []);
+
   return {
+    enabledArpeggios,
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
@@ -84,6 +99,7 @@ export function useSequenceSettings() {
     setMode,
     setShowTargetName,
     showTargetName,
+    toggleArpeggio,
     toggleDirection,
     toggleInterval,
     toggleNoteCategory,
