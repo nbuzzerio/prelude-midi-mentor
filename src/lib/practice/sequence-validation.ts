@@ -19,6 +19,17 @@ export function getCurrentSequenceStepMidiNumbers(
   return getSequenceStepMidiNumbers(step.notes);
 }
 
+export function getPreviousSequenceStepMidiNumbers(
+  sequenceTarget: SequenceTarget,
+  stepIndex: number,
+): ReadonlySet<number> {
+  if (stepIndex <= 0) {
+    return new Set();
+  }
+
+  return getCurrentSequenceStepMidiNumbers(sequenceTarget, stepIndex - 1);
+}
+
 export function getSequenceTargetMidiNumbers(
   sequenceTarget: SequenceTarget,
 ): ReadonlySet<number> {
@@ -30,10 +41,12 @@ export function getSequenceTargetMidiNumbers(
 }
 
 export function sequenceStepMatchesInput({
+  allowedLingeringMidiNumbers = new Set(),
   inputMidiNumbers,
   sequenceTarget,
   stepIndex,
 }: Readonly<{
+  allowedLingeringMidiNumbers?: ReadonlySet<number>;
   inputMidiNumbers: ReadonlySet<number>;
   sequenceTarget: SequenceTarget;
   stepIndex: number;
@@ -43,11 +56,17 @@ export function sequenceStepMatchesInput({
     stepIndex,
   );
 
-  if (inputMidiNumbers.size !== targetMidiNumbers.size) {
+  const containsEveryTargetNote = [...targetMidiNumbers].every((midiNumber) =>
+    inputMidiNumbers.has(midiNumber),
+  );
+
+  if (!containsEveryTargetNote) {
     return false;
   }
 
-  return [...targetMidiNumbers].every((midiNumber) =>
-    inputMidiNumbers.has(midiNumber),
+  return [...inputMidiNumbers].every(
+    (midiNumber) =>
+      targetMidiNumbers.has(midiNumber) ||
+      allowedLingeringMidiNumbers.has(midiNumber),
   );
 }

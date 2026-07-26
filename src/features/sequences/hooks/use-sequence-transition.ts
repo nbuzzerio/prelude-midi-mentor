@@ -111,6 +111,11 @@ export function useSequenceTransition({
     }: StartStepTransitionOptions) => {
       clearTransition();
 
+      if (stepDelayMs === 0 && !waitForMidiRelease) {
+        onAdvanceStep();
+        return;
+      }
+
       registerTimeout(() => {
         runAfterOptionalMidiRelease({
           action: () => {

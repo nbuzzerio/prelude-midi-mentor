@@ -9,3 +9,5 @@ export const PIANO_NOTE_DURATION_MS = 850;
 export const SUCCESS_CHIRP_DELAY_MS = 900;
 
 export const NEXT_SEQUENCE_DELAY_MS = 1250;
+
+export const SEQUENCE_TRANSITION_GRACE_MS = 200;

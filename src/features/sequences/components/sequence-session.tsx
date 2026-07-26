@@ -22,9 +22,10 @@ import type { FeedbackState, PracticeClefMode } from "@/types/practice";
 import {
   NEXT_SEQUENCE_DELAY_MS,
   PIANO_NOTE_DURATION_MS,
-  SEQUENCE_STEP_DELAY_MS,
+  SEQUENCE_TRANSITION_GRACE_MS,
   SUCCESS_CHIRP_DELAY_MS,
 } from "../sequence-timing";
+
 import { useSequenceAttempt } from "../hooks/use-sequence-attempt";
 import { useSequenceSettings } from "../hooks/use-sequence-settings";
 import { useSequenceTarget } from "../hooks/use-sequence-target";
@@ -89,7 +90,6 @@ export default function SequenceSession() {
     showCorrectFeedback,
     showIncorrectFeedback,
     state: sequenceAttemptState,
-    waitForRelease,
   } = useSequenceAttempt({
     sequenceTarget,
   });
@@ -113,6 +113,9 @@ export default function SequenceSession() {
     null,
   );
 
+  const [allowedLingeringMidiNumbers, setAllowedLingeringMidiNumbers] =
+    useState<ReadonlySet<number>>(new Set());
+
   const [stats, setStats] = useState(INITIAL_SEQUENCE_STATS);
 
   // Sequence target transitions
@@ -125,6 +128,7 @@ export default function SequenceSession() {
       setLastFailedAttemptNotes(new Set());
       setLastStepAnswer(null);
       setFeedback("idle");
+      setAllowedLingeringMidiNumbers(new Set());
 
       generateSequenceTarget(nextMode);
     },
@@ -192,29 +196,39 @@ export default function SequenceSession() {
         result: "correct",
       });
 
+      const target = getCurrentTarget();
+
+      const completedStepMidiNumbers = getCurrentSequenceStepMidiNumbers(
+        target,
+        currentStepIndex,
+      );
+
       const result = completeCurrentStep();
+
+      setAllowedLingeringMidiNumbers(completedStepMidiNumbers);
+
+      window.setTimeout(() => {
+        setAllowedLingeringMidiNumbers(new Set());
+      }, SEQUENCE_TRANSITION_GRACE_MS);
 
       if (result.sequenceComplete) {
         handleCompletedSequence(source);
         return;
       }
 
-      if (source === "midi") {
-        waitForRelease();
-      }
-
       startStepTransition({
-        stepDelayMs: SEQUENCE_STEP_DELAY_MS,
-        waitForMidiRelease: source === "midi",
+        stepDelayMs: 0,
+        waitForMidiRelease: false,
       });
     },
     [
       completeCurrentStep,
+      currentStepIndex,
+      getCurrentTarget,
       handleCompletedSequence,
       isSequenceTargetLocked,
       showCorrectFeedback,
       startStepTransition,
-      waitForRelease,
     ],
   );
 
@@ -244,6 +258,7 @@ export default function SequenceSession() {
       setStats((currentStats) => applyIncorrectSequenceAttempt(currentStats));
 
       setVirtualHeldNotes(new Set());
+      setAllowedLingeringMidiNumbers(new Set());
 
       startIncorrectStepTransition({
         waitForMidiRelease: source === "midi",
@@ -271,11 +286,11 @@ export default function SequenceSession() {
       const target = getCurrentTarget();
 
       const isCorrect = sequenceStepMatchesInput({
+        allowedLingeringMidiNumbers,
         inputMidiNumbers: midiNumbers,
         sequenceTarget: target,
         stepIndex: currentStepIndex,
       });
-
       if (isCorrect) {
         handleCorrectStep(midiNumbers, source);
         return;
@@ -284,6 +299,7 @@ export default function SequenceSession() {
       handleIncorrectStep(midiNumbers, source);
     },
     [
+      allowedLingeringMidiNumbers,
       currentStepIndex,
       getCurrentTarget,
       handleCorrectStep,

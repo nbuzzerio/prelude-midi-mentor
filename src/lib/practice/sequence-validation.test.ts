@@ -4,6 +4,7 @@ import type { PracticeNote, SequenceTarget } from "@/types/practice";
 
 import {
   getCurrentSequenceStepMidiNumbers,
+  getPreviousSequenceStepMidiNumbers,
   getSequenceStepMidiNumbers,
   getSequenceTargetMidiNumbers,
   sequenceStepMatchesInput,
@@ -66,6 +67,20 @@ describe("getCurrentSequenceStepMidiNumbers", () => {
 
   it("returns an empty set when the requested step does not exist", () => {
     expect(getCurrentSequenceStepMidiNumbers(SEQUENCE_TARGET, 10)).toEqual(
+      new Set(),
+    );
+  });
+});
+
+describe("getPreviousSequenceStepMidiNumbers", () => {
+  it("returns the previous step's MIDI numbers", () => {
+    expect(getPreviousSequenceStepMidiNumbers(SEQUENCE_TARGET, 1)).toEqual(
+      new Set([60]),
+    );
+  });
+
+  it("returns an empty set for the first step", () => {
+    expect(getPreviousSequenceStepMidiNumbers(SEQUENCE_TARGET, 0)).toEqual(
       new Set(),
     );
   });
@@ -167,5 +182,49 @@ describe("sequenceStepMatchesInput", () => {
         stepIndex: 0,
       }),
     ).toBe(false);
+  });
+
+  it("allows notes from the previous step to linger", () => {
+    expect(
+      sequenceStepMatchesInput({
+        allowedLingeringMidiNumbers: new Set([60]),
+        inputMidiNumbers: new Set([60, 64]),
+        sequenceTarget: SEQUENCE_TARGET,
+        stepIndex: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("still requires every current-step note", () => {
+    expect(
+      sequenceStepMatchesInput({
+        allowedLingeringMidiNumbers: new Set([60]),
+        inputMidiNumbers: new Set([60]),
+        sequenceTarget: SEQUENCE_TARGET,
+        stepIndex: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects unrelated extra notes even when lingering notes are allowed", () => {
+    expect(
+      sequenceStepMatchesInput({
+        allowedLingeringMidiNumbers: new Set([60]),
+        inputMidiNumbers: new Set([60, 64, 67]),
+        sequenceTarget: SEQUENCE_TARGET,
+        stepIndex: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not require lingering notes to still be held", () => {
+    expect(
+      sequenceStepMatchesInput({
+        allowedLingeringMidiNumbers: new Set([60]),
+        inputMidiNumbers: new Set([64]),
+        sequenceTarget: SEQUENCE_TARGET,
+        stepIndex: 1,
+      }),
+    ).toBe(true);
   });
 });
