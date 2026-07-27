@@ -5,6 +5,8 @@ type LastAnswer = Readonly<{
   result: AnswerResult;
 }>;
 
+type PianoKeyboardVisualMode = "graded" | "freeplay";
+
 type PianoKeyboardProps = Readonly<{
   activeMidiNumbers: ReadonlySet<number>;
   failedMidiNumbers: ReadonlySet<number>;
@@ -13,6 +15,7 @@ type PianoKeyboardProps = Readonly<{
   onNoteToggle: (midiNumber: number) => void;
   minMidi?: number;
   maxMidi?: number;
+  visualMode?: PianoKeyboardVisualMode;
 }>;
 
 type PianoKey = Readonly<{
@@ -73,13 +76,19 @@ function getKeyBackgroundColor({
   isFailed,
   isTargetNote,
   result,
+  visualMode,
 }: Readonly<{
   isActive: boolean;
   isBlack: boolean;
   isFailed: boolean;
   isTargetNote: boolean;
   result: AnswerResult | undefined;
+  visualMode: PianoKeyboardVisualMode;
 }>): string {
+  if (visualMode === "freeplay" && isActive) {
+    return isBlack ? "#52525b" : "#d4d4d8";
+  }
+
   if (result === "correct") {
     return isBlack ? "#16a34a" : "#4ade80";
   }
@@ -115,6 +124,7 @@ export default function PianoKeyboard({
   onNoteToggle,
   minMidi = 36,
   maxMidi = 83,
+  visualMode = "graded",
 }: PianoKeyboardProps) {
   const keys = createKeys(minMidi, maxMidi);
 
@@ -142,6 +152,7 @@ export default function PianoKeyboard({
             isFailed,
             isTargetNote,
             result,
+            visualMode,
           });
 
           if (!key.isBlack) {

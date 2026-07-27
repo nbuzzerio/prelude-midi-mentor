@@ -3,10 +3,12 @@ import {
   Formatter,
   Renderer,
   Stave,
+  StaveConnector,
   StaveNote,
   Voice,
 } from "vexflow";
 
+import { createPracticeNote } from "@/lib/music/note-utils";
 import type {
   Clef,
   PracticeNote,
@@ -36,6 +38,12 @@ const STAVE_Y = 30;
 const HORIZONTAL_PADDING = 20;
 const CLEF_AND_NOTE_PADDING = 100;
 const NOTE_GROUP_WIDTH = 90;
+
+const GRAND_STAFF_RENDERER_HEIGHT = 460;
+const GRAND_STAFF_TOP_Y = 55;
+const GRAND_STAFF_BOTTOM_Y = 125;
+const GRAND_STAFF_NOTE_FORMAT_WIDTH = 190;
+const MIDDLE_C_MIDI_NUMBER = 60;
 
 function toVexFlowPitch(practiceNote: PracticeNote): VexFlowPitch {
   const accidental = practiceNote.name.includes("♯")
@@ -82,7 +90,51 @@ function createStaveNote(
   return staveNote;
 }
 
-function renderStaffNotation(
+function drawHeldNoteGroup(
+  context: ReturnType<Renderer["getContext"]>,
+  stave: Stave,
+  clef: Clef,
+  notes: StaffNoteGroup,
+): void {
+  if (notes.length === 0) {
+    return;
+  }
+
+  const staveNote = createStaveNote(clef, notes, true);
+
+  const voice = new Voice({
+    beatValue: 4,
+    numBeats: 1,
+  });
+
+  voice.addTickable(staveNote);
+
+  new Formatter()
+    .joinVoices([voice])
+    .format([voice], GRAND_STAFF_NOTE_FORMAT_WIDTH);
+
+  voice.draw(context, stave);
+}
+
+function configureResponsiveSvg(
+  container: HTMLDivElement,
+  rendererWidth: number,
+  rendererHeight: number,
+): void {
+  const svg = container.querySelector("svg");
+
+  if (!svg) {
+    return;
+  }
+
+  svg.setAttribute("viewBox", `0 0 ${rendererWidth} ${rendererHeight}`);
+  svg.setAttribute("width", "100%");
+  svg.setAttribute("height", "100%");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.style.display = "block";
+}
+
+export function renderStaffNotation(
   container: HTMLDivElement,
   notation: StaffNotation,
 ): void {
@@ -130,17 +182,7 @@ function renderStaffNotation(
 
   voice.draw(context, stave);
 
-  const svg = container.querySelector("svg");
-
-  if (!svg) {
-    return;
-  }
-
-  svg.setAttribute("viewBox", `0 0 ${rendererWidth} ${RENDERER_HEIGHT}`);
-  svg.setAttribute("width", "100%");
-  svg.setAttribute("height", "100%");
-  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-  svg.style.display = "block";
+  configureResponsiveSvg(container, rendererWidth, RENDERER_HEIGHT);
 }
 
 export function renderPracticeTarget(
@@ -163,4 +205,60 @@ export function renderSequenceTarget(
     clef: sequenceTarget.clef,
     noteGroups: sequenceTarget.steps.map((step) => step.notes),
   });
+}
+
+export function renderGrandStaffHeldNotes(
+  container: HTMLDivElement,
+  heldMidiNumbers: ReadonlySet<number>,
+): void {
+  container.replaceChildren();
+
+  const rendererWidth = 560;
+  const staveWidth = rendererWidth - HORIZONTAL_PADDING;
+
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+
+  renderer.resize(rendererWidth, GRAND_STAFF_RENDERER_HEIGHT);
+
+  const context = renderer.getContext();
+
+  const trebleStave = new Stave(STAVE_X, GRAND_STAFF_TOP_Y, staveWidth).addClef(
+    "treble",
+  );
+
+  const bassStave = new Stave(
+    STAVE_X,
+    GRAND_STAFF_BOTTOM_Y,
+    staveWidth,
+  ).addClef("bass");
+
+  trebleStave.setContext(context).draw();
+  bassStave.setContext(context).draw();
+
+  new StaveConnector(trebleStave, bassStave)
+    .setType(StaveConnector.type.BRACE)
+    .setContext(context)
+    .draw();
+
+  new StaveConnector(trebleStave, bassStave)
+    .setType(StaveConnector.type.SINGLE_LEFT)
+    .setContext(context)
+    .draw();
+
+  const sortedMidiNumbers = [...heldMidiNumbers].sort(
+    (left, right) => left - right,
+  );
+
+  const bassNotes = sortedMidiNumbers
+    .filter((midiNumber) => midiNumber < MIDDLE_C_MIDI_NUMBER)
+    .map((midiNumber) => createPracticeNote(midiNumber));
+
+  const trebleNotes = sortedMidiNumbers
+    .filter((midiNumber) => midiNumber >= MIDDLE_C_MIDI_NUMBER)
+    .map((midiNumber) => createPracticeNote(midiNumber));
+
+  drawHeldNoteGroup(context, trebleStave, "treble", trebleNotes);
+  drawHeldNoteGroup(context, bassStave, "bass", bassNotes);
+
+  configureResponsiveSvg(container, rendererWidth, GRAND_STAFF_RENDERER_HEIGHT);
 }

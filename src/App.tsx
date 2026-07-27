@@ -2,16 +2,48 @@ import { useState } from "react";
 
 import FlashcardSession from "./features/flashcards/components/flashcard-session";
 import SequenceSession from "./features/sequences/components/sequence-session";
+import FreeplaySession from "./features/freeplay/freeplay-session";
 
-type PracticeSection = "flashcards" | "sequence";
+type PracticeSection = "flashcards" | "sequence" | "freeplay";
 
 export default function App() {
   const [practiceSection, setPracticeSection] =
-    useState<PracticeSection>("flashcards");
+    useState<PracticeSection>("freeplay");
+
+  let content;
+
+  switch (practiceSection) {
+    case "flashcards":
+      content = <FlashcardSession />;
+      break;
+
+    case "sequence":
+      content = <SequenceSession />;
+      break;
+
+    case "freeplay":
+      content = <FreeplaySession />;
+      break;
+
+    default:
+      content = null;
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 p-2 sm:p-5 lg:p-10">
       <div className="mx-auto mb-4 flex w-full max-w-7xl gap-2">
+        <button
+          className={`rounded px-4 py-2 transition ${
+            practiceSection === "freeplay"
+              ? "bg-sky-500 text-white"
+              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+          }`}
+          onClick={() => setPracticeSection("freeplay")}
+          type="button"
+        >
+          Free Play
+        </button>
+
         <button
           className={`rounded px-4 py-2 transition ${
             practiceSection === "flashcards"
@@ -33,15 +65,11 @@ export default function App() {
           onClick={() => setPracticeSection("sequence")}
           type="button"
         >
-          Sequence
+          Sequences
         </button>
       </div>
 
-      {practiceSection === "flashcards" ? (
-        <FlashcardSession />
-      ) : (
-        <SequenceSession />
-      )}
+      {content}
     </main>
   );
 }
