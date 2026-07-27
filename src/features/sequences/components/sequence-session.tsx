@@ -465,15 +465,17 @@ export default function SequenceSession() {
       </div>
 
       <section className="relative -my-20 flex flex-col gap-6">
-        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr]">
-          <InstrumentVolumeControl
-            onReplayCorrectVirtualChordsChange={() => {
-              // Sequence Mode does not currently replay chords.
-            }}
-            replayCorrectVirtualChords={false}
-          />
+        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
+          <div className="flex flex-col gap-4">
+            <FeedbackVolumeControl />
 
-          <FeedbackVolumeControl />
+            <InstrumentVolumeControl
+              onReplayCorrectVirtualChordsChange={() => {
+                // Sequence Mode does not currently replay chords.
+              }}
+              replayCorrectVirtualChords={false}
+            />
+          </div>
 
           <SequenceControls
             enabledArpeggios={enabledArpeggios}

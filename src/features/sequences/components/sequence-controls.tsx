@@ -168,9 +168,27 @@ const SCALE_OPTIONS: ReadonlyArray<
     label: "Major",
     value: "major",
   },
+
   {
     label: "Natural Minor",
     value: "natural-minor",
+  },
+  {
+    label: "Harmonic Minor",
+    value: "harmonic-minor",
+  },
+  {
+    label: "Melodic Minor",
+    value: "melodic-minor",
+  },
+
+  {
+    label: "Major Pentatonic",
+    value: "major-pentatonic",
+  },
+  {
+    label: "Minor Pentatonic",
+    value: "minor-pentatonic",
   },
 ];
 
@@ -187,6 +205,27 @@ const ARPEGGIO_OPTIONS: ReadonlyArray<
   {
     label: "Minor",
     value: "minor",
+  },
+  {
+    label: "Diminished",
+    value: "diminished",
+  },
+  {
+    label: "Augmented",
+    value: "augmented",
+  },
+
+  {
+    label: "Dominant 7th",
+    value: "dominant-seventh",
+  },
+  {
+    label: "Major 7th",
+    value: "major-seventh",
+  },
+  {
+    label: "Minor 7th",
+    value: "minor-seventh",
   },
 ];
 
@@ -364,7 +403,7 @@ export default function SequenceControls({
             Scales
           </legend>
 
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {SCALE_OPTIONS.map((option) => (
               <ToggleButton
                 enabled={enabledScales.has(option.value)}

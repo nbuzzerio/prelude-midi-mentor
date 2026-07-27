@@ -49,24 +49,64 @@ const SCALE_SEMITONE_PATTERNS: Readonly<
   Record<SequenceScale, ReadonlyArray<number>>
 > = {
   major: [0, 2, 4, 5, 7, 9, 11, 12],
+
   "natural-minor": [0, 2, 3, 5, 7, 8, 10, 12],
+
+  "harmonic-minor": [0, 2, 3, 5, 7, 8, 11, 12],
+
+  "melodic-minor": [0, 2, 3, 5, 7, 9, 11, 12],
+
+  "major-pentatonic": [0, 2, 4, 7, 9, 12],
+
+  "minor-pentatonic": [0, 3, 5, 7, 10, 12],
 };
 
 const SCALE_LABELS: Readonly<Record<SequenceScale, string>> = {
   major: "Major scale",
+
   "natural-minor": "Natural minor scale",
+
+  "harmonic-minor": "Harmonic minor scale",
+
+  "melodic-minor": "Melodic minor scale",
+
+  "major-pentatonic": "Major pentatonic scale",
+
+  "minor-pentatonic": "Minor pentatonic scale",
 };
 
 const ARPEGGIO_SEMITONE_PATTERNS: Readonly<
   Record<SequenceArpeggio, ReadonlyArray<number>>
 > = {
   major: [0, 4, 7, 12],
+
   minor: [0, 3, 7, 12],
+
+  diminished: [0, 3, 6, 12],
+
+  augmented: [0, 4, 8, 12],
+
+  "dominant-seventh": [0, 4, 7, 10],
+
+  "major-seventh": [0, 4, 7, 11],
+
+  "minor-seventh": [0, 3, 7, 10],
 };
 
 const ARPEGGIO_LABELS: Readonly<Record<SequenceArpeggio, string>> = {
   major: "Major arpeggio",
+
   minor: "Minor arpeggio",
+
+  diminished: "Diminished arpeggio",
+
+  augmented: "Augmented arpeggio",
+
+  "dominant-seventh": "Dominant seventh arpeggio",
+
+  "major-seventh": "Major seventh arpeggio",
+
+  "minor-seventh": "Minor seventh arpeggio",
 };
 
 type GenerateIntervalTargetOptions = Readonly<{

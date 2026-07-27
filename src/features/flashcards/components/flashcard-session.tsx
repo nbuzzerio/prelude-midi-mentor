@@ -487,13 +487,16 @@ export default function FlashcardSession() {
 
       {/* TODO(v1): Remove temporary negative margin after final page layout pass. */}
       <section className="relative -my-72 flex flex-col gap-6">
-        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.4fr]">
-          <InstrumentVolumeControl
-            replayCorrectVirtualChords={replayCorrectVirtualChords}
-            onReplayCorrectVirtualChordsChange={setReplayCorrectVirtualChords}
-          />
+        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
+          <div className="flex flex-col gap-4">
+            <FeedbackVolumeControl />
 
-          <FeedbackVolumeControl />
+            <InstrumentVolumeControl
+              replayCorrectVirtualChords={replayCorrectVirtualChords}
+              onReplayCorrectVirtualChordsChange={setReplayCorrectVirtualChords}
+            />
+          </div>
+
           <PracticeControls
             enabledExerciseTypes={enabledExerciseTypes}
             enabledNoteCategories={enabledNoteCategories}

@@ -74,8 +74,21 @@ export type SequenceInterval =
   | "major-seventh"
   | "octave";
 
-export type SequenceScale = "major" | "natural-minor";
+export type SequenceScale =
+  | "major"
+  | "natural-minor"
+  | "harmonic-minor"
+  | "melodic-minor"
+  | "major-pentatonic"
+  | "minor-pentatonic";
 
-export type SequenceArpeggio = "major" | "minor";
+export type SequenceArpeggio =
+  | "major"
+  | "minor"
+  | "diminished"
+  | "augmented"
+  | "dominant-seventh"
+  | "major-seventh"
+  | "minor-seventh";
 
 export type SequenceNoteCategory = "naturals" | "accidentals";

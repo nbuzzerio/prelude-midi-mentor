@@ -58,6 +58,29 @@ const TRIAD_POSITIONS: ReadonlyArray<{
   { label: "Second inversion", value: "second" },
 ];
 
+type ToggleButtonProps = Readonly<{
+  enabled: boolean;
+  label: string;
+  onClick: () => void;
+}>;
+
+function ToggleButton({ enabled, label, onClick }: ToggleButtonProps) {
+  return (
+    <button
+      aria-pressed={enabled}
+      className={
+        enabled
+          ? "rounded-lg border border-sky-400/60 bg-sky-400/15 px-3 py-2 text-sm font-semibold text-sky-100"
+          : "rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/60 hover:bg-white/10 hover:text-white"
+      }
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function PracticeControls({
   enabledExerciseTypes,
   enabledNoteCategories,
@@ -77,145 +100,140 @@ export default function PracticeControls({
   const triadsEnabled = enabledExerciseTypes.has("triads");
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-4">
-      <div>
-        <p className="mb-2 text-sm font-medium text-zinc-700">Clef</p>
+    <section
+      aria-label="Practice settings"
+      className="rounded-xl border border-white/10 bg-white/5 p-4"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-bold text-white">Practice settings</h2>
 
-        <div className="grid grid-cols-3 gap-2">
-          {MODES.map((option) => {
-            const isSelected = mode === option.value;
-
-            return (
-              <button
-                key={option.value}
-                className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                  isSelected
-                    ? "bg-zinc-900 text-white"
-                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
-                }`}
-                onClick={() => onModeChange(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            );
-          })}
+          <p className="mt-1 text-sm text-white/50">
+            Configure flashcard practice.
+          </p>
         </div>
+
+        <button
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white"
+          onClick={onReset}
+          type="button"
+        >
+          Reset session
+        </button>
       </div>
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-zinc-700">Exercise types</p>
+      <fieldset className="mt-5">
+        <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+          Exercises
+        </legend>
 
-        <div className="flex flex-col gap-2">
-          <div className="rounded-xl bg-zinc-100">
-            <label className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
-              <input
-                checked={individualNotesEnabled}
-                onChange={() => onExerciseTypeToggle("notes")}
-                type="checkbox"
+        <div className="mt-2 flex flex-wrap gap-2">
+          <ToggleButton
+            enabled={individualNotesEnabled}
+            label="Individual Notes"
+            onClick={() => onExerciseTypeToggle("notes")}
+          />
+
+          <ToggleButton
+            enabled={triadsEnabled}
+            label="Triads"
+            onClick={() => onExerciseTypeToggle("triads")}
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="mt-5">
+        <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+          Clef
+        </legend>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {MODES.map((option) => (
+            <ToggleButton
+              enabled={mode === option.value}
+              key={option.value}
+              label={option.label}
+              onClick={() => onModeChange(option.value)}
+            />
+          ))}
+        </div>
+      </fieldset>
+
+      {individualNotesEnabled ? (
+        <fieldset className="mt-5">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+            Starting Notes
+          </legend>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {NOTE_CATEGORIES.map((option) => (
+              <ToggleButton
+                enabled={enabledNoteCategories.has(option.value)}
+                key={option.value}
+                label={option.label}
+                onClick={() => onNoteCategoryToggle(option.value)}
               />
-              Individual notes
-            </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
 
-            <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 pl-10">
-              {NOTE_CATEGORIES.map((option) => (
-                <label
+      {triadsEnabled ? (
+        <>
+          <fieldset className="mt-5">
+            <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+              Qualities
+            </legend>
+
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {TRIAD_QUALITIES.map((option) => (
+                <ToggleButton
+                  enabled={enabledTriadQualities.has(option.value)}
                   key={option.value}
-                  className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
-                >
-                  <input
-                    checked={enabledNoteCategories.has(option.value)}
-                    onChange={() => onNoteCategoryToggle(option.value)}
-                    type="checkbox"
-                  />
-
-                  {option.label}
-                </label>
+                  label={option.label}
+                  onClick={() => onTriadQualityToggle(option.value)}
+                />
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          <div className="rounded-xl bg-zinc-100">
-            <label className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
-              <input
-                checked={triadsEnabled}
-                onChange={() => onExerciseTypeToggle("triads")}
-                type="checkbox"
-              />
-              Triads
-            </label>
+          <fieldset className="mt-5">
+            <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+              Positions
+            </legend>
 
-            <div className="grid gap-4 border-t border-zinc-200 px-4 py-3 pl-10 sm:grid-cols-2">
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Qualities
-                </p>
-
-                <div className="flex flex-col gap-2">
-                  {TRIAD_QUALITIES.map((option) => (
-                    <label
-                      key={option.value}
-                      className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
-                    >
-                      <input
-                        checked={enabledTriadQualities.has(option.value)}
-                        onChange={() => onTriadQualityToggle(option.value)}
-                        type="checkbox"
-                      />
-
-                      {option.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Positions
-                </p>
-
-                <div className="flex flex-col gap-2">
-                  {TRIAD_POSITIONS.map((option) => (
-                    <label
-                      key={option.value}
-                      className="flex cursor-pointer items-center gap-3 text-sm font-medium text-zinc-600"
-                    >
-                      <input
-                        checked={enabledTriadPositions.has(option.value)}
-                        onChange={() => onTriadPositionToggle(option.value)}
-                        type="checkbox"
-                      />
-
-                      {option.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {TRIAD_POSITIONS.map((option) => (
+                <ToggleButton
+                  enabled={enabledTriadPositions.has(option.value)}
+                  key={option.value}
+                  label={option.label}
+                  onClick={() => onTriadPositionToggle(option.value)}
+                />
+              ))}
             </div>
-          </div>
-        </div>
-      </div>
+          </fieldset>
+        </>
+      ) : null}
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-zinc-700">Display</p>
+      <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/10 px-3 py-3">
+        <span>
+          <span className="block text-sm font-semibold text-white">
+            Show target name
+          </span>
 
-        <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-200">
-          <input
-            checked={showTargetName}
-            onChange={(event) => onShowTargetNameChange(event.target.checked)}
-            type="checkbox"
-          />
-          Show target name
-        </label>
-      </div>
+          <span className="mt-1 block text-xs text-white/50">
+            Display the note or triad above the staff.
+          </span>
+        </span>
 
-      <button
-        className="rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
-        onClick={onReset}
-        type="button"
-      >
-        Reset session
-      </button>
-    </div>
+        <input
+          checked={showTargetName}
+          className="h-5 w-5 accent-sky-400"
+          onChange={(event) => onShowTargetNameChange(event.target.checked)}
+          type="checkbox"
+        />
+      </label>
+    </section>
   );
 }
