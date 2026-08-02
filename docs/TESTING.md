@@ -164,7 +164,7 @@ Triad targets:
 - remain inside the clef range
 - preserve correct chord spelling
 - produce correct inversion order
-- avoid double accidentals in v1.0
+- avoid double accidentals in v2.0
 - reject invalid empty configurations
 
 Do not test random distribution. Mock `Math.random` only for targeted branch coverage.
@@ -252,7 +252,7 @@ Manually verify Free Play because VexFlow layout, live MIDI interaction, and res
 
 The manually discovered stale-setting bug also highlights a future integration-test need: changing an exercise type should regenerate a target using the newly selected setting rather than the previous render's state.
 
-## Intentionally Not Tested for v1.0
+## Intentionally Not Tested for v2.0
 
 The initial suite should not deeply test:
 
@@ -296,7 +296,7 @@ Also manually verify:
 
 ## Future Opportunities
 
-After v1.0, consider:
+After v2.0, consider:
 
 - pure MIDI message parsing tests
 - focused audio utility tests

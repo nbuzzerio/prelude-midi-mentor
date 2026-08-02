@@ -254,8 +254,7 @@ src/
 ├── components/
 │   ├── audio/
 │   ├── midi/
-│   ├── notation/
-│   └── ui/
+│   └── notation/
 │
 ├── data/
 │
@@ -272,12 +271,10 @@ src/
 │
 ├── lib/
 │   ├── audio/
-│   ├── midi/
 │   ├── music/
 │   │   └── generators/
 │   ├── practice/
-│   ├── pwa/
-│   └── utils/
+│   └── pwa/
 │
 ├── types/
 │
