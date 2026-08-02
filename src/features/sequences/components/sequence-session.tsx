@@ -50,6 +50,7 @@ export default function SequenceSession() {
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
+    enabledScaleDirections,
     enabledScales,
     exerciseType,
     mode,
@@ -62,6 +63,7 @@ export default function SequenceSession() {
     toggleInterval,
     toggleNoteCategory,
     toggleScale,
+    toggleScaleDirection,
   } = useSequenceSettings();
 
   // Current sequence target
@@ -77,6 +79,7 @@ export default function SequenceSession() {
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
+    enabledScaleDirections,
     enabledScales,
     exerciseType,
     mode,
@@ -482,6 +485,7 @@ export default function SequenceSession() {
             enabledDirections={enabledDirections}
             enabledIntervals={enabledIntervals}
             enabledNoteCategories={enabledNoteCategories}
+            enabledScaleDirections={enabledScaleDirections}
             enabledScales={enabledScales}
             exerciseType={exerciseType}
             mode={mode}
@@ -493,6 +497,7 @@ export default function SequenceSession() {
             onNoteCategoryToggle={toggleNoteCategory}
             onReset={handleReset}
             onScaleToggle={toggleScale}
+            onScaleDirectionToggle={toggleScaleDirection}
             onShowTargetNameChange={setShowTargetName}
             showTargetName={showTargetName}
           />

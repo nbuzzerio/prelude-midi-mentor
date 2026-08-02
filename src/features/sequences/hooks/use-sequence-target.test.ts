@@ -11,6 +11,7 @@ import type {
   SequenceInterval,
   SequenceNoteCategory,
   SequenceScale,
+  SequenceScaleDirection,
   SequenceTarget,
 } from "@/types/practice";
 
@@ -33,6 +34,10 @@ const ENABLED_INTERVALS = new Set<SequenceInterval>(["major-third"]);
 const ENABLED_NOTE_CATEGORIES = new Set<SequenceNoteCategory>(["naturals"]);
 
 const ENABLED_SCALES = new Set<SequenceScale>(["major"]);
+
+const ENABLED_SCALE_DIRECTIONS = new Set<SequenceScaleDirection>([
+  "ascending",
+]);
 
 const EXERCISE_TYPE: SequenceExerciseType = "intervals";
 
@@ -79,6 +84,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -123,6 +129,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -141,6 +148,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -157,6 +165,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -177,6 +186,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -198,6 +208,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -217,6 +228,7 @@ describe("useSequenceTarget", () => {
       enabledDirections: ENABLED_DIRECTIONS,
       enabledIntervals: ENABLED_INTERVALS,
       enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+      enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
       enabledScales: ENABLED_SCALES,
     });
   });
@@ -228,6 +240,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -248,6 +261,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -271,6 +285,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -291,6 +306,7 @@ describe("useSequenceTarget", () => {
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
         exerciseType: EXERCISE_TYPE,
         mode: "treble",
@@ -324,6 +340,10 @@ describe("useSequenceTarget", () => {
 
     const updatedScales = new Set<SequenceScale>(["natural-minor"]);
 
+    const updatedScaleDirections = new Set<SequenceScaleDirection>([
+      "ascending-descending",
+    ]);
+
     const updatedExerciseType: SequenceExerciseType = "scales";
 
     const { result, rerender } = renderHook(
@@ -333,6 +353,7 @@ describe("useSequenceTarget", () => {
         exerciseType,
         intervals,
         noteCategories,
+        scaleDirections,
         scales,
         mode,
       }: {
@@ -341,6 +362,7 @@ describe("useSequenceTarget", () => {
         exerciseType: SequenceExerciseType;
         intervals: ReadonlySet<SequenceInterval>;
         noteCategories: ReadonlySet<SequenceNoteCategory>;
+        scaleDirections: ReadonlySet<SequenceScaleDirection>;
         scales: ReadonlySet<SequenceScale>;
         mode: PracticeClefMode;
       }) =>
@@ -349,6 +371,7 @@ describe("useSequenceTarget", () => {
           enabledDirections: directions,
           enabledIntervals: intervals,
           enabledNoteCategories: noteCategories,
+          enabledScaleDirections: scaleDirections,
           enabledScales: scales,
           exerciseType,
           mode,
@@ -360,6 +383,7 @@ describe("useSequenceTarget", () => {
           exerciseType: EXERCISE_TYPE,
           intervals: ENABLED_INTERVALS,
           noteCategories: ENABLED_NOTE_CATEGORIES,
+          scaleDirections: ENABLED_SCALE_DIRECTIONS,
           scales: ENABLED_SCALES,
           mode: "treble",
         },
@@ -372,6 +396,7 @@ describe("useSequenceTarget", () => {
       exerciseType: updatedExerciseType,
       intervals: updatedIntervals,
       noteCategories: updatedNoteCategories,
+      scaleDirections: updatedScaleDirections,
       scales: updatedScales,
       mode: "bass",
     });
@@ -389,6 +414,7 @@ describe("useSequenceTarget", () => {
       enabledDirections: updatedDirections,
       enabledIntervals: updatedIntervals,
       enabledNoteCategories: updatedNoteCategories,
+      enabledScaleDirections: updatedScaleDirections,
       enabledScales: updatedScales,
     });
   });

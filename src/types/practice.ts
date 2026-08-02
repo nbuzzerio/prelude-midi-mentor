@@ -61,6 +61,10 @@ export type SequenceExerciseType = "intervals" | "scales" | "arpeggios";
 
 export type SequenceDirection = "ascending" | "descending";
 
+export type SequenceScaleDirection =
+  | SequenceDirection
+  | "ascending-descending";
+
 export type SequenceInterval =
   | "minor-second"
   | "major-second"

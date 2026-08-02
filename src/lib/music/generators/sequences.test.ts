@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SequenceArpeggio } from "@/types/practice";
 
@@ -8,6 +8,18 @@ import { generateSequenceTarget, getIntervalSemitones } from "./sequences";
 const ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
 
 const ENABLED_SCALES = new Set(["major"] as const);
+
+const ENABLED_SCALE_DIRECTIONS = new Set(["ascending"] as const);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function getTargetNotes(
+  target: ReturnType<typeof generateSequenceTarget>,
+): ReadonlyArray<Readonly<{ midiNumber: number; name: string }>> {
+  return target.steps.map((step) => step.notes[0]);
+}
 
 describe("getIntervalSemitones", () => {
   it.each([
@@ -36,6 +48,7 @@ describe("generateSequenceTarget", () => {
       enabledDirections: new Set(["ascending"]),
       enabledIntervals: new Set(["major-third"]),
       enabledNoteCategories: new Set(["naturals", "accidentals"]),
+      enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
       enabledScales: ENABLED_SCALES,
     });
 
@@ -57,6 +70,7 @@ describe("generateSequenceTarget", () => {
       enabledDirections: new Set(["descending"]),
       enabledIntervals: new Set(["perfect-fifth"]),
       enabledNoteCategories: new Set(["naturals", "accidentals"]),
+      enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
       enabledScales: ENABLED_SCALES,
     });
 
@@ -77,6 +91,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["naturals"]),
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
       });
 
@@ -95,6 +110,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["accidentals"]),
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
       });
 
@@ -113,6 +129,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(["naturals"]),
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
       }),
     ).toThrow(/direction/i);
@@ -127,6 +144,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(),
         enabledNoteCategories: new Set(["naturals"]),
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
       }),
     ).toThrow(/interval/i);
@@ -141,6 +159,7 @@ describe("generateSequenceTarget", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-second"]),
         enabledNoteCategories: new Set(),
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
       }),
     ).toThrow(/note category/i);
@@ -148,6 +167,143 @@ describe("generateSequenceTarget", () => {
 });
 
 describe("theory spelling", () => {
+  it("generates an ascending major scale", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const target = generateSequenceTarget({
+      exerciseType: "scales",
+      clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledDirections: new Set(["descending"]),
+      enabledIntervals: new Set(["major-second"]),
+      enabledNoteCategories: new Set(["naturals"]),
+      enabledScaleDirections: new Set(["ascending"]),
+      enabledScales: ENABLED_SCALES,
+    });
+
+    expect(getTargetNotes(target).map((note) => note.midiNumber)).toEqual([
+      60, 62, 64, 65, 67, 69, 71, 72,
+    ]);
+    expect(target.name.secondary).toBe("Ascending one-octave scale");
+  });
+
+  it("generates a descending major scale as the reverse of its ascent", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const target = generateSequenceTarget({
+      exerciseType: "scales",
+      clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledDirections: new Set(["ascending"]),
+      enabledIntervals: new Set(["major-second"]),
+      enabledNoteCategories: new Set(["naturals"]),
+      enabledScaleDirections: new Set(["descending"]),
+      enabledScales: ENABLED_SCALES,
+    });
+
+    expect(getTargetNotes(target).map((note) => note.midiNumber)).toEqual([
+      72, 71, 69, 67, 65, 64, 62, 60,
+    ]);
+    expect(getTargetNotes(target).map((note) => note.name)).toEqual([
+      "C",
+      "B",
+      "A",
+      "G",
+      "F",
+      "E",
+      "D",
+      "C",
+    ]);
+    expect(target.name.secondary).toBe("Descending one-octave scale");
+  });
+
+  it("generates an ascending and descending scale without repeating the upper tonic", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const target = generateSequenceTarget({
+      exerciseType: "scales",
+      clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledDirections: new Set(["descending"]),
+      enabledIntervals: new Set(["major-second"]),
+      enabledNoteCategories: new Set(["naturals"]),
+      enabledScaleDirections: new Set(["ascending-descending"]),
+      enabledScales: ENABLED_SCALES,
+    });
+
+    expect(getTargetNotes(target).map((note) => note.midiNumber)).toEqual([
+      60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60,
+    ]);
+    expect(target.name.secondary).toBe(
+      "Ascending and descending one-octave scale",
+    );
+  });
+
+  it("uses natural minor for a descending melodic minor scale", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const target = generateSequenceTarget({
+      exerciseType: "scales",
+      clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledDirections: new Set(["ascending"]),
+      enabledIntervals: new Set(["major-second"]),
+      enabledNoteCategories: new Set(["naturals"]),
+      enabledScaleDirections: new Set(["descending"]),
+      enabledScales: new Set(["melodic-minor"]),
+    });
+
+    expect(getTargetNotes(target).map((note) => note.midiNumber)).toEqual([
+      72, 70, 68, 67, 65, 63, 62, 60,
+    ]);
+    expect(getTargetNotes(target).map((note) => note.name)).toEqual([
+      "C",
+      "B♭",
+      "A♭",
+      "G",
+      "F",
+      "E♭",
+      "D",
+      "C",
+    ]);
+  });
+
+  it("uses melodic minor ascending and natural minor descending in a round trip", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const target = generateSequenceTarget({
+      exerciseType: "scales",
+      clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledDirections: new Set(["descending"]),
+      enabledIntervals: new Set(["major-second"]),
+      enabledNoteCategories: new Set(["naturals"]),
+      enabledScaleDirections: new Set(["ascending-descending"]),
+      enabledScales: new Set(["melodic-minor"]),
+    });
+
+    expect(getTargetNotes(target).map((note) => note.midiNumber)).toEqual([
+      60, 62, 63, 65, 67, 69, 71, 72, 70, 68, 67, 65, 63, 62, 60,
+    ]);
+    expect(getTargetNotes(target).map((note) => note.name)).toEqual([
+      "C",
+      "D",
+      "E♭",
+      "F",
+      "G",
+      "A",
+      "B",
+      "C",
+      "B♭",
+      "A♭",
+      "G",
+      "F",
+      "E♭",
+      "D",
+      "C",
+    ]);
+  });
+
   it("spells an ascending minor second using the correct letter name", () => {
     for (let i = 0; i < 100; i += 1) {
       const target = generateSequenceTarget({
@@ -157,6 +313,7 @@ describe("theory spelling", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["minor-second"]),
         enabledNoteCategories: new Set(["naturals", "accidentals"]),
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
       });
 
@@ -178,6 +335,7 @@ describe("theory spelling", () => {
         enabledDirections: new Set(["ascending"]),
         enabledIntervals: new Set(["major-third"]),
         enabledNoteCategories: new Set(["naturals", "accidentals"]),
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
         enabledScales: ENABLED_SCALES,
       });
 
@@ -200,6 +358,7 @@ describe("theory spelling", () => {
           enabledDirections: new Set(["ascending"]),
           enabledIntervals: new Set(["major-second"]),
           enabledNoteCategories: new Set(["naturals", "accidentals"]),
+          enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
           enabledScales: ENABLED_SCALES,
         });
       }
@@ -216,6 +375,7 @@ describe("theory spelling", () => {
           enabledDirections: new Set(["ascending"]),
           enabledIntervals: new Set(["major-second"]),
           enabledNoteCategories: new Set(["naturals", "accidentals"]),
+          enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
           enabledScales: ENABLED_SCALES,
         });
       }

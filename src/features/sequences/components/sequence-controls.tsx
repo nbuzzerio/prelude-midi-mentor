@@ -6,6 +6,7 @@ import type {
   SequenceInterval,
   SequenceNoteCategory,
   SequenceScale,
+  SequenceScaleDirection,
 } from "@/types/practice";
 
 type SequenceControlsProps = Readonly<{
@@ -13,6 +14,7 @@ type SequenceControlsProps = Readonly<{
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+  enabledScaleDirections: ReadonlySet<SequenceScaleDirection>;
   enabledScales: ReadonlySet<SequenceScale>;
   exerciseType: SequenceExerciseType;
   mode: PracticeClefMode;
@@ -25,6 +27,7 @@ type SequenceControlsProps = Readonly<{
   onNoteCategoryToggle: (category: SequenceNoteCategory) => void;
   onReset: () => void;
   onScaleToggle: (scale: SequenceScale) => void;
+  onScaleDirectionToggle: (direction: SequenceScaleDirection) => void;
   onShowTargetNameChange: (enabled: boolean) => void;
 }>;
 
@@ -87,6 +90,19 @@ const DIRECTION_OPTIONS: ReadonlyArray<
   {
     label: "Descending",
     value: "descending",
+  },
+];
+
+const SCALE_DIRECTION_OPTIONS: ReadonlyArray<
+  Readonly<{
+    label: string;
+    value: SequenceScaleDirection;
+  }>
+> = [
+  ...DIRECTION_OPTIONS,
+  {
+    label: "Ascending + Descending",
+    value: "ascending-descending",
   },
 ];
 
@@ -251,6 +267,7 @@ export default function SequenceControls({
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
+  enabledScaleDirections,
   enabledScales,
   exerciseType,
   mode,
@@ -262,6 +279,7 @@ export default function SequenceControls({
   onNoteCategoryToggle,
   onReset,
   onScaleToggle,
+  onScaleDirectionToggle,
   onShowTargetNameChange,
   showTargetName,
 }: SequenceControlsProps) {
@@ -346,13 +364,24 @@ export default function SequenceControls({
         </legend>
 
         <div className="mt-2 flex flex-wrap gap-2">
-          {DIRECTION_OPTIONS.map((option) => (
+          {(exerciseType === "scales"
+            ? SCALE_DIRECTION_OPTIONS
+            : DIRECTION_OPTIONS
+          ).map((option) => (
             <ToggleButton
-              enabled={enabledDirections.has(option.value)}
+              enabled={
+                exerciseType === "scales"
+                  ? enabledScaleDirections.has(option.value)
+                  : enabledDirections.has(option.value as SequenceDirection)
+              }
               key={option.value}
               label={option.label}
               onClick={() => {
-                onDirectionToggle(option.value);
+                if (exerciseType === "scales") {
+                  onScaleDirectionToggle(option.value);
+                } else {
+                  onDirectionToggle(option.value as SequenceDirection);
+                }
               }}
             />
           ))}

@@ -15,6 +15,10 @@ describe("useSequenceSettings", () => {
 
     expect(result.current.enabledScales).toEqual(new Set(["major"]));
 
+    expect(result.current.enabledScaleDirections).toEqual(
+      new Set(["ascending"]),
+    );
+
     expect(result.current.enabledDirections).toEqual(new Set(["ascending"]));
 
     expect(result.current.enabledIntervals).toEqual(
@@ -227,6 +231,31 @@ describe("useSequenceSettings", () => {
   });
 
   describe("scales", () => {
+    it("can enable ascending and descending scale practice", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.toggleScaleDirection("ascending-descending");
+      });
+
+      expect(result.current.enabledScaleDirections).toEqual(
+        new Set(["ascending", "ascending-descending"]),
+      );
+      expect(result.current.enabledDirections).toEqual(new Set(["ascending"]));
+    });
+
+    it("does not disable the final enabled scale direction", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.toggleScaleDirection("ascending");
+      });
+
+      expect(result.current.enabledScaleDirections).toEqual(
+        new Set(["ascending"]),
+      );
+    });
+
     it("can enable another scale", () => {
       const { result } = renderHook(() => useSequenceSettings());
 

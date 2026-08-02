@@ -8,6 +8,7 @@ import type {
   SequenceInterval,
   SequenceNoteCategory,
   SequenceScale,
+  SequenceScaleDirection,
   SequenceTarget,
 } from "@/types/practice";
 
@@ -157,8 +158,8 @@ type GenerateIntervalTargetOptions = Readonly<{
 
 type GenerateScaleTargetOptions = Readonly<{
   clef: Clef;
-  enabledDirections: ReadonlySet<SequenceDirection>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+  enabledScaleDirections: ReadonlySet<SequenceScaleDirection>;
   enabledScales: ReadonlySet<SequenceScale>;
 }>;
 
@@ -176,6 +177,7 @@ export type GenerateSequenceTargetOptions = Readonly<{
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+  enabledScaleDirections: ReadonlySet<SequenceScaleDirection>;
   enabledScales: ReadonlySet<SequenceScale>;
 }>;
 
@@ -196,6 +198,16 @@ const NOTE_LETTERS: ReadonlyArray<NoteLetter> = [
   "A",
   "B",
 ];
+
+function getPracticeNoteLetter(note: PracticeNote): NoteLetter {
+  const noteLetter = NOTE_LETTERS.find((letter) => note.name.startsWith(letter));
+
+  if (!noteLetter) {
+    throw new Error(`Unable to resolve note letter from ${note.name}.`);
+  }
+
+  return noteLetter;
+}
 
 function shiftNoteLetter(
   startingLetter: NoteLetter,
@@ -228,11 +240,13 @@ function createTheoryPatternNotes({
   semitonePattern,
   diatonicPattern,
   direction,
+  rootLetter,
 }: Readonly<{
   startingMidiNumber: number;
   semitonePattern: ReadonlyArray<number>;
   diatonicPattern: ReadonlyArray<number>;
   direction: SequenceDirection;
+  rootLetter?: NoteLetter;
 }>): ReadonlyArray<PracticeNote> {
   if (semitonePattern.length !== diatonicPattern.length) {
     throw new Error(
@@ -242,9 +256,11 @@ function createTheoryPatternNotes({
 
   const directionMultiplier = getDirectionMultiplier(direction);
 
-  const validSpellings = getTheoryRootLetterCandidates(
-    startingMidiNumber,
-  ).flatMap((rootLetter) => {
+  const rootLetterCandidates = rootLetter
+    ? [rootLetter]
+    : getTheoryRootLetterCandidates(startingMidiNumber);
+
+  const validSpellings = rootLetterCandidates.flatMap((candidateRootLetter) => {
     try {
       const notes = semitonePattern.map((semitones, index) => {
         const diatonicSteps = diatonicPattern[index];
@@ -254,7 +270,7 @@ function createTheoryPatternNotes({
         }
 
         const noteLetter = shiftNoteLetter(
-          rootLetter,
+          candidateRootLetter,
           diatonicSteps * directionMultiplier,
         );
 
@@ -423,12 +439,12 @@ function generateIntervalTarget({
 
 function generateScaleTarget({
   clef,
-  enabledDirections,
   enabledNoteCategories,
+  enabledScaleDirections,
   enabledScales,
 }: GenerateScaleTargetOptions): SequenceTarget {
-  if (enabledDirections.size === 0) {
-    throw new Error("At least one sequence direction must be enabled.");
+  if (enabledScaleDirections.size === 0) {
+    throw new Error("At least one scale direction must be enabled.");
   }
 
   if (enabledScales.size === 0) {
@@ -439,12 +455,15 @@ function generateScaleTarget({
     throw new Error("At least one sequence note category must be enabled.");
   }
 
-  const direction = getRandomItem(Array.from(enabledDirections));
+  const direction = getRandomItem(Array.from(enabledScaleDirections));
   const scale = getRandomItem(Array.from(enabledScales));
+
+  const rangeDirection =
+    direction === "descending" ? "descending" : "ascending";
 
   const eligibleStartingMidiNumbers = getEligibleOneOctaveStartingMidiNumbers({
     clef,
-    direction,
+    direction: rangeDirection,
     enabledNoteCategories,
   });
 
@@ -456,12 +475,55 @@ function generateScaleTarget({
 
   const startingMidiNumber = getRandomItem(eligibleStartingMidiNumbers);
 
-  const notes = createTheoryPatternNotes({
-    startingMidiNumber,
-    semitonePattern: SCALE_SEMITONE_PATTERNS[scale],
-    diatonicPattern: SCALE_DIATONIC_PATTERNS[scale],
-    direction,
+  const lowerTonicMidiNumber =
+    direction === "descending"
+      ? startingMidiNumber - 12
+      : startingMidiNumber;
+
+  const ascendingScale =
+    scale === "melodic-minor" && direction === "descending"
+      ? "natural-minor"
+      : scale;
+
+  const ascendingNotes = createTheoryPatternNotes({
+    startingMidiNumber: lowerTonicMidiNumber,
+    semitonePattern: SCALE_SEMITONE_PATTERNS[ascendingScale],
+    diatonicPattern: SCALE_DIATONIC_PATTERNS[ascendingScale],
+    direction: "ascending",
   });
+
+  const ascendingRootNote = ascendingNotes[0];
+
+  if (!ascendingRootNote) {
+    throw new Error(`Unable to generate ${scale} scale notes.`);
+  }
+
+  let notes: ReadonlyArray<PracticeNote>;
+
+  if (direction === "ascending") {
+    notes = ascendingNotes;
+  } else {
+    const descendingScale =
+      scale === "melodic-minor" ? "natural-minor" : scale;
+
+    const descendingNotes =
+      descendingScale === ascendingScale
+        ? [...ascendingNotes].reverse()
+        : [
+            ...createTheoryPatternNotes({
+              startingMidiNumber: lowerTonicMidiNumber,
+              semitonePattern: SCALE_SEMITONE_PATTERNS[descendingScale],
+              diatonicPattern: SCALE_DIATONIC_PATTERNS[descendingScale],
+              direction: "ascending",
+              rootLetter: getPracticeNoteLetter(ascendingRootNote),
+            }),
+          ].reverse();
+
+    notes =
+      direction === "descending"
+        ? descendingNotes
+        : [...ascendingNotes, ...descendingNotes.slice(1)];
+  }
 
   const steps = notes.map((note) => ({
     notes: [note],
@@ -474,7 +536,9 @@ function generateScaleTarget({
       secondary:
         direction === "ascending"
           ? "Ascending one-octave scale"
-          : "Descending one-octave scale",
+          : direction === "descending"
+            ? "Descending one-octave scale"
+            : "Ascending and descending one-octave scale",
     },
     steps,
   };

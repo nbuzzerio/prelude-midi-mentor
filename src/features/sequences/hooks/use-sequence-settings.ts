@@ -10,6 +10,7 @@ import type {
   SequenceInterval,
   SequenceNoteCategory,
   SequenceScale,
+  SequenceScaleDirection,
 } from "@/types/practice";
 
 const DEFAULT_ENABLED_DIRECTIONS = new Set<SequenceDirection>(["ascending"]);
@@ -26,6 +27,10 @@ const DEFAULT_ENABLED_NOTE_CATEGORIES = new Set<SequenceNoteCategory>([
 ]);
 
 const DEFAULT_ENABLED_SCALES = new Set<SequenceScale>(["major"]);
+
+const DEFAULT_ENABLED_SCALE_DIRECTIONS = new Set<SequenceScaleDirection>([
+  "ascending",
+]);
 
 const DEFAULT_ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
 
@@ -52,6 +57,10 @@ export function useSequenceSettings() {
   const [enabledScales, setEnabledScales] = useState<
     ReadonlySet<SequenceScale>
   >(DEFAULT_ENABLED_SCALES);
+
+  const [enabledScaleDirections, setEnabledScaleDirections] = useState<
+    ReadonlySet<SequenceScaleDirection>
+  >(DEFAULT_ENABLED_SCALE_DIRECTIONS);
 
   const [enabledArpeggios, setEnabledArpeggios] = useState<
     ReadonlySet<SequenceArpeggio>
@@ -81,6 +90,15 @@ export function useSequenceSettings() {
     );
   }, []);
 
+  const toggleScaleDirection = useCallback(
+    (direction: SequenceScaleDirection) => {
+      setEnabledScaleDirections((currentDirections) =>
+        toggleRequiredSetValue(currentDirections, direction),
+      );
+    },
+    [],
+  );
+
   const toggleArpeggio = useCallback((arpeggio: SequenceArpeggio) => {
     setEnabledArpeggios((currentArpeggios) =>
       toggleRequiredSetValue(currentArpeggios, arpeggio),
@@ -92,6 +110,7 @@ export function useSequenceSettings() {
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
+    enabledScaleDirections,
     enabledScales,
     exerciseType,
     mode,
@@ -104,5 +123,6 @@ export function useSequenceSettings() {
     toggleInterval,
     toggleNoteCategory,
     toggleScale,
+    toggleScaleDirection,
   };
 }

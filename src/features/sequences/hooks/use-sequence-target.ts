@@ -11,6 +11,7 @@ import type {
   SequenceInterval,
   SequenceNoteCategory,
   SequenceScale,
+  SequenceScaleDirection,
   SequenceTarget,
 } from "@/types/practice";
 
@@ -47,6 +48,7 @@ type UseSequenceTargetOptions = Readonly<{
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
+  enabledScaleDirections: ReadonlySet<SequenceScaleDirection>;
   enabledScales: ReadonlySet<SequenceScale>;
   exerciseType: SequenceExerciseType;
   mode: PracticeClefMode;
@@ -57,6 +59,7 @@ export function useSequenceTarget({
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
+  enabledScaleDirections,
   enabledScales,
   exerciseType,
   mode,
@@ -81,6 +84,7 @@ export function useSequenceTarget({
         enabledDirections,
         enabledIntervals,
         enabledNoteCategories,
+        enabledScaleDirections,
         enabledScales,
       });
 
@@ -95,6 +99,7 @@ export function useSequenceTarget({
       enabledDirections,
       enabledIntervals,
       enabledNoteCategories,
+      enabledScaleDirections,
       enabledScales,
       exerciseType,
       mode,
