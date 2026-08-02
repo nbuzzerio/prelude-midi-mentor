@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** v1.1 Core Suite Complete
-> **Current milestone:** v1.1 Sequence Mode
-> **Last updated:** July 2026
+> **Status:** v2.0 Release Suite
+> **Current milestone:** v2.0 Practice Platform
+> **Last updated:** August 2026
 
 ## Purpose
 
@@ -30,7 +30,7 @@ Prelude uses:
 - React Testing Library
 - jsdom (only for hook/component tests)
 
-End-to-end testing and visual regression testing are not required for the initial v1.0 release.
+End-to-end and visual-regression testing are not required for v2.0, but focused browser-level interaction tests are a future opportunity.
 
 The current Vitest and React Testing Library workflow is established and should remain the default testing approach for new features.
 
@@ -53,6 +53,11 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 - [x] Block 2 — Music Theory
   - [x] `src/lib/music/notes.test.ts`
+  - [x] `src/lib/music/note-utils.test.ts`
+    - [x] theory root-letter candidates
+    - [x] sharp and flat theory spelling
+    - [x] B♯ and C♭ octave boundaries
+    - [x] unsupported double-accidental rejection
     - [x] `getNoteName`
     - [x] `getNoteOctave`
     - [x] `getFullNoteName`
@@ -87,15 +92,19 @@ Tests should be grouped by public behavior and use musical terminology in their 
   - [x] `src/lib/practice/sequence-validation.test.ts`
   - [x] `src/lib/practice/sequence-stats.test.ts`
   - [x] `src/lib/music/generators/sequences.test.ts`
+    - [x] interval semitone distances and direction
+    - [x] scale and arpeggio generation constraints
+    - [x] theory-aware interval spelling regressions
+    - [x] repeated generation without unsupported spelling crashes
   - [x] `src/features/sequences/hooks/use-sequence-settings.test.ts`
   - [x] `src/features/sequences/hooks/use-sequence-attempt.test.ts`
   - [x] `src/features/sequences/hooks/use-sequence-target.test.ts`
   - [x] `src/features/sequences/hooks/use-sequence-transition.test.ts`
 
-**Final Result**
+**Current Result**
 
-- **223 passing tests across 18 test files**
-- **All planned v1.0 testing objectives completed**
+- The complete suite passes locally before the v2.0 release.
+- Final test and file counts should be recorded from the release-candidate `pnpm verify` output.
 
 ## Testing Blocks
 
@@ -229,6 +238,20 @@ Sequence hooks:
 
 These tests should verify the public state-machine contracts rather than internal refs or implementation structure.
 
+### Block 7 — v2.0 Music and Free Play
+
+Test:
+
+- theory-aware note spelling for intervals, scales, and arpeggios
+- supported sharp, flat, B♯, and C♭ spellings
+- deliberate rejection of unsupported double accidentals
+- generation invariants across repeated randomized targets
+- keyboard visual-mode behavior at the smallest useful layer when practical
+
+Manually verify Free Play because VexFlow layout, live MIDI interaction, and responsive grand-staff scaling are better assessed in the browser than through brittle SVG assertions.
+
+The manually discovered stale-setting bug also highlights a future integration-test need: changing an exercise type should regenerate a target using the newly selected setting rather than the previous render's state.
+
 ## Intentionally Not Tested for v1.0
 
 The initial suite should not deeply test:
@@ -248,16 +271,11 @@ These areas are better served by build checks, focused manual verification, or l
 
 ## Release Verification
 
-Before the v1.0.0 release, run:
+Before the v2.0.0 release, run:
 
 ```bash
-npm run lint
-npm run check-types
-npm run test
-npm run build
+pnpm verify
 ```
-
-Use the repository's actual package manager if it is not npm.
 
 Also manually verify:
 
@@ -268,6 +286,10 @@ Also manually verify:
 - piano and feedback volume controls
 - clef, note, triad-quality, and inversion settings
 - responsive layouts
+- Free Play grand-staff behavior
+- low and high notes placed on the expected staff
+- stable blank grand staff when no notes are held
+- neutral Free Play key highlighting
 - installed PWA behavior
 - offline application shell
 - production deployment
@@ -284,9 +306,9 @@ After v1.0, consider:
 - PWA installation and offline tests
 - selective visual regression tests
 
-## v1.0 Verification
+## Release Verification Baseline
 
-Prelude v1.0 was considered release-ready only after successfully completing the full release verification process.
+Prelude releases are considered ready only after successfully completing the full automated and manual verification process.
 
 ### Automated Verification
 
@@ -298,12 +320,7 @@ pnpm lint
 pnpm build
 ```
 
-Automated testing results:
-
-```text
-Test Files  18 passed
-Tests       223 passed
-```
+Record the final test-file and test counts from the v2.0 release-candidate `pnpm verify` output.
 
 ### Manual Verification
 
@@ -321,4 +338,4 @@ The following functionality was also verified prior to the v1.0 release:
 - Progressive Web App installation
 - Offline application shell
 
-Together, these automated and manual checks establish the v1.0 release baseline. Future releases should meet or exceed this verification standard before being tagged.
+Together, these automated and manual checks establish the release baseline. Future releases should meet or exceed this verification standard before being tagged.

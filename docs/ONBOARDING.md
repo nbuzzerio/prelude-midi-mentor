@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Version:** 1.1
-> **Last Updated:** July 2026
-> **Current Milestone:** v1.1 Sequence Mode
+> **Version:** 2.0
+> **Last Updated:** August 2026
+> **Current Milestone:** v2.0 Practice Platform
 
 ---
 
@@ -60,22 +60,19 @@ Features should never exist simply because they are technically interesting—th
 
 ---
 
-# v1.0 Goal
+# v2.0 Goal
 
-The current milestone focuses on stabilizing Prelude for its v1.0 public release.
-
-The core flashcard engine is feature-complete, with current work centered on documentation, testing, and polish before expanding into additional practice modes.
+The current milestone completes Prelude's foundational practice platform before work begins on more advanced musicianship and guided-learning systems.
 
 Users should be able to:
 
-1. View notation rendered on a musical staff.
-2. Play the answer using either:
-   - a MIDI keyboard
-   - the on-screen keyboard
-3. Receive immediate visual and audio feedback.
-4. Practice both single notes and triads.
-5. Track performance over time.
-6. Practice anywhere using an installable Progressive Web App.
+1. Practice isolated notes and triads with Flashcards.
+2. Practice ordered intervals, scales, and arpeggios with Sequences.
+3. Use Free Play for live grand-staff notation without grading.
+4. Play using either a MIDI keyboard or the on-screen keyboard.
+5. Receive immediate feedback in graded modes.
+6. Track session performance in Flashcards and Sequences.
+7. Practice anywhere using an installable Progressive Web App.
 
 ---
 
@@ -107,6 +104,11 @@ Completed features include:
 - Natural-note and accidental-note filters
 - Step-by-step sequence validation
 - Sequence accuracy and completion statistics
+- Major, natural minor, harmonic minor, and melodic minor scales
+- Major and minor pentatonic scales
+- Major, minor, diminished, augmented, dominant seventh, major seventh, and minor seventh arpeggios
+- Theory-aware spelling for intervals, scales, and arpeggios
+- Free Play mode with live grand-staff notation
 
 ## Input
 
@@ -132,6 +134,8 @@ Completed features include:
 - Ledger lines
 - Accidentals
 - Responsive notation scaling
+- Persistent grand staff for Free Play
+- Automatic treble- and bass-staff placement for held notes
 
 ## Platform
 
@@ -151,24 +155,23 @@ Completed features include:
 - Stateful hook tests
 - Web MIDI integration tests
 - Flashcard session integration tests
-- 223 passing automated tests across 18 test files
+- Automated tests for flashcards, sequences, music theory, MIDI behavior, and theory-aware spelling
 
 ---
 
 # Current Development Focus
 
-Prelude v1.0 has been released, and the initial v1.1 Sequence Mode milestone is complete.
+Prelude's v2.0 practice foundation is feature-complete.
 
-Current work is focused on cleanup, documentation, and release verification before continuing with additional musicianship features.
+Current work is focused on final documentation, automated verification, manual QA, and the v2.0.0 release. After the release, future work should proceed according to [`ROADMAP.md`](./ROADMAP.md).
 
-Future work should proceed according to [`ROADMAP.md`](./ROADMAP.md).
+Likely next areas include:
 
-The next major feature areas are expected to include:
-
-- expanded interval practice
-- scales
-- ear training
-- guided lessons
+- quality-of-life and accessibility improvements
+- richer session analytics
+- improved touch interaction
+- combined ascending and descending sequence practice
+- future chord-progression, ear-training, rhythm, and guided-lesson systems
 
 ---
 
@@ -176,7 +179,7 @@ The next major feature areas are expected to include:
 
 Prelude is intentionally designed so today's isolated practice engine can evolve naturally into tomorrow's guided lesson system without requiring major architectural rewrites.
 
-The current practice engine is built around a generalized `PracticeTarget` model rather than a single target note.
+Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, and arpeggios. Free Play bypasses target generation and renders held notes directly.
 
 A `PracticeTarget` can represent one or more notes, allowing the same validation and rendering systems to support:
 

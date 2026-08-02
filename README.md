@@ -18,18 +18,34 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
-### Sight-Reading Practice
+### Flashcard Practice
 
-- Treble clef practice
-- Bass clef practice
-- Mixed-clef practice
-- Single-note flashcards
+- Treble, bass, and mixed-clef practice
 - Single-note flashcards
 - Major, minor, diminished, and augmented triad flashcards
 - Root position, first inversion, and second inversion
+- Configurable natural-note and accidental-note practice
 - Standard staff notation rendered with VexFlow
 
-### Real-Time Input
+### Sequence Practice
+
+- Ascending and descending melodic intervals
+- Major, natural minor, harmonic minor, and melodic minor scales
+- Major and minor pentatonic scales
+- Major, minor, diminished, and augmented arpeggios
+- Dominant seventh, major seventh, and minor seventh arpeggios
+- Step-by-step sequence validation
+- Musically correct note spelling for intervals, scales, and arpeggios
+
+### Free Play
+
+- Live notation from a physical MIDI keyboard
+- Interactive on-screen piano input
+- Persistent grand staff
+- Automatic treble- and bass-staff placement
+- Neutral held-key highlighting for ungraded practice
+
+### Real-Time Input and Feedback
 
 - Physical MIDI keyboard support
 - Interactive on-screen piano
@@ -37,19 +53,20 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - MIDI connection status and diagnostics
 - Simultaneous MIDI note tracking
 - Rolled chord support
-- Grace-based rolled chord detection
+- Grace-based transitions between sequence notes
+- Sample-based piano playback
 
 ### Practice Statistics
 
 - Accuracy
 - Current streak
-- Best streak
 - Response time
 - Session progress
+- Separate statistics for flashcard and sequence practice
 
 ### Cross-Platform Experience
 
-- Responsive desktop and mobile layouts
+- Responsive desktop, tablet, and mobile layouts
 - Chromebook MIDI support
 - Installable Progressive Web App
 - Offline application shell
@@ -84,26 +101,24 @@ The goal is to connect three ideas:
 
 ## How It Works
 
+Prelude currently provides three complementary practice modes:
+
 ```text
-Generate Practice Target
-        │
-        ▼
-Render Standard Notation
-        │
-        ▼
-Wait for MIDI or Virtual Piano Input
-        │
-        ▼
-Collect Input Attempt
-        │
-        ▼
-Validate Against Practice Target
-        │
-        ▼
-Provide Feedback and Update Statistics
+Flashcards
+    └── Identify isolated notes and triads
+
+Sequences
+    └── Play ordered intervals, scales, and arpeggios
+
+Free Play
+    └── View live notation while practicing without grading
 ```
 
-Physical MIDI input and the on-screen keyboard share the same validation path, keeping the practice experience independent of the input device.
+Flashcards and Sequences generate musical targets, render them using standard notation, validate MIDI or virtual-piano input, and provide immediate feedback.
+
+Free Play removes the target and grading layers. Held MIDI and virtual-piano notes are rendered directly on a persistent grand staff for quick visual confirmation during ordinary piano practice.
+
+Shared MIDI, notation, keyboard, and audio systems keep the experience consistent across all three modes.
 
 ---
 
@@ -190,14 +205,21 @@ pnpm test
 
 Prelude uses **Vitest** and **React Testing Library** for automated testing.
 
-The v1.0 release is verified by **140 passing tests across 11 test files**, covering:
+Prelude's automated suite covers:
 
-- music theory utilities
-- answer validation
-- session statistics
-- flashcard state hooks
+- music-theory utilities and notation-aware spelling
+- flashcard, interval, scale, arpeggio, and triad generation
+- answer and sequence validation
+- flashcard and sequence statistics
+- stateful practice hooks
 - Web MIDI integration
-- flashcard session orchestration
+- focused session orchestration
+
+Run the complete release verification workflow with:
+
+```bash
+pnpm verify
+```
 
 See [`TESTING.md`](./docs/TESTING.md) for the complete testing philosophy and coverage.
 
@@ -231,7 +253,6 @@ src/
 │
 ├── components/
 │   ├── audio/
-│   ├── flashcards/
 │   ├── midi/
 │   ├── notation/
 │   └── ui/
@@ -239,7 +260,12 @@ src/
 ├── data/
 │
 ├── features/
-│   └── flashcards/
+│   ├── flashcards/
+│   │   ├── components/
+│   │   └── hooks/
+│   ├── freeplay/
+│   └── sequences/
+│       ├── components/
 │       └── hooks/
 │
 ├── hooks/
@@ -274,18 +300,17 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Prelude's core sight-reading MVP is complete and usable.
+Prelude's v2.0 practice foundation is feature-complete.
 
-Current development is focused on stabilizing the v1.0 release.
+The application now supports three complementary practice modes:
 
-Current priorities include:
+- Flashcards for isolated notes and triads
+- Sequences for intervals, scales, and arpeggios
+- Free Play for live grand-staff notation without grading
 
-- Architecture documentation
-- Automated testing
-- Documentation refinement
-- Initial public release
+Current development is focused on automated testing, documentation, final manual verification, and the v2.0.0 release.
 
-See [`ROADMAP.md`](./docs/ROADMAP.md) for the broader development plan.
+See [`ROADMAP.md`](./docs/ROADMAP.md) for completed milestones and future development areas.
 
 ---
 
@@ -350,13 +375,17 @@ Prelude is not intended to become a professional DAW or full notation editor. Cr
 
 ## Architectural Direction
 
-The current practice engine is built around isolated `PracticeTarget`s.
+Prelude uses separate practice models for isolated and ordered exercises.
 
-Each target represents a single musical concept such as a note or triad and is shared across rendering, playback, and validation.
+`PracticeTarget` represents isolated musical concepts such as individual notes and triads.
 
-Future lesson-based features will likely introduce a separate sequence-oriented model while continuing to reuse Prelude's underlying music primitives.
+`SequenceTarget` represents ordered musical material such as intervals, scales, and arpeggios.
 
-This keeps today's flashcard engine simple without constraining future guided lessons.
+Free Play bypasses target generation and renders currently held notes directly on a grand staff.
+
+These modes share lower-level systems for MIDI input, virtual-piano interaction, music notation, audio playback, and musical note models while keeping their session behavior independent.
+
+Future lesson-based features can build on these existing primitives without forcing flashcard, sequence, and ungraded practice into one oversized engine.
 
 ---
 

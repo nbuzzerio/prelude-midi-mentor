@@ -8,7 +8,7 @@
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides flashcard-based and sequence-based practice engines supporting:
+The current application provides Flashcards, Sequences, and Free Play supporting:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals
@@ -20,8 +20,12 @@ The current application provides flashcard-based and sequence-based practice eng
 - Visual and audio feedback
 - Session statistics
 - Ascending and descending melodic interval sequences
+- Major, minor, harmonic minor, melodic minor, and pentatonic scales
+- Major, minor, diminished, augmented, and seventh arpeggios
+- Theory-aware note spelling for ordered musical material
 - Ordered step validation
 - Sequence completion statistics
+- Live ungraded MIDI and virtual-keyboard notation on a persistent grand staff
 
 Prelude is currently a frontend-only application built with React and Vite.
 
@@ -74,10 +78,15 @@ App
 │   ├── Practice Logic
 │   └── Target Validation
 │
-└── SequenceSession
-    ├── Sequence Feature Hooks
-    ├── Sequence Logic
-    └── Step Validation
+├── SequenceSession
+│   ├── Sequence Feature Hooks
+│   ├── Sequence Logic
+│   └── Step Validation
+│
+└── FreeplaySession
+    ├── Live Held-Note State
+    ├── Grand-Staff Rendering
+    └── Ungraded Keyboard Interaction
 
 Shared Systems
 ├── Music Rendering
@@ -115,12 +124,11 @@ React presentation components.
 Important groups include:
 
 - audio
-- flashcards
 - midi
 - notation
 - ui
 
-`flashcard-session.tsx` is the primary coordinator for the flashcard feature.
+Feature-specific components live under their corresponding `features/` folders.
 
 ## features/
 
@@ -140,9 +148,16 @@ The sequence feature owns:
 
 - sequence settings
 - ordered target lifecycle
+- interval, scale, and arpeggio configuration
 - sequence attempt state
 - delayed step and completion transitions
 - sequence timing constants
+
+The Free Play feature owns:
+
+- live MIDI and virtual-keyboard held-note state
+- ungraded keyboard interaction
+- free-play session composition
 
 Current hooks include:
 
@@ -173,7 +188,7 @@ Interface feedback and piano playback.
 
 ### music/
 
-Music models, notation helpers, and generators.
+Music models, notation helpers, theory-aware spelling, VexFlow rendering, and generators.
 
 ### practice/
 
@@ -209,6 +224,14 @@ Its responsibilities include:
 - advancing to the next target
 
 Most implementation details live in hooks and reusable utilities rather than inside the component itself.
+
+## Sequence Session
+
+`SequenceSession` coordinates ordered interval, scale, and arpeggio practice while delegating configuration, attempt state, target lifecycle, and timed transitions to focused hooks.
+
+## Free Play Session
+
+`FreeplaySession` combines shared MIDI input, piano playback, the virtual keyboard, and grand-staff notation without target generation, validation, feedback, or statistics.
 
 ---
 
@@ -276,7 +299,9 @@ These utilities are intentionally independent of React so they can be reused and
 Current responsibilities include:
 
 - answer validation
-- session statistics
+- sequence validation
+- flashcard session statistics
+- sequence session statistics
 
 ---
 
@@ -285,16 +310,20 @@ Current responsibilities include:
 Prelude keeps musical data separate from notation rendering.
 
 ```text
-PracticeTarget
-      │
-      ▼
-Music Model
-      │
-      ▼
-VexFlow
+PracticeTarget / SequenceTarget / Held Notes
+                    │
+                    ▼
+               Music Model
+                    │
+                    ▼
+                 VexFlow
 ```
 
 VexFlow renders notation but does not own Prelude's musical model.
+
+Generic flashcard notes may use either enharmonic accidental spelling. Ordered theory exercises use required diatonic letter patterns so intervals, scales, and arpeggios are spelled musically rather than by pitch class alone. Unsupported double accidentals are rejected intentionally until notation support is added.
+
+Free Play uses a dedicated grand-staff renderer that splits held notes between bass and treble while preserving a blank staff when no notes are held.
 
 ---
 
@@ -317,7 +346,7 @@ MIDI Keyboard / Virtual Piano
  Next Target
 ```
 
-Both physical MIDI and virtual piano ultimately use the same validation rules.
+Physical MIDI and the virtual piano share validation rules in graded modes. Free Play reuses the same input systems but intentionally bypasses validation.
 
 ---
 
@@ -346,7 +375,15 @@ State is distributed according to responsibility.
 
 ## FlashcardSession
 
-Coordinates the overall practice session.
+Coordinates the overall flashcard practice session.
+
+## SequenceSession
+
+Coordinates ordered interval, scale, and arpeggio practice.
+
+## FreeplaySession
+
+Coordinates live ungraded notation and keyboard interaction.
 
 ## useFlashcardSettings
 
@@ -405,5 +442,5 @@ When extending Prelude:
 - Keep validation separate from input collection.
 - Prefer reusable domain logic over duplicated component logic.
 - Let feature hooks own coherent behavior.
-- Let `FlashcardSession` coordinate rather than implement everything.
+- Let session components coordinate rather than implement reusable domain behavior.
 - Keep documentation synchronized with architectural changes.

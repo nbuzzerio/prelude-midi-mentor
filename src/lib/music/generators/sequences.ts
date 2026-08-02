@@ -1,6 +1,7 @@
 import { NOTE_RANGES } from "@/data/note-ranges";
 import type {
   Clef,
+  PracticeNote,
   SequenceArpeggio,
   SequenceDirection,
   SequenceExerciseType,
@@ -11,11 +12,12 @@ import type {
 } from "@/types/practice";
 
 import {
-  createPracticeNote,
-  getRandomAccidentalSpelling,
+  createTheoryPracticeNote,
   getRandomItem,
+  getTheoryRootLetterCandidates,
   isNaturalMidiNumber,
 } from "../note-utils";
+import type { NoteLetter } from "../note-utils";
 
 const INTERVAL_SEMITONES: Readonly<Record<SequenceInterval, number>> = {
   "minor-second": 1,
@@ -29,6 +31,20 @@ const INTERVAL_SEMITONES: Readonly<Record<SequenceInterval, number>> = {
   "minor-seventh": 10,
   "major-seventh": 11,
   octave: 12,
+};
+
+const INTERVAL_DIATONIC_STEPS: Readonly<Record<SequenceInterval, number>> = {
+  "minor-second": 1,
+  "major-second": 1,
+  "minor-third": 2,
+  "major-third": 2,
+  "perfect-fourth": 3,
+  "perfect-fifth": 4,
+  "minor-sixth": 5,
+  "major-sixth": 5,
+  "minor-seventh": 6,
+  "major-seventh": 6,
+  octave: 7,
 };
 
 const INTERVAL_LABELS: Readonly<Record<SequenceInterval, string>> = {
@@ -61,6 +77,17 @@ const SCALE_SEMITONE_PATTERNS: Readonly<
   "minor-pentatonic": [0, 3, 5, 7, 10, 12],
 };
 
+const SCALE_DIATONIC_PATTERNS: Readonly<
+  Record<SequenceScale, ReadonlyArray<number>>
+> = {
+  major: [0, 1, 2, 3, 4, 5, 6, 7],
+  "natural-minor": [0, 1, 2, 3, 4, 5, 6, 7],
+  "harmonic-minor": [0, 1, 2, 3, 4, 5, 6, 7],
+  "melodic-minor": [0, 1, 2, 3, 4, 5, 6, 7],
+  "major-pentatonic": [0, 1, 2, 4, 5, 7],
+  "minor-pentatonic": [0, 2, 3, 4, 6, 7],
+};
+
 const SCALE_LABELS: Readonly<Record<SequenceScale, string>> = {
   major: "Major scale",
 
@@ -91,6 +118,18 @@ const ARPEGGIO_SEMITONE_PATTERNS: Readonly<
   "major-seventh": [0, 4, 7, 11],
 
   "minor-seventh": [0, 3, 7, 10],
+};
+
+const ARPEGGIO_DIATONIC_PATTERNS: Readonly<
+  Record<SequenceArpeggio, ReadonlyArray<number>>
+> = {
+  major: [0, 2, 4, 7],
+  minor: [0, 2, 4, 7],
+  diminished: [0, 2, 4, 7],
+  augmented: [0, 2, 4, 7],
+  "dominant-seventh": [0, 2, 4, 6],
+  "major-seventh": [0, 2, 4, 6],
+  "minor-seventh": [0, 2, 4, 6],
 };
 
 const ARPEGGIO_LABELS: Readonly<Record<SequenceArpeggio, string>> = {
@@ -148,12 +187,96 @@ function getNoteCategory(midiNumber: number): SequenceNoteCategory {
   return isNaturalMidiNumber(midiNumber) ? "naturals" : "accidentals";
 }
 
-function getPracticeNote(midiNumber: number) {
-  const spelling = isNaturalMidiNumber(midiNumber)
-    ? "sharp"
-    : getRandomAccidentalSpelling();
+const NOTE_LETTERS: ReadonlyArray<NoteLetter> = [
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
+];
 
-  return createPracticeNote(midiNumber, spelling);
+function shiftNoteLetter(
+  startingLetter: NoteLetter,
+  diatonicSteps: number,
+): NoteLetter {
+  const startingIndex = NOTE_LETTERS.indexOf(startingLetter);
+
+  if (startingIndex === -1) {
+    throw new Error(`Unable to shift unknown note letter ${startingLetter}.`);
+  }
+
+  const shiftedIndex =
+    (((startingIndex + diatonicSteps) % NOTE_LETTERS.length) +
+      NOTE_LETTERS.length) %
+    NOTE_LETTERS.length;
+
+  const shiftedLetter = NOTE_LETTERS[shiftedIndex];
+
+  if (shiftedLetter === undefined) {
+    throw new Error(
+      `Unable to resolve note letter ${diatonicSteps} steps from ${startingLetter}.`,
+    );
+  }
+
+  return shiftedLetter;
+}
+
+function createTheoryPatternNotes({
+  startingMidiNumber,
+  semitonePattern,
+  diatonicPattern,
+  direction,
+}: Readonly<{
+  startingMidiNumber: number;
+  semitonePattern: ReadonlyArray<number>;
+  diatonicPattern: ReadonlyArray<number>;
+  direction: SequenceDirection;
+}>): ReadonlyArray<PracticeNote> {
+  if (semitonePattern.length !== diatonicPattern.length) {
+    throw new Error(
+      "Theory semitone and diatonic patterns must have matching lengths.",
+    );
+  }
+
+  const directionMultiplier = getDirectionMultiplier(direction);
+
+  const validSpellings = getTheoryRootLetterCandidates(
+    startingMidiNumber,
+  ).flatMap((rootLetter) => {
+    try {
+      const notes = semitonePattern.map((semitones, index) => {
+        const diatonicSteps = diatonicPattern[index];
+
+        if (diatonicSteps === undefined) {
+          throw new Error("Missing diatonic step for theory note.");
+        }
+
+        const noteLetter = shiftNoteLetter(
+          rootLetter,
+          diatonicSteps * directionMultiplier,
+        );
+
+        return createTheoryPracticeNote(
+          startingMidiNumber + semitones * directionMultiplier,
+          noteLetter,
+        );
+      });
+
+      return [notes];
+    } catch {
+      return [];
+    }
+  });
+
+  if (validSpellings.length === 0) {
+    throw new Error(
+      `No valid theory spelling exists for MIDI ${startingMidiNumber}.`,
+    );
+  }
+
+  return getRandomItem(validSpellings);
 }
 
 function getEligibleIntervalStartingMidiNumbers({
@@ -276,9 +399,12 @@ function generateIntervalTarget({
 
   const startingMidiNumber = getRandomItem(eligibleStartingMidiNumbers);
 
-  const destinationMidiNumber =
-    startingMidiNumber +
-    INTERVAL_SEMITONES[interval] * getDirectionMultiplier(direction);
+  const notes = createTheoryPatternNotes({
+    startingMidiNumber,
+    semitonePattern: [0, INTERVAL_SEMITONES[interval]],
+    diatonicPattern: [0, INTERVAL_DIATONIC_STEPS[interval]],
+    direction,
+  });
 
   return {
     clef,
@@ -289,14 +415,9 @@ function generateIntervalTarget({
           ? "Ascending melodic interval"
           : "Descending melodic interval",
     },
-    steps: [
-      {
-        notes: [getPracticeNote(startingMidiNumber)],
-      },
-      {
-        notes: [getPracticeNote(destinationMidiNumber)],
-      },
-    ],
+    steps: notes.map((note) => ({
+      notes: [note],
+    })),
   };
 }
 
@@ -334,12 +455,16 @@ function generateScaleTarget({
   }
 
   const startingMidiNumber = getRandomItem(eligibleStartingMidiNumbers);
-  const directionMultiplier = getDirectionMultiplier(direction);
 
-  const steps = SCALE_SEMITONE_PATTERNS[scale].map((semitones) => ({
-    notes: [
-      getPracticeNote(startingMidiNumber + semitones * directionMultiplier),
-    ],
+  const notes = createTheoryPatternNotes({
+    startingMidiNumber,
+    semitonePattern: SCALE_SEMITONE_PATTERNS[scale],
+    diatonicPattern: SCALE_DIATONIC_PATTERNS[scale],
+    direction,
+  });
+
+  const steps = notes.map((note) => ({
+    notes: [note],
   }));
 
   return {
@@ -387,14 +512,18 @@ function generateArpeggioTarget({
       `No valid ${direction} ${arpeggio} arpeggio targets exist for the current settings.`,
     );
   }
-
+  
   const startingMidiNumber = getRandomItem(eligibleStartingMidiNumbers);
-  const directionMultiplier = getDirectionMultiplier(direction);
 
-  const steps = ARPEGGIO_SEMITONE_PATTERNS[arpeggio].map((semitones) => ({
-    notes: [
-      getPracticeNote(startingMidiNumber + semitones * directionMultiplier),
-    ],
+  const notes = createTheoryPatternNotes({
+    startingMidiNumber,
+    semitonePattern: ARPEGGIO_SEMITONE_PATTERNS[arpeggio],
+    diatonicPattern: ARPEGGIO_DIATONIC_PATTERNS[arpeggio],
+    direction,
+  });
+
+  const steps = notes.map((note) => ({
+    notes: [note],
   }));
 
   return {

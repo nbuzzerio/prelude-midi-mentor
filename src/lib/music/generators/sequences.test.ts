@@ -146,3 +146,79 @@ describe("generateSequenceTarget", () => {
     ).toThrow(/note category/i);
   });
 });
+
+describe("theory spelling", () => {
+  it("spells an ascending minor second using the correct letter name", () => {
+    for (let i = 0; i < 100; i += 1) {
+      const target = generateSequenceTarget({
+        exerciseType: "intervals",
+        clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledDirections: new Set(["ascending"]),
+        enabledIntervals: new Set(["minor-second"]),
+        enabledNoteCategories: new Set(["naturals", "accidentals"]),
+        enabledScales: ENABLED_SCALES,
+      });
+
+      const first = target.steps[0].notes[0];
+      const second = target.steps[1].notes[0];
+
+      expect(second.midiNumber - first.midiNumber).toBe(1);
+
+      expect(second.name[0]).not.toBe(first.name[0]);
+    }
+  });
+
+  it("spells an ascending major third using the correct letter name", () => {
+    for (let i = 0; i < 100; i += 1) {
+      const target = generateSequenceTarget({
+        exerciseType: "intervals",
+        clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledDirections: new Set(["ascending"]),
+        enabledIntervals: new Set(["major-third"]),
+        enabledNoteCategories: new Set(["naturals", "accidentals"]),
+        enabledScales: ENABLED_SCALES,
+      });
+
+      const first = target.steps[0].notes[0];
+      const second = target.steps[1].notes[0];
+
+      expect(second.midiNumber - first.midiNumber).toBe(4);
+
+      expect(second.name[0]).not.toBe(first.name[0]);
+    }
+  });
+
+  it("never throws while generating random major scales", () => {
+    expect(() => {
+      for (let i = 0; i < 250; i += 1) {
+        generateSequenceTarget({
+          exerciseType: "scales",
+          clef: "treble",
+          enabledArpeggios: ENABLED_ARPEGGIOS,
+          enabledDirections: new Set(["ascending"]),
+          enabledIntervals: new Set(["major-second"]),
+          enabledNoteCategories: new Set(["naturals", "accidentals"]),
+          enabledScales: ENABLED_SCALES,
+        });
+      }
+    }).not.toThrow();
+  });
+
+  it("never throws while generating random major arpeggios", () => {
+    expect(() => {
+      for (let i = 0; i < 250; i += 1) {
+        generateSequenceTarget({
+          exerciseType: "arpeggios",
+          clef: "treble",
+          enabledArpeggios: ENABLED_ARPEGGIOS,
+          enabledDirections: new Set(["ascending"]),
+          enabledIntervals: new Set(["major-second"]),
+          enabledNoteCategories: new Set(["naturals", "accidentals"]),
+          enabledScales: ENABLED_SCALES,
+        });
+      }
+    }).not.toThrow();
+  });
+});

@@ -106,6 +106,33 @@ Introduce the first ordered, multi-step practice mode while preserving the exist
 
 ---
 
+# ✅ Phase 2.75 — v2.0 Practice Platform (Completed)
+
+Complete Prelude's foundational practice platform with expanded sequence exercises and ungraded live notation.
+
+## Expanded Sequence Practice
+
+- [x] Major scales
+- [x] Natural minor scales
+- [x] Harmonic minor scales
+- [x] Melodic minor scales
+- [x] Major pentatonic scales
+- [x] Minor pentatonic scales
+- [x] Major and minor arpeggios
+- [x] Diminished and augmented arpeggios
+- [x] Dominant seventh, major seventh, and minor seventh arpeggios
+- [x] Theory-aware interval, scale, and arpeggio spelling
+
+## Free Play
+
+- [x] Dedicated Free Play mode
+- [x] Live MIDI and virtual-keyboard notation
+- [x] Persistent grand staff
+- [x] Automatic treble- and bass-staff placement
+- [x] Neutral held-key highlighting
+
+---
+
 # 🎹 Phase 3 — Harmony Trainer
 
 Expand the existing multi-note practice engine into a complete harmony trainer.
@@ -141,17 +168,17 @@ Expand beyond isolated note and chord recognition.
 
 ## Scales
 
-- [ ] Major scales
-- [ ] Natural minor scales
-- [ ] Harmonic minor scales
-- [ ] Melodic minor scales
+- [x] Major scales
+- [x] Natural minor scales
+- [x] Harmonic minor scales
+- [x] Melodic minor scales
 - [ ] Scale flashcards
 
 ## Arpeggios
 
-- [ ] Major arpeggios
-- [ ] Minor arpeggios
-- [ ] Seventh arpeggios
+- [x] Major arpeggios
+- [x] Minor arpeggios
+- [x] Seventh arpeggios
 
 ## Rhythm
 
