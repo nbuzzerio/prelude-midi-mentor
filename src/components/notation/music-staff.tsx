@@ -30,10 +30,14 @@ type FreePlayMusicStaffProps = Readonly<{
   sequenceTarget?: never;
 }>;
 
-type MusicStaffProps =
+type MusicStaffProps = (
   | PracticeMusicStaffProps
   | SequenceMusicStaffProps
-  | FreePlayMusicStaffProps;
+  | FreePlayMusicStaffProps
+) &
+  Readonly<{
+    isFocusMode?: boolean;
+  }>;
 
 function getPracticeTargetNoteNames(practiceTarget: PracticeTarget): string {
   return practiceTarget.notes
@@ -109,8 +113,8 @@ export default function MusicStaff(props: MusicStaffProps) {
   }, [props]);
 
   const className = isFreePlayStaff
-    ? "mx-auto flex min-h-[440px] w-full items-center justify-center invert [&_svg]:h-auto! [&_svg]:max-h-[460px] [&_svg]:w-full! md:[&_svg]:scale-[125%] lg:[&_svg]:scale-[150%] md:[&_svg]:translate-y-[65px]"
-    : "mx-auto flex min-h-0 w-full items-center justify-center invert [&_svg]:h-[200%]! [&_svg]:w-auto!";
+    ? "music-staff music-staff-freeplay mx-auto flex min-h-[440px] w-full items-center justify-center invert [&_svg]:h-auto! [&_svg]:max-h-[460px] [&_svg]:w-full! md:[&_svg]:scale-[125%] lg:[&_svg]:scale-[150%] md:[&_svg]:translate-y-[65px]"
+    : "music-staff mx-auto flex min-h-0 w-full items-center justify-center invert [&_svg]:h-[200%]! [&_svg]:w-auto!";
 
   return (
     <div ref={containerRef} aria-label={ariaLabel} className={className} />

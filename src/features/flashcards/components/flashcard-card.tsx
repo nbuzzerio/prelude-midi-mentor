@@ -1,13 +1,16 @@
 import MusicStaff from "@/components/notation/music-staff";
+import FocusStaffControl from "@/components/notation/focus-staff-control";
 import PracticeSimulationControls from "@/components/practice-simulation-controls";
 import type { FeedbackState, PracticeTarget } from "@/types/practice";
 
 type FlashcardCardProps = Readonly<{
   feedback: FeedbackState;
+  isFocusMode: boolean;
   practiceTarget: PracticeTarget;
   showTargetName: boolean;
   onCorrect: () => void;
   onIncorrect: () => void;
+  onToggleFocusMode: () => void;
 }>;
 
 const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
@@ -18,17 +21,28 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
 
 export default function FlashcardCard({
   feedback,
+  isFocusMode,
   practiceTarget,
   showTargetName,
   onCorrect,
   onIncorrect,
+  onToggleFocusMode,
 }: FlashcardCardProps) {
   return (
     <section className="relative flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5">
-      <PracticeSimulationControls
-        onCorrect={onCorrect}
-        onIncorrect={onIncorrect}
-      />
+      <div hidden={isFocusMode}>
+        <PracticeSimulationControls
+          onCorrect={onCorrect}
+          onIncorrect={onIncorrect}
+        />
+      </div>
+
+      <div className="absolute bottom-3 right-3 z-20">
+        <FocusStaffControl
+          isFocusMode={isFocusMode}
+          onToggle={onToggleFocusMode}
+        />
+      </div>
 
       <div className="px-20 text-center">
         <p
@@ -59,7 +73,10 @@ export default function FlashcardCard({
         ) : null}
       </div>
 
-      <MusicStaff practiceTarget={practiceTarget} />
+      <MusicStaff
+        isFocusMode={isFocusMode}
+        practiceTarget={practiceTarget}
+      />
     </section>
   );
 }

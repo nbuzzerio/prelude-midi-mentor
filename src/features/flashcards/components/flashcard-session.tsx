@@ -48,7 +48,15 @@ type LastAnswer = Readonly<{
 
 type AnswerSource = "midi" | "virtual" | "simulation";
 
-export default function FlashcardSession() {
+type FlashcardSessionProps = Readonly<{
+  isFocusMode: boolean;
+  onToggleFocusMode: () => void;
+}>;
+
+export default function FlashcardSession({
+  isFocusMode,
+  onToggleFocusMode,
+}: FlashcardSessionProps) {
   // Practice configuration
   const {
     enabledExerciseTypes,
@@ -445,7 +453,13 @@ export default function FlashcardSession() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <div
+      className={
+        isFocusMode
+          ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
+          : "mx-auto flex w-full max-w-7xl flex-col gap-6"
+      }
+    >
       <header className="flex items-center justify-between gap-4">
         <div>
           <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
@@ -470,23 +484,30 @@ export default function FlashcardSession() {
       <div className="practice-stage">
         <FlashcardCard
           feedback={feedback}
+          isFocusMode={isFocusMode}
           practiceTarget={practiceTarget}
           showTargetName={showTargetName}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
+          onToggleFocusMode={onToggleFocusMode}
         />
 
-        <PianoKeyboard
-          activeMidiNumbers={activeMidiNumbers}
-          failedMidiNumbers={lastFailedAttemptNotes}
-          lastAnswer={lastAnswer}
-          targetMidiNumbers={getTargetMidiNumbers(practiceTarget)}
-          onNoteToggle={handleVirtualNoteToggle}
-        />
+        <div hidden={isFocusMode}>
+          <PianoKeyboard
+            activeMidiNumbers={activeMidiNumbers}
+            failedMidiNumbers={lastFailedAttemptNotes}
+            lastAnswer={lastAnswer}
+            targetMidiNumbers={getTargetMidiNumbers(practiceTarget)}
+            onNoteToggle={handleVirtualNoteToggle}
+          />
+        </div>
       </div>
 
       {/* TODO(v1): Remove temporary negative margin after final page layout pass. */}
-      <section className="relative -my-72 flex flex-col gap-6">
+      <section
+        className="relative -my-72 flex flex-col gap-6"
+        hidden={isFocusMode}
+      >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
           <div className="flex flex-col gap-4">
             <FeedbackVolumeControl />

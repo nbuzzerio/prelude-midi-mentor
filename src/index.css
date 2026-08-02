@@ -49,3 +49,30 @@ button {
     display: grid;
   }
 }
+
+.focus-staff-mode {
+  min-height: 100dvh;
+}
+
+.focus-staff-mode .practice-stage {
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.focus-staff-mode .music-staff {
+  height: 100%;
+  min-height: 0;
+}
+
+.focus-staff-mode .music-staff svg {
+  height: 100% !important;
+  max-height: calc(100dvh - 10rem) !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+.focus-staff-mode .music-staff-freeplay svg {
+  transform: none !important;
+}

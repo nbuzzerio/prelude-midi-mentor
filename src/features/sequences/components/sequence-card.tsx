@@ -1,14 +1,17 @@
 import MusicStaff from "@/components/notation/music-staff";
+import FocusStaffControl from "@/components/notation/focus-staff-control";
 import PracticeSimulationControls from "@/components/practice-simulation-controls";
 import type { FeedbackState, SequenceTarget } from "@/types/practice";
 
 type SequenceCardProps = Readonly<{
   currentStepIndex: number;
   feedback: FeedbackState;
+  isFocusMode: boolean;
   sequenceTarget: SequenceTarget;
   showTargetName: boolean;
   onCorrect: () => void;
   onIncorrect: () => void;
+  onToggleFocusMode: () => void;
 }>;
 
 const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
@@ -20,8 +23,10 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
 export default function SequenceCard({
   currentStepIndex,
   feedback,
+  isFocusMode,
   onCorrect,
   onIncorrect,
+  onToggleFocusMode,
   sequenceTarget,
   showTargetName,
 }: SequenceCardProps) {
@@ -34,10 +39,19 @@ export default function SequenceCard({
         Step {currentStepIndex + 1} of {sequenceTarget.steps.length}
       </div>
 
-      <PracticeSimulationControls
-        onCorrect={onCorrect}
-        onIncorrect={onIncorrect}
-      />
+      <div hidden={isFocusMode}>
+        <PracticeSimulationControls
+          onCorrect={onCorrect}
+          onIncorrect={onIncorrect}
+        />
+      </div>
+
+      <div className="absolute bottom-3 right-3 z-20">
+        <FocusStaffControl
+          isFocusMode={isFocusMode}
+          onToggle={onToggleFocusMode}
+        />
+      </div>
 
       <div className="px-20 text-center">
         <p
@@ -70,6 +84,7 @@ export default function SequenceCard({
 
       <MusicStaff
         currentStepIndex={currentStepIndex}
+        isFocusMode={isFocusMode}
         sequenceTarget={sequenceTarget}
       />
     </section>

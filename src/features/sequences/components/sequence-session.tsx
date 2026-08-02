@@ -43,7 +43,15 @@ type LastStepAnswer = Readonly<{
   result: SequenceStepResult;
 }>;
 
-export default function SequenceSession() {
+type SequenceSessionProps = Readonly<{
+  isFocusMode: boolean;
+  onToggleFocusMode: () => void;
+}>;
+
+export default function SequenceSession({
+  isFocusMode,
+  onToggleFocusMode,
+}: SequenceSessionProps) {
   // Sequence configuration
   const {
     enabledArpeggios,
@@ -420,9 +428,18 @@ export default function SequenceSession() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <div
+      className={
+        isFocusMode
+          ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
+          : "mx-auto flex w-full max-w-7xl flex-col gap-6"
+      }
+    >
       {import.meta.env.DEV ? (
-        <div className="rounded bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
+        <div
+          className="rounded bg-zinc-900 px-3 py-2 text-xs text-zinc-300"
+          hidden={isFocusMode}
+        >
           State: {sequenceAttemptState} | Step: {currentStepIndex + 1}
         </div>
       ) : null}
@@ -452,22 +469,29 @@ export default function SequenceSession() {
         <SequenceCard
           currentStepIndex={currentStepIndex}
           feedback={feedback}
+          isFocusMode={isFocusMode}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
+          onToggleFocusMode={onToggleFocusMode}
           sequenceTarget={sequenceTarget}
           showTargetName={showTargetName}
         />
 
-        <PianoKeyboard
-          activeMidiNumbers={activeMidiNumbers}
-          failedMidiNumbers={lastFailedAttemptNotes}
-          lastAnswer={lastStepAnswer}
-          onNoteToggle={handleVirtualNoteToggle}
-          targetMidiNumbers={currentStepMidiNumbers}
-        />
+        <div hidden={isFocusMode}>
+          <PianoKeyboard
+            activeMidiNumbers={activeMidiNumbers}
+            failedMidiNumbers={lastFailedAttemptNotes}
+            lastAnswer={lastStepAnswer}
+            onNoteToggle={handleVirtualNoteToggle}
+            targetMidiNumbers={currentStepMidiNumbers}
+          />
+        </div>
       </div>
 
-      <section className="relative -my-20 flex flex-col gap-6">
+      <section
+        className="relative -my-20 flex flex-col gap-6"
+        hidden={isFocusMode}
+      >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
           <div className="flex flex-col gap-4">
             <FeedbackVolumeControl />

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FlashcardSession from "./flashcard-session";
 
@@ -158,15 +159,23 @@ vi.mock("@/components/midi/midi-status", () => ({
 vi.mock("@/features/flashcards/components/flashcard-card", () => ({
   default: ({
     feedback,
+    isFocusMode,
     onCorrect,
     onIncorrect,
+    onToggleFocusMode,
   }: {
     feedback: string;
+    isFocusMode: boolean;
     onCorrect: () => void;
     onIncorrect: () => void;
+    onToggleFocusMode: () => void;
   }) => (
     <div>
       <span>Feedback: {feedback}</span>
+
+      <button onClick={onToggleFocusMode} type="button">
+        {isFocusMode ? "Exit Focus Staff" : "Focus Staff"}
+      </button>
 
       <button onClick={onCorrect} type="button">
         Simulate correct
@@ -213,6 +222,23 @@ afterEach(() => {
   cleanup();
 });
 
+function renderFlashcardSession() {
+  function TestFlashcardSession() {
+    const [isFocusMode, setIsFocusMode] = useState(false);
+
+    return (
+      <FlashcardSession
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={() => {
+          setIsFocusMode((currentValue) => !currentValue);
+        }}
+      />
+    );
+  }
+
+  return render(<TestFlashcardSession />);
+}
+
 describe("FlashcardSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -234,7 +260,7 @@ describe("FlashcardSession", () => {
   });
 
   it("renders the initial session state", () => {
-    render(<FlashcardSession />);
+    renderFlashcardSession();
 
     expect(screen.getByText("Prelude: MIDI Mentor")).toBeTruthy();
 
@@ -246,7 +272,7 @@ describe("FlashcardSession", () => {
   });
 
   it("resets the session and generates a new target", () => {
-    render(<FlashcardSession />);
+    renderFlashcardSession();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -271,8 +297,34 @@ describe("FlashcardSession", () => {
     expect(screen.getByText("Feedback: idle")).toBeTruthy();
   });
 
+  it("preserves session state while focus mode hides nonessential regions", () => {
+    renderFlashcardSession();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Simulate incorrect",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
+
+    expect(screen.getByText("Stats: incorrect").closest("[hidden]")).toBeTruthy();
+    expect(screen.getByText("Piano keyboard").closest("[hidden]")).toBeTruthy();
+    expect(screen.getByText("Midi status: disconnected")).toBeTruthy();
+    expect(screen.getByText("Feedback: incorrect")).toBeTruthy();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Exit Focus Staff" }),
+    );
+
+    expect(screen.getByText("Stats: incorrect").closest("[hidden]")).toBeNull();
+    expect(screen.getByText("Piano keyboard").closest("[hidden]")).toBeNull();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+  });
+
   it("updates the mode and generates a target for that clef", () => {
-    render(<FlashcardSession />);
+    renderFlashcardSession();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -288,7 +340,7 @@ describe("FlashcardSession", () => {
   });
 
   it("routes simulated correct and incorrect answers through the session lifecycle", () => {
-    render(<FlashcardSession />);
+    renderFlashcardSession();
 
     fireEvent.click(
       screen.getByRole("button", {
