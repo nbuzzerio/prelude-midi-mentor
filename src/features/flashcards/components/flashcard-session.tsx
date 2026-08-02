@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
@@ -75,6 +75,14 @@ export default function FlashcardSession({
     toggleTriadQuality,
   } = useFlashcardSettings();
 
+  const generationSettingsRef = useRef({
+    enabledExerciseTypes,
+    enabledNoteCategories,
+    enabledTriadPositions,
+    enabledTriadQualities,
+    mode,
+  });
+
   // Current practice target
   const {
     generateNextTarget: generateTarget,
@@ -143,6 +151,40 @@ export default function FlashcardSession({
     onAdvance: generateNextTarget,
     onSuccessFeedback: playSuccessChirp,
   });
+
+  useEffect(() => {
+    const previousSettings = generationSettingsRef.current;
+
+    const settingsChanged =
+      previousSettings.mode !== mode ||
+      previousSettings.enabledExerciseTypes !== enabledExerciseTypes ||
+      previousSettings.enabledNoteCategories !== enabledNoteCategories ||
+      previousSettings.enabledTriadQualities !== enabledTriadQualities ||
+      previousSettings.enabledTriadPositions !== enabledTriadPositions;
+
+    generationSettingsRef.current = {
+      enabledExerciseTypes,
+      enabledNoteCategories,
+      enabledTriadPositions,
+      enabledTriadQualities,
+      mode,
+    };
+
+    if (!settingsChanged) {
+      return;
+    }
+
+    clearCorrectAnswerSequence();
+    generateNextTarget();
+  }, [
+    clearCorrectAnswerSequence,
+    enabledExerciseTypes,
+    enabledNoteCategories,
+    enabledTriadPositions,
+    enabledTriadQualities,
+    generateNextTarget,
+    mode,
+  ]);
 
   const handleCorrectAnswer = useCallback(
     (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
@@ -434,9 +476,7 @@ export default function FlashcardSession({
 
   // Session controls
   const handleModeChange = (nextMode: PracticeClefMode) => {
-    clearCorrectAnswerSequence();
     setMode(nextMode);
-    generateNextTarget(nextMode);
   };
 
   const handleReset = () => {

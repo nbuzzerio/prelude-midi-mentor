@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
@@ -73,6 +73,17 @@ export default function SequenceSession({
     toggleScale,
     toggleScaleDirection,
   } = useSequenceSettings();
+
+  const generationSettingsRef = useRef({
+    enabledArpeggios,
+    enabledDirections,
+    enabledIntervals,
+    enabledNoteCategories,
+    enabledScaleDirections,
+    enabledScales,
+    exerciseType,
+    mode,
+  });
 
   // Current sequence target
   const {
@@ -162,6 +173,49 @@ export default function SequenceSession({
     onRetrySequence: retrySequence,
     onSuccessFeedback: playSuccessChirp,
   });
+
+  useEffect(() => {
+    const previousSettings = generationSettingsRef.current;
+
+    const settingsChanged =
+      previousSettings.mode !== mode ||
+      previousSettings.exerciseType !== exerciseType ||
+      previousSettings.enabledDirections !== enabledDirections ||
+      previousSettings.enabledIntervals !== enabledIntervals ||
+      previousSettings.enabledNoteCategories !== enabledNoteCategories ||
+      previousSettings.enabledScales !== enabledScales ||
+      previousSettings.enabledScaleDirections !== enabledScaleDirections ||
+      previousSettings.enabledArpeggios !== enabledArpeggios;
+
+    generationSettingsRef.current = {
+      enabledArpeggios,
+      enabledDirections,
+      enabledIntervals,
+      enabledNoteCategories,
+      enabledScaleDirections,
+      enabledScales,
+      exerciseType,
+      mode,
+    };
+
+    if (!settingsChanged) {
+      return;
+    }
+
+    clearTransition();
+    generateNextSequence();
+  }, [
+    clearTransition,
+    enabledArpeggios,
+    enabledDirections,
+    enabledIntervals,
+    enabledNoteCategories,
+    enabledScaleDirections,
+    enabledScales,
+    exerciseType,
+    generateNextSequence,
+    mode,
+  ]);
 
   // Complete sequence handling
   const handleCompletedSequence = useCallback(
@@ -408,9 +462,7 @@ export default function SequenceSession({
 
   // Session controls
   const handleModeChange = (nextMode: PracticeClefMode) => {
-    clearTransition();
     setMode(nextMode);
-    generateNextSequence(nextMode);
   };
 
   const handleReset = () => {

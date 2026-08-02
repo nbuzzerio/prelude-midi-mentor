@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   setShowTargetName: vi.fn(),
   startCorrectAnswerSequence: vi.fn(),
   startMidiAttempt: vi.fn(),
+  targetOptions: vi.fn(),
   toggleExerciseType: vi.fn(),
   toggleNoteCategory: vi.fn(),
   toggleTriadPosition: vi.fn(),
@@ -50,34 +51,19 @@ const PRACTICE_TARGET = {
   ],
 } as const;
 
-vi.mock("@/features/flashcards/hooks/use-flashcard-settings", () => ({
-  useFlashcardSettings: () => ({
-    enabledExerciseTypes: new Set(["notes"]),
-    enabledNoteCategories: new Set(["naturals"]),
-    enabledTriadPositions: new Set(["root"]),
-    enabledTriadQualities: new Set(["major"]),
-    mode: "bass",
-    replayCorrectVirtualChords: false,
-    setMode: mocks.setMode,
-    setReplayCorrectVirtualChords: mocks.setReplayCorrectVirtualChords,
-    setShowTargetName: mocks.setShowTargetName,
-    showTargetName: false,
-    toggleExerciseType: mocks.toggleExerciseType,
-    toggleNoteCategory: mocks.toggleNoteCategory,
-    toggleTriadPosition: mocks.toggleTriadPosition,
-    toggleTriadQuality: mocks.toggleTriadQuality,
-  }),
-}));
-
 vi.mock("@/features/flashcards/hooks/use-flashcard-target", () => ({
-  useFlashcardTarget: () => ({
-    generateNextTarget: mocks.generateTarget,
-    getCurrentTarget: mocks.getCurrentTarget,
-    isFlashcardTargetLocked: mocks.isFlashcardTargetLocked,
-    lockFlashcardTarget: mocks.lockFlashcardTarget,
-    practiceTarget: PRACTICE_TARGET,
-    startedAt: 0,
-  }),
+  useFlashcardTarget: (options: unknown) => {
+    mocks.targetOptions(options);
+
+    return {
+      generateNextTarget: mocks.generateTarget,
+      getCurrentTarget: mocks.getCurrentTarget,
+      isFlashcardTargetLocked: mocks.isFlashcardTargetLocked,
+      lockFlashcardTarget: mocks.lockFlashcardTarget,
+      practiceTarget: PRACTICE_TARGET,
+      startedAt: 0,
+    };
+  },
 }));
 
 vi.mock("@/features/flashcards/hooks/use-correct-answer-sequence", () => ({
@@ -131,11 +117,30 @@ vi.mock("@/lib/practice/session-stats", () => ({
 }));
 
 vi.mock("@/components/audio/instrument-volume-control", () => ({
-  default: () => <div>Instrument volume</div>,
+  default: ({
+    onReplayCorrectVirtualChordsChange,
+  }: {
+    onReplayCorrectVirtualChordsChange: (enabled: boolean) => void;
+  }) => (
+    <div>
+      Instrument volume
+      <button
+        onClick={() => onReplayCorrectVirtualChordsChange(false)}
+        type="button"
+      >
+        Change replay preference
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/audio/feedback-volume-control", () => ({
-  default: () => <div>Feedback volume</div>,
+  default: () => (
+    <div>
+      Feedback volume
+      <button type="button">Change feedback volume</button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/midi/midi-status", () => ({
@@ -190,11 +195,21 @@ vi.mock("@/features/flashcards/components/flashcard-card", () => ({
 
 vi.mock("@/features/flashcards/components/practice-controls", () => ({
   default: ({
+    onExerciseTypeToggle,
     onModeChange,
+    onNoteCategoryToggle,
     onReset,
+    onShowTargetNameChange,
+    onTriadPositionToggle,
+    onTriadQualityToggle,
   }: {
+    onExerciseTypeToggle: (type: "notes" | "triads") => void;
     onModeChange: (mode: "treble") => void;
+    onNoteCategoryToggle: (category: "accidentals") => void;
     onReset: () => void;
+    onShowTargetNameChange: (enabled: boolean) => void;
+    onTriadPositionToggle: (position: "first") => void;
+    onTriadQualityToggle: (quality: "minor") => void;
   }) => (
     <div>
       <button onClick={() => onModeChange("treble")} type="button">
@@ -203,6 +218,40 @@ vi.mock("@/features/flashcards/components/practice-controls", () => ({
 
       <button onClick={onReset} type="button">
         Reset session
+      </button>
+
+      <button onClick={() => onExerciseTypeToggle("notes")} type="button">
+        Toggle final exercise
+      </button>
+
+      <button onClick={() => onExerciseTypeToggle("triads")} type="button">
+        Add triads
+      </button>
+
+      <button onClick={() => onNoteCategoryToggle("accidentals")} type="button">
+        Add accidentals
+      </button>
+
+      <button onClick={() => onTriadQualityToggle("minor")} type="button">
+        Add minor
+      </button>
+
+      <button onClick={() => onTriadPositionToggle("first")} type="button">
+        Add first inversion
+      </button>
+
+      <button onClick={() => onShowTargetNameChange(true)} type="button">
+        Show target name
+      </button>
+
+      <button
+        onClick={() => {
+          onExerciseTypeToggle("triads");
+          onNoteCategoryToggle("accidentals");
+        }}
+        type="button"
+      >
+        Change multiple settings
       </button>
     </div>
   ),
@@ -269,6 +318,7 @@ describe("FlashcardSession", () => {
     expect(screen.getByText("Feedback: idle")).toBeTruthy();
     expect(screen.getByText("Stats: initial")).toBeTruthy();
     expect(screen.getByText("Piano keyboard")).toBeTruthy();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
 
   it("resets the session and generates a new target", () => {
@@ -332,11 +382,81 @@ describe("FlashcardSession", () => {
       }),
     );
 
-    expect(mocks.clearCorrectAnswerSequence).toHaveBeenCalled();
-    expect(mocks.setMode).toHaveBeenCalledWith("treble");
+    expect(mocks.clearCorrectAnswerSequence).toHaveBeenCalledTimes(1);
     expect(mocks.clearMidiAttempt).toHaveBeenCalled();
 
-    expect(mocks.generateTarget).toHaveBeenCalledWith("treble");
+    expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
+    expect(mocks.generateTarget).toHaveBeenCalledWith(undefined);
+    expect(mocks.targetOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: "treble" }),
+    );
+  });
+
+  it.each([
+    ["Add triads", "enabledExerciseTypes", new Set(["notes", "triads"])],
+    [
+      "Add accidentals",
+      "enabledNoteCategories",
+      new Set(["naturals", "accidentals"]),
+    ],
+    ["Add minor", "enabledTriadQualities", new Set(["major", "minor"])],
+    [
+      "Add first inversion",
+      "enabledTriadPositions",
+      new Set(["root", "first"]),
+    ],
+  ])("regenerates once when %s changes", (buttonName, optionName, expected) => {
+    renderFlashcardSession();
+
+    fireEvent.click(screen.getByRole("button", { name: "Simulate incorrect" }));
+    fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+    expect(mocks.clearCorrectAnswerSequence).toHaveBeenCalledTimes(1);
+    expect(mocks.clearMidiAttempt).toHaveBeenCalledTimes(1);
+    expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
+    expect(mocks.targetOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ [optionName]: expected }),
+    );
+    expect(screen.getByText("Stats: incorrect")).toBeTruthy();
+    expect(screen.getByText("Feedback: idle")).toBeTruthy();
+  });
+
+  it("does not regenerate when the final required setting is rejected", () => {
+    renderFlashcardSession();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle final exercise" }),
+    );
+
+    expect(mocks.clearCorrectAnswerSequence).not.toHaveBeenCalled();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+  });
+
+  it("regenerates once for multiple settings changed by one interaction", () => {
+    renderFlashcardSession();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Change multiple settings" }),
+    );
+
+    expect(mocks.clearCorrectAnswerSequence).toHaveBeenCalledTimes(1);
+    expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not regenerate for display, replay, audio, or focus changes", () => {
+    renderFlashcardSession();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show target name" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Change replay preference" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Change feedback volume" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
+
+    expect(mocks.clearCorrectAnswerSequence).not.toHaveBeenCalled();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
 
   it("routes simulated correct and incorrect answers through the session lifecycle", () => {
