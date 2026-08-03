@@ -1,4 +1,13 @@
 import { NOTE_RANGES } from "@/data/note-ranges";
+import {
+  getChordProgressionTemplate,
+  getSupportedChordProgressionKey,
+  realizeChordProgression,
+} from "@/lib/music/chord-progressions";
+import type {
+  ChordProgressionKeyId,
+  ChordProgressionTemplateId,
+} from "@/lib/music/chord-progressions";
 import type {
   Clef,
   PracticeNote,
@@ -170,16 +179,31 @@ type GenerateArpeggioTargetOptions = Readonly<{
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
 }>;
 
+type GenerateChordProgressionTargetOptions = Readonly<{
+  clef: Clef;
+  enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
+  enabledChordProgressionTemplateIds: ReadonlySet<ChordProgressionTemplateId>;
+}>;
+
 export type GenerateSequenceTargetOptions = Readonly<{
   exerciseType: SequenceExerciseType;
   clef: Clef;
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
+  enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
+  enabledChordProgressionTemplateIds: ReadonlySet<ChordProgressionTemplateId>;
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
   enabledScaleDirections: ReadonlySet<SequenceScaleDirection>;
   enabledScales: ReadonlySet<SequenceScale>;
 }>;
+
+const CHORD_PROGRESSION_RANGES: Readonly<
+  Record<Clef, Readonly<{ minMidi: number; maxMidi: number }>>
+> = {
+  bass: { minMidi: NOTE_RANGES.bass.minMidi, maxMidi: 64 },
+  treble: { minMidi: NOTE_RANGES.treble.minMidi, maxMidi: 88 },
+};
 
 function getDirectionMultiplier(direction: SequenceDirection): 1 | -1 {
   return direction === "ascending" ? 1 : -1;
@@ -603,6 +627,95 @@ function generateArpeggioTarget({
   };
 }
 
+function generateChordProgressionTarget({
+  clef,
+  enabledChordProgressionKeyIds,
+  enabledChordProgressionTemplateIds,
+}: GenerateChordProgressionTargetOptions): SequenceTarget {
+  if (enabledChordProgressionKeyIds.size === 0) {
+    throw new Error("At least one chord progression key must be enabled.");
+  }
+
+  if (enabledChordProgressionTemplateIds.size === 0) {
+    throw new Error("At least one chord progression template must be enabled.");
+  }
+
+  const keys = Array.from(enabledChordProgressionKeyIds).map(
+    getSupportedChordProgressionKey,
+  );
+  const templates = Array.from(enabledChordProgressionTemplateIds).map(
+    getChordProgressionTemplate,
+  );
+  const compatiblePairs = keys.flatMap((key) =>
+    templates
+      .filter((template) => template.mode === key.mode)
+      .map((template) => ({ key, template })),
+  );
+
+  if (compatiblePairs.length === 0) {
+    throw new Error(
+      "At least one enabled chord progression key and template must have matching modes.",
+    );
+  }
+
+  const range = CHORD_PROGRESSION_RANGES[clef];
+  const eligibleTargets: SequenceTarget[] = [];
+
+  for (const { key, template } of compatiblePairs) {
+    for (
+      let tonicMidiNumber = range.minMidi;
+      tonicMidiNumber <= range.maxMidi;
+      tonicMidiNumber += 1
+    ) {
+      if (((tonicMidiNumber % 12) + 12) % 12 !== key.tonicPitchClass) {
+        continue;
+      }
+
+      const progression = realizeChordProgression({
+        key,
+        template,
+        tonicMidiNumber,
+      });
+
+      if (
+        progression === null ||
+        progression.chords.some((chord) =>
+          chord.notes.some(
+            (note) =>
+              note.midiNumber < range.minMidi ||
+              note.midiNumber > range.maxMidi,
+          ),
+        )
+      ) {
+        continue;
+      }
+
+      eligibleTargets.push({
+        clef,
+        name: {
+          primary: progression.template.name,
+          secondary: progression.key.name,
+        },
+        steps: progression.chords.map((chord) => ({
+          name: {
+            primary: chord.romanNumeral,
+            secondary: chord.chordName,
+          },
+          notes: chord.notes,
+        })),
+      });
+    }
+  }
+
+  if (eligibleTargets.length === 0) {
+    throw new Error(
+      `No playable chord progression targets exist in the ${clef} clef for the current settings.`,
+    );
+  }
+
+  return getRandomItem(eligibleTargets);
+}
+
 export function generateSequenceTarget(
   options: GenerateSequenceTargetOptions,
 ): SequenceTarget {
@@ -615,5 +728,8 @@ export function generateSequenceTarget(
 
     case "arpeggios":
       return generateArpeggioTarget(options);
+
+    case "chord-progressions":
+      return generateChordProgressionTarget(options);
   }
 }

@@ -41,6 +41,7 @@ export type PracticeStats = Readonly<{
 }>;
 
 export type SequenceStep = Readonly<{
+  name?: PracticeTargetName;
   notes: ReadonlyArray<PracticeNote>;
 }>;
 
@@ -57,7 +58,11 @@ export type SequenceStats = Readonly<{
   totalSequenceTimeMs: number;
 }>;
 
-export type SequenceExerciseType = "intervals" | "scales" | "arpeggios";
+export type SequenceExerciseType =
+  | "intervals"
+  | "scales"
+  | "arpeggios"
+  | "chord-progressions";
 
 export type SequenceDirection = "ascending" | "descending";
 

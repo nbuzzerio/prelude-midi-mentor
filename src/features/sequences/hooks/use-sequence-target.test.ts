@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
 import { getClefForMode } from "@/lib/music/note-utils";
+import {
+  CHORD_PROGRESSION_TEMPLATES,
+  SUPPORTED_CHORD_PROGRESSION_KEYS,
+} from "@/lib/music/chord-progressions";
+import type {
+  ChordProgressionKeyId,
+  ChordProgressionTemplateId,
+} from "@/lib/music/chord-progressions";
 import type {
   PracticeClefMode,
   SequenceArpeggio,
@@ -26,6 +34,15 @@ vi.mock("@/lib/music/note-utils", () => ({
 }));
 
 const ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
+
+const ALL_CHORD_PROGRESSION_KEY_IDS = new Set<ChordProgressionKeyId>(
+  SUPPORTED_CHORD_PROGRESSION_KEYS.map((key) => key.id),
+);
+
+const ALL_CHORD_PROGRESSION_TEMPLATE_IDS =
+  new Set<ChordProgressionTemplateId>(
+    CHORD_PROGRESSION_TEMPLATES.map((template) => template.id),
+  );
 
 const ENABLED_DIRECTIONS = new Set<SequenceDirection>(["ascending"]);
 
@@ -225,6 +242,9 @@ describe("useSequenceTarget", () => {
       exerciseType: "intervals",
       clef: "bass",
       enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+      enabledChordProgressionTemplateIds:
+        ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
       enabledDirections: ENABLED_DIRECTIONS,
       enabledIntervals: ENABLED_INTERVALS,
       enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -252,6 +272,43 @@ describe("useSequenceTarget", () => {
     });
 
     expect(getClefForMode).toHaveBeenCalledWith("mixed");
+  });
+
+  it("forwards explicit chord progression settings after resolving mixed clef", () => {
+    const progressionKeyIds = new Set<ChordProgressionKeyId>(["c-major"]);
+    const progressionTemplateIds = new Set<ChordProgressionTemplateId>([
+      "major-1451",
+    ]);
+    vi.mocked(getClefForMode).mockReturnValue("treble");
+
+    const { result } = renderHook(() =>
+      useSequenceTarget({
+        enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: progressionKeyIds,
+        enabledChordProgressionTemplateIds: progressionTemplateIds,
+        enabledDirections: ENABLED_DIRECTIONS,
+        enabledIntervals: ENABLED_INTERVALS,
+        enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
+        enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
+        enabledScales: ENABLED_SCALES,
+        exerciseType: "chord-progressions",
+        mode: "mixed",
+      }),
+    );
+
+    act(() => {
+      result.current.generateNextTarget();
+    });
+
+    expect(getClefForMode).toHaveBeenCalledWith("mixed");
+    expect(generateSequenceTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clef: "treble",
+        enabledChordProgressionKeyIds: progressionKeyIds,
+        enabledChordProgressionTemplateIds: progressionTemplateIds,
+        exerciseType: "chord-progressions",
+      }),
+    );
   });
 
   it("updates the rendered target and current-target ref", () => {
@@ -411,6 +468,9 @@ describe("useSequenceTarget", () => {
       exerciseType: updatedExerciseType,
       clef: "bass",
       enabledArpeggios: updatedArpeggios,
+      enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+      enabledChordProgressionTemplateIds:
+        ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
       enabledDirections: updatedDirections,
       enabledIntervals: updatedIntervals,
       enabledNoteCategories: updatedNoteCategories,

@@ -1,15 +1,49 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SequenceArpeggio } from "@/types/practice";
+import {
+  CHORD_PROGRESSION_TEMPLATES,
+  SUPPORTED_CHORD_PROGRESSION_KEYS,
+} from "../chord-progressions";
+import type {
+  ChordProgressionKeyId,
+  ChordProgressionTemplateId,
+} from "../chord-progressions";
 
 import { isNaturalMidiNumber } from "../note-utils";
-import { generateSequenceTarget, getIntervalSemitones } from "./sequences";
+import {
+  generateSequenceTarget,
+  getIntervalSemitones,
+  type GenerateSequenceTargetOptions,
+} from "./sequences";
 
 const ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
 
 const ENABLED_SCALES = new Set(["major"] as const);
 
 const ENABLED_SCALE_DIRECTIONS = new Set(["ascending"] as const);
+
+const ALL_CHORD_PROGRESSION_KEY_IDS = new Set<ChordProgressionKeyId>(
+  SUPPORTED_CHORD_PROGRESSION_KEYS.map((key) => key.id),
+);
+
+const ALL_CHORD_PROGRESSION_TEMPLATE_IDS =
+  new Set<ChordProgressionTemplateId>(
+    CHORD_PROGRESSION_TEMPLATES.map((template) => template.id),
+  );
+
+type ExistingSequenceTargetOptions = Omit<
+  GenerateSequenceTargetOptions,
+  "enabledChordProgressionKeyIds" | "enabledChordProgressionTemplateIds"
+>;
+
+function generateExistingSequenceTarget(options: ExistingSequenceTargetOptions) {
+  return generateSequenceTarget({
+    ...options,
+    enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+    enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
+  });
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -41,7 +75,7 @@ describe("getIntervalSemitones", () => {
 
 describe("generateSequenceTarget", () => {
   it("generates an ascending interval with the correct distance", () => {
-    const target = generateSequenceTarget({
+    const target = generateExistingSequenceTarget({
       exerciseType: "intervals",
       clef: "treble",
       enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -63,7 +97,7 @@ describe("generateSequenceTarget", () => {
   });
 
   it("generates a descending interval with the correct distance", () => {
-    const target = generateSequenceTarget({
+    const target = generateExistingSequenceTarget({
       exerciseType: "intervals",
       clef: "treble",
       enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -84,7 +118,7 @@ describe("generateSequenceTarget", () => {
 
   it("honors the natural-note filter", () => {
     for (let i = 0; i < 50; i += 1) {
-      const target = generateSequenceTarget({
+      const target = generateExistingSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
         enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -103,7 +137,7 @@ describe("generateSequenceTarget", () => {
 
   it("honors the accidental-note filter", () => {
     for (let i = 0; i < 50; i += 1) {
-      const target = generateSequenceTarget({
+      const target = generateExistingSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
         enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -122,7 +156,7 @@ describe("generateSequenceTarget", () => {
 
   it("throws when no directions are enabled", () => {
     expect(() =>
-      generateSequenceTarget({
+      generateExistingSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
         enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -137,7 +171,7 @@ describe("generateSequenceTarget", () => {
 
   it("throws when no intervals are enabled", () => {
     expect(() =>
-      generateSequenceTarget({
+      generateExistingSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
         enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -152,7 +186,7 @@ describe("generateSequenceTarget", () => {
 
   it("throws when no note categories are enabled", () => {
     expect(() =>
-      generateSequenceTarget({
+      generateExistingSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
         enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -166,11 +200,248 @@ describe("generateSequenceTarget", () => {
   });
 });
 
+function generateProgressionTarget({
+  clef,
+  keyIds,
+  templateIds,
+}: Readonly<{
+  clef: "bass" | "treble";
+  keyIds: ReadonlySet<ChordProgressionKeyId>;
+  templateIds: ReadonlySet<ChordProgressionTemplateId>;
+}>) {
+  return generateSequenceTarget({
+    exerciseType: "chord-progressions",
+    clef,
+    enabledArpeggios: ENABLED_ARPEGGIOS,
+    enabledChordProgressionKeyIds: keyIds,
+    enabledChordProgressionTemplateIds: templateIds,
+    enabledDirections: new Set(["ascending"]),
+    enabledIntervals: new Set(["major-second"]),
+    enabledNoteCategories: new Set(["naturals"]),
+    enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
+    enabledScales: ENABLED_SCALES,
+  });
+}
+
+describe("chord progression sequence targets", () => {
+  it("maps a realized progression to target and step metadata", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const target = generateProgressionTarget({
+      clef: "treble",
+      keyIds: new Set(["c-major"]),
+      templateIds: new Set(["major-1451"]),
+    });
+
+    expect(target.name).toEqual({
+      primary: "I–IV–V–I",
+      secondary: "C major",
+    });
+    expect(target.steps).toEqual([
+      {
+        name: { primary: "I", secondary: "C major" },
+        notes: [
+          { midiNumber: 60, name: "C", octave: 4 },
+          { midiNumber: 64, name: "E", octave: 4 },
+          { midiNumber: 67, name: "G", octave: 4 },
+        ],
+      },
+      {
+        name: { primary: "IV", secondary: "F major" },
+        notes: [
+          { midiNumber: 65, name: "F", octave: 4 },
+          { midiNumber: 69, name: "A", octave: 4 },
+          { midiNumber: 72, name: "C", octave: 5 },
+        ],
+      },
+      {
+        name: { primary: "V", secondary: "G major" },
+        notes: [
+          { midiNumber: 67, name: "G", octave: 4 },
+          { midiNumber: 71, name: "B", octave: 4 },
+          { midiNumber: 74, name: "D", octave: 5 },
+        ],
+      },
+      {
+        name: { primary: "I", secondary: "C major" },
+        notes: [
+          { midiNumber: 60, name: "C", octave: 4 },
+          { midiNumber: 64, name: "E", octave: 4 },
+          { midiNumber: 67, name: "G", octave: 4 },
+        ],
+      },
+    ]);
+  });
+
+  it("preserves sharp spelling in D major ii–V–I", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const target = generateProgressionTarget({
+      clef: "treble",
+      keyIds: new Set(["d-major"]),
+      templateIds: new Set(["major-251"]),
+    });
+
+    expect(target.steps.map((step) => step.notes.map((note) => note.name))).toEqual([
+      ["E", "G", "B"],
+      ["A", "C♯", "E"],
+      ["D", "F♯", "A"],
+    ]);
+  });
+
+  it("preserves flat spelling and minor-key dominant behavior", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const flatTarget = generateProgressionTarget({
+      clef: "bass",
+      keyIds: new Set(["b-flat-major"]),
+      templateIds: new Set(["major-1451"]),
+    });
+    const minorTarget = generateProgressionTarget({
+      clef: "bass",
+      keyIds: new Set(["a-minor"]),
+      templateIds: new Set(["minor-1451"]),
+    });
+
+    expect(flatTarget.steps[0]?.notes.map((note) => note.name)).toEqual([
+      "B♭",
+      "D",
+      "F",
+    ]);
+    expect(minorTarget.steps[2]?.notes.map((note) => note.name)).toEqual([
+      "E",
+      "G♯",
+      "B",
+    ]);
+  });
+
+  it("rejects invalid progression configurations clearly", () => {
+    expect(() =>
+      generateProgressionTarget({
+        clef: "bass",
+        keyIds: new Set(),
+        templateIds: new Set(["major-1451"]),
+      }),
+    ).toThrow("At least one chord progression key must be enabled.");
+
+    expect(() =>
+      generateProgressionTarget({
+        clef: "bass",
+        keyIds: new Set(["c-major"]),
+        templateIds: new Set(),
+      }),
+    ).toThrow("At least one chord progression template must be enabled.");
+
+    expect(() =>
+      generateProgressionTarget({
+        clef: "bass",
+        keyIds: new Set(["c-major"]),
+        templateIds: new Set(["minor-1451"]),
+      }),
+    ).toThrow("must have matching modes");
+  });
+
+  it("realizes every compatible approved pair in both progression clef ranges", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const ranges = {
+      bass: { minMidi: 36, maxMidi: 64 },
+      treble: { minMidi: 60, maxMidi: 88 },
+    } as const;
+    let checkedPairs = 0;
+
+    for (const key of SUPPORTED_CHORD_PROGRESSION_KEYS) {
+      for (const template of CHORD_PROGRESSION_TEMPLATES) {
+        if (key.mode !== template.mode) {
+          continue;
+        }
+
+        for (const clef of ["bass", "treble"] as const) {
+          const target = generateProgressionTarget({
+            clef,
+            keyIds: new Set([key.id]),
+            templateIds: new Set([template.id]),
+          });
+
+          expect(target.steps).toHaveLength(template.chords.length);
+
+          for (const step of target.steps) {
+            expect(step.notes).toHaveLength(3);
+
+            for (const note of step.notes) {
+              expect(note.midiNumber).toBeGreaterThanOrEqual(
+                ranges[clef].minMidi,
+              );
+              expect(note.midiNumber).toBeLessThanOrEqual(
+                ranges[clef].maxMidi,
+              );
+            }
+          }
+
+          checkedPairs += 1;
+        }
+      }
+    }
+
+    expect(checkedPairs).toBe(108);
+  });
+
+  it("uses the wider maxima only for chord progressions", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const bassProgression = generateProgressionTarget({
+      clef: "bass",
+      keyIds: new Set(["b-minor"]),
+      templateIds: new Set(["minor-1637"]),
+    });
+    const trebleProgression = generateProgressionTarget({
+      clef: "treble",
+      keyIds: new Set(["b-minor"]),
+      templateIds: new Set(["minor-1637"]),
+    });
+
+    expect(
+      Math.max(...bassProgression.steps.flatMap((step) => step.notes.map((note) => note.midiNumber))),
+    ).toBe(64);
+    expect(
+      Math.max(...trebleProgression.steps.flatMap((step) => step.notes.map((note) => note.midiNumber))),
+    ).toBe(88);
+
+    vi.spyOn(Math, "random").mockReturnValue(0.999999);
+
+    const bassInterval = generateExistingSequenceTarget({
+      exerciseType: "intervals",
+      clef: "bass",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledDirections: new Set(["ascending"]),
+      enabledIntervals: new Set(["octave"]),
+      enabledNoteCategories: new Set(["naturals", "accidentals"]),
+      enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
+      enabledScales: ENABLED_SCALES,
+    });
+    const trebleInterval = generateExistingSequenceTarget({
+      exerciseType: "intervals",
+      clef: "treble",
+      enabledArpeggios: ENABLED_ARPEGGIOS,
+      enabledDirections: new Set(["ascending"]),
+      enabledIntervals: new Set(["octave"]),
+      enabledNoteCategories: new Set(["naturals", "accidentals"]),
+      enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
+      enabledScales: ENABLED_SCALES,
+    });
+
+    expect(Math.max(...bassInterval.steps.flatMap((step) => step.notes.map((note) => note.midiNumber)))).toBe(60);
+    expect(Math.max(...trebleInterval.steps.flatMap((step) => step.notes.map((note) => note.midiNumber)))).toBe(84);
+    expect(bassInterval.steps.every((step) => step.name === undefined)).toBe(true);
+    expect(trebleInterval.steps.every((step) => step.name === undefined)).toBe(true);
+  });
+});
+
 describe("theory spelling", () => {
   it("generates an ascending major scale", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
-    const target = generateSequenceTarget({
+    const target = generateExistingSequenceTarget({
       exerciseType: "scales",
       clef: "treble",
       enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -190,7 +461,7 @@ describe("theory spelling", () => {
   it("generates a descending major scale as the reverse of its ascent", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
-    const target = generateSequenceTarget({
+    const target = generateExistingSequenceTarget({
       exerciseType: "scales",
       clef: "treble",
       enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -220,7 +491,7 @@ describe("theory spelling", () => {
   it("generates an ascending and descending scale without repeating the upper tonic", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
-    const target = generateSequenceTarget({
+    const target = generateExistingSequenceTarget({
       exerciseType: "scales",
       clef: "treble",
       enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -242,7 +513,7 @@ describe("theory spelling", () => {
   it("uses natural minor for a descending melodic minor scale", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
-    const target = generateSequenceTarget({
+    const target = generateExistingSequenceTarget({
       exerciseType: "scales",
       clef: "treble",
       enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -271,7 +542,7 @@ describe("theory spelling", () => {
   it("uses melodic minor ascending and natural minor descending in a round trip", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
-    const target = generateSequenceTarget({
+    const target = generateExistingSequenceTarget({
       exerciseType: "scales",
       clef: "treble",
       enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -306,7 +577,7 @@ describe("theory spelling", () => {
 
   it("spells an ascending minor second using the correct letter name", () => {
     for (let i = 0; i < 100; i += 1) {
-      const target = generateSequenceTarget({
+      const target = generateExistingSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
         enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -328,7 +599,7 @@ describe("theory spelling", () => {
 
   it("spells an ascending major third using the correct letter name", () => {
     for (let i = 0; i < 100; i += 1) {
-      const target = generateSequenceTarget({
+      const target = generateExistingSequenceTarget({
         exerciseType: "intervals",
         clef: "treble",
         enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -351,7 +622,7 @@ describe("theory spelling", () => {
   it("never throws while generating random major scales", () => {
     expect(() => {
       for (let i = 0; i < 250; i += 1) {
-        generateSequenceTarget({
+        generateExistingSequenceTarget({
           exerciseType: "scales",
           clef: "treble",
           enabledArpeggios: ENABLED_ARPEGGIOS,
@@ -368,7 +639,7 @@ describe("theory spelling", () => {
   it("never throws while generating random major arpeggios", () => {
     expect(() => {
       for (let i = 0; i < 250; i += 1) {
-        generateSequenceTarget({
+        generateExistingSequenceTarget({
           exerciseType: "arpeggios",
           clef: "treble",
           enabledArpeggios: ENABLED_ARPEGGIOS,
