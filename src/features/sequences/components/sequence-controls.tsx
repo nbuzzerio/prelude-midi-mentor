@@ -1,3 +1,11 @@
+import {
+  CHORD_PROGRESSION_TEMPLATES,
+  SUPPORTED_CHORD_PROGRESSION_KEYS,
+} from "@/lib/music/chord-progressions";
+import type {
+  ChordProgressionKeyId,
+  ChordProgressionTemplateId,
+} from "@/lib/music/chord-progressions";
 import type {
   PracticeClefMode,
   SequenceArpeggio,
@@ -11,6 +19,8 @@ import type {
 
 type SequenceControlsProps = Readonly<{
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
+  enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
+  enabledChordProgressionTemplateIds: ReadonlySet<ChordProgressionTemplateId>;
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
@@ -20,6 +30,10 @@ type SequenceControlsProps = Readonly<{
   mode: PracticeClefMode;
   showTargetName: boolean;
   onArpeggioToggle: (arpeggio: SequenceArpeggio) => void;
+  onChordProgressionKeyToggle: (keyId: ChordProgressionKeyId) => void;
+  onChordProgressionTemplateToggle: (
+    templateId: ChordProgressionTemplateId,
+  ) => void;
   onDirectionToggle: (direction: SequenceDirection) => void;
   onExerciseTypeChange: (exerciseType: SequenceExerciseType) => void;
   onIntervalToggle: (interval: SequenceInterval) => void;
@@ -32,6 +46,7 @@ type SequenceControlsProps = Readonly<{
 }>;
 
 type ToggleButtonProps = Readonly<{
+  accessibleLabel?: string;
   enabled: boolean;
   label: string;
   onClick: () => void;
@@ -54,6 +69,10 @@ const EXERCISE_TYPE_OPTIONS: ReadonlyArray<
   {
     label: "Arpeggios",
     value: "arpeggios",
+  },
+  {
+    label: "Chord progressions",
+    value: "chord-progressions",
   },
 ];
 
@@ -245,9 +264,15 @@ const ARPEGGIO_OPTIONS: ReadonlyArray<
   },
 ];
 
-function ToggleButton({ enabled, label, onClick }: ToggleButtonProps) {
+function ToggleButton({
+  accessibleLabel,
+  enabled,
+  label,
+  onClick,
+}: ToggleButtonProps) {
   return (
     <button
+      aria-label={accessibleLabel}
       aria-pressed={enabled}
       className={
         enabled
@@ -264,6 +289,8 @@ function ToggleButton({ enabled, label, onClick }: ToggleButtonProps) {
 
 export default function SequenceControls({
   enabledArpeggios,
+  enabledChordProgressionKeyIds,
+  enabledChordProgressionTemplateIds,
   enabledDirections,
   enabledIntervals,
   enabledNoteCategories,
@@ -272,6 +299,8 @@ export default function SequenceControls({
   exerciseType,
   mode,
   onArpeggioToggle,
+  onChordProgressionKeyToggle,
+  onChordProgressionTemplateToggle,
   onDirectionToggle,
   onExerciseTypeChange,
   onIntervalToggle,
@@ -288,14 +317,18 @@ export default function SequenceControls({
       ? "Show interval name"
       : exerciseType === "scales"
         ? "Show scale name"
-        : "Show arpeggio name";
+        : exerciseType === "arpeggios"
+          ? "Show arpeggio name"
+          : "Show chord names";
 
   const targetNameDescription =
     exerciseType === "intervals"
       ? "Display the interval and direction above the notation."
       : exerciseType === "scales"
         ? "Display the scale and direction above the notation."
-        : "Display the arpeggio and direction above the notation.";
+        : exerciseType === "arpeggios"
+          ? "Display the arpeggio and direction above the notation."
+          : "Display the progression, key, Roman numeral, and current chord above the notation.";
 
   return (
     <section
@@ -358,6 +391,7 @@ export default function SequenceControls({
         </div>
       </fieldset>
 
+      {exerciseType !== "chord-progressions" ? (
       <fieldset className="mt-5">
         <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
           Direction
@@ -387,7 +421,9 @@ export default function SequenceControls({
           ))}
         </div>
       </fieldset>
+      ) : null}
 
+      {exerciseType !== "chord-progressions" ? (
       <fieldset className="mt-5">
         <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
           Starting notes
@@ -406,6 +442,7 @@ export default function SequenceControls({
           ))}
         </div>
       </fieldset>
+      ) : null}
 
       {exerciseType === "intervals" ? (
         <fieldset className="mt-5">
@@ -443,7 +480,7 @@ export default function SequenceControls({
             ))}
           </div>
         </fieldset>
-      ) : (
+      ) : exerciseType === "arpeggios" ? (
         <fieldset className="mt-5">
           <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
             Arpeggios
@@ -460,6 +497,62 @@ export default function SequenceControls({
             ))}
           </div>
         </fieldset>
+      ) : (
+        <>
+          {(["major", "minor"] as const).map((keyMode) => (
+            <fieldset className="mt-5" key={`${keyMode}-keys`}>
+              <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                {keyMode === "major" ? "Major keys" : "Minor keys"}
+              </legend>
+
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {SUPPORTED_CHORD_PROGRESSION_KEYS.filter(
+                  (key) => key.mode === keyMode,
+                ).map((key) => (
+                  <ToggleButton
+                    accessibleLabel={key.name.replace("♭", " flat")}
+                    enabled={enabledChordProgressionKeyIds.has(key.id)}
+                    key={key.id}
+                    label={key.name}
+                    onClick={() => onChordProgressionKeyToggle(key.id)}
+                  />
+                ))}
+              </div>
+            </fieldset>
+          ))}
+
+          {(["major", "minor"] as const).map((templateMode) => (
+            <fieldset className="mt-5" key={`${templateMode}-progressions`}>
+              <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                {templateMode === "major"
+                  ? "Major progressions"
+                  : "Minor progressions"}
+              </legend>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {CHORD_PROGRESSION_TEMPLATES.filter(
+                  (template) => template.mode === templateMode,
+                ).map((template) => (
+                  <ToggleButton
+                    accessibleLabel={
+                      template.id === "minor-251"
+                        ? "two diminished, five, one in minor"
+                        : undefined
+                    }
+                    enabled={enabledChordProgressionTemplateIds.has(
+                      template.id,
+                    )}
+                    key={template.id}
+                    label={template.name}
+                    onClick={() =>
+                      onChordProgressionTemplateToggle(template.id)
+                    }
+                  />
+                ))}
+              </div>
+            </fieldset>
+          ))}
+        </>
       )}
 
       <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/10 px-3 py-3">

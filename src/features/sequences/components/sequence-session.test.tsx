@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   isSequenceTargetLocked: vi.fn(),
   isWaitingForStep: vi.fn(),
   lockSequenceTarget: vi.fn(),
+  midiOptions: vi.fn(),
   resetAttempt: vi.fn(),
   retrySequence: vi.fn(),
   showCorrectFeedback: vi.fn(),
@@ -80,12 +81,16 @@ vi.mock("../hooks/use-sequence-transition", () => ({
 }));
 
 vi.mock("@/hooks/use-midi", () => ({
-  useMidi: () => ({
+  useMidi: (options: unknown) => {
+    mocks.midiOptions(options);
+
+    return {
     connectMidi: vi.fn(),
     deviceName: null,
     error: null,
     status: "disconnected",
-  }),
+    };
+  },
 }));
 
 vi.mock("@/components/audio/feedback-volume-control", () => ({
@@ -143,6 +148,8 @@ vi.mock("./sequence-stats", () => ({
 vi.mock("./sequence-controls", () => ({
   default: ({
     onArpeggioToggle,
+    onChordProgressionKeyToggle,
+    onChordProgressionTemplateToggle,
     onDirectionToggle,
     onExerciseTypeChange,
     onIntervalToggle,
@@ -155,7 +162,11 @@ vi.mock("./sequence-controls", () => ({
   }: {
     onArpeggioToggle: (value: "minor") => void;
     onDirectionToggle: (value: "ascending" | "descending") => void;
-    onExerciseTypeChange: (value: "scales") => void;
+    onExerciseTypeChange: (value: "scales" | "chord-progressions") => void;
+    onChordProgressionKeyToggle: (value: "g-major" | "c-major") => void;
+    onChordProgressionTemplateToggle: (
+      value: "major-251" | "major-1451",
+    ) => void;
     onIntervalToggle: (value: "perfect-fifth") => void;
     onModeChange: (value: "bass") => void;
     onNoteCategoryToggle: (value: "accidentals") => void;
@@ -167,6 +178,11 @@ vi.mock("./sequence-controls", () => ({
     <div>
       <button onClick={() => onModeChange("bass")} type="button">Use bass</button>
       <button onClick={() => onExerciseTypeChange("scales")} type="button">Use scales</button>
+      <button onClick={() => onExerciseTypeChange("chord-progressions")} type="button">Use progressions</button>
+      <button onClick={() => onChordProgressionKeyToggle("g-major")} type="button">Add progression key</button>
+      <button onClick={() => onChordProgressionTemplateToggle("major-251")} type="button">Add progression template</button>
+      <button onClick={() => onChordProgressionKeyToggle("c-major")} type="button">Toggle final progression key</button>
+      <button onClick={() => onChordProgressionTemplateToggle("major-1451")} type="button">Toggle final progression template</button>
       <button onClick={() => onDirectionToggle("descending")} type="button">Add descending</button>
       <button onClick={() => onDirectionToggle("ascending")} type="button">Toggle final direction</button>
       <button onClick={() => onIntervalToggle("perfect-fifth")} type="button">Add interval</button>
@@ -223,6 +239,8 @@ describe("SequenceSession settings regeneration", () => {
     ["Add scale", "enabledScales", new Set(["major", "natural-minor"])],
     ["Add scale direction", "enabledScaleDirections", new Set(["ascending", "ascending-descending"])],
     ["Add arpeggio", "enabledArpeggios", new Set(["major", "minor"])],
+    ["Add progression key", "enabledChordProgressionKeyIds", new Set(["c-major", "g-major"])],
+    ["Add progression template", "enabledChordProgressionTemplateIds", new Set(["major-1451", "major-251"])],
   ])("regenerates once when %s changes", (buttonName, optionName, expected) => {
     renderSequenceSession();
 
@@ -253,6 +271,19 @@ describe("SequenceSession settings regeneration", () => {
     expect(mocks.clearTransition).toHaveBeenCalledTimes(1);
   });
 
+  it("preserves statistics when progression selections change", () => {
+    renderSequenceSession();
+
+    fireEvent.click(screen.getByRole("button", { name: "Simulate incorrect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add progression key" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add progression template" }),
+    );
+
+    expect(screen.getByText("Stats: 0 completed, 1 incorrect")).toBeTruthy();
+    expect(mocks.generateTarget).toHaveBeenCalledTimes(2);
+  });
+
   it("does not regenerate when a final required setting is rejected", () => {
     renderSequenceSession();
 
@@ -263,6 +294,18 @@ describe("SequenceSession settings regeneration", () => {
     expect(mocks.clearTransition).not.toHaveBeenCalled();
     expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
+
+  it.each(["Toggle final progression key", "Toggle final progression template"])(
+    "does not regenerate when %s is rejected",
+    (buttonName) => {
+      renderSequenceSession();
+
+      fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+      expect(mocks.clearTransition).not.toHaveBeenCalled();
+      expect(mocks.generateTarget).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not regenerate for display, audio, or focus changes", () => {
     renderSequenceSession();
@@ -288,5 +331,33 @@ describe("SequenceSession settings regeneration", () => {
     expect(mocks.clearTransition).toHaveBeenCalledTimes(1);
     expect(mocks.resetAttempt).toHaveBeenCalledTimes(1);
     expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides virtual input and ignores MIDI note-on in progression mode", () => {
+    renderSequenceSession();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+    expect(screen.queryByText("Piano keyboard")).toBeNull();
+
+    const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
+      onNotePlayed: (midiNumber: number) => void;
+    };
+    midiOptions.onNotePlayed(60);
+
+    expect(mocks.showIncorrectFeedback).not.toHaveBeenCalled();
+    expect(screen.getByText("Stats: 0 completed, 0 incorrect")).toBeTruthy();
+    expect(screen.getByText("MIDI status")).toBeTruthy();
+  });
+
+  it("continues grading MIDI note-on input for existing exercises", () => {
+    renderSequenceSession();
+
+    const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
+      onNotePlayed: (midiNumber: number) => void;
+    };
+    midiOptions.onNotePlayed(60);
+
+    expect(mocks.showCorrectFeedback).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Piano keyboard")).toBeTruthy();
   });
 });

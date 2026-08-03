@@ -55,6 +55,8 @@ export default function SequenceSession({
   // Sequence configuration
   const {
     enabledArpeggios,
+    enabledChordProgressionKeyIds,
+    enabledChordProgressionTemplateIds,
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
@@ -67,6 +69,8 @@ export default function SequenceSession({
     setShowTargetName,
     showTargetName,
     toggleArpeggio,
+    toggleChordProgressionKey,
+    toggleChordProgressionTemplate,
     toggleDirection,
     toggleInterval,
     toggleNoteCategory,
@@ -76,6 +80,8 @@ export default function SequenceSession({
 
   const generationSettingsRef = useRef({
     enabledArpeggios,
+    enabledChordProgressionKeyIds,
+    enabledChordProgressionTemplateIds,
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
@@ -95,6 +101,8 @@ export default function SequenceSession({
     startedAt,
   } = useSequenceTarget({
     enabledArpeggios,
+    enabledChordProgressionKeyIds,
+    enabledChordProgressionTemplateIds,
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
@@ -185,10 +193,16 @@ export default function SequenceSession({
       previousSettings.enabledNoteCategories !== enabledNoteCategories ||
       previousSettings.enabledScales !== enabledScales ||
       previousSettings.enabledScaleDirections !== enabledScaleDirections ||
-      previousSettings.enabledArpeggios !== enabledArpeggios;
+      previousSettings.enabledArpeggios !== enabledArpeggios ||
+      previousSettings.enabledChordProgressionKeyIds !==
+        enabledChordProgressionKeyIds ||
+      previousSettings.enabledChordProgressionTemplateIds !==
+        enabledChordProgressionTemplateIds;
 
     generationSettingsRef.current = {
       enabledArpeggios,
+      enabledChordProgressionKeyIds,
+      enabledChordProgressionTemplateIds,
       enabledDirections,
       enabledIntervals,
       enabledNoteCategories,
@@ -207,6 +221,8 @@ export default function SequenceSession({
   }, [
     clearTransition,
     enabledArpeggios,
+    enabledChordProgressionKeyIds,
+    enabledChordProgressionTemplateIds,
     enabledDirections,
     enabledIntervals,
     enabledNoteCategories,
@@ -380,6 +396,11 @@ export default function SequenceSession({
   // MIDI input
   const handleMidiNotePlayed = useCallback(
     (midiNumber: number) => {
+      // Temporary Phase 4 boundary: progression chord attempts arrive in Phase 5.
+      if (exerciseType === "chord-progressions") {
+        return;
+      }
+
       if (isSequenceTargetLocked() || !isWaitingForStep()) {
         return;
       }
@@ -391,7 +412,7 @@ export default function SequenceSession({
 
       gradeCurrentStep(new Set([midiNumber]), "midi");
     },
-    [gradeCurrentStep, isSequenceTargetLocked, isWaitingForStep],
+    [exerciseType, gradeCurrentStep, isSequenceTargetLocked, isWaitingForStep],
   );
 
   const handleMidiHeldNotesChanged = useCallback(
@@ -520,6 +541,7 @@ export default function SequenceSession({
       <div className="practice-stage">
         <SequenceCard
           currentStepIndex={currentStepIndex}
+          exerciseType={exerciseType}
           feedback={feedback}
           isFocusMode={isFocusMode}
           onCorrect={handleSimulateCorrect}
@@ -529,6 +551,7 @@ export default function SequenceSession({
           showTargetName={showTargetName}
         />
 
+        {exerciseType !== "chord-progressions" ? (
         <div hidden={isFocusMode}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
@@ -538,6 +561,7 @@ export default function SequenceSession({
             targetMidiNumbers={currentStepMidiNumbers}
           />
         </div>
+        ) : null}
       </div>
 
       <section
@@ -558,6 +582,10 @@ export default function SequenceSession({
 
           <SequenceControls
             enabledArpeggios={enabledArpeggios}
+            enabledChordProgressionKeyIds={enabledChordProgressionKeyIds}
+            enabledChordProgressionTemplateIds={
+              enabledChordProgressionTemplateIds
+            }
             enabledDirections={enabledDirections}
             enabledIntervals={enabledIntervals}
             enabledNoteCategories={enabledNoteCategories}
@@ -566,6 +594,10 @@ export default function SequenceSession({
             exerciseType={exerciseType}
             mode={mode}
             onArpeggioToggle={toggleArpeggio}
+            onChordProgressionKeyToggle={toggleChordProgressionKey}
+            onChordProgressionTemplateToggle={
+              toggleChordProgressionTemplate
+            }
             onDirectionToggle={toggleDirection}
             onExerciseTypeChange={setExerciseType}
             onIntervalToggle={toggleInterval}

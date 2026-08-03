@@ -13,6 +13,13 @@ describe("useSequenceSettings", () => {
 
     expect(result.current.exerciseType).toBe("intervals");
 
+    expect(result.current.enabledChordProgressionKeyIds).toEqual(
+      new Set(["c-major"]),
+    );
+    expect(result.current.enabledChordProgressionTemplateIds).toEqual(
+      new Set(["major-1451"]),
+    );
+
     expect(result.current.enabledScales).toEqual(new Set(["major"]));
 
     expect(result.current.enabledScaleDirections).toEqual(
@@ -290,6 +297,76 @@ describe("useSequenceSettings", () => {
       });
 
       expect(result.current.enabledScales).toEqual(new Set(["major"]));
+    });
+  });
+
+  describe("chord progressions", () => {
+    it("can transition from major-only to minor-only selections", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => result.current.toggleChordProgressionKey("a-minor"));
+      act(() => result.current.toggleChordProgressionTemplate("minor-1451"));
+      act(() => result.current.toggleChordProgressionKey("c-major"));
+      act(() => result.current.toggleChordProgressionTemplate("major-1451"));
+
+      expect(result.current.enabledChordProgressionKeyIds).toEqual(
+        new Set(["a-minor"]),
+      );
+      expect(result.current.enabledChordProgressionTemplateIds).toEqual(
+        new Set(["minor-1451"]),
+      );
+    });
+
+    it("rejects removing the final key and preserves its reference", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+      const original = result.current.enabledChordProgressionKeyIds;
+
+      act(() => result.current.toggleChordProgressionKey("c-major"));
+
+      expect(result.current.enabledChordProgressionKeyIds).toBe(original);
+    });
+
+    it("rejects removing the final template and preserves its reference", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+      const original = result.current.enabledChordProgressionTemplateIds;
+
+      act(() =>
+        result.current.toggleChordProgressionTemplate("major-1451"),
+      );
+
+      expect(result.current.enabledChordProgressionTemplateIds).toBe(original);
+    });
+
+    it("rejects a mode-incompatible prospective key selection", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => result.current.toggleChordProgressionKey("a-minor"));
+      const beforeRejectedToggle = result.current.enabledChordProgressionKeyIds;
+      act(() => result.current.toggleChordProgressionKey("c-major"));
+
+      expect(result.current.enabledChordProgressionKeyIds).toBe(
+        beforeRejectedToggle,
+      );
+      expect(result.current.enabledChordProgressionKeyIds).toEqual(
+        new Set(["c-major", "a-minor"]),
+      );
+    });
+
+    it("rejects a mode-incompatible prospective template selection", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() =>
+        result.current.toggleChordProgressionTemplate("minor-1451"),
+      );
+      const beforeRejectedToggle =
+        result.current.enabledChordProgressionTemplateIds;
+      act(() =>
+        result.current.toggleChordProgressionTemplate("major-1451"),
+      );
+
+      expect(result.current.enabledChordProgressionTemplateIds).toBe(
+        beforeRejectedToggle,
+      );
     });
   });
 });

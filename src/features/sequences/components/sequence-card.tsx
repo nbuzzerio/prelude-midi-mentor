@@ -1,10 +1,15 @@
 import MusicStaff from "@/components/notation/music-staff";
 import FocusStaffControl from "@/components/notation/focus-staff-control";
 import PracticeSimulationControls from "@/components/practice-simulation-controls";
-import type { FeedbackState, SequenceTarget } from "@/types/practice";
+import type {
+  FeedbackState,
+  SequenceExerciseType,
+  SequenceTarget,
+} from "@/types/practice";
 
 type SequenceCardProps = Readonly<{
   currentStepIndex: number;
+  exerciseType: SequenceExerciseType;
   feedback: FeedbackState;
   isFocusMode: boolean;
   sequenceTarget: SequenceTarget;
@@ -22,6 +27,7 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
 
 export default function SequenceCard({
   currentStepIndex,
+  exerciseType,
   feedback,
   isFocusMode,
   onCorrect,
@@ -30,6 +36,8 @@ export default function SequenceCard({
   sequenceTarget,
   showTargetName,
 }: SequenceCardProps) {
+  const currentStepName = sequenceTarget.steps[currentStepIndex]?.name;
+
   return (
     <section
       aria-label="Current sequence exercise"
@@ -64,7 +72,9 @@ export default function SequenceCard({
                 : "text-white/60"
           }`}
         >
-          {FEEDBACK_MESSAGES[feedback]}
+          {feedback === "idle" && exerciseType === "chord-progressions"
+            ? "Play the highlighted chord."
+            : FEEDBACK_MESSAGES[feedback]}
         </p>
 
         {showTargetName ? (
@@ -77,6 +87,20 @@ export default function SequenceCard({
               <p className="mt-0.5 text-sm font-medium text-white/60">
                 {sequenceTarget.name.secondary}
               </p>
+            ) : null}
+
+            {exerciseType === "chord-progressions" && currentStepName ? (
+              <div className="mt-2">
+                <p className="text-base font-bold text-white">
+                  {currentStepName.primary}
+                </p>
+
+                {currentStepName.secondary ? (
+                  <p className="mt-0.5 text-sm font-medium text-white/60">
+                    {currentStepName.secondary}
+                  </p>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}

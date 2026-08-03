@@ -2,10 +2,6 @@ import { useCallback, useRef, useState } from "react";
 
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
 import { getClefForMode } from "@/lib/music/note-utils";
-import {
-  CHORD_PROGRESSION_TEMPLATES,
-  SUPPORTED_CHORD_PROGRESSION_KEYS,
-} from "@/lib/music/chord-progressions";
 import type {
   ChordProgressionKeyId,
   ChordProgressionTemplateId,
@@ -22,15 +18,6 @@ import type {
   SequenceScaleDirection,
   SequenceTarget,
 } from "@/types/practice";
-
-const ALL_CHORD_PROGRESSION_KEY_IDS = new Set<ChordProgressionKeyId>(
-  SUPPORTED_CHORD_PROGRESSION_KEYS.map((key) => key.id),
-);
-
-const ALL_CHORD_PROGRESSION_TEMPLATE_IDS =
-  new Set<ChordProgressionTemplateId>(
-    CHORD_PROGRESSION_TEMPLATES.map((template) => template.id),
-  );
 
 const INITIAL_SEQUENCE_TARGET: SequenceTarget = {
   clef: "treble",
@@ -62,8 +49,8 @@ const INITIAL_SEQUENCE_TARGET: SequenceTarget = {
 
 type UseSequenceTargetOptions = Readonly<{
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
-  enabledChordProgressionKeyIds?: ReadonlySet<ChordProgressionKeyId>;
-  enabledChordProgressionTemplateIds?: ReadonlySet<ChordProgressionTemplateId>;
+  enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
+  enabledChordProgressionTemplateIds: ReadonlySet<ChordProgressionTemplateId>;
   enabledDirections: ReadonlySet<SequenceDirection>;
   enabledIntervals: ReadonlySet<SequenceInterval>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
@@ -85,13 +72,6 @@ export function useSequenceTarget({
   exerciseType,
   mode,
 }: UseSequenceTargetOptions) {
-  // Temporary Phase 3 compatibility bridge. Phase 4 will provide these sets
-  // explicitly through Sequence settings and the Sequence session.
-  const resolvedChordProgressionKeyIds =
-    enabledChordProgressionKeyIds ?? ALL_CHORD_PROGRESSION_KEY_IDS;
-  const resolvedChordProgressionTemplateIds =
-    enabledChordProgressionTemplateIds ?? ALL_CHORD_PROGRESSION_TEMPLATE_IDS;
-
   const [sequenceTarget, setSequenceTarget] = useState<SequenceTarget>(
     INITIAL_SEQUENCE_TARGET,
   );
@@ -109,9 +89,8 @@ export function useSequenceTarget({
         exerciseType,
         clef,
         enabledArpeggios,
-        enabledChordProgressionKeyIds: resolvedChordProgressionKeyIds,
-        enabledChordProgressionTemplateIds:
-          resolvedChordProgressionTemplateIds,
+        enabledChordProgressionKeyIds,
+        enabledChordProgressionTemplateIds,
         enabledDirections,
         enabledIntervals,
         enabledNoteCategories,
@@ -127,8 +106,8 @@ export function useSequenceTarget({
     },
     [
       enabledArpeggios,
-      resolvedChordProgressionKeyIds,
-      resolvedChordProgressionTemplateIds,
+      enabledChordProgressionKeyIds,
+      enabledChordProgressionTemplateIds,
       enabledDirections,
       enabledIntervals,
       enabledNoteCategories,

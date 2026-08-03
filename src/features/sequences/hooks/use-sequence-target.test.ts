@@ -98,6 +98,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -143,6 +145,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -162,6 +166,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -179,6 +185,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -200,6 +208,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -222,6 +232,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -257,6 +269,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -315,6 +329,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -339,6 +355,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -360,6 +378,8 @@ describe("useSequenceTarget", () => {
     const { result } = renderHook(() =>
       useSequenceTarget({
         enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+        enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
         enabledDirections: ENABLED_DIRECTIONS,
         enabledIntervals: ENABLED_INTERVALS,
         enabledNoteCategories: ENABLED_NOTE_CATEGORIES,
@@ -425,6 +445,9 @@ describe("useSequenceTarget", () => {
       }) =>
         useSequenceTarget({
           enabledArpeggios: arpeggios,
+          enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
+          enabledChordProgressionTemplateIds:
+            ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
           enabledDirections: directions,
           enabledIntervals: intervals,
           enabledNoteCategories: noteCategories,
