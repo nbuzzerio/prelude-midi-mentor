@@ -7,6 +7,8 @@ import type {
   PracticeTriadQuality,
 } from "@/types/practice";
 
+import { createRootPositionTriad } from "../chords";
+
 type NoteLetter = "A" | "B" | "C" | "D" | "E" | "F" | "G";
 
 type RootSpelling = Readonly<{
@@ -21,18 +23,6 @@ type TriadMidiNumbers = readonly [
   middle: number,
   top: number,
 ];
-
-const NOTE_LETTERS: readonly NoteLetter[] = ["C", "D", "E", "F", "G", "A", "B"];
-
-const NATURAL_PITCH_CLASSES: Readonly<Record<NoteLetter, number>> = {
-  C: 0,
-  D: 2,
-  E: 4,
-  F: 5,
-  G: 7,
-  A: 9,
-  B: 11,
-};
 
 const ROOT_SPELLINGS_BY_PITCH_CLASS: Readonly<
   Record<number, readonly RootSpelling[]>
@@ -90,10 +80,6 @@ function getPitchClass(midiNumber: number): number {
   return ((midiNumber % 12) + 12) % 12;
 }
 
-function getMidiOctave(midiNumber: number): number {
-  return Math.floor(midiNumber / 12) - 1;
-}
-
 function getRandomItem<T>(items: readonly T[]): T {
   const item = items[Math.floor(Math.random() * items.length)];
 
@@ -102,57 +88,6 @@ function getRandomItem<T>(items: readonly T[]): T {
   }
 
   return item;
-}
-
-function getLetterIndex(letter: NoteLetter): number {
-  return NOTE_LETTERS.indexOf(letter);
-}
-
-function getNoteLetter(
-  rootLetter: NoteLetter,
-  diatonicOffset: number,
-): NoteLetter {
-  const rootIndex = getLetterIndex(rootLetter);
-  const letter =
-    NOTE_LETTERS[(rootIndex + diatonicOffset) % NOTE_LETTERS.length];
-
-  if (letter === undefined) {
-    throw new Error(`Unable to determine note letter from ${rootLetter}.`);
-  }
-
-  return letter;
-}
-
-function getWrittenOctave(
-  rootLetter: NoteLetter,
-  rootOctave: number,
-  diatonicOffset: number,
-): number {
-  const rootIndex = getLetterIndex(rootLetter);
-
-  return rootOctave + Math.floor((rootIndex + diatonicOffset) / 7);
-}
-
-function spellPitchClass(
-  letter: NoteLetter,
-  targetPitchClass: number,
-): string | null {
-  const naturalPitchClass = NATURAL_PITCH_CLASSES[letter];
-  const difference = (targetPitchClass - naturalPitchClass + 12) % 12;
-
-  if (difference === 0) {
-    return letter;
-  }
-
-  if (difference === 1) {
-    return `${letter}♯`;
-  }
-
-  if (difference === 11) {
-    return `${letter}♭`;
-  }
-
-  return null;
 }
 
 export function getTriadMidiNumbers(
@@ -182,37 +117,14 @@ function createRootPositionNotes(
   rootSpelling: RootSpelling,
   quality: PracticeTriadQuality,
 ): readonly PracticeNote[] | null {
-  const formula = TRIAD_FORMULAS[quality];
-  const rootOctave = getMidiOctave(rootMidiNumber);
-  const diatonicOffsets = [0, 2, 4] as const;
-
-  const notes: PracticeNote[] = [];
-
-  for (let index = 0; index < formula.length; index += 1) {
-    const semitoneOffset = formula[index];
-    const diatonicOffset = diatonicOffsets[index];
-
-    if (semitoneOffset === undefined || diatonicOffset === undefined) {
-      throw new Error("Invalid triad formula.");
-    }
-
-    const midiNumber = rootMidiNumber + semitoneOffset;
-    const letter = getNoteLetter(rootSpelling.letter, diatonicOffset);
-    const name = spellPitchClass(letter, getPitchClass(midiNumber));
-
-    // Avoid double sharps and double flats for v1.0.
-    if (name === null) {
-      return null;
-    }
-
-    notes.push({
-      midiNumber,
-      name,
-      octave: getWrittenOctave(rootSpelling.letter, rootOctave, diatonicOffset),
-    });
-  }
-
-  return notes;
+  return createRootPositionTriad(
+    {
+      midiNumber: rootMidiNumber,
+      name: rootSpelling.name,
+      octave: Math.floor(rootMidiNumber / 12) - 1,
+    },
+    quality,
+  );
 }
 
 function applyTriadPosition(

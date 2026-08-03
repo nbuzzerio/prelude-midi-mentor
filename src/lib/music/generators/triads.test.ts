@@ -345,6 +345,28 @@ describe("generateTriadTarget", () => {
     });
   });
 
+  it.each([
+    ["major", [36, 40, 43]],
+    ["minor", [36, 39, 43]],
+    ["diminished", [36, 39, 42]],
+    ["augmented", [36, 40, 44]],
+  ] as const)(
+    "preserves generated %s root-position chord tones",
+    (quality, expectedMidiNumbers) => {
+      vi.spyOn(Math, "random").mockReturnValue(0);
+
+      const target = generateTriadTarget(
+        "bass",
+        new Set([quality]),
+        new Set(["root"]),
+      );
+
+      expect(target.notes.map((generatedNote) => generatedNote.midiNumber)).toEqual(
+        expectedMidiNumbers,
+      );
+    },
+  );
+
   it.each(["bass", "treble"] as const)(
     "keeps every generated note inside the %s-clef range",
     (clef) => {
