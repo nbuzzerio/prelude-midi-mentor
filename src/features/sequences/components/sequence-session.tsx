@@ -10,7 +10,10 @@ import {
   useChordAttempt,
 } from "@/hooks/use-chord-attempt";
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
-import { playGrandPianoNote } from "@/lib/audio/grand-piano";
+import {
+  playGrandPianoChord,
+  playGrandPianoNote,
+} from "@/lib/audio/grand-piano";
 import {
   getCurrentSequenceStepMidiNumbers,
   getSequenceTargetMidiNumbers,
@@ -156,14 +159,11 @@ export default function SequenceSession({
   const [stats, setStats] = useState(INITIAL_SEQUENCE_STATS);
 
   const midiHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
+  const virtualHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
   const midiAttemptAllowedLingeringRef = useRef<ReadonlySet<number>>(new Set());
   const finalizeMidiChordAttemptRef = useRef<
     (midiNumbers: ReadonlySet<number>) => void
   >(() => {});
-  const finalizeVirtualChordAttemptRef = useRef<
-    (midiNumbers: ReadonlySet<number>) => void
-  >(() => {});
-
   const {
     addNoteToAttempt: addNoteToMidiChordAttempt,
     attemptNotes: midiChordAttemptNotes,
@@ -175,31 +175,30 @@ export default function SequenceSession({
     onComplete: (midiNumbers) =>
       finalizeMidiChordAttemptRef.current(midiNumbers),
   });
-  const {
-    addNoteToAttempt: addNoteToVirtualChordAttempt,
-    attemptNotes: virtualChordAttemptNotes,
-    clearAttempt: clearVirtualChordAttempt,
-    isAttemptActive: isVirtualChordAttemptActive,
-    startAttempt: startVirtualChordAttempt,
-  } = useChordAttempt({
-    gracePeriodMs: CHORD_ATTEMPT_GRACE_MS,
-    onComplete: (midiNumbers) =>
-      finalizeVirtualChordAttemptRef.current(midiNumbers),
-  });
+  const clearVirtualSelection = useCallback(() => {
+    virtualHeldNotesRef.current = new Set();
+    setVirtualHeldNotes(new Set());
+  }, []);
 
-  const clearChordAttempts = useCallback(() => {
+  const clearInputAttempts = useCallback(() => {
     clearMidiChordAttempt();
-    clearVirtualChordAttempt();
+    clearVirtualSelection();
     midiAttemptAllowedLingeringRef.current = new Set();
-  }, [clearMidiChordAttempt, clearVirtualChordAttempt]);
+  }, [clearMidiChordAttempt, clearVirtualSelection]);
+
+  useEffect(
+    () => () => {
+      virtualHeldNotesRef.current = new Set();
+    },
+    [],
+  );
 
   // Sequence target transitions
   const generateNextSequence = useCallback(
     (nextMode?: PracticeClefMode) => {
-      clearChordAttempts();
+      clearInputAttempts();
       resetAttempt();
 
-      setVirtualHeldNotes(new Set());
       setMidiHeldNotes(new Set());
       midiHeldNotesRef.current = new Set();
       setLastFailedAttemptNotes(new Set());
@@ -209,8 +208,13 @@ export default function SequenceSession({
 
       generateSequenceTarget(nextMode);
     },
-    [clearChordAttempts, generateSequenceTarget, resetAttempt],
+    [clearInputAttempts, generateSequenceTarget, resetAttempt],
   );
+
+  const prepareSequenceRetry = useCallback(() => {
+    clearVirtualSelection();
+    return retrySequence();
+  }, [clearVirtualSelection, retrySequence]);
 
   // Timed transitions between steps and complete sequences
   const {
@@ -222,7 +226,7 @@ export default function SequenceSession({
   } = useSequenceTransition({
     onAdvanceSequence: generateNextSequence,
     onAdvanceStep: beginNextStep,
-    onRetrySequence: retrySequence,
+    onRetrySequence: prepareSequenceRetry,
     onSuccessFeedback: playSuccessChirp,
   });
 
@@ -316,7 +320,7 @@ export default function SequenceSession({
         return;
       }
 
-      clearChordAttempts();
+      clearInputAttempts();
 
       setFeedback("correct");
       setLastFailedAttemptNotes(new Set());
@@ -353,7 +357,7 @@ export default function SequenceSession({
     },
     [
       completeCurrentStep,
-      clearChordAttempts,
+      clearInputAttempts,
       currentStepIndex,
       getCurrentTarget,
       handleCompletedSequence,
@@ -375,7 +379,7 @@ export default function SequenceSession({
       }
 
       clearTransition();
-      clearChordAttempts();
+      clearInputAttempts();
 
       setFeedback("incorrect");
       playIncorrectFeedback();
@@ -389,7 +393,6 @@ export default function SequenceSession({
 
       setStats((currentStats) => applyIncorrectSequenceAttempt(currentStats));
 
-      setVirtualHeldNotes(new Set());
       setAllowedLingeringMidiNumbers(new Set());
 
       startIncorrectStepTransition({
@@ -398,7 +401,7 @@ export default function SequenceSession({
     },
     [
       clearTransition,
-      clearChordAttempts,
+      clearInputAttempts,
       isSequenceTargetLocked,
       showIncorrectFeedback,
       startIncorrectStepTransition,
@@ -472,7 +475,7 @@ export default function SequenceSession({
         return;
       }
 
-      setVirtualHeldNotes(new Set());
+      clearVirtualSelection();
       setLastFailedAttemptNotes(new Set());
       setLastStepAnswer(null);
       setFeedback("idle");
@@ -481,8 +484,6 @@ export default function SequenceSession({
       const currentStep = target.steps[currentStepIndex];
 
       if ((currentStep?.notes.length ?? 0) > 1) {
-        clearVirtualChordAttempt();
-
         if (isMidiChordAttemptActive()) {
           addNoteToMidiChordAttempt(midiNumber);
         } else {
@@ -504,7 +505,7 @@ export default function SequenceSession({
       isSequenceTargetLocked,
       isWaitingForStep,
       addNoteToMidiChordAttempt,
-      clearVirtualChordAttempt,
+      clearVirtualSelection,
       isMidiChordAttemptActive,
       startMidiChordAttempt,
     ],
@@ -527,16 +528,6 @@ export default function SequenceSession({
   });
 
   // Virtual keyboard input
-  const finalizeVirtualChordAttempt = useCallback(
-    (completedAttempt: ReadonlySet<number>) => {
-      gradeCurrentStep(completedAttempt, "virtual");
-    },
-    [gradeCurrentStep],
-  );
-  useEffect(() => {
-    finalizeVirtualChordAttemptRef.current = finalizeVirtualChordAttempt;
-  }, [finalizeVirtualChordAttempt]);
-
   const handleVirtualNoteToggle = useCallback(
     (midiNumber: number) => {
       if (isSequenceTargetLocked() || !isWaitingForStep()) {
@@ -552,22 +543,32 @@ export default function SequenceSession({
 
       if ((currentStep?.notes.length ?? 0) > 1) {
         clearMidiChordAttempt();
+        const nextSelection = new Set(virtualHeldNotesRef.current);
 
-        if (!virtualChordAttemptNotes.has(midiNumber)) {
-          playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
-        }
-
-        if (isVirtualChordAttemptActive()) {
-          addNoteToVirtualChordAttempt(midiNumber);
+        if (nextSelection.has(midiNumber)) {
+          nextSelection.delete(midiNumber);
         } else {
-          setVirtualHeldNotes(new Set());
-          startVirtualChordAttempt(midiNumber);
+          nextSelection.add(midiNumber);
         }
+
+        virtualHeldNotesRef.current = nextSelection;
+
+        if (nextSelection.size < currentStep.notes.length) {
+          setVirtualHeldNotes(nextSelection);
+          return;
+        }
+
+        const completedSelection = new Set(nextSelection);
+
+        clearVirtualSelection();
+        playGrandPianoChord(completedSelection, PIANO_NOTE_DURATION_MS);
+        gradeCurrentStep(completedSelection, "virtual");
 
         return;
       }
 
       playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
+      virtualHeldNotesRef.current = new Set([midiNumber]);
       setVirtualHeldNotes(new Set([midiNumber]));
 
       gradeCurrentStep(new Set([midiNumber]), "virtual");
@@ -578,11 +579,8 @@ export default function SequenceSession({
       gradeCurrentStep,
       isSequenceTargetLocked,
       isWaitingForStep,
-      addNoteToVirtualChordAttempt,
       clearMidiChordAttempt,
-      isVirtualChordAttemptActive,
-      startVirtualChordAttempt,
-      virtualChordAttemptNotes,
+      clearVirtualSelection,
     ],
   );
 
@@ -623,10 +621,17 @@ export default function SequenceSession({
     generateNextSequence();
   };
 
+  const handleToggleFocusMode = () => {
+    if (!isFocusMode) {
+      clearVirtualSelection();
+    }
+
+    onToggleFocusMode();
+  };
+
   // Derived display state
   const activeMidiNumbers = new Set([
     ...virtualHeldNotes,
-    ...virtualChordAttemptNotes,
     ...midiChordAttemptNotes,
     ...midiHeldNotes,
   ]);
@@ -682,7 +687,7 @@ export default function SequenceSession({
           isFocusMode={isFocusMode}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
-          onToggleFocusMode={onToggleFocusMode}
+          onToggleFocusMode={handleToggleFocusMode}
           sequenceTarget={sequenceTarget}
           showTargetName={showTargetName}
         />

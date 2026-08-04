@@ -22,7 +22,10 @@ const mocks = vi.hoisted(() => ({
   startSequenceCompletionTransition: vi.fn(),
   startStepTransition: vi.fn(),
   targetOptions: vi.fn(),
+  transitionOptions: vi.fn(),
   updateMidiHeldNotes: vi.fn(),
+  playGrandPianoChord: vi.fn(),
+  playGrandPianoNote: vi.fn(),
 }));
 
 const SEQUENCE_TARGET = {
@@ -64,6 +67,21 @@ const PROGRESSION_TARGET = {
   ],
 } as const;
 
+const FOUR_NOTE_TARGET = {
+  ...PROGRESSION_TARGET,
+  steps: [
+    {
+      name: { primary: "I7", secondary: "C major seventh" },
+      notes: [
+        { midiNumber: 60, name: "C", octave: 4 },
+        { midiNumber: 64, name: "E", octave: 4 },
+        { midiNumber: 67, name: "G", octave: 4 },
+        { midiNumber: 71, name: "B", octave: 4 },
+      ],
+    },
+  ],
+} as const;
+
 vi.mock("../hooks/use-sequence-target", () => ({
   useSequenceTarget: (options: unknown) => {
     mocks.targetOptions(options);
@@ -99,13 +117,17 @@ vi.mock("../hooks/use-sequence-attempt", () => ({
 }));
 
 vi.mock("../hooks/use-sequence-transition", () => ({
-  useSequenceTransition: () => ({
+  useSequenceTransition: (options: unknown) => {
+    mocks.transitionOptions(options);
+
+    return {
     clearTransition: mocks.clearTransition,
     startIncorrectStepTransition: mocks.startIncorrectStepTransition,
     startSequenceCompletionTransition: mocks.startSequenceCompletionTransition,
     startStepTransition: mocks.startStepTransition,
     updateMidiHeldNotes: mocks.updateMidiHeldNotes,
-  }),
+    };
+  },
 }));
 
 vi.mock("@/hooks/use-midi", () => ({
@@ -134,7 +156,8 @@ vi.mock("@/components/midi/midi-status", () => ({
 }));
 
 vi.mock("@/lib/audio/grand-piano", () => ({
-  playGrandPianoNote: vi.fn(),
+  playGrandPianoChord: mocks.playGrandPianoChord,
+  playGrandPianoNote: mocks.playGrandPianoNote,
 }));
 
 vi.mock("@/components/notation/piano-keyboard", () => ({
@@ -147,8 +170,10 @@ vi.mock("@/components/notation/piano-keyboard", () => ({
   }) => (
     <div>
       Piano keyboard
-      <span>Active: {[...activeMidiNumbers].join(",")}</span>
-      {[60, 61, 64, 67].map((midiNumber) => (
+      <span data-testid="active-notes">
+        Active: {[...activeMidiNumbers].join(",")}
+      </span>
+      {[60, 61, 64, 65, 67, 69, 71].map((midiNumber) => (
         <button
           key={midiNumber}
           onClick={() => onNoteToggle(midiNumber)}
@@ -469,45 +494,154 @@ describe("SequenceSession settings regeneration", () => {
     vi.useRealTimers();
   });
 
-  it("collects rapid virtual chord clicks and displays attempt notes", () => {
+  it("keeps virtual selections beyond 225 milliseconds and toggles them", () => {
     vi.useFakeTimers();
-    mocks.showCorrectFeedback.mockReturnValue(true);
-    mocks.completeCurrentStep.mockReturnValue({ sequenceComplete: false });
     renderSequenceSession();
     fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
     fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
-    fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
 
-    expect(screen.getByText("Active: 67,60,64")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(screen.getByText("Active: 67,60")).toBeTruthy();
     expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(225));
-    expect(mocks.showCorrectFeedback).toHaveBeenCalledTimes(1);
+    expect(mocks.showIncorrectFeedback).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
+    expect(screen.getByText("Active: 60")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
+    expect(screen.getByText("Active: 60,67")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /clear selection/i })).toBeNull();
     cleanup();
     vi.useRealTimers();
+  });
+
+  it("snapshots, plays, and grades a completed virtual chord exactly once", () => {
+    mocks.showCorrectFeedback.mockReturnValue(true);
+    mocks.completeCurrentStep.mockReturnValue({ sequenceComplete: false });
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+
+    for (const midiNumber of [67, 60, 64]) {
+      fireEvent.click(screen.getByRole("button", { name: `Virtual ${midiNumber}` }));
+    }
+
+    expect(mocks.playGrandPianoChord).toHaveBeenCalledTimes(1);
+    const completedSnapshot = mocks.playGrandPianoChord.mock.calls[0]?.[0];
+    expect(completedSnapshot).toEqual(new Set([67, 60, 64]));
+    expect(mocks.playGrandPianoChord).toHaveBeenCalledWith(completedSnapshot, 850);
+    expect(mocks.showCorrectFeedback).toHaveBeenCalledTimes(1);
+    expect(mocks.completeCurrentStep).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
+  });
+
+  it("grades one wrong virtual chord and clears its selection", () => {
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+
+    for (const midiNumber of [60, 64, 61]) {
+      fireEvent.click(screen.getByRole("button", { name: `Virtual ${midiNumber}` }));
+    }
+
+    expect(mocks.showIncorrectFeedback).toHaveBeenCalledTimes(1);
+    expect(mocks.playGrandPianoChord).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Stats: 0 completed, 1 incorrect")).toBeTruthy();
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
+  });
+
+  it("uses the current step size for four-note virtual chords", () => {
+    mocks.getCurrentTarget.mockReturnValue(FOUR_NOTE_TARGET);
+    mocks.showCorrectFeedback.mockReturnValue(true);
+    mocks.completeCurrentStep.mockReturnValue({ sequenceComplete: false });
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+
+    for (const midiNumber of [60, 64, 67]) {
+      fireEvent.click(screen.getByRole("button", { name: `Virtual ${midiNumber}` }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
+
+    expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
+    expect(screen.getByText("Active: 60,64,67")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 71" }));
+    expect(mocks.showCorrectFeedback).toHaveBeenCalledTimes(1);
+    expect(mocks.playGrandPianoChord).toHaveBeenCalledWith(
+      new Set([60, 64, 67, 71]),
+      850,
+    );
   });
 
   it.each([
     ["Reset session"],
     ["Add progression key"],
+    ["Add progression template"],
+    ["Use bass"],
     ["Use scales"],
-  ])("cancels a pending chord attempt when %s changes lifecycle state", (buttonName) => {
-    vi.useFakeTimers();
+  ])("clears a pending virtual selection when %s changes lifecycle state", (buttonName) => {
     renderSequenceSession();
     fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
-
-    const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
-      onNotePlayed: (midiNumber: number) => void;
-    };
-    midiOptions.onNotePlayed(60);
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
     fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
+    expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
+    expect(mocks.showIncorrectFeedback).not.toHaveBeenCalled();
+  });
+
+  it("clears virtual selection for retry preparation", () => {
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+
+    const transitionOptions = mocks.transitionOptions.mock.calls.at(-1)?.[0] as {
+      onRetrySequence: () => boolean;
+    };
+    act(() => transitionOptions.onRetrySequence());
+
+    expect(mocks.retrySequence).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
+  });
+
+  it("does not carry an old target selection into a regenerated target", () => {
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
+
+    expect(screen.getByText("Active: 67")).toBeTruthy();
+    expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
+    expect(mocks.showIncorrectFeedback).not.toHaveBeenCalled();
+  });
+
+  it("cannot grade a pending virtual selection after unmount", () => {
+    vi.useFakeTimers();
+    const view = renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
+
+    view.unmount();
     act(() => vi.runAllTimers());
 
     expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
     expect(mocks.showIncorrectFeedback).not.toHaveBeenCalled();
-    cleanup();
     vi.useRealTimers();
+  });
+
+  it("clears virtual selection on Focus Staff entry and exits empty", () => {
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+    fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
+    fireEvent.click(screen.getByRole("button", { name: "Exit Focus Staff" }));
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
+    expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Stats: 0 completed, 0 incorrect")).toBeTruthy();
   });
 
   it("never combines MIDI and virtual chord attempts", () => {
@@ -515,12 +649,14 @@ describe("SequenceSession settings regeneration", () => {
     renderSequenceSession();
     fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
 
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
+
     const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
       onNotePlayed: (midiNumber: number) => void;
     };
-    midiOptions.onNotePlayed(60);
-    fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
-    fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
+    act(() => midiOptions.onNotePlayed(67));
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: 67");
     act(() => vi.advanceTimersByTime(225));
 
     expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
@@ -542,14 +678,26 @@ describe("SequenceSession settings regeneration", () => {
         screen.getByRole("button", { name: `Virtual ${midiNumber}` }),
       );
     }
-    act(() => vi.advanceTimersByTime(225));
-
     expect(mocks.completeCurrentStep).toHaveBeenCalledTimes(1);
     expect(mocks.lockSequenceTarget).toHaveBeenCalledTimes(1);
     expect(mocks.startSequenceCompletionTransition).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Stats: 1 completed, 0 incorrect")).toBeTruthy();
+    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
     cleanup();
     vi.useRealTimers();
+  });
+
+  it("keeps single-note virtual input immediate", () => {
+    mocks.showCorrectFeedback.mockReturnValue(true);
+    mocks.completeCurrentStep.mockReturnValue({ sequenceComplete: false });
+    renderSequenceSession();
+
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+
+    expect(mocks.playGrandPianoNote).toHaveBeenCalledWith(60, 850);
+    expect(mocks.playGrandPianoChord).not.toHaveBeenCalled();
+    expect(mocks.showCorrectFeedback).toHaveBeenCalledTimes(1);
+    expect(mocks.completeCurrentStep).toHaveBeenCalledTimes(1);
   });
 
   it("continues grading MIDI note-on input for existing exercises", () => {
