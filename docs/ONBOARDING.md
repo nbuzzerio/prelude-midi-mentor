@@ -67,7 +67,7 @@ The current milestone completes Prelude's foundational practice platform before 
 Users should be able to:
 
 1. Practice isolated notes and triads with Flashcards.
-2. Practice ordered intervals, scales, and arpeggios with Sequences.
+2. Practice ordered intervals, scales, arpeggios, and chord progressions with Sequences.
 3. Use Free Play for live grand-staff notation without grading.
 4. Play using either a MIDI keyboard or the on-screen keyboard.
 5. Receive immediate feedback in graded modes.
@@ -108,6 +108,9 @@ Completed features include:
 - Major and minor pentatonic scales
 - Major, minor, diminished, augmented, dominant seventh, major seventh, and minor seventh arpeggios
 - Theory-aware spelling for intervals, scales, and arpeggios
+- Curated Roman-numeral chord progressions in supported major and minor keys
+- Theory-aware root-position triads with progression and current-chord labels
+- Progression-specific clef ranges and compatible key/template settings
 - Free Play mode with live grand-staff notation
 
 ## Input
@@ -117,6 +120,8 @@ Completed features include:
 - Simultaneous MIDI note tracking
 - Timed chord collection
 - Rolled chord support
+- Physical MIDI block and rolled-chord progression input
+- Persistent virtual progression-chord selection with toggle removal and chord playback
 - Exact chord validation
 - MIDI diagnostics
 - Chromebook compatibility
@@ -163,7 +168,7 @@ Completed features include:
 
 Prelude's v2.0 practice foundation is feature-complete.
 
-Current work is focused on final documentation, automated verification, manual QA, and the v2.0.0 release. After the release, future work should proceed according to [`ROADMAP.md`](./ROADMAP.md).
+Current work is focused on final documentation, automated verification, focused manual QA, and the v2.0.0 release. After the release, future work should proceed according to [`ROADMAP.md`](./ROADMAP.md).
 
 Likely next areas include:
 
@@ -171,7 +176,7 @@ Likely next areas include:
 - richer session analytics
 - improved touch interaction
 - combined ascending and descending sequence practice
-- future chord-progression, ear-training, rhythm, and guided-lesson systems
+- ear-training, rhythm, and guided-lesson systems
 
 ---
 
@@ -179,7 +184,7 @@ Likely next areas include:
 
 Prelude is intentionally designed so today's isolated practice engine can evolve naturally into tomorrow's guided lesson system without requiring major architectural rewrites.
 
-Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, and arpeggios. Free Play bypasses target generation and renders held notes directly.
+Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, arpeggios, and chord progressions. Progressions store one chord per `SequenceStep` with optional Roman-numeral and concrete chord metadata. Free Play bypasses target generation and renders held notes directly without chord analysis.
 
 A `PracticeTarget` can represent one or more notes, allowing the same validation and rendering systems to support:
 

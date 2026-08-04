@@ -22,6 +22,8 @@ The current application provides Flashcards, Sequences, and Free Play supporting
 - Ascending and descending melodic interval sequences
 - Major, minor, harmonic minor, melodic minor, and pentatonic scales
 - Major, minor, diminished, augmented, and seventh arpeggios
+- Curated major- and minor-key chord progressions using root-position triads
+- Roman-numeral progression and concrete current-chord metadata
 - Theory-aware note spelling for ordered musical material
 - Ordered step validation
 - Sequence completion statistics
@@ -148,7 +150,9 @@ The sequence feature owns:
 
 - sequence settings
 - ordered target lifecycle
-- interval, scale, and arpeggio configuration
+- interval, scale, arpeggio, and chord-progression configuration
+- progression key/template compatibility and regeneration
+- physical and virtual progression-input lifecycles
 - sequence attempt state
 - delayed step and completion transitions
 - sequence timing constants
@@ -163,7 +167,7 @@ Current hooks include:
 
 - `useFlashcardSettings`
 - `useFlashcardTarget`
-- `useMidiChordAttempt`
+- `useChordAttempt`
 - `useCorrectAnswerSequence`
 - `useSequenceSettings`
 - `useSequenceTarget`
@@ -174,7 +178,7 @@ Current hooks include:
 
 Reusable hooks shared outside a single feature.
 
-Currently this contains browser-level MIDI integration (`useMidi`).
+This contains browser-level MIDI integration (`useMidi`) and generic cross-feature chord-attempt collection (`useChordAttempt`).
 
 ## lib/
 
@@ -227,7 +231,7 @@ Most implementation details live in hooks and reusable utilities rather than ins
 
 ## Sequence Session
 
-`SequenceSession` coordinates ordered interval, scale, and arpeggio practice while delegating configuration, attempt state, target lifecycle, and timed transitions to focused hooks.
+`SequenceSession` coordinates ordered interval, scale, arpeggio, and chord-progression practice while delegating configuration, attempt state, target lifecycle, and timed transitions to focused hooks.
 
 ## Free Play Session
 
@@ -260,11 +264,11 @@ Responsibilities include:
 - locking answers
 - advancing after success
 
-## useMidiChordAttempt
+## useChordAttempt
 
 Collects nearby MIDI note events into a single attempt.
 
-This hook does not determine correctness.
+The generic collector in `src/hooks/use-chord-attempt.ts` uses a 225 millisecond window and is shared by Flashcards and Sequences for physical MIDI chord input. It does not determine correctness; validation remains owned by each feature.
 
 Its only responsibility is deciding which notes belong to one performed attempt.
 
@@ -274,7 +278,7 @@ Coordinates the delayed actions that occur after a correct answer, such as timin
 
 ## useSequenceSettings
 
-Owns Sequence Mode configuration, including enabled directions, intervals, note categories, clef mode, and display preferences.
+Owns Sequence Mode configuration, including enabled directions, intervals, note categories, progression keys and templates, clef mode, and display preferences. Progression toggles preserve at least one compatible key/template pairing.
 
 ## useSequenceTarget
 
@@ -325,6 +329,36 @@ Generic flashcard notes may use either enharmonic accidental spelling. Ordered t
 
 Free Play uses a dedicated grand-staff renderer that splits held notes between bass and treble while preserving a blank staff when no notes are held.
 
+## Chord Progression Pipeline
+
+### Shared chord construction
+
+`src/lib/music/chords.ts` provides pure, deterministic construction of root-position major, minor, diminished, and augmented triads. Chord tones follow the required diatonic root-third-fifth letters rather than pitch-class-only enharmonic choices. Construction returns no candidate when correct spelling would require a double accidental, which remains an explicit unsupported boundary.
+
+### Progression domain
+
+`src/lib/music/chord-progressions.ts` owns the curated progression library. Supported major keys are C, G, D, F, B♭, and E♭; supported minor keys are A, E, B, D, G, and C. Each template records its mode and an ordered set of structured scale degrees, triad qualities, and Roman numerals. Realization deterministically derives correctly spelled concrete chords from the selected key and tonic octave. Minor roots use the natural-minor collection, while templates explicitly specify major V and diminished ii° harmony where required.
+
+### Sequence target generation
+
+`src/lib/music/generators/sequences.ts` converts a realized progression into a `SequenceTarget` with one chord per `SequenceStep`. Optional step metadata carries the Roman numeral and concrete chord name. Generation pairs only compatible key and template modes, enumerates every valid key/template/clef/tonic candidate before uniformly selecting one valid realization, and uses progression-specific clef ranges with slightly wider upper bounds than other Sequence exercises.
+
+### Sequence orchestration
+
+Sequence settings own enabled progression keys and templates. Invalid toggle operations are rejected instead of silently changing another setting group. A valid settings change regenerates the active target and resets its attempt lifecycle while preserving session statistics. `SequenceSession` coordinates step grading, feedback, retry, completion, and cleanup without moving progression theory into React.
+
+### Physical and virtual chord input
+
+Physical MIDI progression chords use the shared `useChordAttempt` collector and its 225 millisecond grouping window, supporting block and rolled input. Flashcard and Sequence validation remain separate even though collection is shared.
+
+Virtual progression input deliberately does not use that timer. `SequenceSession` owns a persistent set of selected MIDI pitches: selecting a key adds it, selecting it again removes it, and grading occurs when the unique selected-note count reaches the active step's note count. The completed set is played once as a chord before grading. Selection is cleared across grading, retry, regeneration, settings and exercise changes, reset, completion, Focus Staff entry, MIDI input, and unmount.
+
+### Practice-domain separation
+
+- Flashcards remain isolated graded targets, including their existing virtual and MIDI chord behavior.
+- Sequences remain ordered graded events, with Chord Progressions represented as ordered chord steps.
+- Free Play remains ungraded and unchanged; chord analysis or chord naming was not added to it.
+
 ---
 
 # Input Flow
@@ -346,7 +380,7 @@ MIDI Keyboard / Virtual Piano
  Next Target
 ```
 
-Physical MIDI and the virtual piano share validation rules in graded modes. Free Play reuses the same input systems but intentionally bypasses validation.
+Physical MIDI and the virtual piano reach the same feature-owned validation rules in graded modes, but their multi-note collection policies can differ. Free Play reuses the same input systems but intentionally bypasses validation.
 
 ---
 
@@ -379,7 +413,7 @@ Coordinates the overall flashcard practice session.
 
 ## SequenceSession
 
-Coordinates ordered interval, scale, and arpeggio practice.
+Coordinates ordered interval, scale, arpeggio, and chord-progression practice.
 
 ## FreeplaySession
 
@@ -393,9 +427,9 @@ Owns configuration state.
 
 Owns target lifecycle.
 
-## useMidiChordAttempt
+## useChordAttempt
 
-Owns the current MIDI attempt.
+Owns generic timed physical-MIDI chord collection; each graded feature owns validation.
 
 ## useCorrectAnswerSequence
 

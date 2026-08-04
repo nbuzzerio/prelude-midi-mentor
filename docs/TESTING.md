@@ -73,7 +73,7 @@ Tests should be grouped by public behavior and use musical terminology in their 
 - [x] Block 4 — Stateful Hooks
   - [x] `useFlashcardSettings`
   - [x] `useFlashcardTarget`
-  - [x] `useMidiChordAttempt`
+  - [x] `useChordAttempt`
   - [x] `useCorrectAnswerSequence`
   - [x] `useMidi`
 
@@ -103,8 +103,9 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- The complete suite passes locally before the v2.0 release.
-- Final test and file counts should be recorded from the release-candidate `pnpm verify` output.
+- Test files: 27 passed
+- Tests: 367 passed
+- The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
 
@@ -175,7 +176,7 @@ Add hook tests only after the pure suite is stable.
 
 Candidate hooks:
 
-- `useMidiChordAttempt`
+- `useChordAttempt`
   - collects nearby notes
   - completes after the grace period
   - clears and cancels correctly
@@ -250,7 +251,27 @@ Test:
 
 Manually verify Free Play because VexFlow layout, live MIDI interaction, and responsive grand-staff scaling are better assessed in the browser than through brittle SVG assertions.
 
-The manually discovered stale-setting bug also highlights a future integration-test need: changing an exercise type should regenerate a target using the newly selected setting rather than the previous render's state.
+The stale-setting regression is covered: changing an exercise type regenerates a target from the newly selected settings rather than the previous render's state.
+
+### Block 8 — Chord Progressions
+
+Automated progression coverage includes:
+
+- deterministic root-position chord construction
+- major, minor, diminished, and augmented chord spelling
+- curated progression templates and supported-key realization
+- natural-minor roots with explicit major-dominant and diminished-supertonic handling
+- exhaustive compatible key/template/clef candidate coverage
+- progression-specific range isolation from other Sequence exercises
+- protected settings compatibility and target regeneration
+- Roman-numeral and concrete per-step chord metadata
+- shared chord-attempt timing, cancellation, and unmount cleanup
+- physical MIDI rolled and block chord input
+- persistent virtual chord selection and toggle removal
+- grading and playback at the active step's note count, including variable-size chord compatibility
+- statistics, retry, reset, regeneration, Focus Staff, completion, and stale-target cleanup
+- Flashcard virtual/MIDI regression protection
+- immediate single-note Sequence input for both virtual and MIDI sources
 
 ## Intentionally Not Tested for v2.0
 
@@ -277,15 +298,20 @@ Before the v2.0.0 release, run:
 pnpm verify
 ```
 
-Also manually verify:
+Use focused manual QA where browser, hardware, audio, or responsive presentation behavior cannot be represented fully in jsdom. Useful areas include:
 
-- physical MIDI connection and note input
+- physical MIDI connection and note input on real hardware
+- block chords and rolls near the 225 millisecond boundary
+- sustain-pedal behavior and shared held tones between Sequence steps
 - virtual piano note and chord input
-- rolled-chord timing
+- Chromebook mouse and touch behavior for persistent chord selection
+- browser audio restrictions and completed-chord playback
 - correct and incorrect feedback
 - piano and feedback volume controls
 - clef, note, triad-quality, and inversion settings
 - responsive layouts
+- ledger-line readability for progression chords
+- Focus Staff entry and exit on real devices
 - Free Play grand-staff behavior
 - low and high notes placed on the expected staff
 - stable blank grand staff when no notes are held
@@ -293,6 +319,8 @@ Also manually verify:
 - installed PWA behavior
 - offline application shell
 - production deployment
+
+This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issues found during normal use may be recorded through the project's bug-log workflow.
 
 ## Future Opportunities
 
@@ -308,7 +336,7 @@ After v2.0, consider:
 
 ## Release Verification Baseline
 
-Prelude releases are considered ready only after successfully completing the full automated and manual verification process.
+Prelude's automated release baseline is the complete `pnpm verify` workflow. Focused manual QA supplements it where hardware and browser behavior warrants direct observation.
 
 ### Automated Verification
 
@@ -320,7 +348,7 @@ pnpm lint
 pnpm build
 ```
 
-Record the final test-file and test counts from the v2.0 release-candidate `pnpm verify` output.
+The current release-candidate counts are recorded in **Current Result** above; historical counts remain in their original records.
 
 ### Manual Verification
 

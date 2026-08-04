@@ -621,6 +621,94 @@ Establishing a well-documented, well-tested foundation reduces future maintenanc
 
 ---
 
+# 2026-08 — Chord Progressions Belong to Sequence Mode
+
+## Decision
+
+Chord Progressions are an exercise inside Sequence mode, not a new top-level mode. Flashcards remain isolated graded targets, Sequences remain ordered graded events, and Free Play remains ungraded without chord analysis.
+
+## Reason
+
+A progression is inherently an ordered series of graded chord events and already fits `SequenceTarget` and `SequenceStep` semantics.
+
+## Consequences
+
+- Progression settings, target lifecycle, statistics, and retries are owned by the Sequence feature.
+- Chord Progressions do not merge the independent Flashcard, Sequence, or Free Play state machines.
+
+---
+
+# 2026-08 — Progressions Use Structured Curated Harmony
+
+## Decision
+
+Progressions come from a curated library rather than random chord ordering. Templates store explicit scale degree, triad quality, and Roman numeral data. Minor progressions derive roots from natural minor and explicitly specify major V and diminished ii° where the template requires them.
+
+## Reason
+
+Structured templates preserve recognizable harmonic function, deterministic realization, correct labels, and testable minor-key behavior.
+
+## Consequences
+
+- The initial supported keys are intentionally limited to C, G, D, F, B♭, and E♭ major and A, E, B, D, G, and C minor.
+- MVP progression chords are root-position triads only; inversions and seventh chords are not implied.
+- Correct diatonic spelling is required, and candidates requiring unsupported double accidentals are excluded.
+
+---
+
+# 2026-08 — Progressions Use Dedicated Candidate Ranges
+
+## Decision
+
+Chord Progressions use progression-specific clef ranges with slightly wider upper bounds than other Sequence exercises.
+
+## Reason
+
+The generator must fit every tone of every root-position triad while offering useful voicings in both clefs.
+
+## Consequences
+
+- Progression range changes remain isolated from interval, scale, and arpeggio generation.
+- Generation enumerates all compatible key, template, clef, and tonic candidates before random selection.
+
+---
+
+# 2026-08 — Physical and Virtual Chord Collection Use Different Interaction Policies
+
+## Decision
+
+Physical MIDI uses the generic shared chord collector with a 225 millisecond note-grouping window. Virtual Sequence chord input uses persistent feature-owned selection with toggle-to-deselect behavior and no timer. The completed virtual set is played as a chord and graded when its unique-note count reaches the current step size.
+
+## Reason
+
+The short window supports human block and rolled MIDI performance but is not usable for sequential mouse, keyboard, or touch selection.
+
+## Consequences
+
+- `useChordAttempt` is shared by Flashcards and Sequences, while correctness validation remains feature-owned.
+- Physical and virtual attempts never combine.
+- Single-note Sequence input remains immediate.
+- Pending virtual selection is cleared at every target and attempt lifecycle boundary, including Focus Staff entry.
+
+---
+
+# 2026-08 — Progression Settings Preserve Explicit Compatibility
+
+## Decision
+
+Key and template toggles reject changes that would leave no compatible key/template combination instead of silently enabling, disabling, or replacing unrelated selections.
+
+## Reason
+
+Settings should reflect direct user choices and always leave target generation with at least one valid candidate.
+
+## Consequences
+
+- Major templates pair only with major keys and minor templates only with minor keys.
+- Accepted generation-setting changes regenerate the target while preserving session statistics.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:

@@ -56,7 +56,7 @@
 
 # ✅ Phase 2 — v1.0 Stabilization (Completed)
 
-Current focus is stabilizing the existing flashcard engine through documentation, testing, and release preparation before expanding into additional practice modes.
+This phase stabilized the flashcard engine through documentation, testing, and release preparation before later practice modes were added.
 
 ## Notation
 
@@ -123,6 +123,17 @@ Complete Prelude's foundational practice platform with expanded sequence exercis
 - [x] Dominant seventh, major seventh, and minor seventh arpeggios
 - [x] Theory-aware interval, scale, and arpeggio spelling
 
+## Chord Progressions
+
+- [x] Chord Progressions inside Sequence Mode
+- [x] Curated major and minor Roman-numeral templates
+- [x] Supported major and minor key selection
+- [x] Deterministic theory-aware root-position triads
+- [x] Progression and current-chord metadata
+- [x] Physical MIDI block and rolled-chord input
+- [x] Persistent virtual-keyboard chord selection and playback
+- [x] Focus Staff and settings-driven target regeneration
+
 ## Free Play
 
 - [x] Dedicated Free Play mode
@@ -130,6 +141,10 @@ Complete Prelude's foundational practice platform with expanded sequence exercis
 - [x] Persistent grand staff
 - [x] Automatic treble- and bass-staff placement
 - [x] Neutral held-key highlighting
+
+## Current Direction
+
+Chord Progressions are complete as part of the foundational Sequence practice platform. Ear Training is the next major capability. Remaining unchecked Harmony, Musicianship, Lesson, Builder, Playback, and Composer items continue to describe future possibilities rather than a strict delivery order.
 
 ---
 

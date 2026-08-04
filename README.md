@@ -34,8 +34,13 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Major and minor pentatonic scales
 - Major, minor, diminished, and augmented arpeggios
 - Dominant seventh, major seventh, and minor seventh arpeggios
+- Curated Roman-numeral chord progressions in supported major and minor keys
+- Root-position chord progressions with progression and current-chord labels
+- Physical MIDI block and rolled-chord entry
+- Persistent virtual-keyboard chord selection with toggle-to-deselect input
+- Focus Staff support across all practice modes
 - Step-by-step sequence validation
-- Musically correct note spelling for intervals, scales, and arpeggios
+- Musically correct note spelling for intervals, scales, arpeggios, and chord progressions
 
 ### Free Play
 
@@ -108,7 +113,7 @@ Flashcards
     └── Identify isolated notes and triads
 
 Sequences
-    └── Play ordered intervals, scales, and arpeggios
+    └── Play ordered intervals, scales, arpeggios, and chord progressions
 
 Free Play
     └── View live notation while practicing without grading
@@ -208,7 +213,8 @@ Prelude uses **Vitest** and **React Testing Library** for automated testing.
 Prelude's automated suite covers:
 
 - music-theory utilities and notation-aware spelling
-- flashcard, interval, scale, arpeggio, and triad generation
+- flashcard, interval, scale, arpeggio, triad, and chord-progression generation
+- deterministic chord construction and curated progression realization
 - answer and sequence validation
 - flashcard and sequence statistics
 - stateful practice hooks
@@ -302,7 +308,7 @@ Prelude's v2.0 practice foundation is feature-complete.
 The application now supports three complementary practice modes:
 
 - Flashcards for isolated notes and triads
-- Sequences for intervals, scales, and arpeggios
+- Sequences for intervals, scales, arpeggios, and chord progressions
 - Free Play for live grand-staff notation without grading
 
 Current development is focused on automated testing, documentation, final manual verification, and the v2.0.0 release.
@@ -376,7 +382,7 @@ Prelude uses separate practice models for isolated and ordered exercises.
 
 `PracticeTarget` represents isolated musical concepts such as individual notes and triads.
 
-`SequenceTarget` represents ordered musical material such as intervals, scales, and arpeggios.
+`SequenceTarget` represents ordered musical material such as intervals, scales, arpeggios, and chord progressions.
 
 Free Play bypasses target generation and renders currently held notes directly on a grand staff.
 

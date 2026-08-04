@@ -1,5 +1,7 @@
 # Prelude: MIDI Mentor
 
+> **Historical note:** This file preserves the original development scaffold and is not a description of the current application. For current setup, features, architecture, and verification guidance, use [`README.md`](./README.md), [`docs/ONBOARDING.md`](./docs/ONBOARDING.md), and [`docs/TESTING.md`](./docs/TESTING.md).
+
 An open-source MIDI-powered piano sight-reading trainer built with Next.js and TypeScript.
 
 ## Vision
