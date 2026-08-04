@@ -1,5 +1,3 @@
-export const CHORD_ATTEMPT_GRACE_MS = 225;
-
 export const PIANO_NOTE_DURATION_MS = 850;
 
 export const SUCCESS_CHIRP_DELAY_MS = 900;

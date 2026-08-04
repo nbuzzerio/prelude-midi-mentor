@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FlashcardSession from "./flashcard-session";
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   applyIncorrectAttempt: vi.fn(),
   clearCorrectAnswerSequence: vi.fn(),
   clearMidiAttempt: vi.fn(),
+  chordAttemptOptions: vi.fn(),
   connectMidi: vi.fn(),
   generateTarget: vi.fn(),
   getCurrentTarget: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   isFlashcardTargetLocked: vi.fn(),
   isMidiAttemptActive: vi.fn(),
   lockFlashcardTarget: vi.fn(),
+  midiOptions: vi.fn(),
   notesMatchTarget: vi.fn(),
   playGrandPianoChord: vi.fn(),
   playGrandPianoNote: vi.fn(),
@@ -51,6 +53,16 @@ const PRACTICE_TARGET = {
   ],
 } as const;
 
+const TRIAD_TARGET = {
+  clef: "treble",
+  name: { primary: "C Major", secondary: "Root position" },
+  notes: [
+    { midiNumber: 60, name: "C", octave: 4 },
+    { midiNumber: 64, name: "E", octave: 4 },
+    { midiNumber: 67, name: "G", octave: 4 },
+  ],
+} as const;
+
 vi.mock("@/features/flashcards/hooks/use-flashcard-target", () => ({
   useFlashcardTarget: (options: unknown) => {
     mocks.targetOptions(options);
@@ -74,23 +86,32 @@ vi.mock("@/features/flashcards/hooks/use-correct-answer-sequence", () => ({
   }),
 }));
 
-vi.mock("@/features/flashcards/hooks/use-midi-chord-attempt", () => ({
-  useMidiChordAttempt: () => ({
+vi.mock("@/hooks/use-chord-attempt", () => ({
+  CHORD_ATTEMPT_GRACE_MS: 225,
+  useChordAttempt: (options: unknown) => {
+    mocks.chordAttemptOptions(options);
+
+    return {
     addNoteToAttempt: mocks.addNoteToMidiAttempt,
     attemptNotes: new Set<number>(),
     clearAttempt: mocks.clearMidiAttempt,
     isAttemptActive: mocks.isMidiAttemptActive,
     startAttempt: mocks.startMidiAttempt,
-  }),
+    };
+  },
 }));
 
 vi.mock("@/hooks/use-midi", () => ({
-  useMidi: () => ({
+  useMidi: (options: unknown) => {
+    mocks.midiOptions(options);
+
+    return {
     connectMidi: mocks.connectMidi,
     deviceName: null,
     error: null,
     status: "disconnected",
-  }),
+    };
+  },
 }));
 
 vi.mock("@/lib/audio/feedback", () => ({
@@ -497,5 +518,63 @@ describe("FlashcardSession", () => {
 
     expect(screen.getByText("Feedback: correct")).toBeTruthy();
     expect(screen.getByText("Stats: correct")).toBeTruthy();
+  });
+
+  it("keeps single-note MIDI targets immediate", () => {
+    renderFlashcardSession();
+    const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
+      onNotePlayed: (midiNumber: number) => void;
+    };
+
+    midiOptions.onNotePlayed(48);
+
+    expect(mocks.startMidiAttempt).not.toHaveBeenCalled();
+    expect(mocks.lockFlashcardTarget).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps physical triads on the shared 225 millisecond collector", () => {
+    mocks.getCurrentTarget.mockReturnValue(TRIAD_TARGET);
+    mocks.getTargetMidiNumbers.mockReturnValue(new Set([60, 64, 67]));
+    renderFlashcardSession();
+    const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
+      onNotePlayed: (midiNumber: number) => void;
+    };
+
+    midiOptions.onNotePlayed(60);
+    mocks.isMidiAttemptActive.mockReturnValue(true);
+    midiOptions.onNotePlayed(64);
+    midiOptions.onNotePlayed(67);
+
+    expect(mocks.startMidiAttempt).toHaveBeenCalledWith(60);
+    expect(mocks.addNoteToMidiAttempt).toHaveBeenNthCalledWith(1, 64);
+    expect(mocks.addNoteToMidiAttempt).toHaveBeenNthCalledWith(2, 67);
+    expect(mocks.chordAttemptOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ gracePeriodMs: 225 }),
+    );
+  });
+
+  it.each([
+    ["correct", new Set([60, 64, 67]), true],
+    ["missing", new Set([60, 64]), false],
+    ["extra", new Set([60, 61, 64, 67]), false],
+  ])("preserves the %s physical-triad outcome", (_label, notes, isCorrect) => {
+    mocks.getCurrentTarget.mockReturnValue(TRIAD_TARGET);
+    mocks.getTargetMidiNumbers.mockReturnValue(new Set([60, 64, 67]));
+    mocks.notesMatchTarget.mockReturnValue(isCorrect);
+    renderFlashcardSession();
+    const chordOptions = mocks.chordAttemptOptions.mock.calls.at(-1)?.[0] as {
+      onComplete: (midiNumbers: ReadonlySet<number>) => void;
+    };
+
+    act(() => chordOptions.onComplete(notes));
+
+    expect(mocks.notesMatchTarget).toHaveBeenCalledWith(notes, TRIAD_TARGET);
+    if (isCorrect) {
+      expect(mocks.lockFlashcardTarget).toHaveBeenCalledTimes(1);
+      expect(mocks.applyIncorrectAttempt).not.toHaveBeenCalled();
+    } else {
+      expect(mocks.applyIncorrectAttempt).toHaveBeenCalledTimes(1);
+      expect(mocks.lockFlashcardTarget).not.toHaveBeenCalled();
+    }
   });
 });

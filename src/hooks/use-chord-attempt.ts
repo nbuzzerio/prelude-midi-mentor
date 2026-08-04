@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type AttemptCompleteHandler = (
-  midiNumbers: ReadonlySet<number>,
-) => void;
+export const CHORD_ATTEMPT_GRACE_MS = 225;
 
-export function useMidiChordAttempt(gracePeriodMs: number) {
+type UseChordAttemptOptions = Readonly<{
+  gracePeriodMs: number;
+  onComplete: (midiNumbers: ReadonlySet<number>) => void;
+}>;
+
+export function useChordAttempt({
+  gracePeriodMs,
+  onComplete,
+}: UseChordAttemptOptions) {
   const [attemptNotes, setAttemptNotes] = useState<ReadonlySet<number>>(
     new Set(),
   );
-
   const attemptNotesRef = useRef<Set<number>>(new Set());
   const attemptActiveRef = useRef(false);
   const attemptTimerRef = useRef<number | null>(null);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   const clearAttempt = useCallback(() => {
     if (attemptTimerRef.current !== null) {
@@ -21,20 +31,19 @@ export function useMidiChordAttempt(gracePeriodMs: number) {
 
     attemptActiveRef.current = false;
     attemptNotesRef.current = new Set();
-
     setAttemptNotes(new Set());
   }, []);
 
   const startAttempt = useCallback(
-    (
-      firstMidiNumber: number,
-      onAttemptComplete: AttemptCompleteHandler,
-    ) => {
+    (firstMidiNumber: number) => {
+      if (attemptTimerRef.current !== null) {
+        window.clearTimeout(attemptTimerRef.current);
+      }
+
       const firstAttemptNotes = new Set([firstMidiNumber]);
 
       attemptActiveRef.current = true;
       attemptNotesRef.current = firstAttemptNotes;
-
       setAttemptNotes(firstAttemptNotes);
 
       attemptTimerRef.current = window.setTimeout(() => {
@@ -43,10 +52,9 @@ export function useMidiChordAttempt(gracePeriodMs: number) {
         attemptTimerRef.current = null;
         attemptActiveRef.current = false;
         attemptNotesRef.current = new Set();
-
         setAttemptNotes(new Set());
 
-        onAttemptComplete(completedAttempt);
+        onCompleteRef.current(completedAttempt);
       }, gracePeriodMs);
     },
     [gracePeriodMs],
@@ -57,14 +65,10 @@ export function useMidiChordAttempt(gracePeriodMs: number) {
 
     nextAttemptNotes.add(midiNumber);
     attemptNotesRef.current = nextAttemptNotes;
-
     setAttemptNotes(nextAttemptNotes);
   }, []);
 
-  const isAttemptActive = useCallback(
-    () => attemptActiveRef.current,
-    [],
-  );
+  const isAttemptActive = useCallback(() => attemptActiveRef.current, []);
 
   useEffect(() => {
     return () => {

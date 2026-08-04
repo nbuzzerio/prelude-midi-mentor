@@ -5,6 +5,10 @@ import InstrumentVolumeControl from "@/components/audio/instrument-volume-contro
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useMidi } from "@/hooks/use-midi";
+import {
+  CHORD_ATTEMPT_GRACE_MS,
+  useChordAttempt,
+} from "@/hooks/use-chord-attempt";
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import { playGrandPianoNote } from "@/lib/audio/grand-piano";
 import {
@@ -151,13 +155,53 @@ export default function SequenceSession({
 
   const [stats, setStats] = useState(INITIAL_SEQUENCE_STATS);
 
+  const midiHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
+  const midiAttemptAllowedLingeringRef = useRef<ReadonlySet<number>>(new Set());
+  const finalizeMidiChordAttemptRef = useRef<
+    (midiNumbers: ReadonlySet<number>) => void
+  >(() => {});
+  const finalizeVirtualChordAttemptRef = useRef<
+    (midiNumbers: ReadonlySet<number>) => void
+  >(() => {});
+
+  const {
+    addNoteToAttempt: addNoteToMidiChordAttempt,
+    attemptNotes: midiChordAttemptNotes,
+    clearAttempt: clearMidiChordAttempt,
+    isAttemptActive: isMidiChordAttemptActive,
+    startAttempt: startMidiChordAttempt,
+  } = useChordAttempt({
+    gracePeriodMs: CHORD_ATTEMPT_GRACE_MS,
+    onComplete: (midiNumbers) =>
+      finalizeMidiChordAttemptRef.current(midiNumbers),
+  });
+  const {
+    addNoteToAttempt: addNoteToVirtualChordAttempt,
+    attemptNotes: virtualChordAttemptNotes,
+    clearAttempt: clearVirtualChordAttempt,
+    isAttemptActive: isVirtualChordAttemptActive,
+    startAttempt: startVirtualChordAttempt,
+  } = useChordAttempt({
+    gracePeriodMs: CHORD_ATTEMPT_GRACE_MS,
+    onComplete: (midiNumbers) =>
+      finalizeVirtualChordAttemptRef.current(midiNumbers),
+  });
+
+  const clearChordAttempts = useCallback(() => {
+    clearMidiChordAttempt();
+    clearVirtualChordAttempt();
+    midiAttemptAllowedLingeringRef.current = new Set();
+  }, [clearMidiChordAttempt, clearVirtualChordAttempt]);
+
   // Sequence target transitions
   const generateNextSequence = useCallback(
     (nextMode?: PracticeClefMode) => {
+      clearChordAttempts();
       resetAttempt();
 
       setVirtualHeldNotes(new Set());
       setMidiHeldNotes(new Set());
+      midiHeldNotesRef.current = new Set();
       setLastFailedAttemptNotes(new Set());
       setLastStepAnswer(null);
       setFeedback("idle");
@@ -165,7 +209,7 @@ export default function SequenceSession({
 
       generateSequenceTarget(nextMode);
     },
-    [generateSequenceTarget, resetAttempt],
+    [clearChordAttempts, generateSequenceTarget, resetAttempt],
   );
 
   // Timed transitions between steps and complete sequences
@@ -272,6 +316,8 @@ export default function SequenceSession({
         return;
       }
 
+      clearChordAttempts();
+
       setFeedback("correct");
       setLastFailedAttemptNotes(new Set());
 
@@ -307,6 +353,7 @@ export default function SequenceSession({
     },
     [
       completeCurrentStep,
+      clearChordAttempts,
       currentStepIndex,
       getCurrentTarget,
       handleCompletedSequence,
@@ -328,6 +375,7 @@ export default function SequenceSession({
       }
 
       clearTransition();
+      clearChordAttempts();
 
       setFeedback("incorrect");
       playIncorrectFeedback();
@@ -350,6 +398,7 @@ export default function SequenceSession({
     },
     [
       clearTransition,
+      clearChordAttempts,
       isSequenceTargetLocked,
       showIncorrectFeedback,
       startIncorrectStepTransition,
@@ -358,7 +407,11 @@ export default function SequenceSession({
 
   // Shared step grading
   const gradeCurrentStep = useCallback(
-    (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
+    (
+      midiNumbers: ReadonlySet<number>,
+      source: AnswerSource,
+      allowedLingeringForAttempt = allowedLingeringMidiNumbers,
+    ) => {
       if (
         isSequenceTargetLocked() ||
         !isWaitingForStep() ||
@@ -370,7 +423,7 @@ export default function SequenceSession({
       const target = getCurrentTarget();
 
       const isCorrect = sequenceStepMatchesInput({
-        allowedLingeringMidiNumbers,
+        allowedLingeringMidiNumbers: allowedLingeringForAttempt,
         inputMidiNumbers: midiNumbers,
         sequenceTarget: target,
         stepIndex: currentStepIndex,
@@ -394,13 +447,27 @@ export default function SequenceSession({
   );
 
   // MIDI input
+  const finalizeMidiChordAttempt = useCallback(
+    (collectedMidiNumbers: ReadonlySet<number>) => {
+      const completedAttempt = new Set([
+        ...collectedMidiNumbers,
+        ...midiHeldNotesRef.current,
+      ]);
+
+      gradeCurrentStep(
+        completedAttempt,
+        "midi",
+        midiAttemptAllowedLingeringRef.current,
+      );
+    },
+    [gradeCurrentStep],
+  );
+  useEffect(() => {
+    finalizeMidiChordAttemptRef.current = finalizeMidiChordAttempt;
+  }, [finalizeMidiChordAttempt]);
+
   const handleMidiNotePlayed = useCallback(
     (midiNumber: number) => {
-      // Temporary Phase 4 boundary: progression chord attempts arrive in Phase 5.
-      if (exerciseType === "chord-progressions") {
-        return;
-      }
-
       if (isSequenceTargetLocked() || !isWaitingForStep()) {
         return;
       }
@@ -410,15 +477,44 @@ export default function SequenceSession({
       setLastStepAnswer(null);
       setFeedback("idle");
 
+      const target = getCurrentTarget();
+      const currentStep = target.steps[currentStepIndex];
+
+      if ((currentStep?.notes.length ?? 0) > 1) {
+        clearVirtualChordAttempt();
+
+        if (isMidiChordAttemptActive()) {
+          addNoteToMidiChordAttempt(midiNumber);
+        } else {
+          midiAttemptAllowedLingeringRef.current =
+            allowedLingeringMidiNumbers;
+          startMidiChordAttempt(midiNumber);
+        }
+
+        return;
+      }
+
       gradeCurrentStep(new Set([midiNumber]), "midi");
     },
-    [exerciseType, gradeCurrentStep, isSequenceTargetLocked, isWaitingForStep],
+    [
+      currentStepIndex,
+      allowedLingeringMidiNumbers,
+      getCurrentTarget,
+      gradeCurrentStep,
+      isSequenceTargetLocked,
+      isWaitingForStep,
+      addNoteToMidiChordAttempt,
+      clearVirtualChordAttempt,
+      isMidiChordAttemptActive,
+      startMidiChordAttempt,
+    ],
   );
 
   const handleMidiHeldNotesChanged = useCallback(
     (heldNotes: ReadonlySet<number>) => {
       const nextHeldNotes = new Set(heldNotes);
 
+      midiHeldNotesRef.current = nextHeldNotes;
       setMidiHeldNotes(nextHeldNotes);
       updateTransitionMidiHeldNotes(nextHeldNotes);
     },
@@ -431,6 +527,16 @@ export default function SequenceSession({
   });
 
   // Virtual keyboard input
+  const finalizeVirtualChordAttempt = useCallback(
+    (completedAttempt: ReadonlySet<number>) => {
+      gradeCurrentStep(completedAttempt, "virtual");
+    },
+    [gradeCurrentStep],
+  );
+  useEffect(() => {
+    finalizeVirtualChordAttemptRef.current = finalizeVirtualChordAttempt;
+  }, [finalizeVirtualChordAttempt]);
+
   const handleVirtualNoteToggle = useCallback(
     (midiNumber: number) => {
       if (isSequenceTargetLocked() || !isWaitingForStep()) {
@@ -441,18 +547,43 @@ export default function SequenceSession({
       setLastStepAnswer(null);
       setFeedback("idle");
 
-      playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
+      const target = getCurrentTarget();
+      const currentStep = target.steps[currentStepIndex];
 
-      /*
-       * TODO(PianoKeyboard refactor):
-       * Sequence Mode treats a click as a discrete
-       * note attempt rather than a persistent selection.
-       */
+      if ((currentStep?.notes.length ?? 0) > 1) {
+        clearMidiChordAttempt();
+
+        if (!virtualChordAttemptNotes.has(midiNumber)) {
+          playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
+        }
+
+        if (isVirtualChordAttemptActive()) {
+          addNoteToVirtualChordAttempt(midiNumber);
+        } else {
+          setVirtualHeldNotes(new Set());
+          startVirtualChordAttempt(midiNumber);
+        }
+
+        return;
+      }
+
+      playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
       setVirtualHeldNotes(new Set([midiNumber]));
 
       gradeCurrentStep(new Set([midiNumber]), "virtual");
     },
-    [gradeCurrentStep, isSequenceTargetLocked, isWaitingForStep],
+    [
+      currentStepIndex,
+      getCurrentTarget,
+      gradeCurrentStep,
+      isSequenceTargetLocked,
+      isWaitingForStep,
+      addNoteToVirtualChordAttempt,
+      clearMidiChordAttempt,
+      isVirtualChordAttemptActive,
+      startVirtualChordAttempt,
+      virtualChordAttemptNotes,
+    ],
   );
 
   // Development simulation controls
@@ -493,7 +624,12 @@ export default function SequenceSession({
   };
 
   // Derived display state
-  const activeMidiNumbers = new Set([...virtualHeldNotes, ...midiHeldNotes]);
+  const activeMidiNumbers = new Set([
+    ...virtualHeldNotes,
+    ...virtualChordAttemptNotes,
+    ...midiChordAttemptNotes,
+    ...midiHeldNotes,
+  ]);
 
   const currentStepMidiNumbers = getCurrentSequenceStepMidiNumbers(
     sequenceTarget,
@@ -551,7 +687,6 @@ export default function SequenceSession({
           showTargetName={showTargetName}
         />
 
-        {exerciseType !== "chord-progressions" ? (
         <div hidden={isFocusMode}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
@@ -561,7 +696,6 @@ export default function SequenceSession({
             targetMidiNumbers={currentStepMidiNumbers}
           />
         </div>
-        ) : null}
       </div>
 
       <section

@@ -8,9 +8,11 @@ import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useCorrectAnswerSequence } from "@/features/flashcards/hooks/use-correct-answer-sequence";
 import { useFlashcardSettings } from "@/features/flashcards/hooks/use-flashcard-settings";
 import { useFlashcardTarget } from "@/features/flashcards/hooks/use-flashcard-target";
-import { useMidiChordAttempt } from "@/features/flashcards/hooks/use-midi-chord-attempt";
 import {
   CHORD_ATTEMPT_GRACE_MS,
+  useChordAttempt,
+} from "@/hooks/use-chord-attempt";
+import {
   NEXT_TARGET_DELAY_MS,
   PIANO_NOTE_DURATION_MS,
   SUCCESS_CHIRP_DELAY_MS,
@@ -118,6 +120,10 @@ export default function FlashcardSession({
 
   const [lastAnswer, setLastAnswer] = useState<LastAnswer | null>(null);
 
+  const finalizeMidiAttemptRef = useRef<
+    (midiNumbers: ReadonlySet<number>) => void
+  >(() => {});
+
   // MIDI chord-attempt lifecycle
   const {
     addNoteToAttempt: addNoteToMidiAttempt,
@@ -125,7 +131,10 @@ export default function FlashcardSession({
     clearAttempt: clearMidiAttempt,
     isAttemptActive: isMidiAttemptActive,
     startAttempt: startMidiAttempt,
-  } = useMidiChordAttempt(CHORD_ATTEMPT_GRACE_MS);
+  } = useChordAttempt({
+    gracePeriodMs: CHORD_ATTEMPT_GRACE_MS,
+    onComplete: (midiNumbers) => finalizeMidiAttemptRef.current(midiNumbers),
+  });
 
   // Target transitions
   const generateNextTarget = useCallback(
@@ -309,6 +318,10 @@ export default function FlashcardSession({
     ],
   );
 
+  useEffect(() => {
+    finalizeMidiAttemptRef.current = finalizeMidiAttempt;
+  }, [finalizeMidiAttempt]);
+
   const handleStartMidiAttempt = useCallback(
     (midiNumber: number) => {
       setVirtualHeldNotes(new Set());
@@ -316,9 +329,9 @@ export default function FlashcardSession({
       setLastAnswer(null);
       setFeedback("idle");
 
-      startMidiAttempt(midiNumber, finalizeMidiAttempt);
+      startMidiAttempt(midiNumber);
     },
-    [finalizeMidiAttempt, startMidiAttempt],
+    [startMidiAttempt],
   );
 
   const handleMidiHeldNotesChanged = useCallback(
