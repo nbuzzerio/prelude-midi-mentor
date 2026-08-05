@@ -8,7 +8,7 @@ import {
   Voice,
 } from "vexflow";
 
-import { createPracticeNote } from "@/lib/music/note-utils";
+import { getMusicKeyDefinition, type MusicKeyId } from "@/lib/music/keys";
 import type {
   Clef,
   PracticeNote,
@@ -24,6 +24,8 @@ type VexFlowPitch = Readonly<{
 }>;
 
 type StaffNoteGroup = ReadonlyArray<PracticeNote>;
+
+export type StaffKeySignature = MusicKeyId;
 
 type StaffNotation = Readonly<{
   activeGroupIndex?: number;
@@ -95,12 +97,23 @@ function drawHeldNoteGroup(
   stave: Stave,
   clef: Clef,
   notes: StaffNoteGroup,
+  accidentalContext: string,
 ): void {
   if (notes.length === 0) {
     return;
   }
 
-  const staveNote = createStaveNote(clef, notes, true);
+  const pitches = notes.map(toVexFlowPitch);
+  const staveNote = new StaveNote({
+    clef,
+    duration: "q",
+    keys: pitches.map((pitch) => pitch.key),
+  });
+
+  staveNote.setStyle({
+    fillStyle: "#000000",
+    strokeStyle: "#000000",
+  });
 
   const voice = new Voice({
     beatValue: 4,
@@ -108,6 +121,8 @@ function drawHeldNoteGroup(
   });
 
   voice.addTickable(staveNote);
+
+  Accidental.applyAccidentals([voice], accidentalContext);
 
   new Formatter()
     .joinVoices([voice])
@@ -209,7 +224,8 @@ export function renderSequenceTarget(
 
 export function renderGrandStaffHeldNotes(
   container: HTMLDivElement,
-  heldMidiNumbers: ReadonlySet<number>,
+  heldNotes: ReadonlyArray<PracticeNote>,
+  keySignatureId?: StaffKeySignature,
 ): void {
   container.replaceChildren();
 
@@ -222,15 +238,27 @@ export function renderGrandStaffHeldNotes(
 
   const context = renderer.getContext();
 
-  const trebleStave = new Stave(STAVE_X, GRAND_STAFF_TOP_Y, staveWidth).addClef(
-    "treble",
-  );
+  const trebleStave = new Stave(
+    STAVE_X,
+    GRAND_STAFF_TOP_Y,
+    staveWidth,
+  ).addClef("treble");
 
   const bassStave = new Stave(
     STAVE_X,
     GRAND_STAFF_BOTTOM_Y,
     staveWidth,
   ).addClef("bass");
+
+  const vexflowKeySignature =
+    keySignatureId === undefined
+      ? undefined
+      : getMusicKeyDefinition(keySignatureId).vexflowKeySignature;
+
+  if (vexflowKeySignature !== undefined) {
+    trebleStave.addKeySignature(vexflowKeySignature);
+    bassStave.addKeySignature(vexflowKeySignature);
+  }
 
   trebleStave.setContext(context).draw();
   bassStave.setContext(context).draw();
@@ -245,20 +273,34 @@ export function renderGrandStaffHeldNotes(
     .setContext(context)
     .draw();
 
-  const sortedMidiNumbers = [...heldMidiNumbers].sort(
-    (left, right) => left - right,
+  const sortedNotes = [...heldNotes].sort(
+    (left, right) => left.midiNumber - right.midiNumber,
   );
 
-  const bassNotes = sortedMidiNumbers
-    .filter((midiNumber) => midiNumber < MIDDLE_C_MIDI_NUMBER)
-    .map((midiNumber) => createPracticeNote(midiNumber));
+  const bassNotes = sortedNotes.filter(
+    (note) => note.midiNumber < MIDDLE_C_MIDI_NUMBER,
+  );
 
-  const trebleNotes = sortedMidiNumbers
-    .filter((midiNumber) => midiNumber >= MIDDLE_C_MIDI_NUMBER)
-    .map((midiNumber) => createPracticeNote(midiNumber));
+  const trebleNotes = sortedNotes.filter(
+    (note) => note.midiNumber >= MIDDLE_C_MIDI_NUMBER,
+  );
 
-  drawHeldNoteGroup(context, trebleStave, "treble", trebleNotes);
-  drawHeldNoteGroup(context, bassStave, "bass", bassNotes);
+  const accidentalContext = vexflowKeySignature ?? "C";
+
+  drawHeldNoteGroup(
+    context,
+    trebleStave,
+    "treble",
+    trebleNotes,
+    accidentalContext,
+  );
+  drawHeldNoteGroup(
+    context,
+    bassStave,
+    "bass",
+    bassNotes,
+    accidentalContext,
+  );
 
   configureResponsiveSvg(container, rendererWidth, GRAND_STAFF_RENDERER_HEIGHT);
 }
