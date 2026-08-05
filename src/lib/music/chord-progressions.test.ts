@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { MUSIC_KEYS } from "./keys";
+
 import {
   CHORD_PROGRESSION_TEMPLATES,
   SUPPORTED_CHORD_PROGRESSION_KEYS,
@@ -36,6 +38,10 @@ function summarizeChords(
 }
 
 describe("supported chord progression keys", () => {
+  it("uses the shared music-key definitions as its single source", () => {
+    expect(SUPPORTED_CHORD_PROGRESSION_KEYS).toBe(MUSIC_KEYS);
+  });
+
   it("defines the exact supported major and minor key IDs", () => {
     expect(
       SUPPORTED_CHORD_PROGRESSION_KEYS.filter((key) => key.mode === "major").map(
