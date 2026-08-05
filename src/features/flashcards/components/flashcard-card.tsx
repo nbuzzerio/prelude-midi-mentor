@@ -41,10 +41,7 @@ export default function FlashcardCard({
         />
       </div>
 
-      <div
-        className="absolute bottom-3 right-3 z-20"
-        hidden={isMobilePlayMode}
-      >
+      <div className="absolute bottom-3 right-3 z-20" hidden={isMobilePlayMode}>
         <FocusStaffControl
           isFocusMode={isFocusMode}
           onToggle={onToggleFocusMode}
@@ -52,7 +49,7 @@ export default function FlashcardCard({
 
         {!isFocusMode && onEnterMobilePlay ? (
           <button
-            className="ml-2 rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
+            className="ml-2 rounded-lg md:hidden border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
             onClick={onEnterMobilePlay}
             type="button"
           >

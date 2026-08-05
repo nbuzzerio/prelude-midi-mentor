@@ -1,0 +1,60 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import FlashcardCard from "./flashcard-card";
+
+vi.mock("@/components/notation/music-staff", () => ({
+  default: () => <div>Music staff</div>,
+}));
+vi.mock("@/components/notation/focus-staff-control", () => ({
+  default: () => <button type="button">Focus Staff</button>,
+}));
+vi.mock("@/components/practice-simulation-controls", () => ({
+  default: () => <button type="button">Simulate correct</button>,
+}));
+
+afterEach(cleanup);
+
+const TARGET = {
+  clef: "treble",
+  name: { primary: "C Major", secondary: "Root position" },
+  notes: [{ midiNumber: 60, name: "C", octave: 4 }],
+} as const;
+
+function renderCard(overrides: Partial<Parameters<typeof FlashcardCard>[0]> = {}) {
+  return render(
+    <FlashcardCard
+      feedback="incorrect"
+      isFocusMode={false}
+      onCorrect={vi.fn()}
+      onIncorrect={vi.fn()}
+      onToggleFocusMode={vi.fn()}
+      practiceTarget={TARGET}
+      showTargetName
+      {...overrides}
+    />,
+  );
+}
+
+describe("FlashcardCard Mobile Play", () => {
+  it("offers Mobile Play outside Focus Staff", () => {
+    const onEnterMobilePlay = vi.fn();
+    renderCard({ onEnterMobilePlay });
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    expect(onEnterMobilePlay).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps feedback and revealed target labels while hiding simulation controls", () => {
+    renderCard({ isMobilePlayMode: true });
+    expect(screen.getByText("Try again.")).toBeTruthy();
+    expect(screen.getByText("C Major")).toBeTruthy();
+    expect(screen.getByText("Root position")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Simulate correct" })).toBeNull();
+    expect(screen.getByText("Music staff")).toBeTruthy();
+  });
+
+  it("continues honoring hidden target names in Mobile Play", () => {
+    renderCard({ isMobilePlayMode: true, showTargetName: false });
+    expect(screen.queryByText("C Major")).toBeNull();
+  });
+});

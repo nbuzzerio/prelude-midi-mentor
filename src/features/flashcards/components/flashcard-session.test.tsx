@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   isMidiAttemptActive: vi.fn(),
   lockFlashcardTarget: vi.fn(),
   midiOptions: vi.fn(),
+  pianoProps: vi.fn(),
   notesMatchTarget: vi.fn(),
   playGrandPianoChord: vi.fn(),
   playGrandPianoNote: vi.fn(),
@@ -186,18 +187,25 @@ vi.mock("@/features/flashcards/components/flashcard-card", () => ({
   default: ({
     feedback,
     isFocusMode,
+    isMobilePlayMode,
+    onEnterMobilePlay,
     onCorrect,
     onIncorrect,
     onToggleFocusMode,
   }: {
     feedback: string;
     isFocusMode: boolean;
+    isMobilePlayMode: boolean;
+    onEnterMobilePlay: () => void;
     onCorrect: () => void;
     onIncorrect: () => void;
     onToggleFocusMode: () => void;
   }) => (
     <div>
       <span>Feedback: {feedback}</span>
+      <span>Mobile active: {String(isMobilePlayMode)}</span>
+
+      {!isFocusMode ? <button onClick={onEnterMobilePlay} type="button">Mobile Play</button> : null}
 
       <button onClick={onToggleFocusMode} type="button">
         {isFocusMode ? "Exit Focus Staff" : "Focus Staff"}
@@ -285,7 +293,10 @@ vi.mock("@/features/flashcards/components/practice-stats", () => ({
 }));
 
 vi.mock("@/components/notation/piano-keyboard", () => ({
-  default: () => <div>Piano keyboard</div>,
+  default: (props: Record<string, unknown>) => {
+    mocks.pianoProps(props);
+    return <div>Piano keyboard</div>;
+  },
 }));
 
 afterEach(() => {
@@ -366,6 +377,36 @@ describe("FlashcardSession", () => {
 
     expect(screen.getByText("Stats: initial")).toBeTruthy();
     expect(screen.getByText("Feedback: idle")).toBeTruthy();
+  });
+
+  it("preserves target, feedback, statistics, and graded keyboard semantics in Mobile Play", () => {
+    renderFlashcardSession();
+    fireEvent.click(screen.getByRole("button", { name: "Simulate incorrect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+
+    expect(screen.getByText("Mobile active: true")).toBeTruthy();
+    expect(screen.getByText("Feedback: incorrect")).toBeTruthy();
+    expect(screen.getByText("Stats: incorrect")).toBeTruthy();
+    expect(screen.getByText("Piano keyboard")).toBeTruthy();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+    const props = mocks.pianoProps.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(props.onNoteToggle).toEqual(expect.any(Function));
+    expect(props.onNotePress).toBeUndefined();
+    expect(props.onNoteRelease).toBeUndefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    expect(screen.getByText("Stats: incorrect")).toBeTruthy();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+  });
+
+  it("keeps Focus Staff and Mobile Play mutually exclusive without regeneration", () => {
+    renderFlashcardSession();
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
+
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Exit Focus Staff" })).toBeTruthy();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
 
   it("preserves session state while focus mode hides nonessential regions", () => {

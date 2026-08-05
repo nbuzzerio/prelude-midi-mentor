@@ -76,6 +76,8 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 ### Cross-Platform Experience
 
 - Responsive desktop, tablet, and mobile layouts
+- Mobile Play in Flashcards, Sequences, and Free Play with a safe-area-aware landscape practice overlay
+- Best-effort fullscreen and landscape orientation requests with a usable fallback when browser APIs refuse or are unavailable
 - Chromebook MIDI support
 - Installable Progressive Web App
 - Offline application shell
@@ -224,6 +226,9 @@ Prelude's automated suite covers:
 - stateful practice hooks
 - Web MIDI integration
 - focused session orchestration
+- shared Mobile Play browser lifecycle, Focus Staff coordination, state preservation, and mode-specific notation scaling
+
+Mobile Play preserves each mode's input contract: Flashcards and Sequences retain graded toggle input, while Free Play alone adds momentary multitouch press/release input. Mobile Play and Focus Staff are mutually exclusive. Fullscreen and landscape lock are enhancements rather than requirements; if fullscreen exits externally, the Mobile Play layout remains active until the user exits it.
 
 Run the complete release verification workflow with:
 

@@ -1,4 +1,10 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   updateMidiHeldNotes: vi.fn(),
   playGrandPianoChord: vi.fn(),
   playGrandPianoNote: vi.fn(),
+  pianoProps: vi.fn(),
 }));
 
 const SEQUENCE_TARGET = {
@@ -121,11 +128,12 @@ vi.mock("../hooks/use-sequence-transition", () => ({
     mocks.transitionOptions(options);
 
     return {
-    clearTransition: mocks.clearTransition,
-    startIncorrectStepTransition: mocks.startIncorrectStepTransition,
-    startSequenceCompletionTransition: mocks.startSequenceCompletionTransition,
-    startStepTransition: mocks.startStepTransition,
-    updateMidiHeldNotes: mocks.updateMidiHeldNotes,
+      clearTransition: mocks.clearTransition,
+      startIncorrectStepTransition: mocks.startIncorrectStepTransition,
+      startSequenceCompletionTransition:
+        mocks.startSequenceCompletionTransition,
+      startStepTransition: mocks.startStepTransition,
+      updateMidiHeldNotes: mocks.updateMidiHeldNotes,
     };
   },
 }));
@@ -135,10 +143,10 @@ vi.mock("@/hooks/use-midi", () => ({
     mocks.midiOptions(options);
 
     return {
-    connectMidi: vi.fn(),
-    deviceName: null,
-    error: null,
-    status: "disconnected",
+      connectMidi: vi.fn(),
+      deviceName: null,
+      error: null,
+      status: "disconnected",
     };
   },
 }));
@@ -164,42 +172,57 @@ vi.mock("@/components/notation/piano-keyboard", () => ({
   default: ({
     activeMidiNumbers,
     onNoteToggle,
+    ...props
   }: {
     activeMidiNumbers: ReadonlySet<number>;
     onNoteToggle: (midiNumber: number) => void;
-  }) => (
-    <div>
-      Piano keyboard
-      <span data-testid="active-notes">
-        Active: {[...activeMidiNumbers].join(",")}
-      </span>
-      {[60, 61, 64, 65, 67, 69, 71].map((midiNumber) => (
-        <button
-          key={midiNumber}
-          onClick={() => onNoteToggle(midiNumber)}
-          type="button"
-        >
-          Virtual {midiNumber}
-        </button>
-      ))}
-    </div>
-  ),
+  }) => {
+    mocks.pianoProps({ ...props, onNoteToggle });
+
+    return (
+      <div>
+        Piano keyboard
+        <span data-testid="active-notes">
+          Active: {[...activeMidiNumbers].join(",")}
+        </span>
+        {[60, 61, 64, 67, 71].map((midiNumber) => (
+          <button
+            key={midiNumber}
+            onClick={() => onNoteToggle(midiNumber)}
+            type="button"
+          >
+            Virtual {midiNumber}
+          </button>
+        ))}
+      </div>
+    );
+  },
 }));
 
 vi.mock("./sequence-card", () => ({
   default: ({
     feedback,
     isFocusMode,
+    isMobilePlayMode,
+    onEnterMobilePlay,
     onIncorrect,
     onToggleFocusMode,
   }: {
     feedback: string;
     isFocusMode: boolean;
+    isMobilePlayMode: boolean;
+    onEnterMobilePlay: () => void;
     onIncorrect: () => void;
     onToggleFocusMode: () => void;
   }) => (
     <div>
       <span>Feedback: {feedback}</span>
+      <span>Mobile active: {String(isMobilePlayMode)}</span>
+      {!isFocusMode ? (
+        <button onClick={onEnterMobilePlay} type="button">
+          Mobile Play
+        </button>
+      ) : null}
       <button onClick={onIncorrect} type="button">
         Simulate incorrect
       </button>
@@ -253,22 +276,72 @@ vi.mock("./sequence-controls", () => ({
     onShowTargetNameChange: (enabled: boolean) => void;
   }) => (
     <div>
-      <button onClick={() => onModeChange("bass")} type="button">Use bass</button>
-      <button onClick={() => onExerciseTypeChange("scales")} type="button">Use scales</button>
-      <button onClick={() => onExerciseTypeChange("chord-progressions")} type="button">Use progressions</button>
-      <button onClick={() => onChordProgressionKeyToggle("g-major")} type="button">Add progression key</button>
-      <button onClick={() => onChordProgressionTemplateToggle("major-251")} type="button">Add progression template</button>
-      <button onClick={() => onChordProgressionKeyToggle("c-major")} type="button">Toggle final progression key</button>
-      <button onClick={() => onChordProgressionTemplateToggle("major-1451")} type="button">Toggle final progression template</button>
-      <button onClick={() => onDirectionToggle("descending")} type="button">Add descending</button>
-      <button onClick={() => onDirectionToggle("ascending")} type="button">Toggle final direction</button>
-      <button onClick={() => onIntervalToggle("perfect-fifth")} type="button">Add interval</button>
-      <button onClick={() => onNoteCategoryToggle("accidentals")} type="button">Add accidentals</button>
-      <button onClick={() => onScaleToggle("natural-minor")} type="button">Add scale</button>
-      <button onClick={() => onScaleDirectionToggle("ascending-descending")} type="button">Add scale direction</button>
-      <button onClick={() => onArpeggioToggle("minor")} type="button">Add arpeggio</button>
-      <button onClick={() => onShowTargetNameChange(true)} type="button">Show target name</button>
-      <button onClick={onReset} type="button">Reset session</button>
+      <button onClick={() => onModeChange("bass")} type="button">
+        Use bass
+      </button>
+      <button onClick={() => onExerciseTypeChange("scales")} type="button">
+        Use scales
+      </button>
+      <button
+        onClick={() => onExerciseTypeChange("chord-progressions")}
+        type="button"
+      >
+        Use progressions
+      </button>
+      <button
+        onClick={() => onChordProgressionKeyToggle("g-major")}
+        type="button"
+      >
+        Add progression key
+      </button>
+      <button
+        onClick={() => onChordProgressionTemplateToggle("major-251")}
+        type="button"
+      >
+        Add progression template
+      </button>
+      <button
+        onClick={() => onChordProgressionKeyToggle("c-major")}
+        type="button"
+      >
+        Toggle final progression key
+      </button>
+      <button
+        onClick={() => onChordProgressionTemplateToggle("major-1451")}
+        type="button"
+      >
+        Toggle final progression template
+      </button>
+      <button onClick={() => onDirectionToggle("descending")} type="button">
+        Add descending
+      </button>
+      <button onClick={() => onDirectionToggle("ascending")} type="button">
+        Toggle final direction
+      </button>
+      <button onClick={() => onIntervalToggle("perfect-fifth")} type="button">
+        Add interval
+      </button>
+      <button onClick={() => onNoteCategoryToggle("accidentals")} type="button">
+        Add accidentals
+      </button>
+      <button onClick={() => onScaleToggle("natural-minor")} type="button">
+        Add scale
+      </button>
+      <button
+        onClick={() => onScaleDirectionToggle("ascending-descending")}
+        type="button"
+      >
+        Add scale direction
+      </button>
+      <button onClick={() => onArpeggioToggle("minor")} type="button">
+        Add arpeggio
+      </button>
+      <button onClick={() => onShowTargetNameChange(true)} type="button">
+        Show target name
+      </button>
+      <button onClick={onReset} type="button">
+        Reset session
+      </button>
     </div>
   ),
 }));
@@ -315,17 +388,71 @@ describe("SequenceSession settings regeneration", () => {
     expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
 
+  it("preserves step, feedback, statistics, and graded keyboard semantics in Mobile Play", () => {
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Simulate incorrect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+
+    expect(screen.getByText("Mobile active: true")).toBeTruthy();
+    expect(screen.getByText("Feedback: incorrect")).toBeTruthy();
+    expect(screen.getByText("Stats: 0 completed, 1 incorrect")).toBeTruthy();
+    expect(screen.getByText("Piano keyboard")).toBeTruthy();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+    expect(mocks.resetAttempt).not.toHaveBeenCalled();
+    const props = mocks.pianoProps.mock.calls.at(-1)?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(props.onNoteToggle).toEqual(expect.any(Function));
+    expect(props.onNotePress).toBeUndefined();
+    expect(props.onNoteRelease).toBeUndefined();
+  });
+
+  it("keeps Focus Staff and Mobile Play mutually exclusive without regeneration", () => {
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
+
+    expect(
+      screen.queryByRole("button", { name: "Exit Mobile Play" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Exit Focus Staff" }),
+    ).toBeTruthy();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["Use bass", "mode", "bass"],
     ["Use scales", "exerciseType", "scales"],
-    ["Add descending", "enabledDirections", new Set(["ascending", "descending"])],
+    [
+      "Add descending",
+      "enabledDirections",
+      new Set(["ascending", "descending"]),
+    ],
     ["Add interval", "enabledIntervals", expect.any(Set)],
-    ["Add accidentals", "enabledNoteCategories", new Set(["naturals", "accidentals"])],
+    [
+      "Add accidentals",
+      "enabledNoteCategories",
+      new Set(["naturals", "accidentals"]),
+    ],
     ["Add scale", "enabledScales", new Set(["major", "natural-minor"])],
-    ["Add scale direction", "enabledScaleDirections", new Set(["ascending", "ascending-descending"])],
+    [
+      "Add scale direction",
+      "enabledScaleDirections",
+      new Set(["ascending", "ascending-descending"]),
+    ],
     ["Add arpeggio", "enabledArpeggios", new Set(["major", "minor"])],
-    ["Add progression key", "enabledChordProgressionKeyIds", new Set(["c-major", "g-major"])],
-    ["Add progression template", "enabledChordProgressionTemplateIds", new Set(["major-1451", "major-251"])],
+    [
+      "Add progression key",
+      "enabledChordProgressionKeyIds",
+      new Set(["c-major", "g-major"]),
+    ],
+    [
+      "Add progression template",
+      "enabledChordProgressionTemplateIds",
+      new Set(["major-1451", "major-251"]),
+    ],
   ])("regenerates once when %s changes", (buttonName, optionName, expected) => {
     renderSequenceSession();
 
@@ -360,7 +487,9 @@ describe("SequenceSession settings regeneration", () => {
     renderSequenceSession();
 
     fireEvent.click(screen.getByRole("button", { name: "Simulate incorrect" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add progression key" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add progression key" }),
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Add progression template" }),
     );
@@ -380,23 +509,25 @@ describe("SequenceSession settings regeneration", () => {
     expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
 
-  it.each(["Toggle final progression key", "Toggle final progression template"])(
-    "does not regenerate when %s is rejected",
-    (buttonName) => {
-      renderSequenceSession();
+  it.each([
+    "Toggle final progression key",
+    "Toggle final progression template",
+  ])("does not regenerate when %s is rejected", (buttonName) => {
+    renderSequenceSession();
 
-      fireEvent.click(screen.getByRole("button", { name: buttonName }));
+    fireEvent.click(screen.getByRole("button", { name: buttonName }));
 
-      expect(mocks.clearTransition).not.toHaveBeenCalled();
-      expect(mocks.generateTarget).not.toHaveBeenCalled();
-    },
-  );
+    expect(mocks.clearTransition).not.toHaveBeenCalled();
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+  });
 
   it("does not regenerate for display, audio, or focus changes", () => {
     renderSequenceSession();
 
     fireEvent.click(screen.getByRole("button", { name: "Show target name" }));
-    fireEvent.click(screen.getByRole("button", { name: "Change feedback volume" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Change feedback volume" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
 
     expect(mocks.clearTransition).not.toHaveBeenCalled();
@@ -511,7 +642,9 @@ describe("SequenceSession settings regeneration", () => {
     expect(screen.getByText("Active: 60")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
     expect(screen.getByText("Active: 60,67")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /clear selection/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /clear selection/i }),
+    ).toBeNull();
     cleanup();
     vi.useRealTimers();
   });
@@ -523,13 +656,18 @@ describe("SequenceSession settings regeneration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
 
     for (const midiNumber of [67, 60, 64]) {
-      fireEvent.click(screen.getByRole("button", { name: `Virtual ${midiNumber}` }));
+      fireEvent.click(
+        screen.getByRole("button", { name: `Virtual ${midiNumber}` }),
+      );
     }
 
     expect(mocks.playGrandPianoChord).toHaveBeenCalledTimes(1);
     const completedSnapshot = mocks.playGrandPianoChord.mock.calls[0]?.[0];
     expect(completedSnapshot).toEqual(new Set([67, 60, 64]));
-    expect(mocks.playGrandPianoChord).toHaveBeenCalledWith(completedSnapshot, 850);
+    expect(mocks.playGrandPianoChord).toHaveBeenCalledWith(
+      completedSnapshot,
+      850,
+    );
     expect(mocks.showCorrectFeedback).toHaveBeenCalledTimes(1);
     expect(mocks.completeCurrentStep).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
@@ -540,7 +678,9 @@ describe("SequenceSession settings regeneration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
 
     for (const midiNumber of [60, 64, 61]) {
-      fireEvent.click(screen.getByRole("button", { name: `Virtual ${midiNumber}` }));
+      fireEvent.click(
+        screen.getByRole("button", { name: `Virtual ${midiNumber}` }),
+      );
     }
 
     expect(mocks.showIncorrectFeedback).toHaveBeenCalledTimes(1);
@@ -557,7 +697,9 @@ describe("SequenceSession settings regeneration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
 
     for (const midiNumber of [60, 64, 67]) {
-      fireEvent.click(screen.getByRole("button", { name: `Virtual ${midiNumber}` }));
+      fireEvent.click(
+        screen.getByRole("button", { name: `Virtual ${midiNumber}` }),
+      );
     }
     fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
     fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
@@ -578,24 +720,29 @@ describe("SequenceSession settings regeneration", () => {
     ["Add progression template"],
     ["Use bass"],
     ["Use scales"],
-  ])("clears a pending virtual selection when %s changes lifecycle state", (buttonName) => {
-    renderSequenceSession();
-    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
-    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
-    fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
-    fireEvent.click(screen.getByRole("button", { name: buttonName }));
+  ])(
+    "clears a pending virtual selection when %s changes lifecycle state",
+    (buttonName) => {
+      renderSequenceSession();
+      fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+      fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+      fireEvent.click(screen.getByRole("button", { name: "Virtual 64" }));
+      fireEvent.click(screen.getByRole("button", { name: buttonName }));
 
-    expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
-    expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
-    expect(mocks.showIncorrectFeedback).not.toHaveBeenCalled();
-  });
+      expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
+      expect(mocks.showCorrectFeedback).not.toHaveBeenCalled();
+      expect(mocks.showIncorrectFeedback).not.toHaveBeenCalled();
+    },
+  );
 
   it("clears virtual selection for retry preparation", () => {
     renderSequenceSession();
     fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
     fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
 
-    const transitionOptions = mocks.transitionOptions.mock.calls.at(-1)?.[0] as {
+    const transitionOptions = mocks.transitionOptions.mock.calls.at(
+      -1,
+    )?.[0] as {
       onRetrySequence: () => boolean;
     };
     act(() => transitionOptions.onRetrySequence());

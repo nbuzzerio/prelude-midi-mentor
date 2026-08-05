@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 34 passed
-- Tests: 426 passed
+- Test files: 36 passed
+- Tests: 452 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -294,6 +294,19 @@ Automated Free Play notation coverage includes:
 - Focus Staff behavior and raw-MIDI virtual-key highlighting
 - unchanged Flashcard and Sequence notation and Chord Progression behavior
 
+### Block 10 — Shared Mobile Play
+
+Focused automated coverage includes:
+
+- immediate layout activation independent of fullscreen or orientation success
+- missing, rejected, successful, stale, repeated, exit, and unmount browser lifecycle paths
+- cleanup limited to fullscreen and orientation acquired by Prelude
+- mutual exclusion with Focus Staff, including global Focus Staff activation
+- target, statistics, feedback, current-step, held-note, and notation-setting preservation
+- graded `onNoteToggle` semantics in Flashcards and Sequences
+- Free Play momentary press/release semantics and pointer-note cleanup without clearing physical MIDI
+- mode-specific staff scaling with no normal-mode leakage
+
 ## Intentionally Not Tested for v2.0
 
 The initial suite should not deeply test:
@@ -347,6 +360,14 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - installed PWA behavior
 - offline application shell
 - production deployment
+- Flashcard single-note and triad play while toggling Mobile Play mid-target
+- Sequence interval, scale, long-sequence, and chord-progression play while preserving the current step
+- Mobile Play and Focus Staff transitions in both directions
+- fullscreen and orientation refusal, plus external fullscreen exit while the layout remains active
+- Flashcard, Sequence, and Free Play staff scaling on a phone
+- Free Play two- and three-finger multitouch, cancelled touches, and stuck-note checks
+- folded and unfolded Z Fold layouts
+- Chromebook and tablet landscape layouts
 
 This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issues found during normal use may be recorded through the project's bug-log workflow.
 

@@ -763,6 +763,25 @@ Feature ownership keeps spelling policy out of the renderer and allows held note
 
 ---
 
+# 2026-08 — Mobile Play Uses a Best-Effort Shared Browser Lifecycle
+
+## Decision
+
+Flashcards, Sequences, and Free Play share `useMobilePlay` for fullscreen and landscape-orientation acquisition and cleanup. Layout activation does not depend on either browser API succeeding, and external fullscreen exit does not automatically exit the layout. Focus Staff and Mobile Play are mutually exclusive.
+
+## Reason
+
+Fullscreen and orientation support varies across mobile browsers and installed-app contexts. Treating those APIs as enhancements preserves a usable, explicit layout fallback while keeping browser lifecycle ownership out of feature sessions.
+
+## Consequences
+
+- Prelude releases only fullscreen and orientation state that it acquired.
+- The user can use Exit Mobile Play after fullscreen refusal or external fullscreen exit.
+- Flashcards and Sequences retain graded toggle input; only Free Play uses momentary multitouch callbacks.
+- Current notation enlargement is mode-specific and transform-based. Container-driven responsive VexFlow sizing remains deferred to the later UI/UX overhaul.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:

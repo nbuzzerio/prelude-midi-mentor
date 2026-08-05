@@ -140,7 +140,8 @@ Completed features include:
 - Dynamic notation rendering with VexFlow
 - Ledger lines
 - Accidentals
-- Responsive notation scaling
+- Breakpoint- and mode-specific transform scaling for current notation layouts
+- Mobile Play across Flashcards, Sequences, and Free Play, with best-effort fullscreen/orientation and Focus Staff mutual exclusion
 - Persistent grand staff for Free Play
 - Automatic treble- and bass-staff placement for held notes
 - Key signatures on both Free Play staves
@@ -165,14 +166,17 @@ Completed features include:
 - Web MIDI integration tests
 - Flashcard session integration tests
 - Automated tests for flashcards, sequences, music theory, MIDI behavior, and theory-aware spelling
+- Focused Mobile Play lifecycle and cross-mode preservation tests
 
 ---
 
 # Current Development Focus
 
-Prelude's v2.0 practice foundation is feature-complete.
+Prelude's current practice foundation includes Flashcards, Sequences, Chord Progressions, key-aware Free Play, and shared Mobile Play.
 
-Current work is focused on final documentation, automated verification, focused manual QA, and the v2.0.0 release. After the release, future work should proceed according to [`ROADMAP.md`](./ROADMAP.md).
+Ear Training and Staff Builder are the next major capabilities planned before v3.0. Future work should continue according to [`ROADMAP.md`](./ROADMAP.md).
+
+Mobile Play is presentation and browser lifecycle, not a shared practice state machine. `useMobilePlay` owns best-effort fullscreen/orientation handling; feature sessions retain their targets and settings. Flashcards and Sequences keep graded toggle input, while Free Play alone uses momentary multitouch callbacks. Current staff enlargement is transform-based and mode-specific; container-measured responsive VexFlow sizing is intentionally deferred.
 
 Likely next areas include:
 

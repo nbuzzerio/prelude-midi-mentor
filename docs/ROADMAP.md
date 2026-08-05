@@ -146,11 +146,21 @@ Complete Prelude's foundational practice platform with expanded sequence exercis
 - [x] Key-aware diatonic and chromatic spelling preferences
 - [x] Immediate respelling of held notes after settings changes
 
+## Mobile Play
+
+- [x] Shared Mobile Play lifecycle across Flashcards, Sequences, and Free Play
+- [x] Best-effort fullscreen and landscape orientation lock with safe fallback
+- [x] Focus Staff mutual exclusion and state-preserving transitions
+- [x] Free Play momentary multitouch without changing graded input semantics
+- [x] Focused lifecycle, integration, and notation-scaling tests
+
+Container-driven responsive VexFlow sizing is deferred to the later UI/UX overhaul. This milestone does not include a settings drawer, onboarding, or a full mobile redesign.
+
 Future Free Play ideas such as chord analysis, phrase history, last-measure display, rhythm, zoom controls, and automatic key detection remain unimplemented.
 
 ## Current Direction
 
-Chord Progressions are complete as part of the foundational Sequence practice platform. Ear Training is the next major capability. Remaining unchecked Harmony, Musicianship, Lesson, Builder, Playback, and Composer items continue to describe future possibilities rather than a strict delivery order.
+Chord Progressions, Free Play, and shared Mobile Play stabilization are complete as part of the foundational practice platform. Ear Training remains a future major capability, not work begun by this milestone. Remaining unchecked Harmony, Musicianship, Lesson, Builder, Playback, and Composer items continue to describe future possibilities rather than a strict delivery order.
 
 ---
 

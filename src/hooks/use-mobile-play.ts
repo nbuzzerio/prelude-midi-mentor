@@ -73,6 +73,7 @@ function unlockOrientation(): void {
 export function useMobilePlay() {
   const [isMobilePlayMode, setIsMobilePlayMode] = useState(false);
   const browserRequestTokenRef = useRef(0);
+  const isMobilePlayModeRef = useRef(false);
   const enteredFullscreenRef = useRef(false);
   const lockedOrientationRef = useRef(false);
 
@@ -91,6 +92,11 @@ export function useMobilePlay() {
   }, []);
 
   const enterMobilePlay = useCallback(() => {
+    if (isMobilePlayModeRef.current) {
+      return;
+    }
+
+    isMobilePlayModeRef.current = true;
     setIsMobilePlayMode(true);
 
     const requestToken = browserRequestTokenRef.current + 1;
@@ -126,6 +132,7 @@ export function useMobilePlay() {
   }, []);
 
   const exitMobilePlay = useCallback(() => {
+    isMobilePlayModeRef.current = false;
     setIsMobilePlayMode(false);
     cleanupBrowserState();
   }, [cleanupBrowserState]);

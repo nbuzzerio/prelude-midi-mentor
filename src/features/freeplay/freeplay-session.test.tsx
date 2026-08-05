@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import FreeplaySession from "./freeplay-session";
@@ -7,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   midiOptions: vi.fn(),
   musicStaffProps: vi.fn(),
   playGrandPianoNote: vi.fn(),
+  pianoProps: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-midi", () => ({
@@ -34,7 +36,11 @@ vi.mock("@/components/midi/midi-status", () => ({
 }));
 
 vi.mock("@/components/notation/focus-staff-control", () => ({
-  default: () => <button type="button">Focus Staff</button>,
+  default: ({ isFocusMode, onToggle }: { isFocusMode: boolean; onToggle: () => void }) => (
+    <button onClick={onToggle} type="button">
+      {isFocusMode ? "Exit Focus Staff" : "Focus Staff"}
+    </button>
+  ),
 }));
 
 vi.mock("@/components/notation/music-staff", () => ({
@@ -65,11 +71,17 @@ vi.mock("@/components/notation/music-staff", () => ({
 vi.mock("@/components/notation/piano-keyboard", () => ({
   default: ({
     activeMidiNumbers,
+    onNotePress,
+    onNoteRelease,
     onNoteToggle,
   }: {
     activeMidiNumbers: ReadonlySet<number>;
+    onNotePress?: (midiNumber: number) => void;
+    onNoteRelease?: (midiNumber: number) => void;
     onNoteToggle: (midiNumber: number) => void;
-  }) => (
+  }) => {
+    mocks.pianoProps({ onNotePress, onNoteRelease, onNoteToggle });
+    return (
     <div>
       <span data-testid="active-notes">{[...activeMidiNumbers].join(",")}</span>
       {[60, 61, 66, 70].map((midiNumber) => (
@@ -81,8 +93,12 @@ vi.mock("@/components/notation/piano-keyboard", () => ({
           Toggle MIDI {midiNumber}
         </button>
       ))}
+      <button onPointerDown={() => onNotePress?.(61)} onPointerUp={() => onNoteRelease?.(61)} type="button">
+        Momentary MIDI 61
+      </button>
     </div>
-  ),
+    );
+  },
 }));
 
 afterEach(cleanup);
@@ -98,6 +114,20 @@ function renderSession(isFocusMode = false) {
       onToggleFocusMode={vi.fn()}
     />,
   );
+}
+
+function renderInteractiveSession() {
+  function SessionHarness() {
+    const [isFocusMode, setIsFocusMode] = useState(false);
+    return <>
+      <button onClick={() => setIsFocusMode(true)} type="button">Activate Focus globally</button>
+      <FreeplaySession
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={() => setIsFocusMode((current) => !current)}
+        />
+    </>;
+  }
+  return render(<SessionHarness />);
 }
 
 describe("FreeplaySession notation settings", () => {
@@ -276,5 +306,44 @@ describe("FreeplaySession notation settings", () => {
       isFocusMode?: boolean;
     };
     expect(latestStaffProps.isFocusMode).toBe(true);
+  });
+
+  it("preserves held notes and notation settings across Mobile Play entry and exit", () => {
+    renderInteractiveSession();
+    fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
+      target: { value: "f-major" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Toggle MIDI 70" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    expect(screen.getByTestId("staff-notes").textContent).toBe("B♭4:70");
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    expect(screen.getByTestId("staff-notes").textContent).toBe("B♭4:70");
+    expect((screen.getByRole("combobox", { name: "Key" }) as HTMLSelectElement).value).toBe("f-major");
+  });
+
+  it("uses momentary callbacks, clears pointer notes on exit, and leaves MIDI notes held", () => {
+    renderInteractiveSession();
+    const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
+      onHeldNotesChanged: (notes: ReadonlySet<number>) => void;
+    };
+    act(() => midiOptions.onHeldNotesChanged(new Set([60])));
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Momentary MIDI 61" }));
+    expect(screen.getByTestId("active-notes").textContent).toBe("61,60");
+
+    const props = mocks.pianoProps.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(props.onNotePress).toEqual(expect.any(Function));
+    expect(props.onNoteRelease).toEqual(expect.any(Function));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    expect(screen.getByTestId("active-notes").textContent).toBe("60");
+  });
+
+  it("keeps Focus Staff and Mobile Play mutually exclusive", () => {
+    renderInteractiveSession();
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Activate Focus globally" }));
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Exit Focus Staff" })).toBeTruthy();
   });
 });

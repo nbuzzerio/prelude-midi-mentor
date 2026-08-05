@@ -45,8 +45,7 @@ export default function FreeplaySession({
     new Set(),
   );
   const momentaryPointerNotesRef = useRef(new Set<number>());
-  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
-    useMobilePlay();
+  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
 
   const clearMomentaryPointerNotes = useCallback(() => {
     momentaryPointerNotesRef.current = new Set();
@@ -226,7 +225,7 @@ export default function FreeplaySession({
 
             {!isFocusMode ? (
               <button
-                className="ml-2 rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
+                className="ml-2 rounded-lg md:hidden border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
                 onClick={handleEnterMobilePlay}
                 type="button"
               >
@@ -251,7 +250,7 @@ export default function FreeplaySession({
           <MusicStaff
             heldNotes={spelledNotes}
             isFocusMode={isFocusMode}
-            isMobilePlayMode={isMobilePlayMode}
+            isMobilePlayMode={isMobilePlayActive}
             keySignatureId={
               notationContext.type === "key" ? notationContext.keyId : undefined
             }

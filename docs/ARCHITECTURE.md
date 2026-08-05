@@ -395,6 +395,16 @@ Virtual progression input deliberately does not use that timer. `SequenceSession
 - Free Play remains ungraded and owns only live notation context; chord analysis or chord naming was not added to it.
 - Flashcard and Sequence targets retain their existing theory-aware spelling and explicit accidental-rendering paths.
 
+## Shared Mobile Play Lifecycle
+
+`src/hooks/use-mobile-play.ts` owns the cross-feature browser lifecycle. Entering Mobile Play activates layout state synchronously, then requests fullscreen and landscape orientation on a best-effort basis. Missing, rejected, or externally exited fullscreen and unsupported orientation locking do not disable the layout. Cleanup releases only fullscreen and orientation state acquired by Prelude, and stale asynchronous requests are prevented from reacquiring state after exit or unmount.
+
+Each session derives the effective layout state as `isMobilePlayMode && !isFocusMode`. Entering either Mobile Play or Focus Staff deactivates the other, including global Focus Staff activation. This coordination changes presentation only: target generation, statistics, feedback, sequence position, settings, and graded input state remain feature-owned.
+
+Flashcards and Sequences continue to supply only `onNoteToggle` to `PianoKeyboard`. Free Play supplies toggle input plus momentary `onNotePress` and `onNoteRelease` callbacks for multitouch and clears momentary pointer notes on Mobile Play exit without affecting physical MIDI notes.
+
+`MusicStaff` applies transform-based Mobile Play scaling by mode because the grand staff, flashcard staff, and sequence staff have different rendered proportions. These transforms are scoped to active staff instances. Container-measured responsive VexFlow sizing is deferred to the later UI/UX overhaul.
+
 ---
 
 # Input Flow

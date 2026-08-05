@@ -116,4 +116,27 @@ describe("SequenceCard", () => {
     expect(screen.getByText("Music staff")).toBeTruthy();
     expect(screen.getByText("I–IV–V–I")).toBeTruthy();
   });
+
+  it("offers Mobile Play outside Focus Staff", () => {
+    const onEnterMobilePlay = vi.fn();
+    renderCard({ onEnterMobilePlay });
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    expect(onEnterMobilePlay).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps progress, feedback, and revealed labels while hiding simulation controls", () => {
+    renderCard({ feedback: "incorrect", isMobilePlayMode: true });
+    expect(screen.getByText("Step 1 of 2")).toBeTruthy();
+    expect(screen.getByText("Try again.")).toBeTruthy();
+    expect(screen.getByText("I–IV–V–I")).toBeTruthy();
+    expect(screen.getByText("I")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Simulate correct" })).toBeNull();
+    expect(screen.getByText("Music staff")).toBeTruthy();
+  });
+
+  it("continues honoring hidden target and current-step labels in Mobile Play", () => {
+    renderCard({ isMobilePlayMode: true, showTargetName: false });
+    expect(screen.queryByText("I–IV–V–I")).toBeNull();
+    expect(screen.queryByText("I")).toBeNull();
+  });
 });

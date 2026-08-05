@@ -667,11 +667,12 @@ export default function SequenceSession({
     sequenceTarget,
     currentStepIndex,
   );
+  const isMobilePlayActive = isMobilePlayMode && !isFocusMode;
 
   return (
     <div
       className={
-        isMobilePlayMode && !isFocusMode
+        isMobilePlayActive
           ? "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
           : isFocusMode
           ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
@@ -681,7 +682,7 @@ export default function SequenceSession({
       {import.meta.env.DEV ? (
         <div
           className="rounded bg-zinc-900 px-3 py-2 text-xs text-zinc-300"
-          hidden={isFocusMode || isMobilePlayMode}
+          hidden={isFocusMode || isMobilePlayActive}
         >
           State: {sequenceAttemptState} | Step: {currentStepIndex + 1}
         </div>
@@ -689,7 +690,7 @@ export default function SequenceSession({
 
       <header
         className="flex items-center justify-between gap-4"
-        hidden={isMobilePlayMode}
+        hidden={isMobilePlayActive}
       >
         <div>
           <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
@@ -711,7 +712,7 @@ export default function SequenceSession({
         />
       </header>
 
-      {isMobilePlayMode && !isFocusMode ? (
+      {isMobilePlayActive ? (
         <>
           <button
             className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
@@ -733,7 +734,7 @@ export default function SequenceSession({
           exerciseType={exerciseType}
           feedback={feedback}
           isFocusMode={isFocusMode}
-          isMobilePlayMode={isMobilePlayMode}
+          isMobilePlayMode={isMobilePlayActive}
           onEnterMobilePlay={handleEnterMobilePlay}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
@@ -755,7 +756,7 @@ export default function SequenceSession({
 
       <section
         className="relative -my-20 flex flex-col gap-6"
-        hidden={isFocusMode || isMobilePlayMode}
+        hidden={isFocusMode || isMobilePlayActive}
       >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
           <div className="flex flex-col gap-4">

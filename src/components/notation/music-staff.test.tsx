@@ -112,6 +112,16 @@ describe("MusicStaff Free Play rendering", () => {
       screen.getByLabelText("Grand staff showing no currently held notes").className,
     ).toContain("music-staff-freeplay");
   });
+
+  it("applies Free Play Mobile Play scaling only while active", () => {
+    const view = render(<MusicStaff heldNotes={[]} mode="freeplay" />);
+    const staff = screen.getByLabelText("Grand staff showing no currently held notes");
+    expect(staff.className).not.toContain("scale-[300%]");
+
+    view.rerender(<MusicStaff heldNotes={[]} isMobilePlayMode mode="freeplay" />);
+    expect(staff.className).toContain("scale-[300%]");
+    expect(staff.className).not.toContain("scale-[175%]");
+  });
 });
 
 describe("MusicStaff graded rendering", () => {
@@ -136,5 +146,33 @@ describe("MusicStaff graded rendering", () => {
       1,
     );
     expect(mocks.renderGrandStaffHeldNotes).not.toHaveBeenCalled();
+  });
+
+  it("uses distinct Flashcard and Sequence Mobile Play scaling", () => {
+    const practice = render(
+      <MusicStaff isMobilePlayMode practiceTarget={PRACTICE_TARGET} />,
+    );
+    expect(screen.getByLabelText(/Musical staff showing/).className).toContain(
+      "scale-[175%]",
+    );
+    practice.unmount();
+
+    render(
+      <MusicStaff
+        currentStepIndex={0}
+        isMobilePlayMode
+        sequenceTarget={SEQUENCE_TARGET}
+      />,
+    );
+    expect(screen.getByLabelText(/Musical staff showing/).className).toContain(
+      "scale-[115%]",
+    );
+  });
+
+  it("does not leak Mobile Play scaling into normal graded staffs", () => {
+    render(<MusicStaff practiceTarget={PRACTICE_TARGET} />);
+    const staff = screen.getByLabelText(/Musical staff showing/);
+    expect(staff.className).not.toContain("scale-[175%]");
+    expect(staff.className).not.toContain("scale-[115%]");
   });
 });
