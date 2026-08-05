@@ -7,6 +7,12 @@ import MusicStaff from "@/components/notation/music-staff";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 
 import { PIANO_NOTE_DURATION_MS } from "@/features/flashcards/flashcard-timing";
+import FreeplayControls from "@/features/freeplay/components/freeplay-controls";
+import {
+  DEFAULT_FREEPLAY_NOTATION_CONTEXT,
+  type FreeplayChromaticPreference,
+  type FreeplayNotationContext,
+} from "@/features/freeplay/freeplay-notation";
 import { useMidi } from "@/hooks/use-midi";
 import { playGrandPianoNote } from "@/lib/audio/grand-piano";
 
@@ -21,6 +27,10 @@ export default function FreeplaySession({
   isFocusMode,
   onToggleFocusMode,
 }: FreeplaySessionProps) {
+  const [notationContext, setNotationContext] =
+    useState<FreeplayNotationContext>(DEFAULT_FREEPLAY_NOTATION_CONTEXT);
+  const [chromaticPreference, setChromaticPreference] =
+    useState<FreeplayChromaticPreference>("automatic");
   const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
   );
@@ -127,15 +137,24 @@ export default function FreeplaySession({
       </div>
 
       <div
-        className="w-full md:max-w-[calc(50%-0.5rem)] xl:max-w-[29.5%]"
+        className="grid w-full gap-4 md:grid-cols-2"
         hidden={isFocusMode}
       >
-        <InstrumentVolumeControl
-          onReplayCorrectVirtualChordsChange={() => {
-            // Free Play does not use automatic chord replay.
-          }}
-          replayCorrectVirtualChords={false}
+        <FreeplayControls
+          chromaticPreference={chromaticPreference}
+          onChromaticPreferenceChange={setChromaticPreference}
+          notationContext={notationContext}
+          onNotationContextChange={setNotationContext}
         />
+
+        <div className="w-full">
+          <InstrumentVolumeControl
+            onReplayCorrectVirtualChordsChange={() => {
+              // Free Play does not use automatic chord replay.
+            }}
+            replayCorrectVirtualChords={false}
+          />
+        </div>
       </div>
     </div>
   );
