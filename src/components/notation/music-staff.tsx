@@ -35,6 +35,7 @@ type SequenceMusicStaffProps = Readonly<{
 type KeyAwareFreePlayMusicStaffProps = Readonly<{
   currentStepIndex?: never;
   heldNotes: ReadonlyArray<PracticeNote>;
+  isMobilePlayMode?: boolean;
   keySignatureId?: StaffKeySignature;
   mode: "freeplay";
   practiceTarget?: never;
@@ -71,10 +72,7 @@ function getHeldNoteLabel(heldNotes: ReadonlyArray<PracticeNote>): string {
 
   return [...heldNotes]
     .sort((left, right) => left.midiNumber - right.midiNumber)
-    .map(
-      (note) =>
-        `${note.name}${note.octave} (MIDI note ${note.midiNumber})`,
-    )
+    .map((note) => `${note.name}${note.octave} (MIDI note ${note.midiNumber})`)
     .join(", ");
 }
 
@@ -129,7 +127,13 @@ export default function MusicStaff(props: MusicStaffProps) {
   }, [props]);
 
   const className = isKeyAwareFreePlayStaff
-    ? "music-staff music-staff-freeplay mx-auto flex min-h-[440px] w-full items-center justify-center invert [&_svg]:h-auto! [&_svg]:max-h-[460px] [&_svg]:w-full! md:[&_svg]:scale-[125%] lg:[&_svg]:scale-[150%] md:[&_svg]:translate-y-[65px]"
+    ? [
+        "music-staff music-staff-freeplay mx-auto flex min-h-[440px] w-full items-center justify-center invert",
+        "[&_svg]:h-auto! [&_svg]:max-h-[460px] [&_svg]:w-full!",
+        props.isMobilePlayMode
+          ? "[&_svg]:scale-[300%] [&_svg]:translate-y-[55px]"
+          : "md:[&_svg]:scale-[125%] lg:[&_svg]:scale-[150%] md:[&_svg]:translate-y-[65px]",
+      ].join(" ")
     : "music-staff mx-auto flex min-h-0 w-full items-center justify-center invert [&_svg]:h-[200%]! [&_svg]:w-auto!";
 
   return (

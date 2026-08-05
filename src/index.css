@@ -76,3 +76,87 @@ button {
 .focus-staff-mode .music-staff-freeplay svg {
   transform: none !important;
 }
+
+.freeplay-mobile-mode {
+  height: 100dvh;
+  padding:
+    max(0.25rem, env(safe-area-inset-top))
+    max(0.25rem, env(safe-area-inset-right))
+    max(0.25rem, env(safe-area-inset-bottom))
+    max(0.25rem, env(safe-area-inset-left));
+}
+
+.freeplay-mobile-mode .practice-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 3fr) minmax(0, 7fr);
+  gap: 0.25rem;
+  height: 100%;
+  min-height: 0;
+}
+
+.freeplay-mobile-mode .practice-stage > section {
+  border-radius: 0.5rem;
+  min-height: 0;
+  padding: 0;
+}
+
+.freeplay-mobile-mode .music-staff-freeplay {
+  height: 100%;
+  min-height: 0;
+}
+
+.freeplay-mobile-mode .music-staff-freeplay svg {
+  height: 100% !important;
+  max-height: 100% !important;
+  transform: none !important;
+  width: 100% !important;
+}
+
+.freeplay-mobile-mode .freeplay-keyboard-region,
+.freeplay-mobile-mode .piano-keyboard {
+  height: 100%;
+  min-height: 0;
+}
+
+.freeplay-mobile-mode .piano-keyboard {
+  max-height: none;
+  padding: 0.25rem;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.freeplay-mobile-mode .piano-keyboard button {
+  touch-action: none;
+}
+
+.freeplay-mobile-exit {
+  position: fixed;
+  right: max(0.5rem, env(safe-area-inset-right));
+  top: max(0.5rem, env(safe-area-inset-top));
+  z-index: 60;
+}
+
+.freeplay-mobile-rotate-message {
+  display: none;
+}
+
+@media (orientation: portrait) {
+  .freeplay-mobile-rotate-message {
+    position: fixed;
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    left: 50%;
+    z-index: 60;
+    display: block;
+    margin: 0;
+    max-width: calc(100vw - 2rem);
+    transform: translateX(-50%);
+    border-radius: 0.5rem;
+    background: rgb(9 9 11 / 85%);
+    padding: 0.375rem 0.625rem;
+    color: rgb(212 212 216);
+    font-size: 0.75rem;
+    text-align: center;
+  }
+}

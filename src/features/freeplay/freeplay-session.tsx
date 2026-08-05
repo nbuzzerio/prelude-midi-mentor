@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import MidiStatus from "@/components/midi/midi-status";
@@ -19,6 +19,76 @@ import { playGrandPianoNote } from "@/lib/audio/grand-piano";
 
 const EMPTY_MIDI_NUMBERS: ReadonlySet<number> = new Set();
 
+type LockableScreenOrientation = ScreenOrientation &
+  Readonly<{
+    lock?: (orientation: "landscape") => Promise<void>;
+    unlock?: () => void;
+  }>;
+
+async function requestFullscreen(): Promise<boolean> {
+  if (
+    document.fullscreenElement !== null ||
+    document.documentElement.requestFullscreen === undefined
+  ) {
+    return false;
+  }
+
+  try {
+    await document.documentElement.requestFullscreen();
+    return document.fullscreenElement === document.documentElement;
+  } catch {
+    return false;
+  }
+}
+
+async function exitFullscreen(): Promise<void> {
+  if (
+    document.fullscreenElement !== document.documentElement ||
+    document.exitFullscreen === undefined
+  ) {
+    return;
+  }
+
+  try {
+    await document.exitFullscreen();
+  } catch {
+    // Fullscreen exit is best-effort.
+  }
+}
+
+async function lockLandscapeOrientation(): Promise<boolean> {
+  const orientation = (
+    screen as Screen & { orientation?: LockableScreenOrientation }
+  ).orientation;
+
+  if (orientation?.lock === undefined) {
+    return false;
+  }
+
+  try {
+    await orientation.lock("landscape");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function unlockOrientation(): void {
+  const orientation = (
+    screen as Screen & { orientation?: LockableScreenOrientation }
+  ).orientation;
+
+  if (orientation?.unlock === undefined) {
+    return;
+  }
+
+  try {
+    orientation.unlock();
+  } catch {
+    // Orientation unlock is best-effort.
+  }
+}
+
 type FreeplaySessionProps = Readonly<{
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
@@ -32,12 +102,154 @@ export default function FreeplaySession({
     useState<FreeplayNotationContext>(DEFAULT_FREEPLAY_NOTATION_CONTEXT);
   const [chromaticPreference, setChromaticPreference] =
     useState<FreeplayChromaticPreference>("automatic");
+  const [isMobilePlayMode, setIsMobilePlayMode] = useState(false);
+  const [pointerKeyboardEpoch, setPointerKeyboardEpoch] = useState(0);
   const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
   );
+  const [momentaryPointerNotes, setMomentaryPointerNotes] = useState<
+    ReadonlySet<number>
+  >(new Set());
 
   const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
+  );
+  const browserRequestTokenRef = useRef(0);
+  const enteredFullscreenRef = useRef(false);
+  const lockedOrientationRef = useRef(false);
+  const momentaryPointerNotesRef = useRef(new Set<number>());
+
+  const cleanupBrowserState = useCallback(() => {
+    browserRequestTokenRef.current += 1;
+
+    if (lockedOrientationRef.current) {
+      lockedOrientationRef.current = false;
+      unlockOrientation();
+    }
+
+    if (enteredFullscreenRef.current) {
+      enteredFullscreenRef.current = false;
+      void exitFullscreen();
+    }
+  }, []);
+
+  const clearMomentaryPointerNotes = useCallback(() => {
+    momentaryPointerNotesRef.current = new Set();
+    setMomentaryPointerNotes(new Set());
+    setPointerKeyboardEpoch((currentEpoch) => currentEpoch + 1);
+  }, []);
+
+  const deactivateMobilePlay = useCallback(() => {
+    setIsMobilePlayMode(false);
+    clearMomentaryPointerNotes();
+    cleanupBrowserState();
+  }, [cleanupBrowserState, clearMomentaryPointerNotes]);
+
+  const requestMobileBrowserState = useCallback(() => {
+    const requestToken = browserRequestTokenRef.current + 1;
+    browserRequestTokenRef.current = requestToken;
+
+    void (async () => {
+      const enteredFullscreen = await requestFullscreen();
+
+      if (enteredFullscreen) {
+        if (browserRequestTokenRef.current === requestToken) {
+          enteredFullscreenRef.current = true;
+        } else {
+          await exitFullscreen();
+        }
+      }
+
+      if (browserRequestTokenRef.current !== requestToken) {
+        return;
+      }
+
+      const lockedOrientation = await lockLandscapeOrientation();
+
+      if (!lockedOrientation) {
+        return;
+      }
+
+      if (browserRequestTokenRef.current === requestToken) {
+        lockedOrientationRef.current = true;
+      } else {
+        unlockOrientation();
+      }
+    })();
+  }, []);
+
+  const handleEnterMobilePlay = useCallback(() => {
+    if (isFocusMode) {
+      onToggleFocusMode();
+    }
+
+    setIsMobilePlayMode(true);
+    requestMobileBrowserState();
+  }, [isFocusMode, onToggleFocusMode, requestMobileBrowserState]);
+
+  const handleFocusModeToggle = useCallback(() => {
+    if (isMobilePlayMode) {
+      deactivateMobilePlay();
+    }
+
+    onToggleFocusMode();
+  }, [deactivateMobilePlay, isMobilePlayMode, onToggleFocusMode]);
+
+  const handleMomentaryNotePress = useCallback((midiNumber: number) => {
+    setMomentaryPointerNotes((currentNotes) => {
+      if (currentNotes.has(midiNumber)) {
+        return currentNotes;
+      }
+
+      const nextNotes = new Set(currentNotes);
+      nextNotes.add(midiNumber);
+      momentaryPointerNotesRef.current = nextNotes;
+      playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
+      return nextNotes;
+    });
+  }, []);
+
+  const handleMomentaryNoteRelease = useCallback((midiNumber: number) => {
+    setMomentaryPointerNotes((currentNotes) => {
+      if (!currentNotes.has(midiNumber)) {
+        return currentNotes;
+      }
+
+      const nextNotes = new Set(currentNotes);
+      nextNotes.delete(midiNumber);
+      momentaryPointerNotesRef.current = nextNotes;
+      return nextNotes;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isFocusMode || !isMobilePlayMode) {
+      return;
+    }
+
+    const cleanupTimer = window.setTimeout(deactivateMobilePlay, 0);
+
+    return () => {
+      window.clearTimeout(cleanupTimer);
+    };
+  }, [deactivateMobilePlay, isFocusMode, isMobilePlayMode]);
+
+  useEffect(
+    () => () => {
+      browserRequestTokenRef.current += 1;
+      momentaryPointerNotesRef.current.clear();
+
+      if (lockedOrientationRef.current) {
+        lockedOrientationRef.current = false;
+        unlockOrientation();
+      }
+
+      if (enteredFullscreenRef.current) {
+        enteredFullscreenRef.current = false;
+        void exitFullscreen();
+      }
+    },
+    [],
   );
 
   const handleMidiHeldNotesChanged = useCallback(
@@ -69,7 +281,12 @@ export default function FreeplaySession({
     },
   });
 
-  const activeMidiNumbers = new Set([...virtualHeldNotes, ...midiHeldNotes]);
+  const isMobilePlayActive = isMobilePlayMode && !isFocusMode;
+  const activeMidiNumbers = new Set([
+    ...virtualHeldNotes,
+    ...momentaryPointerNotes,
+    ...midiHeldNotes,
+  ]);
   const spelledNotes =
     spellFreeplayMidiNumbers({
       context: notationContext,
@@ -80,12 +297,17 @@ export default function FreeplaySession({
   return (
     <div
       className={
-        isFocusMode
-          ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
-          : "mx-auto flex w-full max-w-7xl flex-col gap-6"
+        isMobilePlayActive
+          ? "freeplay-mobile-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
+          : isFocusMode
+            ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
+            : "mx-auto flex w-full max-w-7xl flex-col gap-6"
       }
     >
-      <header className="flex items-center justify-between gap-4">
+      <header
+        className="flex items-center justify-between gap-4"
+        hidden={isMobilePlayActive}
+      >
         <div>
           <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
             Free Play
@@ -106,16 +328,48 @@ export default function FreeplaySession({
         />
       </header>
 
+      {isMobilePlayActive ? (
+        <>
+          <button
+            className="freeplay-mobile-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
+            onClick={deactivateMobilePlay}
+            type="button"
+          >
+            Exit Mobile Play
+          </button>
+
+          <p className="freeplay-mobile-rotate-message">
+            Rotate your device for the best layout.
+          </p>
+        </>
+      ) : null}
+
       <div className="practice-stage">
         <section className="relative flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5">
-          <div className="absolute bottom-3 right-3 z-20">
+          <div
+            className="absolute bottom-3 right-3 z-20"
+            hidden={isMobilePlayActive}
+          >
             <FocusStaffControl
               isFocusMode={isFocusMode}
-              onToggle={onToggleFocusMode}
+              onToggle={handleFocusModeToggle}
             />
+
+            {!isFocusMode ? (
+              <button
+                className="ml-2 rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
+                onClick={handleEnterMobilePlay}
+                type="button"
+              >
+                Mobile Play
+              </button>
+            ) : null}
           </div>
 
-          <div className="px-4 text-center sm:px-20 pointer-events-none">
+          <div
+            className="px-4 text-center sm:px-20 pointer-events-none"
+            hidden={isMobilePlayActive}
+          >
             <p className="text-sm font-semibold text-white/60">
               Play your MIDI keyboard or select notes on the virtual piano.
             </p>
@@ -128,20 +382,22 @@ export default function FreeplaySession({
           <MusicStaff
             heldNotes={spelledNotes}
             isFocusMode={isFocusMode}
+            isMobilePlayMode={isMobilePlayMode}
             keySignatureId={
-              notationContext.type === "key"
-                ? notationContext.keyId
-                : undefined
+              notationContext.type === "key" ? notationContext.keyId : undefined
             }
             mode="freeplay"
           />
         </section>
 
-        <div hidden={isFocusMode}>
+        <div className="freeplay-keyboard-region" hidden={isFocusMode}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
             failedMidiNumbers={EMPTY_MIDI_NUMBERS}
+            key={pointerKeyboardEpoch}
             lastAnswer={null}
+            onNotePress={handleMomentaryNotePress}
+            onNoteRelease={handleMomentaryNoteRelease}
             onNoteToggle={handleVirtualNoteToggle}
             targetMidiNumbers={EMPTY_MIDI_NUMBERS}
             visualMode="freeplay"
@@ -151,7 +407,7 @@ export default function FreeplaySession({
 
       <div
         className="grid w-full gap-4 md:grid-cols-2"
-        hidden={isFocusMode}
+        hidden={isFocusMode || isMobilePlayActive}
       >
         <FreeplayControls
           chromaticPreference={chromaticPreference}

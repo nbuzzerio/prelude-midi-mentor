@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useRef } from "react";
+
 type AnswerResult = "correct" | "incorrect";
 
 type LastAnswer = Readonly<{
@@ -13,6 +15,8 @@ type PianoKeyboardProps = Readonly<{
   lastAnswer: LastAnswer | null;
   targetMidiNumbers: ReadonlySet<number>;
   onNoteToggle: (midiNumber: number) => void;
+  onNotePress?: (midiNumber: number) => void;
+  onNoteRelease?: (midiNumber: number) => void;
   minMidi?: number;
   maxMidi?: number;
   visualMode?: PianoKeyboardVisualMode;
@@ -122,10 +126,49 @@ export default function PianoKeyboard({
   lastAnswer,
   targetMidiNumbers,
   onNoteToggle,
+  onNotePress,
+  onNoteRelease,
   minMidi = 36,
   maxMidi = 84,
   visualMode = "graded",
 }: PianoKeyboardProps) {
+  const pointerNotesRef = useRef(new Map<number, number>());
+  const notePointerCountsRef = useRef(new Map<number, number>());
+  const usesMomentaryInput =
+    onNotePress !== undefined && onNoteRelease !== undefined;
+
+  const releasePointer = useCallback(
+    (pointerId: number) => {
+      const midiNumber = pointerNotesRef.current.get(pointerId);
+
+      if (midiNumber === undefined) {
+        return;
+      }
+
+      pointerNotesRef.current.delete(pointerId);
+
+      const remainingOwners =
+        (notePointerCountsRef.current.get(midiNumber) ?? 1) - 1;
+
+      if (remainingOwners > 0) {
+        notePointerCountsRef.current.set(midiNumber, remainingOwners);
+        return;
+      }
+
+      notePointerCountsRef.current.delete(midiNumber);
+      onNoteRelease?.(midiNumber);
+    },
+    [onNoteRelease],
+  );
+
+  useEffect(
+    () => () => {
+      pointerNotesRef.current.clear();
+      notePointerCountsRef.current.clear();
+    },
+    [],
+  );
+
   const keys = createKeys(minMidi, maxMidi);
 
   const whiteKeyCount = keys.filter((key) => !key.isBlack).length;
@@ -133,7 +176,7 @@ export default function PianoKeyboard({
   const whiteKeyWidthPercent = 100 / whiteKeyCount;
 
   return (
-    <div className="h-full max-h-80 min-h-40 rounded-2xl border border-zinc-300 bg-zinc-200 p-2 sm:min-h-52 sm:p-3">
+    <div className="piano-keyboard h-full max-h-80 min-h-40 rounded-2xl border border-zinc-300 bg-zinc-200 p-2 sm:min-h-52 sm:p-3">
       <div className="relative mx-auto h-full min-h-36 w-full overflow-hidden rounded-lg border border-zinc-500 bg-white">
         {keys.map((key) => {
           const isActive = activeMidiNumbers.has(key.midiNumber);
@@ -162,8 +205,59 @@ export default function PianoKeyboard({
                 aria-label={`${key.name}, MIDI ${key.midiNumber}`}
                 aria-pressed={isActive}
                 className="touch-manipulation absolute bottom-0 top-0 select-none border-r border-zinc-400 transition-colors"
-                onClick={() => {
+                onClick={(event) => {
+                  if (usesMomentaryInput && event.detail !== 0) {
+                    return;
+                  }
+
                   onNoteToggle(key.midiNumber);
+                }}
+                onLostPointerCapture={(event) => {
+                  releasePointer(event.pointerId);
+                }}
+                onPointerCancel={(event) => {
+                  releasePointer(event.pointerId);
+                }}
+                onPointerDown={(event) => {
+                  if (!usesMomentaryInput) {
+                    return;
+                  }
+
+                  event.preventDefault();
+
+                  if (pointerNotesRef.current.has(event.pointerId)) {
+                    return;
+                  }
+
+                  try {
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  } catch {
+                    // Pointer capture is best-effort on older touch browsers.
+                  }
+
+                  pointerNotesRef.current.set(
+                    event.pointerId,
+                    key.midiNumber,
+                  );
+
+                  const ownerCount =
+                    notePointerCountsRef.current.get(key.midiNumber) ?? 0;
+
+                  notePointerCountsRef.current.set(
+                    key.midiNumber,
+                    ownerCount + 1,
+                  );
+
+                  if (ownerCount === 0) {
+                    onNotePress(key.midiNumber);
+                  }
+                }}
+                onPointerUp={(event) => {
+                  releasePointer(event.pointerId);
+
+                  if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                  }
                 }}
                 style={{
                   backgroundColor,
@@ -186,8 +280,56 @@ export default function PianoKeyboard({
               aria-label={`${key.name}, MIDI ${key.midiNumber}`}
               aria-pressed={isActive}
               className="touch-manipulation absolute top-0 z-10 h-[62%] select-none rounded-b-sm transition-colors"
-              onClick={() => {
+              onClick={(event) => {
+                if (usesMomentaryInput && event.detail !== 0) {
+                  return;
+                }
+
                 onNoteToggle(key.midiNumber);
+              }}
+              onLostPointerCapture={(event) => {
+                releasePointer(event.pointerId);
+              }}
+              onPointerCancel={(event) => {
+                releasePointer(event.pointerId);
+              }}
+              onPointerDown={(event) => {
+                if (!usesMomentaryInput) {
+                  return;
+                }
+
+                event.preventDefault();
+
+                if (pointerNotesRef.current.has(event.pointerId)) {
+                  return;
+                }
+
+                try {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                } catch {
+                  // Pointer capture is best-effort on older touch browsers.
+                }
+
+                pointerNotesRef.current.set(event.pointerId, key.midiNumber);
+
+                const ownerCount =
+                  notePointerCountsRef.current.get(key.midiNumber) ?? 0;
+
+                notePointerCountsRef.current.set(
+                  key.midiNumber,
+                  ownerCount + 1,
+                );
+
+                if (ownerCount === 0) {
+                  onNotePress(key.midiNumber);
+                }
+              }}
+              onPointerUp={(event) => {
+                releasePointer(event.pointerId);
+
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
               }}
               style={{
                 backgroundColor,
