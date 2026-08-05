@@ -88,18 +88,6 @@ describe("MusicStaff Free Play rendering", () => {
     ).toBeTruthy();
   });
 
-  it("converts legacy raw MIDI with the current generic spelling", () => {
-    render(<MusicStaff heldMidiNumbers={new Set([70, 60])} />);
-
-    expect(mocks.renderGrandStaffHeldNotes).toHaveBeenCalledWith(
-      expect.any(HTMLDivElement),
-      [
-        { midiNumber: 70, name: "A♯", octave: 4 },
-        { midiNumber: 60, name: "C", octave: 4 },
-      ],
-    );
-  });
-
   it("redraws when written notes or the signature changes", () => {
     const view = render(
       <MusicStaff heldNotes={[F_SHARP]} keySignatureId="g-major" mode="freeplay" />,

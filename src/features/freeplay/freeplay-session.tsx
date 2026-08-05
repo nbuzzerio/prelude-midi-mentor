@@ -10,6 +10,7 @@ import { PIANO_NOTE_DURATION_MS } from "@/features/flashcards/flashcard-timing";
 import FreeplayControls from "@/features/freeplay/components/freeplay-controls";
 import {
   DEFAULT_FREEPLAY_NOTATION_CONTEXT,
+  spellFreeplayMidiNumbers,
   type FreeplayChromaticPreference,
   type FreeplayNotationContext,
 } from "@/features/freeplay/freeplay-notation";
@@ -69,6 +70,12 @@ export default function FreeplaySession({
   });
 
   const activeMidiNumbers = new Set([...virtualHeldNotes, ...midiHeldNotes]);
+  const spelledNotes =
+    spellFreeplayMidiNumbers({
+      context: notationContext,
+      midiNumbers: activeMidiNumbers,
+      preference: chromaticPreference,
+    }) ?? [];
 
   return (
     <div
@@ -119,8 +126,14 @@ export default function FreeplaySession({
           </div>
 
           <MusicStaff
-            heldMidiNumbers={activeMidiNumbers}
+            heldNotes={spelledNotes}
             isFocusMode={isFocusMode}
+            keySignatureId={
+              notationContext.type === "key"
+                ? notationContext.keyId
+                : undefined
+            }
+            mode="freeplay"
           />
         </section>
 

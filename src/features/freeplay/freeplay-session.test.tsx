@@ -38,10 +38,26 @@ vi.mock("@/components/notation/focus-staff-control", () => ({
 }));
 
 vi.mock("@/components/notation/music-staff", () => ({
-  default: (props: { heldMidiNumbers: ReadonlySet<number> }) => {
+  default: (props: {
+    heldNotes: ReadonlyArray<{
+      midiNumber: number;
+      name: string;
+      octave: number;
+    }>;
+    isFocusMode?: boolean;
+    keySignatureId?: string;
+    mode: string;
+  }) => {
     mocks.musicStaffProps(props);
     return (
-      <div data-testid="staff-notes">{[...props.heldMidiNumbers].join(",")}</div>
+      <div>
+        <div data-testid="staff-notes">
+          {props.heldNotes
+            .map((note) => `${note.name}${note.octave}:${note.midiNumber}`)
+            .join(",")}
+        </div>
+        <div data-testid="staff-signature">{props.keySignatureId ?? "none"}</div>
+      </div>
     );
   },
 }));
@@ -56,9 +72,15 @@ vi.mock("@/components/notation/piano-keyboard", () => ({
   }) => (
     <div>
       <span data-testid="active-notes">{[...activeMidiNumbers].join(",")}</span>
-      <button onClick={() => onNoteToggle(60)} type="button">
-        Toggle C4
-      </button>
+      {[60, 61, 66, 70].map((midiNumber) => (
+        <button
+          key={midiNumber}
+          onClick={() => onNoteToggle(midiNumber)}
+          type="button"
+        >
+          Toggle MIDI {midiNumber}
+        </button>
+      ))}
     </div>
   ),
 }));
@@ -69,9 +91,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-function renderSession() {
+function renderSession(isFocusMode = false) {
   return render(
-    <FreeplaySession isFocusMode={false} onToggleFocusMode={vi.fn()} />,
+    <FreeplaySession
+      isFocusMode={isFocusMode}
+      onToggleFocusMode={vi.fn()}
+    />,
   );
 }
 
@@ -140,64 +165,116 @@ describe("FreeplaySession notation settings", () => {
     ).toBe("c-major");
   });
 
-  it("preserves held notes and settings through virtual note updates", () => {
+  it("spells MIDI 70 as B-flat in D minor", () => {
     renderSession();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
-      target: { value: "g-minor" },
+      target: { value: "d-minor" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Toggle C4" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle MIDI 70" }));
 
-    expect(screen.getByTestId("active-notes").textContent).toBe("60");
-    expect(screen.getByTestId("staff-notes").textContent).toBe("60");
-    expect(
-      (screen.getByRole("combobox", { name: "Key" }) as HTMLSelectElement)
-        .value,
-    ).toBe("g-minor");
+    expect(screen.getByTestId("staff-notes").textContent).toBe("B♭4:70");
+    expect(screen.getByTestId("active-notes").textContent).toBe("70");
   });
 
-  it("does not clear notes or play audio when settings change", () => {
+  it("forwards the selected F-major signature", () => {
     renderSession();
-    fireEvent.click(screen.getByRole("button", { name: "Toggle C4" }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
+      target: { value: "f-major" },
+    });
+
+    expect(screen.getByTestId("staff-signature").textContent).toBe("f-major");
+  });
+
+  it("respells held chromatic notes for key and preference changes without replay", () => {
+    renderSession();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle MIDI 66" }));
     mocks.playGrandPianoNote.mockClear();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
       target: { value: "f-major" },
     });
+    expect(screen.getByTestId("staff-notes").textContent).toBe("G♭4:66");
+
     fireEvent.change(
       screen.getByRole("combobox", {
         name: "Chromatic spelling preference",
       }),
       { target: { value: "prefer-sharps" } },
     );
-    fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
-      target: { value: "no-key" },
-    });
+    expect(screen.getByTestId("staff-notes").textContent).toBe("F♯4:66");
 
-    expect(screen.getByTestId("staff-notes").textContent).toBe("60");
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "Chromatic spelling preference",
+      }),
+      { target: { value: "prefer-flats" } },
+    );
+
+    expect(screen.getByTestId("staff-notes").textContent).toBe("G♭4:66");
+    expect(screen.getByTestId("active-notes").textContent).toBe("66");
     expect(mocks.playGrandPianoNote).not.toHaveBeenCalled();
   });
 
-  it("continues forwarding merged physical and virtual MIDI notes", () => {
+  it("keeps Automatic diatonic spelling authoritative", () => {
     renderSession();
-    fireEvent.click(screen.getByRole("button", { name: "Toggle C4" }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
+      target: { value: "g-major" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Toggle MIDI 66" }));
+
+    expect(screen.getByTestId("staff-notes").textContent).toBe("F♯4:66");
+  });
+
+  it("respells an existing held note immediately when chromatic preference changes", () => {
+    renderSession();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle MIDI 61" }));
+
+    expect(screen.getByTestId("staff-notes").textContent).toBe("C♯4:61");
+
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "Chromatic spelling preference",
+      }),
+      { target: { value: "prefer-flats" } },
+    );
+
+    expect(screen.getByTestId("staff-notes").textContent).toBe("D♭4:61");
+    expect(screen.getByTestId("active-notes").textContent).toBe("61");
+  });
+
+  it("preserves merged physical and virtual raw MIDI state", () => {
+    renderSession();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle MIDI 60" }));
 
     const midiOptions = mocks.midiOptions.mock.calls.at(-1)?.[0] as {
       onHeldNotesChanged: (notes: ReadonlySet<number>) => void;
     };
-    fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
-      target: { value: "f-major" },
-    });
     act(() => {
       midiOptions.onHeldNotesChanged(new Set([64]));
     });
 
-    expect(screen.getByTestId("staff-notes").textContent).toBe("60,64");
+    expect(screen.getByTestId("active-notes").textContent).toBe("60,64");
+    expect(screen.getByTestId("staff-notes").textContent).toBe("C4:60,E4:64");
     const latestStaffProps = mocks.musicStaffProps.mock.calls.at(-1)?.[0] as {
-      heldMidiNumbers: ReadonlySet<number>;
-      mode?: string;
+      heldNotes: ReadonlyArray<{ midiNumber: number }>;
+      mode: string;
     };
-    expect([...latestStaffProps.heldMidiNumbers]).toEqual([60, 64]);
-    expect(latestStaffProps.mode).toBeUndefined();
+    expect(latestStaffProps.heldNotes.map((note) => note.midiNumber)).toEqual([
+      60, 64,
+    ]);
+    expect(latestStaffProps.mode).toBe("freeplay");
+  });
+
+  it("preserves Focus Staff behavior", () => {
+    renderSession(true);
+
+    expect(screen.queryByRole("button", { name: "Toggle MIDI 60" })).toBeNull();
+    const latestStaffProps = mocks.musicStaffProps.mock.calls.at(-1)?.[0] as {
+      isFocusMode?: boolean;
+    };
+    expect(latestStaffProps.isFocusMode).toBe(true);
   });
 });
