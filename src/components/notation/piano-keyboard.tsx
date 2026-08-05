@@ -123,7 +123,7 @@ export default function PianoKeyboard({
   targetMidiNumbers,
   onNoteToggle,
   minMidi = 36,
-  maxMidi = 83,
+  maxMidi = 84,
   visualMode = "graded",
 }: PianoKeyboardProps) {
   const keys = createKeys(minMidi, maxMidi);
