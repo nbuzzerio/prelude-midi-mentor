@@ -28,6 +28,7 @@ The current application provides Flashcards, Sequences, and Free Play supporting
 - Ordered step validation
 - Sequence completion statistics
 - Live ungraded MIDI and virtual-keyboard notation on a persistent grand staff
+- Free Play key signatures and key-aware enharmonic spelling
 
 Prelude is currently a frontend-only application built with React and Vite.
 
@@ -161,6 +162,8 @@ The Free Play feature owns:
 
 - live MIDI and virtual-keyboard held-note state
 - ungraded keyboard interaction
+- notation-key and chromatic-spelling settings
+- conversion from raw MIDI pitches to explicitly spelled notes
 - free-play session composition
 
 Current hooks include:
@@ -235,7 +238,7 @@ Most implementation details live in hooks and reusable utilities rather than ins
 
 ## Free Play Session
 
-`FreeplaySession` combines shared MIDI input, piano playback, the virtual keyboard, and grand-staff notation without target generation, validation, feedback, or statistics.
+`FreeplaySession` combines shared MIDI input, piano playback, the virtual keyboard, key-aware spelling, and grand-staff notation without target generation, validation, feedback, or statistics. Physical and virtual held notes remain raw MIDI state; notation settings recompute their written spelling without clearing the state or replaying audio.
 
 ---
 
@@ -327,7 +330,39 @@ VexFlow renders notation but does not own Prelude's musical model.
 
 Generic flashcard notes may use either enharmonic accidental spelling. Ordered theory exercises use required diatonic letter patterns so intervals, scales, and arpeggios are spelled musically rather than by pitch class alone. Unsupported double accidentals are rejected intentionally until notation support is added.
 
-Free Play uses a dedicated grand-staff renderer that splits held notes between bass and treble while preserving a blank staff when no notes are held.
+Free Play uses a dedicated grand-staff renderer that splits already-spelled notes between bass and treble while preserving a blank staff when no notes are held.
+
+## Shared Music-Key Domain
+
+`src/lib/music/keys.ts` defines the reusable music-key boundary shared by Chord Progressions and Free Play, with future reuse available to Ear Training and Lessons. The 12-key MVP contains C, G, D, F, B♭, and E♭ major plus A, E, B, D, G, and C minor. Each definition provides a stable ID, display name, tonic, mode, sharp/flat/neutral orientation, correctly spelled diatonic scale, and validated VexFlow key-signature identifier.
+
+Feature-specific progression templates and Free Play settings do not live in this shared module.
+
+## Free Play Notation Pipeline
+
+`src/features/freeplay/freeplay-notation.ts` converts authoritative raw MIDI numbers using a Free Play-owned notation context and chromatic preference:
+
+```text
+Physical MIDI + Virtual Keyboard
+              │
+              ▼
+      Raw Held MIDI Numbers
+              │
+       Key / No Key Context
+       Chromatic Preference
+              │
+              ▼
+     Spelled PracticeNote[]
+              │
+              ▼
+ MusicStaff → VexFlow Grand Staff
+```
+
+Diatonic pitch classes always use the selected key's spelling and cannot be overridden by a chromatic preference. Chromatic spellings are derived algorithmically from valid natural, single-sharp, and single-flat candidates. Automatic uses the key's orientation or a balanced neutral convention; explicit preferences select a representable sharp or flat spelling. MIDI outside 0–127 or a spelling that cannot be represented without unsupported accidentals returns `null` rather than being silently misrepresented.
+
+`FreeplaySession` merges physical and virtual held MIDI exactly once, converts that collection to `PracticeNote` values, and supplies the selected key identity separately. Changing the key or preference recomputes the visible notes immediately without clearing held pitches or replaying audio.
+
+`MusicStaff` accepts already-spelled Free Play notes plus an optional validated key identity. The VexFlow renderer resolves the signature, adds it to both staves, and applies key-aware accidental calculation independently to treble and bass voices. This suppresses signature-covered accidentals and adds naturals or chromatic accidentals where required. No Key passes no visible signature while using C internally only as the accidental-calculation context.
 
 ## Chord Progression Pipeline
 
@@ -357,7 +392,8 @@ Virtual progression input deliberately does not use that timer. `SequenceSession
 
 - Flashcards remain isolated graded targets, including their existing virtual and MIDI chord behavior.
 - Sequences remain ordered graded events, with Chord Progressions represented as ordered chord steps.
-- Free Play remains ungraded and unchanged; chord analysis or chord naming was not added to it.
+- Free Play remains ungraded and owns only live notation context; chord analysis or chord naming was not added to it.
+- Flashcard and Sequence targets retain their existing theory-aware spelling and explicit accidental-rendering paths.
 
 ---
 

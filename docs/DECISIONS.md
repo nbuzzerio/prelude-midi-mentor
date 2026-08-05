@@ -709,6 +709,60 @@ Settings should reflect direct user choices and always leave target generation w
 
 ---
 
+# 2026-08 — Musical Keys Are a Shared Music Domain
+
+## Decision
+
+Stable major and minor key definitions belong in `src/lib/music/keys.ts`, not in Chord Progressions or Free Play. The initial shared domain intentionally supports six major and six minor keys rather than every conventional signature.
+
+## Reason
+
+Tonic spelling, mode, orientation, diatonic degrees, and notation-signature identity are music-domain facts reusable by progressions, Free Play, future Ear Training, and Lessons.
+
+## Consequences
+
+- Chord Progressions and Free Play consume one coherent set of 12 key definitions.
+- Feature-owned templates, settings, and behavior remain outside the shared module.
+- Unsupported keys and double-accidental spellings are explicit boundaries rather than implied support.
+
+---
+
+# 2026-08 — Free Play Owns Deterministic Spelling Context
+
+## Decision
+
+Free Play defaults to No Key plus Automatic chromatic spelling. Diatonic notes always retain the selected key's spelling; user sharp/flat preference applies only to chromatic notes. Automatic uses the selected key's sharp or flat orientation, or a balanced deterministic mapping for neutral and No Key contexts.
+
+## Reason
+
+Live held notes have no melodic or harmonic history from which to infer a uniquely contextual chromatic spelling. A deterministic policy is predictable without claiming harmonic analysis.
+
+## Consequences
+
+- No Key remains distinct from explicitly selected C major, even though neither displays signature accidentals.
+- Prefer sharps and Prefer flats cannot corrupt a key's diatonic spelling.
+- Free Play does not perform automatic key detection, chord identification, or contextual harmonic analysis.
+
+---
+
+# 2026-08 — Free Play Supplies Spelled Notes to Shared Notation
+
+## Decision
+
+Free Play preserves raw physical and virtual MIDI pitches as session state, applies its own notation context, and supplies explicitly spelled `PracticeNote` values plus an optional validated key identity to `MusicStaff`. Changing notation settings preserves held notes and does not replay audio.
+
+## Reason
+
+Feature ownership keeps spelling policy out of the renderer and allows held notes to respell immediately without changing their sounding pitch or input lifecycle.
+
+## Consequences
+
+- Physical and virtual Free Play input use identical spelling after their raw MIDI sets are merged.
+- VexFlow renders the supplied spelling and calculates Free Play accidentals relative to each stave's signature.
+- Flashcard and Sequence spelling and explicit-accidental paths remain isolated and unchanged.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:

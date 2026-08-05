@@ -44,10 +44,14 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ### Free Play
 
-- Live notation from a physical MIDI keyboard
-- Interactive on-screen piano input
-- Persistent grand staff
-- Automatic treble- and bass-staff placement
+- Ungraded live notation from physical MIDI and the virtual keyboard
+- Persistent grand staff with automatic treble- and bass-staff placement
+- No Key or 12 supported major and minor key contexts
+- Key signatures on both staves
+- Key-aware diatonic and enharmonic spelling
+- Automatic, Prefer sharps, and Prefer flats chromatic spelling
+- Immediate respelling when notation settings change while notes are held
+- Focus Staff support
 - Neutral held-key highlighting for ungraded practice
 
 ### Real-Time Input and Feedback
@@ -121,7 +125,7 @@ Free Play
 
 Flashcards and Sequences generate musical targets, render them using standard notation, validate MIDI or virtual-piano input, and provide immediate feedback.
 
-Free Play removes the target and grading layers. Held MIDI and virtual-piano notes are rendered directly on a persistent grand staff for quick visual confirmation during ordinary piano practice.
+Free Play removes the target and grading layers. Physical MIDI and virtual-piano notes share the same live held-note state and key-aware spelling pipeline before appearing on a persistent grand staff. Players can use No Key or one of the supported major and minor keys, choose a chromatic spelling preference, and change notation settings without clearing or replaying held notes.
 
 Shared MIDI, notation, keyboard, and audio systems keep the experience consistent across all three modes.
 
@@ -336,7 +340,7 @@ Planned areas include:
 
 - Scales
 - Arpeggios
-- Key signatures
+- Expanded key-signature practice
 - Cadences
 - Rhythm
 - Ear training
@@ -384,7 +388,7 @@ Prelude uses separate practice models for isolated and ordered exercises.
 
 `SequenceTarget` represents ordered musical material such as intervals, scales, arpeggios, and chord progressions.
 
-Free Play bypasses target generation and renders currently held notes directly on a grand staff.
+Free Play bypasses target generation and grading. It preserves held MIDI pitches, applies Free Play-owned key and chromatic-spelling context, and supplies explicitly spelled notes to the shared grand-staff renderer.
 
 These modes share lower-level systems for MIDI input, virtual-piano interaction, music notation, audio playback, and musical note models while keeping their session behavior independent.
 

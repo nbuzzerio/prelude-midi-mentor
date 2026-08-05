@@ -68,7 +68,7 @@ Users should be able to:
 
 1. Practice isolated notes and triads with Flashcards.
 2. Practice ordered intervals, scales, arpeggios, and chord progressions with Sequences.
-3. Use Free Play for live grand-staff notation without grading.
+3. Use Free Play for key-aware live grand-staff notation without grading.
 4. Play using either a MIDI keyboard or the on-screen keyboard.
 5. Receive immediate feedback in graded modes.
 6. Track session performance in Flashcards and Sequences.
@@ -111,7 +111,9 @@ Completed features include:
 - Curated Roman-numeral chord progressions in supported major and minor keys
 - Theory-aware root-position triads with progression and current-chord labels
 - Progression-specific clef ranges and compatible key/template settings
-- Free Play mode with live grand-staff notation
+- Free Play mode with No Key or 12 supported major/minor key contexts
+- Automatic, Prefer sharps, and Prefer flats live note spelling
+- Immediate respelling of held physical or virtual notes without replay
 
 ## Input
 
@@ -141,6 +143,8 @@ Completed features include:
 - Responsive notation scaling
 - Persistent grand staff for Free Play
 - Automatic treble- and bass-staff placement for held notes
+- Key signatures on both Free Play staves
+- Natural signs and chromatic accidentals relative to the selected signature
 
 ## Platform
 
@@ -184,7 +188,7 @@ Likely next areas include:
 
 Prelude is intentionally designed so today's isolated practice engine can evolve naturally into tomorrow's guided lesson system without requiring major architectural rewrites.
 
-Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, arpeggios, and chord progressions. Progressions store one chord per `SequenceStep` with optional Roman-numeral and concrete chord metadata. Free Play bypasses target generation and renders held notes directly without chord analysis.
+Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, arpeggios, and chord progressions. Progressions store one chord per `SequenceStep` with optional Roman-numeral and concrete chord metadata. Free Play bypasses target generation and grading: raw held MIDI remains authoritative, Free Play-owned settings convert it to explicitly spelled `PracticeNote` values, and shared notation renders those notes with an optional key signature. No chord analysis is performed.
 
 A `PracticeTarget` can represent one or more notes, allowing the same validation and rendering systems to support:
 

@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 27 passed
-- Tests: 367 passed
+- Test files: 34 passed
+- Tests: 426 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -249,7 +249,7 @@ Test:
 - generation invariants across repeated randomized targets
 - keyboard visual-mode behavior at the smallest useful layer when practical
 
-Manually verify Free Play because VexFlow layout, live MIDI interaction, and responsive grand-staff scaling are better assessed in the browser than through brittle SVG assertions.
+Automated tests cover Free Play's music rules and component/renderer contracts. Continue focused manual verification for VexFlow layout, real MIDI interaction, and responsive grand-staff scaling, which are better assessed in the browser than through brittle SVG assertions.
 
 The stale-setting regression is covered: changing an exercise type regenerates a target from the newly selected settings rather than the previous render's state.
 
@@ -272,6 +272,27 @@ Automated progression coverage includes:
 - statistics, retry, reset, regeneration, Focus Staff, completion, and stale-target cleanup
 - Flashcard virtual/MIDI regression protection
 - immediate single-note Sequence input for both virtual and MIDI sources
+
+### Block 9 — Free Play Key-Aware Notation
+
+Automated Free Play notation coverage includes:
+
+- exact shared key definitions, stable IDs, labels, modes, tonic spellings, orientations, diatonic scales, and VexFlow signatures
+- internal coherence of all 12 supported keys and Chord Progression regression after shared-key extraction
+- No Key and named-key notation contexts
+- Automatic, Prefer sharps, and Prefer flats chromatic policies
+- protection of diatonic spelling from chromatic preference overrides
+- MIDI validation across the supported 0–127 range
+- enharmonic spelling and written-octave behavior at B/C and E/F boundaries
+- duplicate removal, input immutability, and deterministic ascending output
+- selected signatures on both treble and bass staves
+- signature-relative natural signs and chromatic accidentals with independent stave state
+- authoritative written-note accessibility labels
+- immediate key and preference respelling while notes remain held
+- equivalent physical and virtual MIDI spelling after held-state merging
+- held-note preservation and no audio replay during notation-setting changes
+- Focus Staff behavior and raw-MIDI virtual-key highlighting
+- unchanged Flashcard and Sequence notation and Chord Progression behavior
 
 ## Intentionally Not Tested for v2.0
 
@@ -312,7 +333,14 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - responsive layouts
 - ledger-line readability for progression chords
 - Focus Staff entry and exit on real devices
-- Free Play grand-staff behavior
+- Free Play key-signature rendering on both staves
+- F-natural in G major and B-natural in F major
+- B-flat versus A-sharp spelling and sharp/flat preference changes
+- simultaneous Free Play notes across both staves
+- Chromebook and touch layout for notation controls
+- Focus Staff spacing with key signatures
+- browser-specific VexFlow glyph and accidental behavior
+- browser audio restrictions while changing settings with held notes
 - low and high notes placed on the expected staff
 - stable blank grand staff when no notes are held
 - neutral Free Play key highlighting

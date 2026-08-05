@@ -141,6 +141,12 @@ Complete Prelude's foundational practice platform with expanded sequence exercis
 - [x] Persistent grand staff
 - [x] Automatic treble- and bass-staff placement
 - [x] Neutral held-key highlighting
+- [x] No Key and supported major/minor notation contexts
+- [x] Key signatures on treble and bass staves
+- [x] Key-aware diatonic and chromatic spelling preferences
+- [x] Immediate respelling of held notes after settings changes
+
+Future Free Play ideas such as chord analysis, phrase history, last-measure display, rhythm, zoom controls, and automatic key detection remain unimplemented.
 
 ## Current Direction
 
