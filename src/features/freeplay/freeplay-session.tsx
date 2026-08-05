@@ -15,79 +15,10 @@ import {
   type FreeplayNotationContext,
 } from "@/features/freeplay/freeplay-notation";
 import { useMidi } from "@/hooks/use-midi";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
 import { playGrandPianoNote } from "@/lib/audio/grand-piano";
 
 const EMPTY_MIDI_NUMBERS: ReadonlySet<number> = new Set();
-
-type LockableScreenOrientation = ScreenOrientation &
-  Readonly<{
-    lock?: (orientation: "landscape") => Promise<void>;
-    unlock?: () => void;
-  }>;
-
-async function requestFullscreen(): Promise<boolean> {
-  if (
-    document.fullscreenElement !== null ||
-    document.documentElement.requestFullscreen === undefined
-  ) {
-    return false;
-  }
-
-  try {
-    await document.documentElement.requestFullscreen();
-    return document.fullscreenElement === document.documentElement;
-  } catch {
-    return false;
-  }
-}
-
-async function exitFullscreen(): Promise<void> {
-  if (
-    document.fullscreenElement !== document.documentElement ||
-    document.exitFullscreen === undefined
-  ) {
-    return;
-  }
-
-  try {
-    await document.exitFullscreen();
-  } catch {
-    // Fullscreen exit is best-effort.
-  }
-}
-
-async function lockLandscapeOrientation(): Promise<boolean> {
-  const orientation = (
-    screen as Screen & { orientation?: LockableScreenOrientation }
-  ).orientation;
-
-  if (orientation?.lock === undefined) {
-    return false;
-  }
-
-  try {
-    await orientation.lock("landscape");
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function unlockOrientation(): void {
-  const orientation = (
-    screen as Screen & { orientation?: LockableScreenOrientation }
-  ).orientation;
-
-  if (orientation?.unlock === undefined) {
-    return;
-  }
-
-  try {
-    orientation.unlock();
-  } catch {
-    // Orientation unlock is best-effort.
-  }
-}
 
 type FreeplaySessionProps = Readonly<{
   isFocusMode: boolean;
@@ -102,7 +33,6 @@ export default function FreeplaySession({
     useState<FreeplayNotationContext>(DEFAULT_FREEPLAY_NOTATION_CONTEXT);
   const [chromaticPreference, setChromaticPreference] =
     useState<FreeplayChromaticPreference>("automatic");
-  const [isMobilePlayMode, setIsMobilePlayMode] = useState(false);
   const [pointerKeyboardEpoch, setPointerKeyboardEpoch] = useState(0);
   const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
@@ -114,24 +44,9 @@ export default function FreeplaySession({
   const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
   );
-  const browserRequestTokenRef = useRef(0);
-  const enteredFullscreenRef = useRef(false);
-  const lockedOrientationRef = useRef(false);
   const momentaryPointerNotesRef = useRef(new Set<number>());
-
-  const cleanupBrowserState = useCallback(() => {
-    browserRequestTokenRef.current += 1;
-
-    if (lockedOrientationRef.current) {
-      lockedOrientationRef.current = false;
-      unlockOrientation();
-    }
-
-    if (enteredFullscreenRef.current) {
-      enteredFullscreenRef.current = false;
-      void exitFullscreen();
-    }
-  }, []);
+  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
+    useMobilePlay();
 
   const clearMomentaryPointerNotes = useCallback(() => {
     momentaryPointerNotesRef.current = new Set();
@@ -140,52 +55,17 @@ export default function FreeplaySession({
   }, []);
 
   const deactivateMobilePlay = useCallback(() => {
-    setIsMobilePlayMode(false);
     clearMomentaryPointerNotes();
-    cleanupBrowserState();
-  }, [cleanupBrowserState, clearMomentaryPointerNotes]);
-
-  const requestMobileBrowserState = useCallback(() => {
-    const requestToken = browserRequestTokenRef.current + 1;
-    browserRequestTokenRef.current = requestToken;
-
-    void (async () => {
-      const enteredFullscreen = await requestFullscreen();
-
-      if (enteredFullscreen) {
-        if (browserRequestTokenRef.current === requestToken) {
-          enteredFullscreenRef.current = true;
-        } else {
-          await exitFullscreen();
-        }
-      }
-
-      if (browserRequestTokenRef.current !== requestToken) {
-        return;
-      }
-
-      const lockedOrientation = await lockLandscapeOrientation();
-
-      if (!lockedOrientation) {
-        return;
-      }
-
-      if (browserRequestTokenRef.current === requestToken) {
-        lockedOrientationRef.current = true;
-      } else {
-        unlockOrientation();
-      }
-    })();
-  }, []);
+    exitMobilePlay();
+  }, [clearMomentaryPointerNotes, exitMobilePlay]);
 
   const handleEnterMobilePlay = useCallback(() => {
     if (isFocusMode) {
       onToggleFocusMode();
     }
 
-    setIsMobilePlayMode(true);
-    requestMobileBrowserState();
-  }, [isFocusMode, onToggleFocusMode, requestMobileBrowserState]);
+    enterMobilePlay();
+  }, [enterMobilePlay, isFocusMode, onToggleFocusMode]);
 
   const handleFocusModeToggle = useCallback(() => {
     if (isMobilePlayMode) {
@@ -236,18 +116,7 @@ export default function FreeplaySession({
 
   useEffect(
     () => () => {
-      browserRequestTokenRef.current += 1;
       momentaryPointerNotesRef.current.clear();
-
-      if (lockedOrientationRef.current) {
-        lockedOrientationRef.current = false;
-        unlockOrientation();
-      }
-
-      if (enteredFullscreenRef.current) {
-        enteredFullscreenRef.current = false;
-        void exitFullscreen();
-      }
     },
     [],
   );
@@ -298,7 +167,7 @@ export default function FreeplaySession({
     <div
       className={
         isMobilePlayActive
-          ? "freeplay-mobile-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
+          ? "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
           : isFocusMode
             ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
             : "mx-auto flex w-full max-w-7xl flex-col gap-6"
@@ -331,14 +200,14 @@ export default function FreeplaySession({
       {isMobilePlayActive ? (
         <>
           <button
-            className="freeplay-mobile-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
+            className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
             onClick={deactivateMobilePlay}
             type="button"
           >
             Exit Mobile Play
           </button>
 
-          <p className="freeplay-mobile-rotate-message">
+          <p className="mobile-play-rotate-message">
             Rotate your device for the best layout.
           </p>
         </>
@@ -390,7 +259,7 @@ export default function FreeplaySession({
           />
         </section>
 
-        <div className="freeplay-keyboard-region" hidden={isFocusMode}>
+        <div className="mobile-play-keyboard-region" hidden={isFocusMode}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
             failedMidiNumbers={EMPTY_MIDI_NUMBERS}

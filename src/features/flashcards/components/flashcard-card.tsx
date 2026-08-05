@@ -6,10 +6,12 @@ import type { FeedbackState, PracticeTarget } from "@/types/practice";
 type FlashcardCardProps = Readonly<{
   feedback: FeedbackState;
   isFocusMode: boolean;
+  isMobilePlayMode?: boolean;
   practiceTarget: PracticeTarget;
   showTargetName: boolean;
   onCorrect: () => void;
   onIncorrect: () => void;
+  onEnterMobilePlay?: () => void;
   onToggleFocusMode: () => void;
 }>;
 
@@ -22,26 +24,41 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
 export default function FlashcardCard({
   feedback,
   isFocusMode,
+  isMobilePlayMode = false,
   practiceTarget,
   showTargetName,
   onCorrect,
   onIncorrect,
+  onEnterMobilePlay,
   onToggleFocusMode,
 }: FlashcardCardProps) {
   return (
     <section className="relative flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5">
-      <div hidden={isFocusMode}>
+      <div hidden={isFocusMode || isMobilePlayMode}>
         <PracticeSimulationControls
           onCorrect={onCorrect}
           onIncorrect={onIncorrect}
         />
       </div>
 
-      <div className="absolute bottom-3 right-3 z-20">
+      <div
+        className="absolute bottom-3 right-3 z-20"
+        hidden={isMobilePlayMode}
+      >
         <FocusStaffControl
           isFocusMode={isFocusMode}
           onToggle={onToggleFocusMode}
         />
+
+        {!isFocusMode && onEnterMobilePlay ? (
+          <button
+            className="ml-2 rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
+            onClick={onEnterMobilePlay}
+            type="button"
+          >
+            Mobile Play
+          </button>
+        ) : null}
       </div>
 
       <div className="px-20 text-center">
@@ -75,6 +92,7 @@ export default function FlashcardCard({
 
       <MusicStaff
         isFocusMode={isFocusMode}
+        isMobilePlayMode={isMobilePlayMode}
         practiceTarget={practiceTarget}
       />
     </section>

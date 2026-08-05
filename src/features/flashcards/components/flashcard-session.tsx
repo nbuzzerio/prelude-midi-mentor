@@ -22,6 +22,7 @@ import {
 } from "@/features/flashcards/flashcard-timing";
 
 import { useMidi } from "@/hooks/use-midi";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
 
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import {
@@ -59,6 +60,8 @@ export default function FlashcardSession({
   isFocusMode,
   onToggleFocusMode,
 }: FlashcardSessionProps) {
+  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
+    useMobilePlay();
   // Practice configuration
   const {
     enabledExerciseTypes,
@@ -498,6 +501,34 @@ export default function FlashcardSession({
     generateNextTarget();
   };
 
+  const handleEnterMobilePlay = () => {
+    if (isFocusMode) {
+      onToggleFocusMode();
+    }
+
+    enterMobilePlay();
+  };
+
+  const handleToggleFocusMode = () => {
+    if (isMobilePlayMode) {
+      exitMobilePlay();
+    }
+
+    onToggleFocusMode();
+  };
+
+  useEffect(() => {
+    if (!isFocusMode || !isMobilePlayMode) {
+      return;
+    }
+
+    const cleanupTimer = window.setTimeout(exitMobilePlay, 0);
+
+    return () => {
+      window.clearTimeout(cleanupTimer);
+    };
+  }, [exitMobilePlay, isFocusMode, isMobilePlayMode]);
+
   // Derived display state
   const activeMidiNumbers = new Set([
     ...virtualHeldNotes,
@@ -508,12 +539,17 @@ export default function FlashcardSession({
   return (
     <div
       className={
-        isFocusMode
+        isMobilePlayMode && !isFocusMode
+          ? "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
+          : isFocusMode
           ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
           : "mx-auto flex w-full max-w-7xl flex-col gap-6"
       }
     >
-      <header className="flex items-center justify-between gap-4">
+      <header
+        className="flex items-center justify-between gap-4"
+        hidden={isMobilePlayMode}
+      >
         <div>
           <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
             Sight-reading trainer
@@ -534,18 +570,36 @@ export default function FlashcardSession({
         />
       </header>
 
+      {isMobilePlayMode && !isFocusMode ? (
+        <>
+          <button
+            className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
+            onClick={exitMobilePlay}
+            type="button"
+          >
+            Exit Mobile Play
+          </button>
+
+          <p className="mobile-play-rotate-message">
+            Rotate your device for the best layout.
+          </p>
+        </>
+      ) : null}
+
       <div className="practice-stage">
         <FlashcardCard
           feedback={feedback}
           isFocusMode={isFocusMode}
+          isMobilePlayMode={isMobilePlayMode}
+          onEnterMobilePlay={handleEnterMobilePlay}
           practiceTarget={practiceTarget}
           showTargetName={showTargetName}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
-          onToggleFocusMode={onToggleFocusMode}
+          onToggleFocusMode={handleToggleFocusMode}
         />
 
-        <div hidden={isFocusMode}>
+        <div className="mobile-play-keyboard-region" hidden={isFocusMode}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
             failedMidiNumbers={lastFailedAttemptNotes}
@@ -559,7 +613,7 @@ export default function FlashcardSession({
       {/* TODO(v1): Remove temporary negative margin after final page layout pass. */}
       <section
         className="relative -my-72 flex flex-col gap-6"
-        hidden={isFocusMode}
+        hidden={isFocusMode || isMobilePlayMode}
       >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
           <div className="flex flex-col gap-4">

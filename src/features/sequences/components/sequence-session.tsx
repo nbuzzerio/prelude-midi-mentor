@@ -5,6 +5,7 @@ import InstrumentVolumeControl from "@/components/audio/instrument-volume-contro
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useMidi } from "@/hooks/use-midi";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
 import {
   CHORD_ATTEMPT_GRACE_MS,
   useChordAttempt,
@@ -59,6 +60,8 @@ export default function SequenceSession({
   isFocusMode,
   onToggleFocusMode,
 }: SequenceSessionProps) {
+  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
+    useMobilePlay();
   // Sequence configuration
   const {
     enabledArpeggios,
@@ -622,12 +625,36 @@ export default function SequenceSession({
   };
 
   const handleToggleFocusMode = () => {
+    if (isMobilePlayMode) {
+      exitMobilePlay();
+    }
+
     if (!isFocusMode) {
       clearVirtualSelection();
     }
 
     onToggleFocusMode();
   };
+
+  const handleEnterMobilePlay = () => {
+    if (isFocusMode) {
+      onToggleFocusMode();
+    }
+
+    enterMobilePlay();
+  };
+
+  useEffect(() => {
+    if (!isFocusMode || !isMobilePlayMode) {
+      return;
+    }
+
+    const cleanupTimer = window.setTimeout(exitMobilePlay, 0);
+
+    return () => {
+      window.clearTimeout(cleanupTimer);
+    };
+  }, [exitMobilePlay, isFocusMode, isMobilePlayMode]);
 
   // Derived display state
   const activeMidiNumbers = new Set([
@@ -644,7 +671,9 @@ export default function SequenceSession({
   return (
     <div
       className={
-        isFocusMode
+        isMobilePlayMode && !isFocusMode
+          ? "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
+          : isFocusMode
           ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
           : "mx-auto flex w-full max-w-7xl flex-col gap-6"
       }
@@ -652,13 +681,16 @@ export default function SequenceSession({
       {import.meta.env.DEV ? (
         <div
           className="rounded bg-zinc-900 px-3 py-2 text-xs text-zinc-300"
-          hidden={isFocusMode}
+          hidden={isFocusMode || isMobilePlayMode}
         >
           State: {sequenceAttemptState} | Step: {currentStepIndex + 1}
         </div>
       ) : null}
 
-      <header className="flex items-center justify-between gap-4">
+      <header
+        className="flex items-center justify-between gap-4"
+        hidden={isMobilePlayMode}
+      >
         <div>
           <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
             Sequence trainer
@@ -679,12 +711,30 @@ export default function SequenceSession({
         />
       </header>
 
+      {isMobilePlayMode && !isFocusMode ? (
+        <>
+          <button
+            className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
+            onClick={exitMobilePlay}
+            type="button"
+          >
+            Exit Mobile Play
+          </button>
+
+          <p className="mobile-play-rotate-message">
+            Rotate your device for the best layout.
+          </p>
+        </>
+      ) : null}
+
       <div className="practice-stage">
         <SequenceCard
           currentStepIndex={currentStepIndex}
           exerciseType={exerciseType}
           feedback={feedback}
           isFocusMode={isFocusMode}
+          isMobilePlayMode={isMobilePlayMode}
+          onEnterMobilePlay={handleEnterMobilePlay}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
           onToggleFocusMode={handleToggleFocusMode}
@@ -692,7 +742,7 @@ export default function SequenceSession({
           showTargetName={showTargetName}
         />
 
-        <div hidden={isFocusMode}>
+        <div className="mobile-play-keyboard-region" hidden={isFocusMode}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
             failedMidiNumbers={lastFailedAttemptNotes}
@@ -705,7 +755,7 @@ export default function SequenceSession({
 
       <section
         className="relative -my-20 flex flex-col gap-6"
-        hidden={isFocusMode}
+        hidden={isFocusMode || isMobilePlayMode}
       >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
           <div className="flex flex-col gap-4">

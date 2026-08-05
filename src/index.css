@@ -77,7 +77,7 @@ button {
   transform: none !important;
 }
 
-.freeplay-mobile-mode {
+.mobile-play-mode {
   height: 100dvh;
   padding:
     max(0.25rem, env(safe-area-inset-top))
@@ -86,7 +86,7 @@ button {
     max(0.25rem, env(safe-area-inset-left));
 }
 
-.freeplay-mobile-mode .practice-stage {
+.mobile-play-mode .practice-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 3fr) minmax(0, 7fr);
@@ -95,31 +95,30 @@ button {
   min-height: 0;
 }
 
-.freeplay-mobile-mode .practice-stage > section {
+.mobile-play-mode .practice-stage > section {
   border-radius: 0.5rem;
   min-height: 0;
   padding: 0;
 }
 
-.freeplay-mobile-mode .music-staff-freeplay {
+.mobile-play-mode .music-staff {
   height: 100%;
   min-height: 0;
 }
 
-.freeplay-mobile-mode .music-staff-freeplay svg {
+.mobile-play-mode .music-staff svg {
   height: 100% !important;
   max-height: 100% !important;
-  transform: none !important;
   width: 100% !important;
 }
 
-.freeplay-mobile-mode .freeplay-keyboard-region,
-.freeplay-mobile-mode .piano-keyboard {
+.mobile-play-mode .mobile-play-keyboard-region,
+.mobile-play-mode .piano-keyboard {
   height: 100%;
   min-height: 0;
 }
 
-.freeplay-mobile-mode .piano-keyboard {
+.mobile-play-mode .piano-keyboard {
   max-height: none;
   padding: 0.25rem;
   touch-action: none;
@@ -127,23 +126,23 @@ button {
   -webkit-user-select: none;
 }
 
-.freeplay-mobile-mode .piano-keyboard button {
+.mobile-play-mode .piano-keyboard button {
   touch-action: none;
 }
 
-.freeplay-mobile-exit {
+.mobile-play-exit {
   position: fixed;
   right: max(0.5rem, env(safe-area-inset-right));
   top: max(0.5rem, env(safe-area-inset-top));
   z-index: 60;
 }
 
-.freeplay-mobile-rotate-message {
+.mobile-play-rotate-message {
   display: none;
 }
 
 @media (orientation: portrait) {
-  .freeplay-mobile-rotate-message {
+  .mobile-play-rotate-message {
     position: fixed;
     bottom: max(0.5rem, env(safe-area-inset-bottom));
     left: 50%;

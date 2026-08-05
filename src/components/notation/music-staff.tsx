@@ -35,7 +35,6 @@ type SequenceMusicStaffProps = Readonly<{
 type KeyAwareFreePlayMusicStaffProps = Readonly<{
   currentStepIndex?: never;
   heldNotes: ReadonlyArray<PracticeNote>;
-  isMobilePlayMode?: boolean;
   keySignatureId?: StaffKeySignature;
   mode: "freeplay";
   practiceTarget?: never;
@@ -49,6 +48,7 @@ type MusicStaffProps = (
 ) &
   Readonly<{
     isFocusMode?: boolean;
+    isMobilePlayMode?: boolean;
   }>;
 
 function getPracticeTargetNoteNames(practiceTarget: PracticeTarget): string {
@@ -134,7 +134,14 @@ export default function MusicStaff(props: MusicStaffProps) {
           ? "[&_svg]:scale-[300%] [&_svg]:translate-y-[55px]"
           : "md:[&_svg]:scale-[125%] lg:[&_svg]:scale-[150%] md:[&_svg]:translate-y-[65px]",
       ].join(" ")
-    : "music-staff mx-auto flex min-h-0 w-full items-center justify-center invert [&_svg]:h-[200%]! [&_svg]:w-auto!";
+    : [
+        "music-staff mx-auto flex min-h-0 w-full items-center justify-center invert [&_svg]:h-[200%]! [&_svg]:w-auto!",
+        props.isMobilePlayMode
+          ? props.sequenceTarget !== undefined
+            ? "[&_svg]:scale-[115%] [&_svg]:translate-y-[8px]"
+            : "[&_svg]:scale-[175%] [&_svg]:translate-y-[15px]"
+          : "",
+      ].join(" ");
 
   return (
     <div ref={containerRef} aria-label={ariaLabel} className={className} />
