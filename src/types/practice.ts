@@ -1,3 +1,8 @@
+import type {
+  IntervalDirection,
+  MusicalInterval,
+} from "@/lib/music/intervals";
+
 export type Clef = "bass" | "treble";
 
 export type PracticeClefMode = Clef | "mixed";
@@ -64,24 +69,13 @@ export type SequenceExerciseType =
   | "arpeggios"
   | "chord-progressions";
 
-export type SequenceDirection = "ascending" | "descending";
+export type SequenceDirection = IntervalDirection;
 
 export type SequenceScaleDirection =
   | SequenceDirection
   | "ascending-descending";
 
-export type SequenceInterval =
-  | "minor-second"
-  | "major-second"
-  | "minor-third"
-  | "major-third"
-  | "perfect-fourth"
-  | "perfect-fifth"
-  | "minor-sixth"
-  | "major-sixth"
-  | "minor-seventh"
-  | "major-seventh"
-  | "octave";
+export type SequenceInterval = MusicalInterval;
 
 export type SequenceScale =
   | "major"

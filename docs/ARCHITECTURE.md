@@ -30,7 +30,7 @@ The current application provides Flashcards, Sequences, and Free Play supporting
 - Live ungraded MIDI and virtual-keyboard notation on a persistent grand staff
 - Free Play key signatures and key-aware enharmonic spelling
 
-Prelude is currently a frontend-only application built with React and Vite.
+Prelude is currently a frontend-only application built with React and Vite. Ear Training adds melodic interval identification without reusing the notation-first Flashcard or performed-step Sequence state machines.
 
 ---
 
@@ -86,10 +86,16 @@ App
 │   ├── Sequence Logic
 │   └── Step Validation
 │
-└── FreeplaySession
+├── FreeplaySession
     ├── Live Held-Note State
     ├── Grand-Staff Rendering
     └── Ungraded Keyboard Interaction
+│
+└── EarTrainingSession
+    ├── Stable Aural Target
+    ├── Prompt Playback
+    ├── Interval-Name Validation
+    └── Session Statistics
 
 Shared Systems
 ├── Music Rendering
@@ -166,6 +172,14 @@ The Free Play feature owns:
 - conversion from raw MIDI pitches to explicitly spelled notes
 - free-play session composition
 
+The Ear Training feature owns:
+
+- melodic interval target generation within C4–C6
+- enabled interval and direction settings
+- prompt/replay UI state and response timing
+- interval-name validation and one-failure-per-target statistics
+- Ear Training-specific Mobile Play presentation
+
 Current hooks include:
 
 - `useFlashcardSettings`
@@ -239,6 +253,10 @@ Most implementation details live in hooks and reusable utilities rather than ins
 ## Free Play Session
 
 `FreeplaySession` combines shared MIDI input, piano playback, the virtual keyboard, key-aware spelling, and grand-staff notation without target generation, validation, feedback, or statistics. Physical and virtual held notes remain raw MIDI state; notation settings recompute their written spelling without clearing the state or replaying audio.
+
+## Ear Training Session
+
+`EarTrainingSession` owns an independent aural-classification lifecycle. A stable `EarTrainingTarget` exists before playback and is translated into shared playable events. Answers remain disabled until successful prompt completion. Replays preserve target notes and response timing; a correct answer advances after a cancellable delay without autoplaying the next target.
 
 ---
 
@@ -315,6 +333,14 @@ Current responsibilities include:
 # Music Architecture
 
 Prelude keeps musical data separate from notation rendering.
+
+`src/lib/music/intervals.ts` owns shared interval labels, semitone distances, and diatonic distances. Sequence and Ear Training consume these facts while keeping their generators and state machines separate.
+
+## Musical-Event Playback
+
+`src/lib/audio/musical-event-player.ts` is a React-independent scheduling boundary over cancellable grand-piano playback. A stable ordered event collection supplies MIDI notes, start offsets, and durations. One event may contain simultaneous notes. The player supports immediate zero-offset events, pending and active cancellation, replacement, completion, stale-callback protection, and non-throwing browser playback failure.
+
+Ear Training translates each two-note target into two events. The boundary is intentionally small enough for current prompts while being reusable by the later Staff Builder for deterministic score playback. It does not define measures, beats, tempo, looping, notation, lessons, or transport UI.
 
 ```text
 PracticeTarget / SequenceTarget / Held Notes

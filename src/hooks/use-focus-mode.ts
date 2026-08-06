@@ -12,18 +12,25 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-export function useFocusMode() {
+export function useFocusMode(enabled = true) {
   const [isFocusMode, setIsFocusMode] = useState(false);
 
   const toggleFocusMode = useCallback(() => {
+    if (!enabled) {
+      return;
+    }
     setIsFocusMode((currentValue) => !currentValue);
-  }, []);
+  }, [enabled]);
 
   const exitFocusMode = useCallback(() => {
     setIsFocusMode(false);
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) {
         return;
@@ -58,11 +65,11 @@ export function useFocusMode() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [exitFocusMode, isFocusMode, toggleFocusMode]);
+  }, [enabled, exitFocusMode, isFocusMode, toggleFocusMode]);
 
   return {
     exitFocusMode,
-    isFocusMode,
+    isFocusMode: enabled && isFocusMode,
     toggleFocusMode,
   };
 }

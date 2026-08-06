@@ -28,48 +28,11 @@ import {
   isNaturalMidiNumber,
 } from "../note-utils";
 import type { NoteLetter } from "../note-utils";
-
-const INTERVAL_SEMITONES: Readonly<Record<SequenceInterval, number>> = {
-  "minor-second": 1,
-  "major-second": 2,
-  "minor-third": 3,
-  "major-third": 4,
-  "perfect-fourth": 5,
-  "perfect-fifth": 7,
-  "minor-sixth": 8,
-  "major-sixth": 9,
-  "minor-seventh": 10,
-  "major-seventh": 11,
-  octave: 12,
-};
-
-const INTERVAL_DIATONIC_STEPS: Readonly<Record<SequenceInterval, number>> = {
-  "minor-second": 1,
-  "major-second": 1,
-  "minor-third": 2,
-  "major-third": 2,
-  "perfect-fourth": 3,
-  "perfect-fifth": 4,
-  "minor-sixth": 5,
-  "major-sixth": 5,
-  "minor-seventh": 6,
-  "major-seventh": 6,
-  octave: 7,
-};
-
-const INTERVAL_LABELS: Readonly<Record<SequenceInterval, string>> = {
-  "minor-second": "Minor second",
-  "major-second": "Major second",
-  "minor-third": "Minor third",
-  "major-third": "Major third",
-  "perfect-fourth": "Perfect fourth",
-  "perfect-fifth": "Perfect fifth",
-  "minor-sixth": "Minor sixth",
-  "major-sixth": "Major sixth",
-  "minor-seventh": "Minor seventh",
-  "major-seventh": "Major seventh",
-  octave: "Octave",
-};
+import {
+  getIntervalDiatonicSteps,
+  getIntervalLabel,
+  getIntervalSemitones,
+} from "../intervals";
 
 const SCALE_SEMITONE_PATTERNS: Readonly<
   Record<SequenceScale, ReadonlyArray<number>>
@@ -331,7 +294,7 @@ function getEligibleIntervalStartingMidiNumbers({
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
 }>): ReadonlyArray<number> {
   const range = NOTE_RANGES[clef];
-  const semitones = INTERVAL_SEMITONES[interval];
+  const semitones = getIntervalSemitones(interval);
   const directionMultiplier = getDirectionMultiplier(direction);
 
   const eligibleMidiNumbers: number[] = [];
@@ -399,9 +362,7 @@ function getEligibleOneOctaveStartingMidiNumbers({
   return eligibleMidiNumbers;
 }
 
-export function getIntervalSemitones(interval: SequenceInterval): number {
-  return INTERVAL_SEMITONES[interval];
-}
+export { getIntervalSemitones } from "../intervals";
 
 function generateIntervalTarget({
   clef,
@@ -441,15 +402,15 @@ function generateIntervalTarget({
 
   const notes = createTheoryPatternNotes({
     startingMidiNumber,
-    semitonePattern: [0, INTERVAL_SEMITONES[interval]],
-    diatonicPattern: [0, INTERVAL_DIATONIC_STEPS[interval]],
+    semitonePattern: [0, getIntervalSemitones(interval)],
+    diatonicPattern: [0, getIntervalDiatonicSteps(interval)],
     direction,
   });
 
   return {
     clef,
     name: {
-      primary: INTERVAL_LABELS[interval],
+      primary: getIntervalLabel(interval),
       secondary:
         direction === "ascending"
           ? "Ascending melodic interval"

@@ -130,6 +130,26 @@ button {
   touch-action: none;
 }
 
+.ear-training-stage {
+  min-height: 28rem;
+}
+
+.ear-training-mobile-play .ear-training-stage {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  padding: 2.75rem 0.25rem 0.25rem;
+}
+
+.ear-training-mobile-play .ear-training-card {
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.ear-training-mobile-play .ear-training-answer-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .mobile-play-exit {
   position: fixed;
   right: max(0.5rem, env(safe-area-inset-right));

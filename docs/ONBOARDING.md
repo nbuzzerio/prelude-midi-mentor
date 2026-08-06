@@ -172,11 +172,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's current practice foundation includes Flashcards, Sequences, Chord Progressions, key-aware Free Play, and shared Mobile Play.
+Prelude's current practice foundation includes Flashcards, Sequences, Chord Progressions, key-aware Free Play, shared Mobile Play, and melodic-interval Ear Training.
 
-Ear Training and Staff Builder are the next major capabilities planned before v3.0. Future work should continue according to [`ROADMAP.md`](./ROADMAP.md).
+The Ear Training MVP is implemented and awaiting final manual verification and release finalization. Staff Builder is the next major capability planned before v3.0 QA and the later UI/UX overhaul. Future work should continue according to [`ROADMAP.md`](./ROADMAP.md).
 
 Mobile Play is presentation and browser lifecycle, not a shared practice state machine. `useMobilePlay` owns best-effort fullscreen/orientation handling; feature sessions retain their targets and settings. Flashcards and Sequences keep graded toggle input, while Free Play alone uses momentary multitouch callbacks. Current staff enlargement is transform-based and mode-specific; container-measured responsive VexFlow sizing is intentionally deferred.
+
+Ear Training owns a stable aural target, explicit prompt/replay state, interval-button grading, and session statistics. Shared interval facts live in `lib/music/intervals.ts`. Ordered sound uses the React-independent `lib/audio/musical-event-player.ts`, which schedules cancellable note/chord events by offsets and durations. This boundary prepares deterministic playback reuse for Staff Builder without implementing Staff Builder, measures, tempo, looping, or transport UI.
 
 Likely next areas include:
 

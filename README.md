@@ -54,6 +54,14 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Focus Staff support
 - Neutral held-key highlighting for ungraded practice
 
+### Ear Training
+
+- Melodic interval identification from minor second through octave
+- Configurable ascending and descending prompts
+- Explicit Play Prompt and stable Replay Prompt controls
+- Prompt-oriented feedback, streaks, accuracy, and response-time statistics
+- Focus Staff exclusion and a dedicated Mobile Play answer layout
+
 ### Real-Time Input and Feedback
 
 - Physical MIDI keyboard support
@@ -112,7 +120,7 @@ The goal is to connect three ideas:
 
 ## How It Works
 
-Prelude currently provides three complementary practice modes:
+Prelude currently provides four complementary practice modes:
 
 ```text
 Flashcards
@@ -123,13 +131,16 @@ Sequences
 
 Free Play
     └── View live notation while practicing without grading
+
+Ear Training
+    └── Identify ascending and descending melodic intervals by sound
 ```
 
 Flashcards and Sequences generate musical targets, render them using standard notation, validate MIDI or virtual-piano input, and provide immediate feedback.
 
 Free Play removes the target and grading layers. Physical MIDI and virtual-piano notes share the same live held-note state and key-aware spelling pipeline before appearing on a persistent grand staff. Players can use No Key or one of the supported major and minor keys, choose a chromatic spelling preference, and change notation settings without clearing or replaying held notes.
 
-Shared MIDI, notation, keyboard, and audio systems keep the experience consistent across all three modes.
+Shared MIDI, notation, keyboard, audio, interval-domain, and musical-event playback systems keep the experience consistent while each mode retains its own state machine.
 
 ---
 
@@ -226,7 +237,8 @@ Prelude's automated suite covers:
 - stateful practice hooks
 - Web MIDI integration
 - focused session orchestration
-- shared Mobile Play browser lifecycle, Focus Staff coordination, state preservation, and mode-specific notation scaling
+- shared Mobile Play browser lifecycle, Focus Staff coordination, state preservation, and mode-specific presentation
+- Ear Training target generation, prompt scheduling, grading, and session statistics
 
 Mobile Play preserves each mode's input contract: Flashcards and Sequences retain graded toggle input, while Free Play alone adds momentary multitouch press/release input. Mobile Play and Focus Staff are mutually exclusive. Fullscreen and landscape lock are enhancements rather than requirements; if fullscreen exits externally, the Mobile Play layout remains active until the user exits it.
 
@@ -314,13 +326,14 @@ For a more detailed technical explanation, see
 
 Prelude's v2.0 practice foundation is feature-complete.
 
-The application now supports three complementary practice modes:
+The application now supports four complementary practice modes:
 
 - Flashcards for isolated notes and triads
 - Sequences for intervals, scales, arpeggios, and chord progressions
 - Free Play for live grand-staff notation without grading
+- Ear Training for melodic interval identification by sound
 
-Current development is focused on automated testing, documentation, final manual verification, and the v2.0.0 release.
+Melodic-interval Ear Training is implemented. Focused manual QA and release finalization remain before this milestone is complete. Staff Builder is the next major capability after this milestone is finalized, followed by v3.0 QA and the later UI/UX overhaul.
 
 See [`ROADMAP.md`](./docs/ROADMAP.md) for completed milestones and future development areas.
 

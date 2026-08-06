@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 36 passed
-- Tests: 452 passed
+- Test files: 47 passed
+- Tests: 492 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -307,6 +307,22 @@ Focused automated coverage includes:
 - Free Play momentary press/release semantics and pointer-note cleanup without clearing physical MIDI
 - mode-specific staff scaling with no normal-mode leakage
 
+### Block 11 — Ear Training and Musical-Event Playback
+
+Automated coverage includes:
+
+- shared interval labels, semitone distances, and diatonic distances
+- unchanged Sequence interval generation after shared-domain extraction
+- ascending and descending theory-aware Ear Training targets within C4–C6
+- required interval and direction settings
+- interval-name validation independent of direction
+- one incorrect attempt maximum per target and streak semantics
+- stable unplayed targets, replay, response timing, locking, settings regeneration, reset, and unmount cleanup
+- deterministic musical-event offsets, simultaneous notes, durations, completion, replacement, cancellation, playback failure, stale callbacks, and repeated use
+- cancellable grand-piano playback handles
+- top-level mode switching and Focus Staff suppression
+- Ear Training Mobile Play state preservation and accessible status/answer names
+
 ## Intentionally Not Tested for v2.0
 
 The initial suite should not deeply test:
@@ -368,6 +384,10 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - Free Play two- and three-finger multitouch, cancelled touches, and stuck-note checks
 - folded and unfolded Z Fold layouts
 - Chromebook and tablet landscape layouts
+- Ear Training first-prompt browser authorization and recovery after refusal
+- ascending and descending prompt timing and pitch quality across C4–C6
+- rapid Replay replacement, mode switching, reset, and settings changes during playback
+- Ear Training answer-grid touch targets, keyboard focus, and screen-reader announcements
 
 This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issues found during normal use may be recorded through the project's bug-log workflow.
 

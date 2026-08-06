@@ -782,6 +782,44 @@ Fullscreen and orientation support varies across mobile browsers and installed-a
 
 ---
 
+# 2026-08 — Ear Training Owns Aural Classification
+
+## Decision
+
+Ear Training is a fourth top-level feature with an independent target, prompt, grading, settings, and statistics lifecycle. Its first release contains melodic interval identification only.
+
+## Reason
+
+An aural interval prompt is neither a notation-first Flashcard target nor a Sequence the learner performs step by step. Explicit ownership preserves those domain boundaries while allowing shared musical facts and playback infrastructure.
+
+## Consequences
+
+- Answers use interval-name buttons rather than MIDI or the virtual piano.
+- Focus Staff is unavailable; Mobile Play uses an Ear Training-specific answer layout.
+- One target contributes at most one incorrect attempt, and any failed target contributes no streak credit.
+- Single notes, harmonic intervals, chords, melodies, notation reveal, reference tones, keys, and persisted history remain deferred.
+
+---
+
+# 2026-08 — Deterministic Playback Uses Shared Musical Events
+
+## Decision
+
+Ordered piano playback is scheduled by a React-independent musical-event player. Events contain simultaneous MIDI notes, a start offset, and a duration. Grand-piano notes return backward-compatible cancellable handles.
+
+## Reason
+
+Ear Training needs reliable two-note prompt replay now, while Staff Builder will next need mechanically correct note, chord, location, and piece playback. Sharing the smallest timing boundary avoids disposable Ear Training scheduling without introducing a lesson or DAW model.
+
+## Consequences
+
+- Replacement cancels pending events and currently sounding notes.
+- Completion and browser playback failure are explicit non-throwing results.
+- Ear Training owns prompt UI state but not timer scheduling.
+- Measures, beats, BPM, looping, cursor tracking, notation data, and transport UI are not part of the shared primitive.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:

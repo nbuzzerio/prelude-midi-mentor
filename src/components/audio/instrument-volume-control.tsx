@@ -4,15 +4,21 @@ import {
   setInstrumentVolume,
 } from "@/lib/audio/instrument-volume";
 
-type InstrumentVolumeControlProps = Readonly<{
-  replayCorrectVirtualChords: boolean;
-  onReplayCorrectVirtualChordsChange: (enabled: boolean) => void;
-}>;
+type InstrumentVolumeControlProps =
+  | Readonly<{
+      onReplayCorrectVirtualChordsChange: (enabled: boolean) => void;
+      replayCorrectVirtualChords: boolean;
+      showReplayCompletedChords?: true;
+    }>
+  | Readonly<{
+      onReplayCorrectVirtualChordsChange?: never;
+      replayCorrectVirtualChords?: never;
+      showReplayCompletedChords: false;
+    }>;
 
-export default function InstrumentVolumeControl({
-  replayCorrectVirtualChords,
-  onReplayCorrectVirtualChordsChange,
-}: InstrumentVolumeControlProps) {
+export default function InstrumentVolumeControl(
+  props: InstrumentVolumeControlProps,
+) {
   const [volumePercent, setVolumePercent] = useState(() =>
     Math.round(getInstrumentVolume() * 100),
   );
@@ -54,12 +60,12 @@ export default function InstrumentVolumeControl({
         Set to 0% to mute piano key sounds.
       </p>
 
-      <label className="mt-4 flex cursor-pointer items-start gap-3 border-t border-white/10 pt-4">
+      {props.showReplayCompletedChords !== false ? <label className="mt-4 flex cursor-pointer items-start gap-3 border-t border-white/10 pt-4">
         <input
-          checked={replayCorrectVirtualChords}
+          checked={props.replayCorrectVirtualChords}
           className="mt-0.5 size-4 cursor-pointer"
           onChange={(event) => {
-            onReplayCorrectVirtualChordsChange(event.target.checked);
+            props.onReplayCorrectVirtualChordsChange(event.target.checked);
           }}
           type="checkbox"
         />
@@ -73,7 +79,7 @@ export default function InstrumentVolumeControl({
             Play mouse and touch chords together after a correct answer.
           </span>
         </span>
-      </label>
+      </label> : null}
     </section>
   );
 }

@@ -27,6 +27,12 @@ function dispatchKeyDown(
 }
 
 describe("useFocusMode", () => {
+  it("suppresses activation while disabled", () => {
+    const { result } = renderHook(() => useFocusMode(false));
+    dispatchKeyDown("f");
+    act(() => result.current.toggleFocusMode());
+    expect(result.current.isFocusMode).toBe(false);
+  });
   it("toggles focus mode with unmodified F", () => {
     const { result } = renderHook(() => useFocusMode());
 

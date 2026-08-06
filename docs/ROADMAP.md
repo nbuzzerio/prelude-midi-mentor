@@ -160,7 +160,7 @@ Future Free Play ideas such as chord analysis, phrase history, last-measure disp
 
 ## Current Direction
 
-Chord Progressions, Free Play, and shared Mobile Play stabilization are complete as part of the foundational practice platform. Ear Training remains a future major capability, not work begun by this milestone. Remaining unchecked Harmony, Musicianship, Lesson, Builder, Playback, and Composer items continue to describe future possibilities rather than a strict delivery order.
+Chord Progressions, Free Play, shared Mobile Play, and melodic-interval Ear Training are complete. Staff Builder is the next major capability, followed by v3.0 QA and the later UI/UX overhaul. Remaining unchecked Harmony, Musicianship, Lesson, Playback, and Composer items continue to describe future possibilities rather than a strict delivery order.
 
 ---
 
@@ -193,7 +193,7 @@ Expand beyond isolated note and chord recognition.
 
 - [x] Melodic interval construction
 - [x] Ascending / descending modes
-- [ ] Interval identification
+- [x] Melodic interval identification by ear
 - [ ] Harmonic interval practice
 - [ ] Expanded interval difficulty settings
 
@@ -295,9 +295,11 @@ Expand listening and orchestration capabilities.
 ## Ear Training
 
 - [ ] Note identification
-- [ ] Interval recognition
+- [x] Melodic interval recognition
 - [ ] Chord recognition by ear
 - [ ] Melody playback
+
+The initial Ear Training release supports ascending and descending melodic interval-name identification, stable explicit replay, session statistics, Focus Staff exclusion, and Mobile Play. Harmonic intervals, note identification, chord recognition, and melody imitation remain deferred.
 
 ---
 

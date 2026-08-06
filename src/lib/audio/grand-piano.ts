@@ -76,6 +76,15 @@ const GRAND_PIANO_SAMPLES: Readonly<Record<number, PianoSample>> = {
 
 const preloadedSamples = new Map<string, HTMLAudioElement>();
 
+export type PianoPlaybackHandle = Readonly<{
+  started: Promise<boolean>;
+  stop: () => void;
+}>;
+
+function unavailablePlayback(): PianoPlaybackHandle {
+  return { started: Promise.resolve(false), stop: () => {} };
+}
+
 function getPitchClass(midiNumber: number): number {
   return (
     ((midiNumber % SEMITONES_PER_OCTAVE) + SEMITONES_PER_OCTAVE) %
@@ -121,24 +130,24 @@ export function preloadGrandPianoSamples(): void {
 export function playGrandPianoNote(
   midiNumber: number,
   durationMs = DEFAULT_NOTE_DURATION_MS,
-): void {
+): PianoPlaybackHandle {
   const volume = getInstrumentVolume();
 
   if (volume === 0) {
-    return;
+    return unavailablePlayback();
   }
 
   const pitchClass = getPitchClass(midiNumber);
   const sampleDefinition = GRAND_PIANO_SAMPLES[pitchClass];
 
   if (!sampleDefinition) {
-    return;
+    return unavailablePlayback();
   }
 
   const preloadedSample = getPreloadedSample(sampleDefinition.url);
 
   if (!preloadedSample) {
-    return;
+    return unavailablePlayback();
   }
 
   const playableSample = preloadedSample.cloneNode(true) as HTMLAudioElement;
@@ -149,19 +158,36 @@ export function playGrandPianoNote(
     midiNumber,
     sampleDefinition.baseMidiNumber,
   );
+  let fadeTimeoutId: number | null = null;
+  let fadeFrameId: number | null = null;
+  let stopped = false;
 
-  void playableSample
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (fadeTimeoutId !== null) window.clearTimeout(fadeTimeoutId);
+    if (fadeFrameId !== null) window.cancelAnimationFrame(fadeFrameId);
+    playableSample.pause();
+    playableSample.currentTime = 0;
+  };
+
+  const started = playableSample
     .play()
     .then(() => {
+      if (stopped) {
+        playableSample.pause();
+        playableSample.currentTime = 0;
+        return false;
+      }
       const fadeDurationMs = Math.min(NOTE_RELEASE_FADE_MS, durationMs);
       const fadeStartMs = Math.max(0, durationMs - fadeDurationMs);
 
-      window.setTimeout(() => {
+      fadeTimeoutId = window.setTimeout(() => {
         const fadeStartedAt = performance.now();
         const startingVolume = playableSample.volume;
 
         const fadeOut = (currentTime: number) => {
-          if (playableSample.paused || playableSample.ended) {
+          if (stopped || playableSample.paused || playableSample.ended) {
             return;
           }
 
@@ -171,28 +197,41 @@ export function playGrandPianoNote(
           playableSample.volume = startingVolume * (1 - fadeProgress);
 
           if (fadeProgress < 1) {
-            window.requestAnimationFrame(fadeOut);
+            fadeFrameId = window.requestAnimationFrame(fadeOut);
 
             return;
           }
 
-          playableSample.pause();
-          playableSample.currentTime = 0;
+          stop();
         };
 
-        window.requestAnimationFrame(fadeOut);
+        fadeFrameId = window.requestAnimationFrame(fadeOut);
       }, fadeStartMs);
+
+      return true;
     })
     .catch(() => {
       // Browsers may reject playback before the user interacts with the page.
+      stop();
+      return false;
     });
+
+  return { started, stop };
 }
 
 export function playGrandPianoChord(
   midiNumbers: Iterable<number>,
   durationMs = DEFAULT_NOTE_DURATION_MS,
-): void {
+): PianoPlaybackHandle {
+  const handles: PianoPlaybackHandle[] = [];
   for (const midiNumber of midiNumbers) {
-    playGrandPianoNote(midiNumber, durationMs);
+    handles.push(playGrandPianoNote(midiNumber, durationMs));
   }
+
+  return {
+    started: Promise.all(handles.map((handle) => handle.started)).then(
+      (results) => results.length > 0 && results.every(Boolean),
+    ),
+    stop: () => handles.forEach((handle) => handle.stop()),
+  };
 }
