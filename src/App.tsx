@@ -4,15 +4,16 @@ import FlashcardSession from "./features/flashcards/components/flashcard-session
 import SequenceSession from "./features/sequences/components/sequence-session";
 import FreeplaySession from "./features/freeplay/freeplay-session";
 import EarTrainingSession from "./features/ear-training/components/ear-training-session";
+import StaffBuilderSession from "./features/staff-builder/components/staff-builder-session";
 import { useFocusMode } from "./hooks/use-focus-mode";
 
-type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training";
+type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder";
 
 export default function App() {
   const [practiceSection, setPracticeSection] =
     useState<PracticeSection>("freeplay");
   const { exitFocusMode, isFocusMode, toggleFocusMode } = useFocusMode(
-    practiceSection !== "ear-training",
+    practiceSection !== "ear-training" && practiceSection !== "staff-builder",
   );
 
   let content;
@@ -47,6 +48,10 @@ export default function App() {
 
     case "ear-training":
       content = <EarTrainingSession />;
+      break;
+
+    case "staff-builder":
+      content = <StaffBuilderSession />;
       break;
 
     default:
@@ -84,6 +89,21 @@ export default function App() {
           type="button"
         >
           Ear Training
+        </button>
+
+        <button
+          className={`rounded px-4 py-2 transition ${
+            practiceSection === "staff-builder"
+              ? "bg-sky-500 text-white"
+              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+          }`}
+          onClick={() => {
+            exitFocusMode();
+            setPracticeSection("staff-builder");
+          }}
+          type="button"
+        >
+          Staff Builder
         </button>
 
         <button

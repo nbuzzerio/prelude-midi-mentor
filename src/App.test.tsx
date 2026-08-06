@@ -41,6 +41,10 @@ vi.mock("./features/ear-training/components/ear-training-session", () => ({
   default: () => <div>Ear Training session</div>,
 }));
 
+vi.mock("./features/staff-builder/components/staff-builder-session", () => ({
+  default: () => <div>Staff Builder session</div>,
+}));
+
 describe("App focus mode", () => {
   it("shares focus state between the visible control and keyboard shortcut", () => {
     render(<App />);
@@ -87,5 +91,19 @@ describe("App focus mode", () => {
     expect(screen.getByText("Ear Training session")).toBeTruthy();
     expect(modeNavigation?.hidden).toBe(false);
     expect(screen.queryByRole("button", { name: "Exit Focus Staff" })).toBeNull();
+  });
+
+  it("mounts Staff Builder as a fifth mode, exits Focus Staff, and suppresses F", () => {
+    render(<App />);
+    const modeNavigation = screen.getByRole("button", { name: "Free Play" }).parentElement;
+    fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
+    fireEvent.click(screen.getByRole("button", { name: "Staff Builder", hidden: true }));
+    expect(screen.getByText("Staff Builder session")).toBeTruthy();
+    expect(modeNavigation?.hidden).toBe(false);
+    fireEvent.keyDown(window, { key: "f" });
+    expect(modeNavigation?.hidden).toBe(false);
+    expect(screen.queryByRole("button", { name: "Exit Focus Staff" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
+    expect(screen.getByText("Free Play session")).toBeTruthy();
   });
 });
