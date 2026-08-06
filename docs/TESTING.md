@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 47 passed
-- Tests: 492 passed
+- Test files: 48 passed
+- Tests: 502 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -317,6 +317,7 @@ Automated coverage includes:
 - required interval and direction settings
 - interval-name validation independent of direction
 - one incorrect attempt maximum per target and streak semantics
+- attempt-hook grading gates, replay lock, duplicate-answer protection, timer cancellation, stale-advancement prevention, and unmount cleanup
 - stable unplayed targets, replay, response timing, locking, settings regeneration, reset, and unmount cleanup
 - deterministic musical-event offsets, simultaneous notes, durations, completion, replacement, cancellation, playback failure, stale callbacks, and repeated use
 - cancellable grand-piano playback handles

@@ -190,6 +190,10 @@ Current hooks include:
 - `useSequenceTarget`
 - `useSequenceAttempt`
 - `useSequenceTransition`
+- `useEarTrainingSettings`
+- `useEarTrainingTarget`
+- `useEarTrainingPrompt`
+- `useEarTrainingAttempt`
 
 ## hooks/
 
@@ -256,7 +260,7 @@ Most implementation details live in hooks and reusable utilities rather than ins
 
 ## Ear Training Session
 
-`EarTrainingSession` owns an independent aural-classification lifecycle. A stable `EarTrainingTarget` exists before playback and is translated into shared playable events. Answers remain disabled until successful prompt completion. Replays preserve target notes and response timing; a correct answer advances after a cancellable delay without autoplaying the next target.
+`EarTrainingSession` composes the feature's settings, target, prompt, attempt, and Mobile Play hooks, then renders the normal or Mobile Play presentation. `useEarTrainingTarget` owns stable target generation and locking. `useEarTrainingPrompt` owns prompt playback state, playback cancellation, and response timing. `useEarTrainingAttempt` owns grading, feedback, statistics, and delayed advancement. Answers remain disabled until successful prompt completion, replays preserve target notes and response timing, and a correct answer advances without autoplaying the next target.
 
 ---
 
