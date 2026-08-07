@@ -129,7 +129,8 @@ describe("Staff Builder notation projection", () => {
     ] });
     const projection = projectStaffBuilderMeasure(current, 0);
     expect(projection.ties).toEqual([{ tieId: "visible", fromEventId: "from", fromPitchIndex: 0, toEventId: "to", toPitchIndex: 0 }]);
-    expect(projection.unavailableTies).toEqual([{ tieId: "crossing", reason: "endpoint-outside-measure" }]);
+    expect(projection.unavailableTies).toEqual([]);
+    expect(projection.boundaryTies).toEqual([{ tieId: "crossing", eventId: "to", pitchIndex: 0, direction: "outgoing", description: "Tie continues to the adjacent measure." }]);
   });
 
   it("provides deterministic beaming candidates for eighth and sixteenth notes only", () => {
@@ -140,6 +141,18 @@ describe("Staff Builder notation projection", () => {
       rest("rest", "treble", 840, "sixteenth"),
     ];
     expect(projectStaffBuilderMeasure(score({ measures: [{ id: "m1", events }] }), 0).beams.treble.eventIds).toEqual(["eighth", "sixteenth"]);
+  });
+
+  it("defensively omits impossible starts and clips overflowing layout without changing the score", () => {
+    const outside = note("outside", "treble", 2040, { status: "final", duration: "quarter" });
+    const overflow = note("overflow", "bass", 1800, { status: "final", duration: "quarter" });
+    const current = score({ measures: [{ id: "m1", events: [outside, overflow] }] });
+    const before = JSON.stringify(current);
+    const projection = projectStaffBuilderMeasure(current, 0);
+    expect(projection.invalidEventIds).toEqual(["outside"]);
+    expect(projection.staves.treble.some((item) => item.kind !== "spacer" && item.eventId === "outside")).toBe(false);
+    expect(projection.staves.bass.find((item) => item.kind !== "spacer")).toMatchObject({ eventId: "overflow", layoutDurationTicks: 120 });
+    expect(JSON.stringify(current)).toBe(before);
   });
 
   it("projects simultaneous treble and bass pending previews at the cursor with effective-key spelling", () => {

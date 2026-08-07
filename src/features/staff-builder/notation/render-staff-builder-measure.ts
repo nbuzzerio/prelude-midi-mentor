@@ -83,7 +83,7 @@ function createTickable(item: StaffBuilderProjectedTickable): RenderedTickable {
     ? [item.staff === "treble" ? "b/4" : "d/3"]
     : item.pitches.map((_pitch, index) => pitchKey(item, index));
   const note = new StaveNote({ clef: item.staff, duration: `${duration}${item.kind === "rest" ? "r" : ""}`, keys });
-  if (item.unresolved && item.layoutDurationTicks !== item.visualDuration.ticks) {
+  if (item.layoutDurationTicks !== item.visualDuration.ticks) {
     note.setDuration(new Fraction(item.layoutDurationTicks * 128, 15));
   }
   if (item.visualDuration.dots > 0) Dot.buildAndAttach([note], { all: true });
@@ -187,8 +187,12 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   renderer.resize(RENDER_WIDTH, RENDER_HEIGHT);
   const context = renderer.getContext();
   const staveWidth = RENDER_WIDTH - STAVE_X - STAVE_RIGHT_PADDING;
-  const trebleStave = new Stave(STAVE_X, TREBLE_Y, staveWidth).addClef("treble").addKeySignature(projection.vexflowKeySignature).addTimeSignature(projection.timeSignature);
-  const bassStave = new Stave(STAVE_X, BASS_Y, staveWidth).addClef("bass").addKeySignature(projection.vexflowKeySignature).addTimeSignature(projection.timeSignature);
+  const trebleStave = new Stave(STAVE_X, TREBLE_Y, staveWidth).addClef("treble");
+  const bassStave = new Stave(STAVE_X, BASS_Y, staveWidth).addClef("bass");
+  trebleStave.addKeySignature(projection.vexflowKeySignature);
+  bassStave.addKeySignature(projection.vexflowKeySignature);
+  trebleStave.addTimeSignature(projection.timeSignature);
+  bassStave.addTimeSignature(projection.timeSignature);
   trebleStave.setContext(context).draw();
   bassStave.setContext(context).draw();
   new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.BRACE).setContext(context).draw();

@@ -1,4 +1,5 @@
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import { validateStaffBuilderScore } from "../staff-builder-validation";
 
 export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onOpen, onRename }: Readonly<{
   activePieceId: string | null;
@@ -13,7 +14,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onOpen, o
       {pieces.length === 0 ? <p>No Staff Builder pieces yet.</p> : (
         <ul className="staff-builder-library-list">
           {pieces.map((piece) => <li className="staff-builder-library-item" key={piece.id}>
-            <div><strong>{piece.title}</strong>{activePieceId === piece.id && <span className="ml-2 text-sky-300">Current piece</span>}<div className="text-sm text-zinc-400">Updated {new Date(piece.updatedAt).toLocaleString()}</div></div>
+            <div><strong>{piece.title}</strong>{activePieceId === piece.id && <span className="ml-2 text-sky-300">Current piece</span>}<span className={validateStaffBuilderScore(piece).length === 0 ? "ml-2 text-emerald-300" : "ml-2 text-amber-300"}>{validateStaffBuilderScore(piece).length === 0 ? "Validated" : "Needs validation"}</span><div className="text-sm text-zinc-400">Updated {new Date(piece.updatedAt).toLocaleString()}</div></div>
             <div className="flex flex-wrap gap-2">
               <button aria-label={`Open ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onOpen(piece.id)} type="button">Open</button>
               <button aria-label={`Rename ${piece.title}`} className="staff-builder-secondary-button" onClick={() => {

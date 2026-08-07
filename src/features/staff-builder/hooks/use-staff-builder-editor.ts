@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   commitStaffBuilderPendingCapture,
   formatStaffBuilderCapturePosition,
@@ -9,10 +9,13 @@ import {
   type StaffBuilderPendingCapture,
   routeStaffBuilderCapturePitch,
 } from "../staff-builder-capture";
-import { resolveStaffBuilderMeasureContext } from "../staff-builder-score";
-import { getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
+import { resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature } from "../staff-builder-score";
+import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
-import type { StaffBuilderStepDuration } from "../staff-builder-time";
+import type { StaffBuilderDuration, StaffBuilderStepDuration, StaffBuilderTimeSignature } from "../staff-builder-time";
+import type { MusicKeyId } from "@/lib/music/keys";
+import { createStaffBuilderTies, fillStaffBuilderGapWithRests, removeStaffBuilderTie, setStaffBuilderInitialKey, setStaffBuilderInitialTime, splitStaffBuilderEventAcrossBarline } from "../staff-builder-corrections";
+import { validateStaffBuilderScore, type StaffBuilderIssue } from "../staff-builder-validation";
 import { useStaffBuilderHistory } from "./use-staff-builder-history";
 import { useStaffBuilderRhythmEditor } from "./use-staff-builder-rhythm-editor";
 
@@ -34,12 +37,13 @@ function scoreFingerprint(score: StaffBuilderScoreV1): string {
   return JSON.stringify(score);
 }
 
-export function useStaffBuilderEditor({ score: initialScore, initialCaptureState, initialEditorPass = "capture", initialRhythmState = { measureIndex: 0, selectedEventId: null }, onDraftChange, confirmDiscardPending = () => window.confirm("Discard pending pitches and switch editor passes?") }: Readonly<{
+export function useStaffBuilderEditor({ score: initialScore, initialCaptureState, initialEditorPass = "capture", initialRhythmState = { measureIndex: 0, selectedEventId: null }, onDraftChange, onValidatedSave, confirmDiscardPending = () => window.confirm("Discard pending pitches and switch editor passes?") }: Readonly<{
   score: StaffBuilderScoreV1;
   initialCaptureState: StaffBuilderCaptureState;
   initialEditorPass?: StaffBuilderEditorPass;
   initialRhythmState?: StaffBuilderRhythmState;
   onDraftChange: (score: StaffBuilderScoreV1, editorState: StaffBuilderPersistedEditorState) => unknown;
+  onValidatedSave?: (score: StaffBuilderScoreV1, editorState: StaffBuilderPersistedEditorState) => Readonly<{ ok: boolean }>;
   confirmDiscardPending?: () => boolean;
 }>) {
   const [score, setScore] = useState(initialScore);
@@ -50,6 +54,9 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   const [editorPass, setEditorPass] = useState<StaffBuilderEditorPass>(initialEditorPass);
   const [rhythmState, setRhythmState] = useState<StaffBuilderRhythmState>(initialRhythmState);
   const [pending, setPending] = useState<StaffBuilderPendingCapture>(EMPTY_PENDING);
+  const [validationActive, setValidationActive] = useState(false);
+  const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
+  const [validationStatus, setValidationStatus] = useState<string | null>(null);
   if (initialScoreFingerprint !== sourceFingerprint) {
     setSourceFingerprint(initialScoreFingerprint);
     if (initialScoreFingerprint !== scoreFingerprint(score)) {
@@ -87,6 +94,34 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, history, persist, score, selectionToState]);
 
   const rhythm = useStaffBuilderRhythmEditor({ score, initialState: initialRhythmState, onMutation: handleRhythmMutation, onSelectionChange: handleRhythmSelectionChange });
+  const issues = useMemo(() => validateStaffBuilderScore(score), [score]);
+  const foundIssueIndex = activeIssueId === null ? -1 : issues.findIndex(({ id }) => id === activeIssueId);
+  const activeIssueIndex = validationActive && activeIssueId !== null && issues.length > 0 ? Math.max(0, foundIssueIndex) : -1;
+  const activeIssue = activeIssueIndex >= 0 ? issues[activeIssueIndex] ?? null : null;
+
+  const selectIssue = useCallback((next: StaffBuilderIssue | null) => {
+    setActiveIssueId(next?.id ?? null);
+    if (next?.target.eventId) rhythm.setSelection({ measureIndex: next.target.measureIndex, eventId: next.target.eventId });
+  }, [rhythm]);
+
+  const reconcileIssueAfterMutation = useCallback((previous: StaffBuilderIssue | null, nextScore: StaffBuilderScoreV1) => {
+    const nextIssues = validateStaffBuilderScore(nextScore);
+    if (nextIssues.length === 0) { setActiveIssueId(null); setValidationStatus("All structural issues are corrected. Validate & Save to store the ready reference."); return; }
+    const retained = previous ? nextIssues.find(({ id }) => id === previous.id) : null;
+    const next = retained ?? nextIssues.find((candidate) => !previous || candidate.target.measureIndex > previous.target.measureIndex
+      || (candidate.target.measureIndex === previous.target.measureIndex && (candidate.target.positionTicks ?? 0) >= (previous.target.positionTicks ?? 0))) ?? nextIssues[0] ?? null;
+    setActiveIssueId(next?.id ?? null);
+    if (next?.target.eventId) rhythm.setSelection({ measureIndex: next.target.measureIndex, eventId: next.target.eventId });
+  }, [rhythm]);
+
+  const applyHistoryMutation = useCallback((nextScore: StaffBuilderScoreV1, selection: StaffBuilderEventSelection | null = rhythm.selection) => {
+    if (nextScore === score) return false;
+    history.record(score);
+    const nextSelection = reconcileStaffBuilderEventSelection(nextScore, selection);
+    persist(nextScore, captureState, editorPass, selectionToState(nextSelection));
+    reconcileIssueAfterMutation(activeIssue, nextScore);
+    return true;
+  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm.selection, score, selectionToState]);
 
   const setInputMode = useCallback((inputMode: StaffBuilderCaptureInputMode) => {
     if (inputMode === captureState.inputMode) return;
@@ -159,8 +194,9 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     const selection = reconcileStaffBuilderEventSelection(restored, rhythm.selection);
     rhythm.setSelection(selection);
     persist(restored, captureState, editorPass, selectionToState(selection));
+    reconcileIssueAfterMutation(activeIssue, restored);
     return true;
-  }, [captureState, editorPass, history, persist, rhythm, score, selectionToState]);
+  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm, score, selectionToState]);
 
   const redo = useCallback(() => {
     const restored = history.redo(score);
@@ -168,8 +204,67 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     const selection = reconcileStaffBuilderEventSelection(restored, rhythm.selection);
     rhythm.setSelection(selection);
     persist(restored, captureState, editorPass, selectionToState(selection));
+    reconcileIssueAfterMutation(activeIssue, restored);
     return true;
-  }, [captureState, editorPass, history, persist, rhythm, score, selectionToState]);
+  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm, score, selectionToState]);
+
+  const activateValidation = useCallback(() => {
+    if (hasPending(pending) && !confirmDiscardPending()) return false;
+    setPending(EMPTY_PENDING);
+    if (issues.length === 0) {
+      const result = onValidatedSave?.(score, { editorPass, captureState, rhythmState });
+      setValidationStatus(result?.ok ? "Validated reference saved to the local library." : "The validated reference could not be saved. Your draft remains available.");
+      setValidationActive(false);
+      selectIssue(null);
+      return result?.ok ?? false;
+    }
+    setValidationActive(true);
+    setValidationStatus(null);
+    selectIssue(issues[0] ?? null);
+    return true;
+  }, [captureState, confirmDiscardPending, editorPass, issues, onValidatedSave, pending, rhythmState, score, selectIssue]);
+
+  const applyIssueCorrection = useCallback((correction: StaffBuilderIssue["corrections"][number]) => {
+    let result;
+    if (correction.kind === "assign-duration" || correction.kind === "shorten-duration") {
+      const measureIndex = score.measures.findIndex((measure) => measure.events.some(({ id }) => id === correction.eventId));
+      if (measureIndex < 0) return false;
+      const selection = { measureIndex, eventId: correction.eventId };
+      const nextRhythmState = selectionToState(selection);
+      setValidationActive(false);
+      setValidationStatus(correction.kind === "assign-duration" ? "Assign a final duration to correct this issue." : "Shorten this event to correct the overlap or overflow.");
+      rhythm.setSelection(selection);
+      persist(score, captureState, "rhythm", nextRhythmState);
+      return true;
+    }
+    if (correction.kind === "fill-gap-with-rests") result = fillStaffBuilderGapWithRests(score, { measureIndex: activeIssue?.target.measureIndex ?? 0, staff: correction.staff, startTick: correction.startTick, endTick: correction.endTick });
+    else if (correction.kind === "remove-tie") result = removeStaffBuilderTie(score, correction.tieId);
+    else if (correction.kind === "delete-event") {
+      const located = score.measures.findIndex((measure) => measure.events.some(({ id }) => id === correction.eventId));
+      if (located < 0) return false;
+      const deleted = deleteStaffBuilderEvent(score, { measureIndex: located, eventId: correction.eventId });
+      if (!deleted.result.ok) { setValidationStatus("Remove the event's ties before deleting it."); return false; }
+      return applyHistoryMutation(deleted.result.score, deleted.selection);
+    } else return false;
+    if (!result.ok) { setValidationStatus(`Correction could not be applied (${result.error}).`); return false; }
+    setValidationStatus(null);
+    return applyHistoryMutation(result.score);
+  }, [activeIssue?.target.measureIndex, applyHistoryMutation, captureState, persist, rhythm, score, selectionToState]);
+
+  const setMeasureKey = useCallback((measureIndex: number, keyId: MusicKeyId | null) => {
+    const next = measureIndex === 0 && keyId !== null ? setStaffBuilderInitialKey(score, keyId) : setStaffBuilderMeasureKeySignature(score, measureIndex, keyId);
+    return applyHistoryMutation(next);
+  }, [applyHistoryMutation, score]);
+  const setMeasureTime = useCallback((measureIndex: number, timeSignature: StaffBuilderTimeSignature | null) => {
+    const next = measureIndex === 0 && timeSignature !== null ? setStaffBuilderInitialTime(score, timeSignature) : setStaffBuilderMeasureTimeSignature(score, measureIndex, timeSignature);
+    if (next === score) return false;
+    const capacity = resolveStaffBuilderMeasureContext(next, captureState.cursor.measureIndex).capacityTicks;
+    const nextCapture = captureState.cursor.offsetTicks < capacity ? captureState : { ...captureState, cursor: { ...captureState.cursor, offsetTicks: 0 } };
+    history.record(score);
+    persist(next, nextCapture, editorPass, rhythmState);
+    reconcileIssueAfterMutation(activeIssue, next);
+    return true;
+  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythmState, score]);
 
   return {
     score,
@@ -197,5 +292,32 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     nextPosition: () => navigate("forward"),
     lockAndContinue,
     clearCurrentEntry: () => setPending(EMPTY_PENDING),
+    validation: {
+      active: validationActive,
+      issues,
+      activeIssue,
+      activeIssueIndex,
+      status: validationStatus,
+      activate: activateValidation,
+      close: () => setValidationActive(false),
+      previous: () => selectIssue(issues[Math.max(0, activeIssueIndex - 1)] ?? null),
+      next: () => selectIssue(issues[Math.min(issues.length - 1, activeIssueIndex + 1)] ?? null),
+      applyCorrection: applyIssueCorrection,
+    },
+    applyScoreMutation: applyHistoryMutation,
+    setMeasureKey,
+    setMeasureTime,
+    createTies: (fromEventId: string, toEventId: string, fromPitchIds: readonly string[]) => {
+      const result = createStaffBuilderTies(score, { fromEventId, toEventId, fromPitchIds });
+      return result.ok ? applyHistoryMutation(result.score) : false;
+    },
+    splitAndTie: (eventId: string, targetDuration: StaffBuilderDuration, fromPitchIds: readonly string[], useEventId?: string) => {
+      const result = splitStaffBuilderEventAcrossBarline(score, { eventId, targetDuration, fromPitchIds, useEventId });
+      return result.ok ? applyHistoryMutation(result.score) : false;
+    },
+    removeTie: (tieId: string) => {
+      const result = removeStaffBuilderTie(score, tieId);
+      return result.ok ? applyHistoryMutation(result.score) : false;
+    },
   };
 }

@@ -153,8 +153,7 @@ describe("Staff Builder session", () => {
     expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 480 });
     first.unmount();
     render(<StaffBuilderSession storage={storage} />);
-    expect(screen.getByText("A newer Staff Builder draft is available.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Restore Draft" }));
+    expect(screen.queryByText("A newer Staff Builder draft is available.")).toBeNull();
     expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
     expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
     expect(screen.getByText(/Measure 1, Beat 2 \(quarter-note beat; tick 480\)/)).toBeTruthy();

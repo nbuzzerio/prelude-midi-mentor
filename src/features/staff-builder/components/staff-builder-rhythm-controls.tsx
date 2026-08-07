@@ -3,10 +3,14 @@ import type { NoteLetter } from "@/lib/music/note-utils";
 import { getStaffBuilderPitchSpellingCandidates } from "../staff-builder-rhythm";
 import { STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "../staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderStaff } from "../staff-builder-types";
+import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import { StaffBuilderTieControls } from "./staff-builder-tie-controls";
 
 const durationLabel = (duration: StaffBuilderDuration) => duration.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
 
-export function StaffBuilderRhythmControls({ selectedEvent, selectedDescription, selectedIndex, eventCount, canPrevious, canNext, canUndo, canRedo, status, onPrevious, onNext, onAssignDuration, onConvertToRest, onMoveToStaff, onRespellPitch, onDelete, onUndo, onRedo }: Readonly<{
+export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, selectedEvent, selectedDescription, selectedIndex, eventCount, canPrevious, canNext, canUndo, canRedo, status, onPrevious, onNext, onAssignDuration, onConvertToRest, onMoveToStaff, onRespellPitch, onDelete, onUndo, onRedo, onCreateTies, onRemoveTie, onSplitAndTie }: Readonly<{
+  score?: StaffBuilderScoreV1;
+  selectedMeasureIndex?: number;
   selectedEvent: StaffBuilderEvent | null;
   selectedDescription: string;
   selectedIndex: number;
@@ -25,6 +29,9 @@ export function StaffBuilderRhythmControls({ selectedEvent, selectedDescription,
   onDelete: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onCreateTies?: (fromEventId: string, toEventId: string, pitchIds: readonly string[]) => void;
+  onRemoveTie?: (tieId: string) => void;
+  onSplitAndTie?: (eventId: string, duration: StaffBuilderDuration, pitchIds: readonly string[], useEventId?: string) => void;
 }>) {
   const rhythmSignature = `${selectedEvent?.id ?? "none"}:${selectedEvent?.rhythm.status ?? "none"}:${selectedEvent?.rhythm.status === "final" ? selectedEvent.rhythm.duration : ""}`;
   const defaultDuration = selectedEvent?.rhythm.status === "final" ? selectedEvent.rhythm.duration : "";
@@ -48,6 +55,7 @@ export function StaffBuilderRhythmControls({ selectedEvent, selectedDescription,
           const candidates = getStaffBuilderPitchSpellingCandidates(pitch);
           return <label key={pitch.id}>MIDI {pitch.midiNumber}<select className="staff-builder-input" disabled={candidates.length < 2} onChange={(event) => onRespellPitch(pitch.id, event.target.value as NoteLetter)} value={pitch.letter}>{candidates.map((candidate) => <option key={candidate.letter} value={candidate.letter}>{candidate.letter}{candidate.accidental === "sharp" ? "♯" : candidate.accidental === "flat" ? "♭" : ""}{candidate.octave}</option>)}</select></label>;
         })}</div>}
+        {score && onCreateTies && onRemoveTie && onSplitAndTie && <StaffBuilderTieControls event={selectedEvent} measureIndex={selectedMeasureIndex ?? 0} onCreateTies={onCreateTies} onRemoveTie={onRemoveTie} onSplitAndTie={onSplitAndTie} score={score} />}
         <button className="staff-builder-danger-button" onClick={() => { selectedStatusRef.current?.focus(); onDelete(); }} type="button">Delete Event</button>
       </>}
       {status && <p aria-live="polite" className="text-amber-300" role="status">{status}</p>}

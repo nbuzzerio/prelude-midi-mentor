@@ -16,6 +16,55 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("navigates assign-duration issues to the selected Rhythm event without history and recalculates after editing", () => {
+    const current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const eventId = current.measures[0]!.events[0]!.id;
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange }));
+    act(() => result.current.validation.activate());
+    const correction = result.current.validation.activeIssue!.corrections.find(({ kind }) => kind === "assign-duration")!;
+    act(() => result.current.validation.applyCorrection(correction));
+    expect(result.current.editorPass).toBe("rhythm");
+    expect(result.current.rhythm.selection).toEqual({ measureIndex: 0, eventId });
+    expect(result.current.validation.status).toBe("Assign a final duration to correct this issue.");
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ editorPass: "rhythm", rhythmState: { measureIndex: 0, selectedEventId: eventId } }));
+    act(() => result.current.rhythm.assignDuration("quarter"));
+    expect(result.current.validation.issues.some(({ code }) => code === "unresolved-rhythm")).toBe(false);
+  });
+
+  it("navigates overlap shortening to the preceding duration-causing event without history", () => {
+    const original = score();
+    const pitch = (id: string, midiNumber: number) => ({ id, midiNumber, letter: "C" as const, accidental: "natural" as const, octave: 4 });
+    const current = { ...original, measures: [{ ...original.measures[0]!, events: [
+      { id: "a", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "half" as const }, pitches: [pitch("ap", 60)] },
+      { id: "b", kind: "notes" as const, staff: "treble" as const, startTick: 480, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [pitch("bp", 62)] },
+      { id: "r", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
+    ] }] };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    act(() => result.current.validation.activate());
+    expect(result.current.validation.activeIssue?.code).toBe("overlap");
+    const correction = result.current.validation.activeIssue!.corrections.find(({ kind }) => kind === "shorten-duration")!;
+    expect(correction).toEqual({ kind: "shorten-duration", eventId: "a" });
+    act(() => result.current.validation.applyCorrection(correction));
+    expect(result.current.editorPass).toBe("rhythm");
+    expect(result.current.rhythm.selection).toEqual({ measureIndex: 0, eventId: "a" });
+    expect(result.current.validation.status).toBe("Shorten this event to correct the overlap or overflow.");
+    expect(result.current.canUndo).toBe(false);
+    act(() => result.current.rhythm.assignDuration("quarter"));
+    expect(result.current.validation.issues.some(({ code }) => code === "overlap")).toBe(false);
+  });
+  it("activates the earliest issue, advances after correction, and reconciles Undo", () => {
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    expect(result.current.validation.issues.map(({ code }) => code)).toEqual(["gap", "gap"]);
+    act(() => result.current.validation.activate());
+    expect(result.current.validation.activeIssue?.target.staff).toBe("treble");
+    act(() => result.current.validation.applyCorrection(result.current.validation.activeIssue!.corrections[0]!));
+    expect(result.current.validation.activeIssue?.target.staff).toBe("bass");
+    expect(result.current.canUndo).toBe(true);
+    act(() => result.current.undo());
+    expect(result.current.validation.issues).toHaveLength(2);
+  });
   it("owns the default cursor and changes step duration without changing pending input", () => {
     const onDraftChange = vi.fn();
     const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, confirmDiscardPending: () => true }));

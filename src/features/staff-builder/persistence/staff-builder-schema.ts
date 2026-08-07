@@ -159,19 +159,18 @@ export function parseStaffBuilderScore(value: unknown): StaffBuilderParseResult<
   if (measures.some((measure) => measure === null) || ties.some((tie) => tie === null)) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains invalid notation data." };
   }
-  let effectiveTimeSignature = value.initialTimeSignature;
-  for (const measure of measures as StaffBuilderMeasure[]) {
-    effectiveTimeSignature = measure.timeSignatureChange ?? effectiveTimeSignature;
-    const capacityTicks = getMeasureCapacityTicks(effectiveTimeSignature);
-    if (measure.events.some(({ startTick }) => startTick >= capacityTicks)) {
-      return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains an invalid event position." };
-    }
+  const parsedMeasures = measures as StaffBuilderMeasure[];
+  const parsedTies = ties as StaffBuilderTie[];
+  if (new Set(parsedMeasures.map(({ id }) => id)).size !== parsedMeasures.length
+    || new Set(parsedMeasures.flatMap(({ events }) => events.map(({ id }) => id))).size !== parsedMeasures.reduce((count, measure) => count + measure.events.length, 0)
+    || new Set(parsedTies.map(({ id }) => id)).size !== parsedTies.length) {
+    return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains duplicate notation IDs." };
   }
   return { ok: true, value: {
     schemaVersion: 1, id: value.id, title: value.title, createdAt: value.createdAt,
     updatedAt: value.updatedAt, tempoBpm: value.tempoBpm as number,
     initialKeySignatureId: value.initialKeySignatureId, initialTimeSignature: value.initialTimeSignature,
-    measures: measures as StaffBuilderMeasure[], ties: ties as StaffBuilderTie[],
+    measures: parsedMeasures, ties: parsedTies,
   } };
 }
 
@@ -219,13 +218,12 @@ export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<
     for (let index = 0; index <= measureIndex && index < score.value.measures.length; index += 1) {
       effectiveTime = score.value.measures[index]?.timeSignatureChange ?? effectiveTime;
     }
-    if (measureIndex >= score.value.measures.length
-      || offsetTicks >= getMeasureCapacityTicks(effectiveTime)
-      || offsetTicks % 120 !== 0) {
+    if (measureIndex >= score.value.measures.length || offsetTicks % 120 !== 0) {
       return { ok: false, reason: "corrupt", message: "The stored Staff Builder draft has an invalid capture position." };
     }
+    const capacityTicks = getMeasureCapacityTicks(effectiveTime);
     captureState = {
-      cursor: { measureIndex, offsetTicks },
+      cursor: { measureIndex, offsetTicks: offsetTicks < capacityTicks ? offsetTicks : 0 },
       stepDuration: candidate.stepDuration as StaffBuilderCaptureState["stepDuration"],
       inputMode: (candidate.inputMode ?? candidate.activeStaff) as StaffBuilderCaptureState["inputMode"],
     };
@@ -239,11 +237,11 @@ export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<
     }
     const measureIndex = candidate.measureIndex as number;
     const selectedEventId = candidate.selectedEventId as string | null;
-    const measure = score.value.measures[measureIndex];
-    if (!measure || (selectedEventId !== null && !measure.events.some(({ id }) => id === selectedEventId))) {
-      return { ok: false, reason: "corrupt", message: "The stored Staff Builder draft has an invalid rhythm selection." };
-    }
-    rhythmState = { measureIndex, selectedEventId };
+    const safeMeasureIndex = Math.min(measureIndex, score.value.measures.length - 1);
+    const selectedLocation = selectedEventId === null ? null : score.value.measures.findIndex((measure) => measure.events.some(({ id }) => id === selectedEventId));
+    rhythmState = selectedLocation !== null && selectedLocation >= 0
+      ? { measureIndex: selectedLocation, selectedEventId }
+      : { measureIndex: safeMeasureIndex, selectedEventId: null };
   }
   return { ok: true, value: {
     schemaVersion: 1, savedPieceId: value.savedPieceId as string | null,

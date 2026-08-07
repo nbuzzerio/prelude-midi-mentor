@@ -110,6 +110,19 @@ describe("useStaffBuilderLibrary", () => {
     expect(result.current.activeCaptureState).toEqual(captureState);
   });
 
+  it("keeps an invalid project snapshot in the library so multiple incomplete pieces can be reopened", () => {
+    const storage = new MemoryStorage();
+    const first = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => first.result.current.createPiece({ title: "Incomplete", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
+    const edited = insertUnresolvedStaffBuilderNotes(first.result.current.activeScore!, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    act(() => first.result.current.updateActiveDraft(edited, { editorPass: "capture", captureState: first.result.current.activeCaptureState, rhythmState: { measureIndex: 0, selectedEventId: null } }));
+    expect(first.result.current.library.pieces[0]?.measures[0]?.events[0]).toMatchObject({ rhythm: { status: "unresolved" } });
+    first.unmount();
+    const restored = renderHook(() => useStaffBuilderLibrary(storage));
+    expect(restored.result.current.recoveryDraft).toBeNull();
+    expect(restored.result.current.activeScore?.measures[0]?.events[0]).toMatchObject({ rhythm: { status: "unresolved" } });
+  });
+
   it("restores persisted capture state and defaults older drafts", () => {
     const storage = new MemoryStorage();
     seedDraft(storage, { draftUpdatedAt: "2026-08-06T13:00:00.000Z" });
@@ -146,8 +159,7 @@ describe("useStaffBuilderLibrary", () => {
     first.unmount();
 
     const restored = renderHook(() => useStaffBuilderLibrary(storage));
-    expect(restored.result.current.recoveryDraft).not.toBeNull();
-    act(() => restored.result.current.restoreDraft());
+    expect(restored.result.current.recoveryDraft).toBeNull();
     expect(restored.result.current.activeEditorPass).toBe("rhythm");
     expect(restored.result.current.activeRhythmState).toEqual({ measureIndex: 0, selectedEventId: eventId });
   });
@@ -161,5 +173,25 @@ describe("useStaffBuilderLibrary", () => {
     act(() => result.current.updateActiveDraft(result.current.activeScore!, { editorPass: "capture", captureState, rhythmState: { measureIndex: 0, selectedEventId: null } }));
     expect(result.current.activeCaptureState.cursor.offsetTicks).toBe(480);
     expect(result.current.issues.some(({ area }) => area === "draft")).toBe(true);
+  });
+
+  it("rejects invalid final saves and synchronizes a valid library snapshot and draft", () => {
+    const storage = new MemoryStorage();
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => result.current.createPiece({ title: "Reference", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
+    const original = result.current.activeScore!;
+    const editorState = { editorPass: "rhythm" as const, captureState: result.current.activeCaptureState, rhythmState: { measureIndex: 0, selectedEventId: null } };
+    let invalidResult: ReturnType<typeof result.current.validateAndSave> | undefined;
+    act(() => { invalidResult = result.current.validateAndSave(original, editorState); });
+    expect(invalidResult).toMatchObject({ ok: false, reason: "invalid" });
+    const fullRest = (id: string, staff: "treble" | "bass") => ({ id, kind: "rest" as const, staff, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } });
+    const valid = { ...original, updatedAt: "2026-08-06T14:00:00.000Z", measures: [{ ...original.measures[0]!, events: [fullRest("t", "treble"), fullRest("b", "bass")] }] };
+    let saved: ReturnType<typeof result.current.validateAndSave> | undefined;
+    act(() => { saved = result.current.validateAndSave(valid, editorState); });
+    expect(saved).toMatchObject({ ok: true });
+    expect(result.current.library.pieces.find(({ id }) => id === original.id)?.measures[0]?.events).toHaveLength(2);
+    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.updatedAt).toBe(valid.updatedAt);
+    expect(draft.savedPieceId).toBe(original.id);
   });
 });

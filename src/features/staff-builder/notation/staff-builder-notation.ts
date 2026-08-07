@@ -56,6 +56,8 @@ export type StaffBuilderUnavailableTie = Readonly<{
   reason: "endpoint-outside-measure" | "endpoint-missing";
 }>;
 
+export type StaffBuilderBoundaryTie = Readonly<{ tieId: string; eventId: string; pitchIndex: number; direction: "incoming" | "outgoing"; description: string }>;
+
 export type StaffBuilderBeamProjection = Readonly<{
   beatGroups: readonly string[];
   eventIds: readonly string[];
@@ -74,6 +76,8 @@ export type StaffBuilderMeasureProjection = Readonly<{
   staves: Readonly<Record<StaffBuilderStaff, readonly StaffBuilderProjectedTickable[]>>;
   ties: readonly StaffBuilderProjectedTie[];
   unavailableTies: readonly StaffBuilderUnavailableTie[];
+  boundaryTies: readonly StaffBuilderBoundaryTie[];
+  invalidEventIds: readonly string[];
   beams: Readonly<Record<StaffBuilderStaff, StaffBuilderBeamProjection>>;
   positionTicks: readonly number[];
   summary: Readonly<Record<StaffBuilderStaff, string>>;
@@ -121,7 +125,7 @@ function projectEvent(event: StaffBuilderEvent, nextStartTick: number | undefine
     eventId: event.id,
     staff: event.staff,
     startTick: event.startTick,
-    layoutDurationTicks: unresolved ? Math.min(visualDuration.ticks, ticksUntilNextOnset, ticksUntilMeasureEnd) : visualDuration.ticks,
+    layoutDurationTicks: Math.max(1, Math.min(visualDuration.ticks, ticksUntilNextOnset || visualDuration.ticks, ticksUntilMeasureEnd || visualDuration.ticks)),
     visualDuration,
     unresolved,
     pitches: event.kind === "notes" ? event.pitches : [],
@@ -153,8 +157,9 @@ function gapSpacers(staff: StaffBuilderStaff, startTick: number, gapTicks: numbe
 function projectStaff(events: readonly StaffBuilderEvent[], staff: StaffBuilderStaff, capacityTicks: number): readonly StaffBuilderProjectedTickable[] {
   const projected: StaffBuilderProjectedTickable[] = [];
   let occupiedUntil = 0;
-  const ordered = events.filter((event) => event.staff === staff)
-    .sort((left, right) => left.startTick - right.startTick || left.id.localeCompare(right.id));
+  const ordered = events.filter((event) => event.staff === staff && event.startTick < capacityTicks)
+    .sort((left, right) => left.startTick - right.startTick || left.id.localeCompare(right.id))
+    .filter((event, index, values) => index === 0 || values[index - 1]?.startTick !== event.startTick);
   ordered.forEach((event, index) => {
     if (event.startTick > occupiedUntil) projected.push(...gapSpacers(staff, occupiedUntil, event.startTick - occupiedUntil));
     const projection = projectEvent(event, ordered[index + 1]?.startTick, capacityTicks);
@@ -239,15 +244,23 @@ function summarize(events: readonly StaffBuilderEvent[], staff: StaffBuilderStaf
 function projectTies(score: StaffBuilderScoreV1, eventById: ReadonlyMap<string, StaffBuilderProjectedEvent>): Readonly<{
   ties: readonly StaffBuilderProjectedTie[];
   unavailableTies: readonly StaffBuilderUnavailableTie[];
+  boundaryTies: readonly StaffBuilderBoundaryTie[];
 }> {
   const ties: StaffBuilderProjectedTie[] = [];
   const unavailableTies: StaffBuilderUnavailableTie[] = [];
+  const boundaryTies: StaffBuilderBoundaryTie[] = [];
   const scoreEventIds = new Set(score.measures.flatMap((measure) => measure.events.map(({ id }) => id)));
   for (const tie of score.ties) {
     const fromEvent = eventById.get(tie.fromEventId);
     const toEvent = eventById.get(tie.toEventId);
     if (!fromEvent || !toEvent) {
-      unavailableTies.push({ tieId: tie.id, reason: scoreEventIds.has(tie.fromEventId) && scoreEventIds.has(tie.toEventId) ? "endpoint-outside-measure" : "endpoint-missing" });
+      const visible = fromEvent ?? toEvent;
+      const visiblePitchId = fromEvent ? tie.fromPitchId : tie.toPitchId;
+      const pitchIndex = visible?.pitches.findIndex(({ id }) => id === visiblePitchId) ?? -1;
+      if (visible && pitchIndex >= 0 && scoreEventIds.has(tie.fromEventId) && scoreEventIds.has(tie.toEventId)) {
+        const direction = fromEvent ? "outgoing" : "incoming";
+        boundaryTies.push({ tieId: tie.id, eventId: visible.eventId, pitchIndex, direction, description: `${direction === "outgoing" ? "Tie continues to" : "Tie continues from"} the adjacent measure.` });
+      } else unavailableTies.push({ tieId: tie.id, reason: scoreEventIds.has(tie.fromEventId) && scoreEventIds.has(tie.toEventId) ? "endpoint-outside-measure" : "endpoint-missing" });
       continue;
     }
     const fromPitchIndex = fromEvent.pitches.findIndex(({ id }) => id === tie.fromPitchId);
@@ -258,7 +271,7 @@ function projectTies(score: StaffBuilderScoreV1, eventById: ReadonlyMap<string, 
     }
     ties.push({ tieId: tie.id, fromEventId: tie.fromEventId, fromPitchIndex, toEventId: tie.toEventId, toPitchIndex });
   }
-  return { ties, unavailableTies };
+  return { ties, unavailableTies, boundaryTies };
 }
 
 export function projectStaffBuilderMeasure(score: StaffBuilderScoreV1, measureIndex: number): StaffBuilderMeasureProjection {
@@ -292,6 +305,8 @@ export function projectStaffBuilderMeasure(score: StaffBuilderScoreV1, measureIn
     staves: { treble, bass },
     ties: tieProjection.ties,
     unavailableTies: tieProjection.unavailableTies,
+    boundaryTies: tieProjection.boundaryTies,
+    invalidEventIds: measure.events.filter(({ startTick }) => startTick >= context.capacityTicks).map(({ id }) => id).sort(),
     beams: { treble: beams("treble"), bass: beams("bass") },
     positionTicks,
     summary: { treble: summarize(measure.events, "treble"), bass: summarize(measure.events, "bass") },

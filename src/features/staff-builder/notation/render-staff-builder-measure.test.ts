@@ -74,6 +74,24 @@ describe("renderStaffBuilderMeasure", () => {
     expect(result.projection).toMatchObject({ keySignatureId: "g-major", timeSignature: "4/4" });
   });
 
+  it("renders effective signatures for initial, explicit-change, and inherited isolated measures", () => {
+    const keySignatures = vi.spyOn(Stave.prototype, "addKeySignature");
+    const timeSignatures = vi.spyOn(Stave.prototype, "addTimeSignature");
+    const current: StaffBuilderScoreV1 = { ...score(), initialKeySignatureId: "c-major", measures: [
+      { id: "m1", events: [] },
+      { id: "m2", keySignatureChange: "g-major", timeSignatureChange: "6/8", events: [] },
+      { id: "m3", events: [] },
+    ] };
+    const initial = renderStaffBuilderMeasure(document.createElement("div"), current, 0).projection;
+    const explicit = renderStaffBuilderMeasure(document.createElement("div"), current, 1).projection;
+    const inherited = renderStaffBuilderMeasure(document.createElement("div"), current, 2).projection;
+    expect(initial).toMatchObject({ keySignatureId: "c-major", timeSignature: "4/4", introducesKeySignature: false, introducesTimeSignature: false });
+    expect(explicit).toMatchObject({ keySignatureId: "g-major", timeSignature: "6/8", introducesKeySignature: true, introducesTimeSignature: true });
+    expect(inherited).toMatchObject({ keySignatureId: "g-major", timeSignature: "6/8", introducesKeySignature: false, introducesTimeSignature: false });
+    expect(keySignatures.mock.calls.map(([key]) => key)).toEqual(["C", "C", "G", "G", "G", "G"]);
+    expect(timeSignatures.mock.calls.map(([time]) => time)).toEqual(["4/4", "4/4", "6/8", "6/8", "6/8", "6/8"]);
+  });
+
   it("returns plain event and cross-staff position anchors with useful invariants", () => {
     const result = renderStaffBuilderMeasure(document.createElement("div"), score(), 0);
     expect([...result.anchors.events.keys()]).toEqual(expect.arrayContaining(["chord", "note", "rest"]));

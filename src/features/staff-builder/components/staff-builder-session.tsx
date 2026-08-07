@@ -54,6 +54,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
               key={state.activeScore.id}
               onClose={state.closePiece}
               onDraftChange={state.updateActiveDraft}
+              onValidatedSave={state.validateAndSave}
               savingAvailable={!state.issues.some(({ area }) => area === "library" || area === "draft")}
               score={state.activeScore}
             />

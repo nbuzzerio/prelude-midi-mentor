@@ -68,6 +68,11 @@ button {
 .staff-builder-notation-canvas { position: relative; min-width: 47.5rem; }
 .staff-builder-capture-cursor { position: absolute; z-index: 2; pointer-events: none; border: 2px solid rgb(2 132 199 / 75%); border-radius: 0.25rem; background: rgb(56 189 248 / 20%); }
 .staff-builder-selection-outline { position: absolute; z-index: 3; pointer-events: none; border: 3px solid rgb(217 70 239); border-radius: 0.35rem; box-shadow: 0 0 0 2px white; }
+.staff-builder-issue-outline { position: absolute; z-index: 4; pointer-events: none; border: 3px dashed rgb(185 28 28); border-radius: 0.35rem; background: rgb(254 202 202 / 20%); }
+.staff-builder-issue-outline span { position: absolute; top: -1rem; right: -0.75rem; display: grid; width: 1.5rem; height: 1.5rem; place-items: center; border-radius: 9999px; background: rgb(185 28 28); color: white; font-weight: 800; }
+.staff-builder-boundary-tie { position: absolute; z-index: 4; top: 7.5rem; border: 2px solid rgb(30 64 175); border-radius: 9999px; background: white; padding: 0.15rem 0.35rem; color: rgb(30 64 175); font-size: 0.75rem; font-weight: 700; }
+.staff-builder-boundary-tie-incoming { left: 0.25rem; }
+.staff-builder-boundary-tie-outgoing { right: 0.25rem; }
 .staff-builder-measure-summary { display: grid; gap: 0.25rem; font-size: 0.875rem; }
 .staff-builder-measure-summary p { margin: 0; }
 .staff-builder-capture { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
@@ -88,6 +93,14 @@ button {
 .staff-builder-rhythm-edit-grid label,
 .staff-builder-spelling-controls label { display: grid; gap: 0.25rem; }
 .staff-builder-spelling-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
+.staff-builder-validation-panel,
+.staff-builder-context-controls,
+.staff-builder-tie-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
+.staff-builder-context-controls { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.staff-builder-context-controls legend,
+.staff-builder-tie-controls legend { font-weight: 700; }
+.staff-builder-context-controls label { display: grid; gap: 0.25rem; }
+.staff-builder-issue-description { border-left: 0.35rem solid rgb(185 28 28); background: rgb(127 29 29 / 20%); padding: 0.75rem; }
 
 @media (max-width: 700px) {
   .staff-builder-columns { grid-template-columns: minmax(0, 1fr); }

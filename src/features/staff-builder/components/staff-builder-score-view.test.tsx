@@ -89,4 +89,9 @@ describe("StaffBuilderScoreView", () => {
     expect(outline.style.height).toBe("50px");
     expect(screen.queryByTestId("staff-builder-capture-cursor")).toBeNull();
   });
+
+  it("draws a non-color-only issue overlay from public anchors", () => {
+    render(<StaffBuilderScoreView issue={{ id: "issue", code: "unresolved-rhythm", severity: "error", target: { measureIndex: 0, staff: "treble", eventId: "treble-note", positionTicks: 0 }, message: "Needs rhythm", corrections: [] }} measureIndex={0} score={score()} />);
+    expect(screen.getByTestId("staff-builder-issue-outline").textContent).toBe("!");
+  });
 });

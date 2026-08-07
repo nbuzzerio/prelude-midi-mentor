@@ -51,7 +51,7 @@ describe("Staff Builder schema", () => {
     expect(parseStaffBuilderScore(badRhythm).ok).toBe(false);
   });
 
-  it("rejects event positions outside the effective measure signature", () => {
+  it("preserves structurally invalid event positions for correction", () => {
     const score = validScore();
     const firstMeasure = score.measures[0];
     expect(firstMeasure).toBeDefined();
@@ -60,12 +60,20 @@ describe("Staff Builder schema", () => {
       initialTimeSignature: "2/4",
       measures: [{ ...firstMeasure, events: firstMeasure?.events.map((event) => ({ ...event, startTick: 960 })) }, ...score.measures.slice(1)],
     };
-    expect(parseStaffBuilderScore(invalid)).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderScore(invalid)).toMatchObject({ ok: true });
   });
 
   it("distinguishes unsupported schema versions", () => {
     expect(parseStaffBuilderLibrary({ schemaVersion: 2, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
     expect(parseStaffBuilderDraft({ schemaVersion: 2 })).toMatchObject({ ok: false, reason: "unsupported" });
+  });
+
+  it("hard-rejects duplicate measure, event, and tie IDs", () => {
+    const score = validScore();
+    expect(parseStaffBuilderScore({ ...score, measures: [...score.measures, score.measures[0]] })).toMatchObject({ ok: false, reason: "corrupt" });
+    const duplicatedEvent = { ...score, measures: score.measures.map((measure, index) => index === 1 ? { ...measure, events: [score.measures[0]!.events[0]!] } : measure) };
+    expect(parseStaffBuilderScore(duplicatedEvent)).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderScore({ ...score, ties: [...score.ties, score.ties[0]] })).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it("accepts optional validated capture state while preserving older drafts", () => {
@@ -111,12 +119,17 @@ describe("Staff Builder schema", () => {
 
   it.each([
     { cursor: { measureIndex: 2, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "grand" },
-    { cursor: { measureIndex: 1, offsetTicks: 1440 }, stepDuration: "quarter", inputMode: "grand" },
     { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "half", inputMode: "grand" },
     { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "alto" },
   ])("rejects invalid capture state %#", (captureState) => {
     const score = validScore();
     expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState })).toMatchObject({ ok: false, reason: "corrupt" });
+  });
+
+  it("repairs a capture cursor invalidated by a time-signature change", () => {
+    const score = validScore();
+    const parsed = parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState: { cursor: { measureIndex: 1, offsetTicks: 1440 }, stepDuration: "quarter", inputMode: "grand" } });
+    expect(parsed).toMatchObject({ ok: true, value: { captureState: { cursor: { measureIndex: 1, offsetTicks: 0 } } } });
   });
 
   it("accepts optional rhythm selection and preserves compatibility without it", () => {
@@ -129,12 +142,13 @@ describe("Staff Builder schema", () => {
     expect(parseStaffBuilderDraft({ ...base, rhythmState: { measureIndex: 0, selectedEventId: null } })).toMatchObject({ ok: true });
   });
 
-  it.each([
-    { measureIndex: 9, selectedEventId: null },
-    { measureIndex: 0, selectedEventId: "missing" },
-    { measureIndex: -1, selectedEventId: null },
-  ])("rejects invalid rhythm selection %#", (rhythmState) => {
+  it.each([{ measureIndex: -1, selectedEventId: null }])("rejects malformed rhythm selection %#", (rhythmState) => {
     const score = validScore();
     expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm", rhythmState })).toMatchObject({ ok: false, reason: "corrupt" });
+  });
+
+  it.each([{ measureIndex: 9, selectedEventId: null }, { measureIndex: 0, selectedEventId: "missing" }])("repairs stale rhythm selection %#", (rhythmState) => {
+    const score = validScore();
+    expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm", rhythmState })).toMatchObject({ ok: true, value: { rhythmState: { selectedEventId: null } } });
   });
 });
