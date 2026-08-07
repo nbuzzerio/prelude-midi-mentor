@@ -17,16 +17,23 @@ import type { StaffBuilderScoreV1, StaffBuilderStaff } from "./staff-builder-typ
 export type StaffBuilderCaptureState = Readonly<{
   cursor: StaffBuilderPosition;
   stepDuration: StaffBuilderStepDuration;
-  activeStaff: StaffBuilderStaff;
+  inputMode: StaffBuilderCaptureInputMode;
 }>;
+
+export type StaffBuilderCaptureInputMode = "grand" | StaffBuilderStaff;
 
 export type StaffBuilderPendingCapture = Readonly<Record<StaffBuilderStaff, readonly number[]>>;
 
 export const DEFAULT_STAFF_BUILDER_CAPTURE_STATE: StaffBuilderCaptureState = {
   cursor: { measureIndex: 0, offsetTicks: 0 },
   stepDuration: "quarter",
-  activeStaff: "treble",
+  inputMode: "grand",
 };
+
+export function routeStaffBuilderCapturePitch(inputMode: StaffBuilderCaptureInputMode, midiNumber: number): StaffBuilderStaff {
+  if (inputMode === "grand") return midiNumber < 60 ? "bass" : "treble";
+  return inputMode;
+}
 
 export function getStaffBuilderMeasureCapacities(score: StaffBuilderScoreV1): readonly number[] {
   return score.measures.map((_measure, measureIndex) => resolveStaffBuilderMeasureContext(score, measureIndex).capacityTicks);

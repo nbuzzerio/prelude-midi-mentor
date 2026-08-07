@@ -75,7 +75,11 @@ describe("Staff Builder schema", () => {
     expect(older.ok && older.value.captureState).toBeUndefined();
     expect(parseStaffBuilderDraft({ ...base, captureState: { cursor: { measureIndex: 1, offsetTicks: 120 }, stepDuration: "sixteenth", activeStaff: "bass" } })).toMatchObject({
       ok: true,
-      value: { captureState: { cursor: { measureIndex: 1, offsetTicks: 120 }, stepDuration: "sixteenth", activeStaff: "bass" } },
+      value: { captureState: { cursor: { measureIndex: 1, offsetTicks: 120 }, stepDuration: "sixteenth", inputMode: "bass" } },
+    });
+    expect(parseStaffBuilderDraft({ ...base, captureState: { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "grand" } })).toMatchObject({
+      ok: true,
+      value: { captureState: { inputMode: "grand" } },
     });
   });
 
@@ -87,7 +91,7 @@ describe("Staff Builder schema", () => {
       updatedAt: "2026-08-06T13:00:00.000Z",
       score,
       editorPass: "capture",
-      captureState: { cursor: { measureIndex: 0, offsetTicks }, stepDuration: "quarter", activeStaff: "treble" },
+      captureState: { cursor: { measureIndex: 0, offsetTicks }, stepDuration: "quarter", inputMode: "grand" },
     };
     expect(parseStaffBuilderDraft(draft)).toMatchObject({ ok: true, value: { captureState: { cursor: { offsetTicks } } } });
   });
@@ -100,18 +104,37 @@ describe("Staff Builder schema", () => {
       updatedAt: "2026-08-06T13:00:00.000Z",
       score,
       editorPass: "capture",
-      captureState: { cursor: { measureIndex: 0, offsetTicks }, stepDuration: "quarter", activeStaff: "treble" },
+      captureState: { cursor: { measureIndex: 0, offsetTicks }, stepDuration: "quarter", inputMode: "grand" },
     };
     expect(parseStaffBuilderDraft(draft)).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it.each([
-    { cursor: { measureIndex: 2, offsetTicks: 0 }, stepDuration: "quarter", activeStaff: "treble" },
-    { cursor: { measureIndex: 1, offsetTicks: 1440 }, stepDuration: "quarter", activeStaff: "treble" },
-    { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "half", activeStaff: "treble" },
-    { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", activeStaff: "alto" },
+    { cursor: { measureIndex: 2, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "grand" },
+    { cursor: { measureIndex: 1, offsetTicks: 1440 }, stepDuration: "quarter", inputMode: "grand" },
+    { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "half", inputMode: "grand" },
+    { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "alto" },
   ])("rejects invalid capture state %#", (captureState) => {
     const score = validScore();
     expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState })).toMatchObject({ ok: false, reason: "corrupt" });
+  });
+
+  it("accepts optional rhythm selection and preserves compatibility without it", () => {
+    const score = validScore();
+    const base = { schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm" };
+    const older = parseStaffBuilderDraft(base);
+    expect(older.ok && older.value.rhythmState).toBeUndefined();
+    const eventId = score.measures[0]?.events[0]?.id;
+    expect(parseStaffBuilderDraft({ ...base, rhythmState: { measureIndex: 0, selectedEventId: eventId } })).toMatchObject({ ok: true, value: { editorPass: "rhythm", rhythmState: { measureIndex: 0, selectedEventId: eventId } } });
+    expect(parseStaffBuilderDraft({ ...base, rhythmState: { measureIndex: 0, selectedEventId: null } })).toMatchObject({ ok: true });
+  });
+
+  it.each([
+    { measureIndex: 9, selectedEventId: null },
+    { measureIndex: 0, selectedEventId: "missing" },
+    { measureIndex: -1, selectedEventId: null },
+  ])("rejects invalid rhythm selection %#", (rhythmState) => {
+    const score = validScore();
+    expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm", rhythmState })).toMatchObject({ ok: false, reason: "corrupt" });
   });
 });

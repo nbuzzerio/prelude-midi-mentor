@@ -8,6 +8,7 @@ import {
   type StaffBuilderTimeSignature,
 } from "../staff-builder-time";
 import type { StaffBuilderCaptureState } from "../staff-builder-capture";
+import type { StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type {
   StaffBuilderAccidental,
   StaffBuilderEvent,
@@ -30,6 +31,7 @@ export type StaffBuilderDraftV1 = Readonly<{
   score: StaffBuilderScoreV1;
   editorPass: "capture" | "rhythm";
   captureState?: StaffBuilderCaptureState;
+  rhythmState?: StaffBuilderRhythmState;
 }>;
 
 export type StaffBuilderParseResult<T> =
@@ -42,6 +44,7 @@ const DURATIONS = new Set<string>(STAFF_BUILDER_DURATIONS);
 const LETTERS = new Set(["A", "B", "C", "D", "E", "F", "G"]);
 const ACCIDENTALS = new Set<StaffBuilderAccidental>(["flat", "natural", "sharp"]);
 const STEP_DURATIONS = new Set<string>(STAFF_BUILDER_STEP_DURATIONS);
+const INPUT_MODES = new Set(["grand", "treble", "bass"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -205,7 +208,9 @@ export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<
       || !Number.isInteger(candidate.cursor.measureIndex) || (candidate.cursor.measureIndex as number) < 0
       || !Number.isInteger(candidate.cursor.offsetTicks) || (candidate.cursor.offsetTicks as number) < 0
       || typeof candidate.stepDuration !== "string" || !STEP_DURATIONS.has(candidate.stepDuration)
-      || (candidate.activeStaff !== "treble" && candidate.activeStaff !== "bass")) {
+      || (candidate.inputMode !== undefined
+        ? typeof candidate.inputMode !== "string" || !INPUT_MODES.has(candidate.inputMode)
+        : candidate.activeStaff !== "treble" && candidate.activeStaff !== "bass")) {
       return { ok: false, reason: "corrupt", message: "The stored Staff Builder draft has invalid capture state." };
     }
     const measureIndex = candidate.cursor.measureIndex as number;
@@ -222,12 +227,28 @@ export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<
     captureState = {
       cursor: { measureIndex, offsetTicks },
       stepDuration: candidate.stepDuration as StaffBuilderCaptureState["stepDuration"],
-      activeStaff: candidate.activeStaff,
+      inputMode: (candidate.inputMode ?? candidate.activeStaff) as StaffBuilderCaptureState["inputMode"],
     };
+  }
+  let rhythmState: StaffBuilderRhythmState | undefined;
+  if (value.rhythmState !== undefined) {
+    const candidate = value.rhythmState;
+    if (!isRecord(candidate) || !Number.isInteger(candidate.measureIndex) || (candidate.measureIndex as number) < 0
+      || (candidate.selectedEventId !== null && !isId(candidate.selectedEventId))) {
+      return { ok: false, reason: "corrupt", message: "The stored Staff Builder draft has invalid rhythm selection state." };
+    }
+    const measureIndex = candidate.measureIndex as number;
+    const selectedEventId = candidate.selectedEventId as string | null;
+    const measure = score.value.measures[measureIndex];
+    if (!measure || (selectedEventId !== null && !measure.events.some(({ id }) => id === selectedEventId))) {
+      return { ok: false, reason: "corrupt", message: "The stored Staff Builder draft has an invalid rhythm selection." };
+    }
+    rhythmState = { measureIndex, selectedEventId };
   }
   return { ok: true, value: {
     schemaVersion: 1, savedPieceId: value.savedPieceId as string | null,
     updatedAt: value.updatedAt, score: score.value, editorPass: value.editorPass,
     ...(captureState ? { captureState } : {}),
+    ...(rhythmState ? { rhythmState } : {}),
   } };
 }

@@ -49,6 +49,8 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
         {state.activeScore
           ? <StaffBuilderWorkspacePlaceholder
               initialCaptureState={state.activeCaptureState}
+              initialEditorPass={state.activeEditorPass}
+              initialRhythmState={state.activeRhythmState}
               key={state.activeScore.id}
               onClose={state.closePiece}
               onDraftChange={state.updateActiveDraft}

@@ -9,15 +9,17 @@ type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: nu
 
 const EMPTY_PENDING_PREVIEW: StaffBuilderPendingCapture = { treble: [], bass: [] };
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, selectedEventId, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
   pendingPreview?: StaffBuilderPendingCapture;
+  selectedEventId?: string;
   onRender?: (result: StaffBuilderMeasureRenderResult) => void;
 }>) {
   const notationRef = useRef<HTMLDivElement>(null);
   const [cursorGeometry, setCursorGeometry] = useState<CursorGeometry | null>(null);
+  const [selectionGeometry, setSelectionGeometry] = useState<CursorGeometry | null>(null);
   const projection = projectStaffBuilderMeasure(score, measureIndex);
   const cursorOffsetTicks = cursor?.offsetTicks;
   const cursorStepDuration = cursor?.stepDuration;
@@ -40,8 +42,10 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     } else {
       setCursorGeometry(null);
     }
+    const selectedAnchor = selectedEventId ? result.anchors.events.get(selectedEventId) : undefined;
+    setSelectionGeometry(selectedAnchor ? { x: selectedAnchor.x - 5, y: selectedAnchor.y - 5, width: selectedAnchor.width + 10, height: selectedAnchor.height + 10 } : null);
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, measureIndex, onRender, preview.renderScore, projection.capacityTicks]);
+  }, [cursorOffsetTicks, cursorStepDuration, measureIndex, onRender, preview.renderScore, projection.capacityTicks, selectedEventId]);
 
   return (
     <section aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
@@ -52,6 +56,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
         <div className="staff-builder-notation-canvas">
           <div ref={notationRef} />
           {cursorGeometry && <div aria-hidden="true" className="staff-builder-capture-cursor" data-testid="staff-builder-capture-cursor" style={{ left: cursorGeometry.x, top: cursorGeometry.y, width: cursorGeometry.width, height: cursorGeometry.height }} />}
+          {selectionGeometry && <div aria-hidden="true" className="staff-builder-selection-outline" data-testid="staff-builder-selection-outline" style={{ left: selectionGeometry.x, top: selectionGeometry.y, width: selectionGeometry.width, height: selectionGeometry.height }} />}
         </div>
       </div>
       <div className="staff-builder-measure-summary">

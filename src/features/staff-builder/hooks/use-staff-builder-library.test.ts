@@ -1,6 +1,6 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { createStaffBuilderScore } from "../staff-builder-score";
+import { createStaffBuilderScore, insertUnresolvedStaffBuilderNotes } from "../staff-builder-score";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import { useStaffBuilderLibrary } from "./use-staff-builder-library";
 
@@ -102,8 +102,8 @@ describe("useStaffBuilderLibrary", () => {
     act(() => result.current.createPiece({ title: "Capture", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
     const score = result.current.activeScore;
     expect(score).not.toBeNull();
-    const captureState = { cursor: { measureIndex: 0, offsetTicks: 480 }, stepDuration: "eighth" as const, activeStaff: "bass" as const };
-    act(() => result.current.updateActiveDraft(score!, captureState));
+    const captureState = { cursor: { measureIndex: 0, offsetTicks: 480 }, stepDuration: "eighth" as const, inputMode: "bass" as const };
+    act(() => result.current.updateActiveDraft(score!, { editorPass: "capture", captureState, rhythmState: { measureIndex: 0, selectedEventId: null } }));
     const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.captureState).toEqual(captureState);
     expect(Date.parse(draft.updatedAt)).toBeGreaterThan(Date.parse(score!.updatedAt));
@@ -118,14 +118,38 @@ describe("useStaffBuilderLibrary", () => {
     storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify(draft));
     const current = renderHook(() => useStaffBuilderLibrary(storage));
     act(() => current.result.current.restoreDraft());
-    expect(current.result.current.activeCaptureState).toEqual(draft.captureState);
+    expect(current.result.current.activeCaptureState).toEqual({ cursor: { measureIndex: 0, offsetTicks: 240 }, stepDuration: "sixteenth", inputMode: "bass" });
     current.unmount();
 
     const olderStorage = new MemoryStorage();
     seedDraft(olderStorage, { draftUpdatedAt: "2026-08-06T13:00:00.000Z" });
     const older = renderHook(() => useStaffBuilderLibrary(olderStorage));
     act(() => older.result.current.restoreDraft());
-    expect(older.result.current.activeCaptureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", activeStaff: "treble" });
+    expect(older.result.current.activeCaptureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "grand" });
+  });
+
+  it("persists and restores the active rhythm pass and selected event", () => {
+    const storage = new MemoryStorage();
+    const first = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => first.result.current.createPiece({ title: "Rhythm", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
+    const editedScore = insertUnresolvedStaffBuilderNotes(first.result.current.activeScore!, {
+      measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60],
+    });
+    const eventId = editedScore.measures[0]!.events[0]!.id;
+    act(() => first.result.current.updateActiveDraft(editedScore, {
+      editorPass: "rhythm",
+      captureState: first.result.current.activeCaptureState,
+      rhythmState: { measureIndex: 0, selectedEventId: eventId },
+    }));
+    const persisted = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(persisted).toMatchObject({ editorPass: "rhythm", rhythmState: { measureIndex: 0, selectedEventId: eventId } });
+    first.unmount();
+
+    const restored = renderHook(() => useStaffBuilderLibrary(storage));
+    expect(restored.result.current.recoveryDraft).not.toBeNull();
+    act(() => restored.result.current.restoreDraft());
+    expect(restored.result.current.activeEditorPass).toBe("rhythm");
+    expect(restored.result.current.activeRhythmState).toEqual({ measureIndex: 0, selectedEventId: eventId });
   });
 
   it("keeps editor changes in memory and reports a failed draft autosave", () => {
@@ -133,8 +157,8 @@ describe("useStaffBuilderLibrary", () => {
     const { result } = renderHook(() => useStaffBuilderLibrary(storage));
     act(() => result.current.createPiece({ title: "Capture", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
     storage.failWrites = true;
-    const captureState = { cursor: { measureIndex: 0, offsetTicks: 480 }, stepDuration: "quarter" as const, activeStaff: "treble" as const };
-    act(() => result.current.updateActiveDraft(result.current.activeScore!, captureState));
+    const captureState = { cursor: { measureIndex: 0, offsetTicks: 480 }, stepDuration: "quarter" as const, inputMode: "grand" as const };
+    act(() => result.current.updateActiveDraft(result.current.activeScore!, { editorPass: "capture", captureState, rhythmState: { measureIndex: 0, selectedEventId: null } }));
     expect(result.current.activeCaptureState.cursor.offsetTicks).toBe(480);
     expect(result.current.issues.some(({ area }) => area === "draft")).toBe(true);
   });

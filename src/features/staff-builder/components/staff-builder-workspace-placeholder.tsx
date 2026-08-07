@@ -1,20 +1,25 @@
 import { getMusicKeyDefinition } from "@/lib/music/keys";
 import type { StaffBuilderCaptureState } from "../staff-builder-capture";
-import { useStaffBuilderEditor } from "../hooks/use-staff-builder-editor";
+import { useStaffBuilderEditor, type StaffBuilderEditorPass, type StaffBuilderPersistedEditorState } from "../hooks/use-staff-builder-editor";
 import { useStaffBuilderInput } from "../hooks/use-staff-builder-input";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { StaffBuilderCaptureControls } from "./staff-builder-capture-controls";
 import { StaffBuilderScoreView } from "./staff-builder-score-view";
+import { StaffBuilderRhythmControls } from "./staff-builder-rhythm-controls";
+import { describeStaffBuilderSelectedEvent, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 
-export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, onDraftChange, onClose, savingAvailable }: Readonly<{
+export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onClose, savingAvailable }: Readonly<{
   score: StaffBuilderScoreV1;
   initialCaptureState: StaffBuilderCaptureState;
-  onDraftChange: (score: StaffBuilderScoreV1, captureState: StaffBuilderCaptureState) => unknown;
+  initialEditorPass: StaffBuilderEditorPass;
+  initialRhythmState: StaffBuilderRhythmState;
+  onDraftChange: (score: StaffBuilderScoreV1, editorState: StaffBuilderPersistedEditorState) => unknown;
   onClose: () => void;
   savingAvailable: boolean;
 }>) {
-  const editor = useStaffBuilderEditor({ score, initialCaptureState, onDraftChange });
+  const editor = useStaffBuilderEditor({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange });
   const midi = useStaffBuilderInput(editor.addMidiPitch);
+  const rhythmMeasureIndex = editor.rhythm.selection?.measureIndex ?? initialRhythmState.measureIndex;
 
   return (
     <section className="staff-builder-panel" aria-labelledby="staff-builder-workspace-title">
@@ -29,8 +34,16 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, o
         <div><dt>Time</dt><dd>{editor.score.initialTimeSignature}</dd></div>
         <div><dt>Tempo</dt><dd>{editor.score.tempoBpm} BPM</dd></div>
       </dl>
-      <StaffBuilderScoreView cursor={{ offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }} measureIndex={editor.captureState.cursor.measureIndex} pendingPreview={editor.pending} score={editor.score} />
-      <StaffBuilderCaptureControls captureState={editor.captureState} midi={midi} onActiveStaffChange={editor.setActiveStaff} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} onVirtualPitchToggle={editor.toggleVirtualPitch} pending={editor.pending} positionLabel={editor.positionLabel} />
+      <div className="staff-builder-pass-switcher" aria-label="Editor pass"><button aria-pressed={editor.editorPass === "capture"} className="staff-builder-secondary-button" onClick={editor.switchToCapture} type="button">Fast Capture</button><button aria-pressed={editor.editorPass === "rhythm"} className="staff-builder-secondary-button" disabled={!editor.canEnterRhythm} onClick={editor.switchToRhythm} type="button">Rhythm Correction</button></div>
+      {!editor.canEnterRhythm && <p className="text-sm text-zinc-300">Capture at least one event before starting Rhythm Correction.</p>}
+      <StaffBuilderScoreView
+        {...(editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, pendingPreview: editor.pending } : { selectedEventId: editor.rhythm.selection?.eventId })}
+        measureIndex={editor.editorPass === "capture" ? editor.captureState.cursor.measureIndex : rhythmMeasureIndex}
+        score={editor.score}
+      />
+      {editor.editorPass === "capture"
+        ? <StaffBuilderCaptureControls captureState={editor.captureState} midi={midi} onClear={editor.clearCurrentEntry} onInputModeChange={editor.setInputMode} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} onVirtualPitchToggle={editor.toggleVirtualPitch} pending={editor.pending} positionLabel={editor.positionLabel} />
+        : <StaffBuilderRhythmControls canNext={editor.rhythm.canNext} canPrevious={editor.rhythm.canPrevious} canRedo={editor.canRedo} canUndo={editor.canUndo} eventCount={editor.rhythm.eventCount} onAssignDuration={editor.rhythm.assignDuration} onConvertToRest={editor.rhythm.convertToRest} onDelete={editor.rhythm.deleteEvent} onMoveToStaff={editor.rhythm.moveToStaff} onNext={editor.rhythm.nextEvent} onPrevious={editor.rhythm.previousEvent} onRedo={editor.redo} onRespellPitch={editor.rhythm.respellPitch} onUndo={editor.undo} selectedDescription={describeStaffBuilderSelectedEvent(editor.score, editor.rhythm.selection)} selectedEvent={editor.rhythm.selectedEvent} selectedIndex={editor.rhythm.selectedIndex} status={editor.rhythm.status} />}
     </section>
   );
 }

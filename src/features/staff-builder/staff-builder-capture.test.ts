@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appendStaffBuilderMeasure, createStaffBuilderScore, insertUnresolvedStaffBuilderNotes, setStaffBuilderMeasureKeySignature, type StaffBuilderFactories } from "./staff-builder-score";
-import { commitStaffBuilderPendingCapture, DEFAULT_STAFF_BUILDER_CAPTURE_STATE, formatStaffBuilderCapturePosition, moveStaffBuilderCaptureBackward, moveStaffBuilderCaptureForward } from "./staff-builder-capture";
+import { commitStaffBuilderPendingCapture, DEFAULT_STAFF_BUILDER_CAPTURE_STATE, formatStaffBuilderCapturePosition, moveStaffBuilderCaptureBackward, moveStaffBuilderCaptureForward, routeStaffBuilderCapturePitch } from "./staff-builder-capture";
 
 function factories(): StaffBuilderFactories {
   let id = 0;
@@ -14,7 +14,13 @@ function score(factory = factories()) {
 
 describe("Staff Builder capture operations", () => {
   it("defines the approved initial capture state", () => {
-    expect(DEFAULT_STAFF_BUILDER_CAPTURE_STATE).toEqual({ cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", activeStaff: "treble" });
+    expect(DEFAULT_STAFF_BUILDER_CAPTURE_STATE).toEqual({ cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "grand" });
+  });
+
+  it("routes Grand Staff around middle C while forced modes use one staff", () => {
+    expect([59, 60].map((pitch) => routeStaffBuilderCapturePitch("grand", pitch))).toEqual(["bass", "treble"]);
+    expect([48, 72].map((pitch) => routeStaffBuilderCapturePitch("treble", pitch))).toEqual(["treble", "treble"]);
+    expect([48, 72].map((pitch) => routeStaffBuilderCapturePitch("bass", pitch))).toEqual(["bass", "bass"]);
   });
 
   it.each([

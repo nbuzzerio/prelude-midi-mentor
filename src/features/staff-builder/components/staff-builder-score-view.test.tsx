@@ -7,7 +7,7 @@ const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: u
   void container;
   void renderedScore;
   void measureIndex;
-  return { anchors: { events: new Map(), positions: new Map([
+  return { anchors: { events: new Map([["treble-note", { eventId: "treble-note", staff: "treble", startTick: 0, onsetX: 160, x: 155, y: 60, width: 20, height: 40 }]]), positions: new Map([
   [0, { tick: 0, x: 150, y: 40, width: 30, height: 220 }],
   [120, { tick: 120, x: 180, y: 40, width: 30, height: 220 }],
   [240, { tick: 240, x: 210, y: 40, width: 30, height: 220 }],
@@ -78,5 +78,15 @@ describe("StaffBuilderScoreView", () => {
     expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.some(({ id }) => id.includes("preview"))).toBe(false);
     expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
     expect(JSON.stringify(current)).toBe(before);
+  });
+
+  it("draws a padded selection outline from the public event anchor without a capture cursor", () => {
+    render(<StaffBuilderScoreView measureIndex={0} score={score()} selectedEventId="treble-note" />);
+    const outline = screen.getByTestId("staff-builder-selection-outline");
+    expect(outline.style.left).toBe("150px");
+    expect(outline.style.top).toBe("55px");
+    expect(outline.style.width).toBe("30px");
+    expect(outline.style.height).toBe("50px");
+    expect(screen.queryByTestId("staff-builder-capture-cursor")).toBeNull();
   });
 });

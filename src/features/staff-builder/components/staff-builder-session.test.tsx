@@ -171,6 +171,91 @@ describe("Staff Builder session", () => {
     expect(draft.score.measures[0].events).toEqual([]);
   });
 
+  it("routes MIDI and virtual pitches through Grand Staff previews and commits both staffs", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Grand Capture");
+    expect(screen.getByRole("button", { name: "Grand Staff" }).getAttribute("aria-pressed")).toBe("true");
+    act(() => { midiBoundary.onNote?.(48); midiBoundary.onNote?.(60); });
+    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/Pending bass preview: note C3 at tick 0/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "B, MIDI 59" }));
+    expect(screen.getByText(/Pending bass preview: chord C3, B3 at tick 0/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "B, MIDI 59" }));
+    expect(screen.getByText(/Pending bass preview: note C3 at tick 0/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
+    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.captureState.inputMode).toBe("grand");
+    expect(draft.captureState).not.toHaveProperty("activeStaff");
+    expect(draft.score.measures[0].events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ staff: "bass", pitches: [expect.objectContaining({ midiNumber: 48 })] }),
+      expect.objectContaining({ staff: "treble", pitches: [expect.objectContaining({ midiNumber: 60 })] }),
+    ]));
+  });
+
+  it("keeps cross-staff pending pitches highlighted while virtual toggles change only the routed copy", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Keyboard Highlight");
+    const lowKey = screen.getByRole("button", { name: "C, MIDI 48" });
+    const highKey = screen.getByRole("button", { name: "C, MIDI 72" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Treble Only" }));
+    act(() => midiBoundary.onNote?.(48));
+    fireEvent.click(screen.getByRole("button", { name: "Grand Staff" }));
+    expect(lowKey.getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Bass Only" }));
+    act(() => { midiBoundary.onNote?.(48); midiBoundary.onNote?.(72); });
+    fireEvent.click(screen.getByRole("button", { name: "Grand Staff" }));
+    expect(lowKey.getAttribute("aria-pressed")).toBe("true");
+    expect(highKey.getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(lowKey);
+    expect(screen.getByText(/pending treble MIDI pitches 48; pending bass MIDI pitches 72/)).toBeTruthy();
+    expect(lowKey.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(lowKey);
+    expect(screen.getByText(/pending treble MIDI pitches 48; pending bass MIDI pitches 48, 72/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear Current Entry" }));
+    expect(lowKey.getAttribute("aria-pressed")).toBe("false");
+    expect(highKey.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("switches to Rhythm Correction, edits the selected event, and persists Undo and Redo", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Rhythm Study");
+    fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
+    expect(screen.getByTestId("staff-builder-capture-cursor")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rhythm Correction" }));
+    expect(screen.queryByTestId("staff-builder-capture-cursor")).toBeNull();
+    expect(screen.getByTestId("staff-builder-selection-outline")).toBeTruthy();
+    expect(screen.getByText(/Selected event: measure 1, treble, .*tick 0.*, C4, unresolved rhythm/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Target Duration"), { target: { value: "eighth" } });
+    fireEvent.click(screen.getByRole("button", { name: "Assign Duration" }));
+    expect(screen.getByText(/eighth note C4 at tick 0/)).toBeTruthy();
+    let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft).toMatchObject({ editorPass: "rhythm", rhythmState: { measureIndex: 0 } });
+    expect(draft.score.measures[0].events[0].rhythm).toEqual({ status: "final", duration: "eighth" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.score.measures[0].events[0].rhythm).toEqual({ status: "unresolved" });
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    expect(screen.getByText(/eighth note C4 at tick 0/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Delete Event" }));
+    expect(screen.getByText("No event selected.")).toBe(document.activeElement);
+    draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.score.measures[0].events).toEqual([]);
+  });
+
   it("announces storage failures, keeps in-memory work, and clears corrupt data only after confirmation", () => {
     const storage = new MemoryStorage();
     storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, "corrupt");

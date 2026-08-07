@@ -67,6 +67,7 @@ button {
 .staff-builder-notation-scroll { overflow-x: auto; border-radius: 0.375rem; background: white; }
 .staff-builder-notation-canvas { position: relative; min-width: 47.5rem; }
 .staff-builder-capture-cursor { position: absolute; z-index: 2; pointer-events: none; border: 2px solid rgb(2 132 199 / 75%); border-radius: 0.25rem; background: rgb(56 189 248 / 20%); }
+.staff-builder-selection-outline { position: absolute; z-index: 3; pointer-events: none; border: 3px solid rgb(217 70 239); border-radius: 0.35rem; box-shadow: 0 0 0 2px white; }
 .staff-builder-measure-summary { display: grid; gap: 0.25rem; font-size: 0.875rem; }
 .staff-builder-measure-summary p { margin: 0; }
 .staff-builder-capture { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
@@ -79,6 +80,14 @@ button {
 .staff-builder-capture-actions button:disabled { cursor: not-allowed; opacity: 0.45; }
 .staff-builder-capture-status { margin: 0; border-radius: 0.375rem; background: rgb(39 39 42); padding: 0.75rem; font-size: 0.875rem; }
 .staff-builder-capture-keyboard { height: 15rem; }
+.staff-builder-pass-switcher { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+.staff-builder-pass-switcher button[aria-pressed="true"] { outline: 2px solid rgb(56 189 248); outline-offset: 2px; }
+.staff-builder-rhythm-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
+.staff-builder-rhythm-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; }
+.staff-builder-rhythm-edit-grid { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem; }
+.staff-builder-rhythm-edit-grid label,
+.staff-builder-spelling-controls label { display: grid; gap: 0.25rem; }
+.staff-builder-spelling-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
 
 @media (max-width: 700px) {
   .staff-builder-columns { grid-template-columns: minmax(0, 1fr); }
