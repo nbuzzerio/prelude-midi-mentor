@@ -1,5 +1,6 @@
 import { getMusicKeyDefinition } from "@/lib/music/keys";
-import { resolveStaffBuilderMeasureContext } from "../staff-builder-score";
+import { createStaffBuilderPitch, resolveStaffBuilderMeasureContext } from "../staff-builder-score";
+import type { StaffBuilderPendingCapture } from "../staff-builder-capture";
 import {
   STAFF_BUILDER_DURATIONS,
   STAFF_BUILDER_TICKS_PER_QUARTER,
@@ -75,6 +76,12 @@ export type StaffBuilderMeasureProjection = Readonly<{
   unavailableTies: readonly StaffBuilderUnavailableTie[];
   beams: Readonly<Record<StaffBuilderStaff, StaffBuilderBeamProjection>>;
   positionTicks: readonly number[];
+  summary: Readonly<Record<StaffBuilderStaff, string>>;
+}>;
+
+export type StaffBuilderPendingPreviewProjection = Readonly<{
+  renderScore: StaffBuilderScoreV1;
+  events: Readonly<Record<StaffBuilderStaff, StaffBuilderEvent | null>>;
   summary: Readonly<Record<StaffBuilderStaff, string>>;
 }>;
 
@@ -161,6 +168,60 @@ function projectStaff(events: readonly StaffBuilderEvent[], staff: StaffBuilderS
 function pitchName(pitch: StaffBuilderPitch): string {
   const accidental = pitch.accidental === "sharp" ? "♯" : pitch.accidental === "flat" ? "♭" : "";
   return `${pitch.letter}${accidental}${pitch.octave}`;
+}
+
+export function projectStaffBuilderPendingPreview(
+  score: StaffBuilderScoreV1,
+  measureIndex: number,
+  startTick: number,
+  pending: StaffBuilderPendingCapture,
+): StaffBuilderPendingPreviewProjection {
+  const measure = score.measures[measureIndex];
+  if (!measure) throw new Error(`Unknown measure index ${measureIndex}.`);
+  const context = resolveStaffBuilderMeasureContext(score, measureIndex);
+  if (!Number.isInteger(startTick) || startTick < 0 || startTick >= context.capacityTicks) {
+    throw new Error(`Unknown preview position ${startTick}.`);
+  }
+  const events: Record<StaffBuilderStaff, StaffBuilderEvent | null> = { treble: null, bass: null };
+  for (const staff of ["treble", "bass"] as const) {
+    const midiNumbers = [...new Set(pending[staff])].sort((left, right) => left - right);
+    if (midiNumbers.length === 0) continue;
+    const idBase = `__staff-builder-preview:${score.id}:${measureIndex}:${staff}:${startTick}`;
+    events[staff] = {
+      id: `${idBase}:event`,
+      kind: "notes",
+      staff,
+      startTick,
+      rhythm: { status: "unresolved" },
+      pitches: midiNumbers.map((midiNumber) => createStaffBuilderPitch({
+        midiNumber,
+        keySignatureId: context.keySignatureId,
+        id: `${idBase}:pitch:${midiNumber}`,
+      })),
+    };
+  }
+  const previewEvents = Object.values(events).filter((event): event is StaffBuilderEvent => event !== null);
+  const renderScore = previewEvents.length === 0 ? score : {
+    ...score,
+    measures: score.measures.map((item, index) => index !== measureIndex ? item : {
+      ...item,
+      events: [
+        ...item.events.filter((event) => events[event.staff] === null || event.startTick !== startTick),
+        ...previewEvents,
+      ],
+    }),
+  };
+  const previewSummary = (staff: StaffBuilderStaff) => {
+    const event = events[staff];
+    if (!event || event.kind !== "notes") return `Pending ${staff} preview: none.`;
+    const label = event.pitches.length === 1 ? "note" : "chord";
+    return `Pending ${staff} preview: ${label} ${event.pitches.map(pitchName).join(", ")} at tick ${startTick}.`;
+  };
+  return {
+    renderScore,
+    events,
+    summary: { treble: previewSummary("treble"), bass: previewSummary("bass") },
+  };
 }
 
 function summarize(events: readonly StaffBuilderEvent[], staff: StaffBuilderStaff): string {

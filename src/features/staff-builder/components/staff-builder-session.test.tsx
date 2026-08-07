@@ -1,8 +1,16 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import StaffBuilderSession from "./staff-builder-session";
+
+const { midiBoundary } = vi.hoisted(() => ({ midiBoundary: { onNote: null as ((midiNumber: number) => void) | null } }));
+vi.mock("../hooks/use-staff-builder-input", () => ({
+  useStaffBuilderInput: (onNote: (midiNumber: number) => void) => {
+    midiBoundary.onNote = onNote;
+    return { connectMidi: vi.fn(), deviceName: "Test MIDI", error: null, status: "connected" as const };
+  },
+}));
 
 class MemoryStorage implements StaffBuilderStorage {
   values = new Map<string, string>();
@@ -130,9 +138,16 @@ describe("Staff Builder session", () => {
     dismissIntroduction();
     createPiece("Capture");
     fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
+    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText("Pending bass preview: none.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear Current Entry" }));
+    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
     let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
+    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
+    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
     draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events[0]).toMatchObject({ staff: "treble", startTick: 0, rhythm: { status: "unresolved" }, pitches: [{ midiNumber: 60 }] });
     expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 480 });
@@ -141,7 +156,19 @@ describe("Staff Builder session", () => {
     expect(screen.getByText("A newer Staff Builder draft is available.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Restore Draft" }));
     expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
     expect(screen.getByText(/Measure 1, Beat 2 \(quarter-note beat; tick 480\)/)).toBeTruthy();
+  });
+
+  it("shows MIDI note-on input immediately as a pending staff preview", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("MIDI Capture");
+    act(() => midiBoundary.onNote?.(66));
+    expect(screen.getByText(/Pending treble preview: note .* at tick 0/)).toBeTruthy();
+    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.score.measures[0].events).toEqual([]);
   });
 
   it("announces storage failures, keeps in-memory work, and clears corrupt data only after confirmation", () => {

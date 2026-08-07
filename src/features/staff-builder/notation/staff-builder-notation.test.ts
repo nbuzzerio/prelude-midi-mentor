@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { STAFF_BUILDER_DURATIONS, durationToTicks, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1 } from "../staff-builder-types";
-import { getStaffBuilderVisualDuration, projectStaffBuilderMeasure } from "./staff-builder-notation";
+import { getStaffBuilderVisualDuration, projectStaffBuilderMeasure, projectStaffBuilderPendingPreview } from "./staff-builder-notation";
 
 const pitch = (id: string, letter = "C", accidental: StaffBuilderPitch["accidental"] = "natural", octave = 4, midiNumber = 60): StaffBuilderPitch => ({ id, letter: letter as StaffBuilderPitch["letter"], accidental, octave, midiNumber });
 const note = (id: string, staff: "treble" | "bass", startTick: number, rhythm: StaffBuilderEvent["rhythm"], pitches = [pitch(`${id}-pitch`)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm, pitches });
@@ -140,5 +140,49 @@ describe("Staff Builder notation projection", () => {
       rest("rest", "treble", 840, "sixteenth"),
     ];
     expect(projectStaffBuilderMeasure(score({ measures: [{ id: "m1", events }] }), 0).beams.treble.eventIds).toEqual(["eighth", "sixteenth"]);
+  });
+
+  it("projects simultaneous treble and bass pending previews at the cursor with effective-key spelling", () => {
+    const current = { ...score(), initialKeySignatureId: "g-major" as const };
+    const before = JSON.stringify(current);
+    const preview = projectStaffBuilderPendingPreview(current, 0, 240, { treble: [69, 66], bass: [54] });
+    expect(preview.events.treble).toMatchObject({ staff: "treble", startTick: 240, rhythm: { status: "unresolved" }, pitches: [
+      { midiNumber: 66, letter: "F", accidental: "sharp" },
+      { midiNumber: 69, letter: "A", accidental: "natural" },
+    ] });
+    expect(preview.events.bass).toMatchObject({ staff: "bass", startTick: 240, pitches: [{ midiNumber: 54, letter: "F", accidental: "sharp" }] });
+    expect(projectStaffBuilderMeasure(preview.renderScore, 0).staves.treble.find((item) => item.kind !== "spacer")).toMatchObject({ startTick: 240, unresolved: true, visualDuration: { duration: "quarter" } });
+    expect(JSON.stringify(current)).toBe(before);
+  });
+
+  it("uses deterministic preview IDs for equivalent inputs", () => {
+    const current = score();
+    const first = projectStaffBuilderPendingPreview(current, 0, 120, { treble: [64, 60], bass: [] });
+    const second = projectStaffBuilderPendingPreview(current, 0, 120, { treble: [60, 64], bass: [] });
+    expect(first.events.treble?.id).toBe(second.events.treble?.id);
+    expect(first.events.treble?.kind === "notes" ? first.events.treble.pitches.map(({ id }) => id) : []).toEqual(
+      second.events.treble?.kind === "notes" ? second.events.treble.pitches.map(({ id }) => id) : [],
+    );
+    expect(first.events.treble?.id).toContain(":0:treble:120:event");
+  });
+
+  it("projects a bass-only pending preview without adding a treble event", () => {
+    const preview = projectStaffBuilderPendingPreview(score(), 0, 360, { treble: [], bass: [48] });
+    expect(preview.events.treble).toBeNull();
+    expect(preview.events.bass).toMatchObject({ staff: "bass", startTick: 360, pitches: [{ midiNumber: 48 }] });
+    expect(preview.renderScore.measures[0]?.events).toHaveLength(1);
+  });
+
+  it("replaces a same-position committed event only in the render score and labels pending separately", () => {
+    const committed = note("committed", "treble", 0, { status: "unresolved" }, [pitch("committed-pitch", "C", "natural", 4, 60)]);
+    const current = score({ measures: [{ id: "m1", events: [committed] }] });
+    const before = JSON.stringify(current);
+    const preview = projectStaffBuilderPendingPreview(current, 0, 0, { treble: [67], bass: [] });
+    expect(preview.renderScore.measures[0]?.events).toHaveLength(1);
+    expect(preview.renderScore.measures[0]?.events[0]).toMatchObject({ id: expect.stringContaining("__staff-builder-preview"), pitches: [{ midiNumber: 67 }] });
+    expect(preview.summary.treble).toContain("Pending treble preview: note G4 at tick 0");
+    expect(preview.summary.bass).toBe("Pending bass preview: none.");
+    expect(JSON.stringify(current)).toBe(before);
+    expect(current.measures[0]?.events[0]).toBe(committed);
   });
 });

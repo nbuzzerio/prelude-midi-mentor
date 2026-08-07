@@ -29,7 +29,7 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, o
         <div><dt>Time</dt><dd>{editor.score.initialTimeSignature}</dd></div>
         <div><dt>Tempo</dt><dd>{editor.score.tempoBpm} BPM</dd></div>
       </dl>
-      <StaffBuilderScoreView cursor={{ offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }} measureIndex={editor.captureState.cursor.measureIndex} score={editor.score} />
+      <StaffBuilderScoreView cursor={{ offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }} measureIndex={editor.captureState.cursor.measureIndex} pendingPreview={editor.pending} score={editor.score} />
       <StaffBuilderCaptureControls captureState={editor.captureState} midi={midi} onActiveStaffChange={editor.setActiveStaff} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} onVirtualPitchToggle={editor.toggleVirtualPitch} pending={editor.pending} positionLabel={editor.positionLabel} />
     </section>
   );

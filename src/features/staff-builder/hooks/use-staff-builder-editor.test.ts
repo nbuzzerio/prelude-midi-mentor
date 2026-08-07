@@ -105,4 +105,28 @@ describe("useStaffBuilderEditor", () => {
     const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, onDraftChange: vi.fn() }));
     expect(result.current.positionLabel).toBe("Eighth-note position 1, second sixteenth-note position (compound meter; tick 120)");
   });
+
+  it("keeps pending preview inputs ephemeral through clear, navigation confirmation, and lock", () => {
+    const current = score();
+    const before = JSON.stringify(current);
+    const onDraftChange = vi.fn();
+    const confirmDiscardPending = vi.fn(() => false);
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, confirmDiscardPending }));
+    act(() => result.current.addMidiPitch(60));
+    expect(result.current.pending.treble).toEqual([60]);
+    expect(JSON.stringify(result.current.score)).toBe(before);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    act(() => result.current.nextPosition());
+    expect(result.current.pending.treble).toEqual([60]);
+    confirmDiscardPending.mockReturnValue(true);
+    act(() => result.current.nextPosition());
+    expect(result.current.pending.treble).toEqual([]);
+    act(() => result.current.addMidiPitch(62));
+    act(() => result.current.clearCurrentEntry());
+    expect(result.current.pending.treble).toEqual([]);
+    act(() => result.current.addMidiPitch(64));
+    act(() => result.current.lockAndContinue());
+    expect(result.current.pending.treble).toEqual([]);
+    expect(result.current.score.measures[0]?.events[0]).toMatchObject({ startTick: 480, rhythm: { status: "unresolved" }, pitches: [{ midiNumber: 64 }] });
+  });
 });

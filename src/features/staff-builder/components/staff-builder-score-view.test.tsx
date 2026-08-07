@@ -3,12 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { StaffBuilderScoreView } from "./staff-builder-score-view";
 
-const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn(() => ({ anchors: { events: new Map(), positions: new Map([
+const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: unknown, renderedScore: unknown, measureIndex: number) => {
+  void container;
+  void renderedScore;
+  void measureIndex;
+  return { anchors: { events: new Map(), positions: new Map([
   [0, { tick: 0, x: 150, y: 40, width: 30, height: 220 }],
   [120, { tick: 120, x: 180, y: 40, width: 30, height: 220 }],
   [240, { tick: 240, x: 210, y: 40, width: 30, height: 220 }],
   [360, { tick: 360, x: 240, y: 40, width: 30, height: 220 }],
-]) }, projection: {}, width: 760, height: 300 })) }));
+  ]) }, projection: {}, width: 760, height: 300 };
+}) }));
 vi.mock("../notation/render-staff-builder-measure", () => ({ renderStaffBuilderMeasure: renderMeasure }));
 
 function score(): StaffBuilderScoreV1 {
@@ -50,5 +55,28 @@ describe("StaffBuilderScoreView", () => {
     expect(cursor.style.height).toBe("220px");
     rerender(<StaffBuilderScoreView cursor={{ offsetTicks: 360, stepDuration: "quarter" }} measureIndex={0} score={score()} />);
     expect(screen.getByTestId("staff-builder-capture-cursor").style.width).toBe("30px");
+  });
+
+  it("renders treble and bass pending previews while keeping committed semantic output separate", () => {
+    render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} pendingPreview={{ treble: [64], bass: [48, 52] }} score={score()} />);
+    const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1;
+    const events = renderScore.measures[0]?.events ?? [];
+    expect(events.find(({ staff }) => staff === "treble")).toMatchObject({ id: expect.stringContaining("__staff-builder-preview"), startTick: 0, pitches: [{ midiNumber: 64 }] });
+    expect(events.find(({ staff }) => staff === "bass")).toMatchObject({ startTick: 0, pitches: [{ midiNumber: 48 }, { midiNumber: 52 }] });
+    expect(events.some(({ id }) => id === "treble-note")).toBe(false);
+    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/Pending treble preview: note E4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/Pending bass preview: chord C3, E3 at tick 0/)).toBeTruthy();
+  });
+
+  it("updates and removes pending preview immediately without mutating the source score", () => {
+    const current = score();
+    const before = JSON.stringify(current);
+    const { rerender } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 240, stepDuration: "eighth" }} measureIndex={0} pendingPreview={{ treble: [66], bass: [] }} score={current} />);
+    expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.find(({ id }) => id.includes("preview"))).toMatchObject({ startTick: 240, pitches: [{ midiNumber: 66 }] });
+    rerender(<StaffBuilderScoreView cursor={{ offsetTicks: 240, stepDuration: "eighth" }} measureIndex={0} pendingPreview={{ treble: [], bass: [] }} score={current} />);
+    expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.some(({ id }) => id.includes("preview"))).toBe(false);
+    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
+    expect(JSON.stringify(current)).toBe(before);
   });
 });

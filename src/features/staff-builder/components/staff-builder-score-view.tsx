@@ -1,15 +1,19 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { renderStaffBuilderMeasure, type StaffBuilderMeasureRenderResult } from "../notation/render-staff-builder-measure";
-import { projectStaffBuilderMeasure } from "../notation/staff-builder-notation";
+import { projectStaffBuilderMeasure, projectStaffBuilderPendingPreview } from "../notation/staff-builder-notation";
+import type { StaffBuilderPendingCapture } from "../staff-builder-capture";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { stepDurationToTicks, type StaffBuilderStepDuration } from "../staff-builder-time";
 
 type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: number }>;
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, onRender }: Readonly<{
+const EMPTY_PENDING_PREVIEW: StaffBuilderPendingCapture = { treble: [], bass: [] };
+
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
+  pendingPreview?: StaffBuilderPendingCapture;
   onRender?: (result: StaffBuilderMeasureRenderResult) => void;
 }>) {
   const notationRef = useRef<HTMLDivElement>(null);
@@ -17,10 +21,16 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, onRender }:
   const projection = projectStaffBuilderMeasure(score, measureIndex);
   const cursorOffsetTicks = cursor?.offsetTicks;
   const cursorStepDuration = cursor?.stepDuration;
+  const pendingTreble = pendingPreview?.treble ?? EMPTY_PENDING_PREVIEW.treble;
+  const pendingBass = pendingPreview?.bass ?? EMPTY_PENDING_PREVIEW.bass;
+  const preview = useMemo(
+    () => projectStaffBuilderPendingPreview(score, measureIndex, cursorOffsetTicks ?? 0, { treble: pendingTreble, bass: pendingBass }),
+    [cursorOffsetTicks, measureIndex, pendingBass, pendingTreble, score],
+  );
 
   useLayoutEffect(() => {
     if (!notationRef.current) return;
-    const result = renderStaffBuilderMeasure(notationRef.current, score, measureIndex);
+    const result = renderStaffBuilderMeasure(notationRef.current, preview.renderScore, measureIndex);
     if (cursorOffsetTicks !== undefined && cursorStepDuration !== undefined) {
       const start = result.anchors.positions.get(cursorOffsetTicks);
       const endTick = Math.min(projection.capacityTicks, cursorOffsetTicks + stepDurationToTicks(cursorStepDuration));
@@ -31,7 +41,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, onRender }:
       setCursorGeometry(null);
     }
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, measureIndex, onRender, projection.capacityTicks, score]);
+  }, [cursorOffsetTicks, cursorStepDuration, measureIndex, onRender, preview.renderScore, projection.capacityTicks]);
 
   return (
     <section aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
@@ -48,6 +58,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, onRender }:
         <p><strong>Measure {projection.measureNumber}.</strong> Effective key: {projection.keySignatureName}. Effective time signature: {projection.timeSignature}.</p>
         <p><strong>Treble:</strong> {projection.summary.treble}</p>
         <p><strong>Bass:</strong> {projection.summary.bass}</p>
+        {pendingPreview && <><p>{preview.summary.treble}</p><p>{preview.summary.bass}</p></>}
       </div>
     </section>
   );
