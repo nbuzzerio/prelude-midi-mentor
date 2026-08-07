@@ -83,8 +83,8 @@ describe("Staff Builder session", () => {
     expect(screen.getByText("3/4")).toBeTruthy();
     expect(screen.getByText("108 BPM")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Measure 1 of 1" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Previous Measure" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Next Measure" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Previous Position" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Next Position" }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.getByText(/Effective key: G major/)).toBeTruthy();
     expect(screen.getByText(/Pieces are stored only in this browser and device/)).toBeTruthy();
     first.unmount();
@@ -122,6 +122,26 @@ describe("Staff Builder session", () => {
     expect(screen.getByText("A newer Staff Builder draft is available.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Restore Draft" }));
     expect(screen.getByRole("heading", { name: "Draft" })).toBeTruthy();
+  });
+
+  it("persists locked unresolved capture and cursor, but not pending virtual input", () => {
+    const storage = new MemoryStorage();
+    const first = render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Capture");
+    fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
+    let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.score.measures[0].events).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
+    draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.score.measures[0].events[0]).toMatchObject({ staff: "treble", startTick: 0, rhythm: { status: "unresolved" }, pitches: [{ midiNumber: 60 }] });
+    expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 480 });
+    first.unmount();
+    render(<StaffBuilderSession storage={storage} />);
+    expect(screen.getByText("A newer Staff Builder draft is available.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Restore Draft" }));
+    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/Measure 1, Beat 2 \(quarter-note beat; tick 480\)/)).toBeTruthy();
   });
 
   it("announces storage failures, keeps in-memory work, and clears corrupt data only after confirmation", () => {

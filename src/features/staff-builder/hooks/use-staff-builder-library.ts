@@ -4,6 +4,7 @@ import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import type { StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { StaffBuilderDraftV1, StaffBuilderLibraryV1 } from "../persistence/staff-builder-schema";
+import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE, type StaffBuilderCaptureState } from "../staff-builder-capture";
 import {
   readStaffBuilderDraft,
   readStaffBuilderIntroductionDismissed,
@@ -24,6 +25,7 @@ type InitialState = Readonly<{
   library: StaffBuilderLibraryV1;
   draft: StaffBuilderDraftV1 | null;
   activeScore: StaffBuilderScoreV1 | null;
+  activeCaptureState: StaffBuilderCaptureState;
   activeSavedPieceId: string | null;
   recoveryDraft: StaffBuilderDraftV1 | null;
   introductionOpen: boolean;
@@ -60,6 +62,7 @@ function loadInitialState(storage: StaffBuilderStorage): InitialState {
     library,
     draft,
     activeScore: draftIsNewer ? null : activeSavedPiece,
+    activeCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE,
     activeSavedPieceId: draftIsNewer ? null : activeSavedPiece?.id ?? null,
     recoveryDraft: draftIsNewer ? draft : null,
     introductionOpen: !(introResult.ok && introResult.value),
@@ -72,6 +75,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
   const initial = useMemo(() => loadInitialState(storage), [storage]);
   const [library, setLibrary] = useState(initial.library);
   const [activeScore, setActiveScore] = useState(initial.activeScore);
+  const [activeCaptureState, setActiveCaptureState] = useState(initial.activeCaptureState);
   const [activeSavedPieceId, setActiveSavedPieceId] = useState<string | null>(initial.activeSavedPieceId);
   const [recoveryDraft, setRecoveryDraft] = useState(initial.recoveryDraft);
   const [introductionOpen, setIntroductionOpen] = useState(initial.introductionOpen);
@@ -85,9 +89,9 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     return result.ok;
   }, []);
 
-  const persistDraft = useCallback((score: StaffBuilderScoreV1, savedPieceId: string | null) => {
+  const persistDraft = useCallback((score: StaffBuilderScoreV1, savedPieceId: string | null, captureState?: StaffBuilderCaptureState, updatedAt = score.updatedAt) => {
     if (blockedAreas.has("draft")) return false;
-    const draft: StaffBuilderDraftV1 = { schemaVersion: 1, savedPieceId, updatedAt: score.updatedAt, score, editorPass: "capture" };
+    const draft: StaffBuilderDraftV1 = { schemaVersion: 1, savedPieceId, updatedAt, score, editorPass: "capture", ...(captureState ? { captureState } : {}) };
     return reportWrite("draft", writeStaffBuilderValue(storage, "draft", draft));
   }, [blockedAreas, reportWrite, storage]);
 
@@ -101,6 +105,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     const next = { schemaVersion: 1 as const, pieces: [...library.pieces, score] };
     setLibrary(next);
     setActiveScore(score);
+    setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
     setActiveSavedPieceId(score.id);
     persistLibrary(next);
     persistDraft(score, score.id);
@@ -111,6 +116,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     const piece = library.pieces.find(({ id }) => id === pieceId);
     if (!piece) return;
     setActiveScore(piece);
+    setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
     setActiveSavedPieceId(piece.id);
     persistDraft(piece, piece.id);
     reportWrite("preferences", writeStaffBuilderValue(storage, "lastPieceId", piece.id));
@@ -123,11 +129,18 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     const next = { ...library, pieces: library.pieces.map((item) => item.id === pieceId ? renamed : item) };
     setLibrary(next);
     if (activeSavedPieceId === pieceId) {
-      setActiveScore(renamed);
-      persistDraft(renamed, pieceId);
+      const renamedActive = renameStaffBuilderScore(activeScore ?? renamed, title.trim());
+      setActiveScore(renamedActive);
+      const captureChanged = activeCaptureState.cursor.measureIndex !== 0 || activeCaptureState.cursor.offsetTicks !== 0
+        || activeCaptureState.stepDuration !== "quarter" || activeCaptureState.activeStaff !== "treble";
+      const draftChanged = activeScore !== piece || captureChanged;
+      const draftUpdatedAt = draftChanged
+        ? new Date(Math.max(Date.now(), Date.parse(renamed.updatedAt) + 1, Date.parse(renamedActive.updatedAt) + 1)).toISOString()
+        : renamed.updatedAt;
+      persistDraft(renamedActive, pieceId, activeCaptureState, draftUpdatedAt);
     }
     persistLibrary(next);
-  }, [activeSavedPieceId, library, persistDraft, persistLibrary]);
+  }, [activeCaptureState, activeSavedPieceId, activeScore, library, persistDraft, persistLibrary]);
 
   const deletePiece = useCallback((pieceId: string) => {
     const next = { ...library, pieces: library.pieces.filter(({ id }) => id !== pieceId) };
@@ -135,6 +148,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     persistLibrary(next);
     if (activeSavedPieceId === pieceId) {
       setActiveScore(null);
+      setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
       setActiveSavedPieceId(null);
       if (!blockedAreas.has("draft")) reportWrite("draft", removeStaffBuilderValue(storage, "draft"));
       reportWrite("preferences", removeStaffBuilderValue(storage, "lastPieceId"));
@@ -143,6 +157,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
 
   const closePiece = useCallback(() => {
     setActiveScore(null);
+    setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
     setActiveSavedPieceId(null);
     if (!blockedAreas.has("draft")) reportWrite("draft", removeStaffBuilderValue(storage, "draft"));
     reportWrite("preferences", removeStaffBuilderValue(storage, "lastPieceId"));
@@ -151,6 +166,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
   const restoreDraft = useCallback(() => {
     if (!recoveryDraft) return;
     setActiveScore(recoveryDraft.score);
+    setActiveCaptureState(recoveryDraft.captureState ?? DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
     setActiveSavedPieceId(recoveryDraft.savedPieceId);
     setRecoveryDraft(null);
   }, [recoveryDraft]);
@@ -158,6 +174,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
   const declineDraft = useCallback(() => {
     const saved = recoveryDraft?.savedPieceId ? library.pieces.find(({ id }) => id === recoveryDraft.savedPieceId) ?? null : null;
     setActiveScore(saved);
+    setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
     setActiveSavedPieceId(saved?.id ?? null);
     setRecoveryDraft(null);
     if (!blockedAreas.has("draft")) reportWrite("draft", removeStaffBuilderValue(storage, "draft"));
@@ -168,6 +185,21 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     if (dismiss) reportWrite("preferences", writeStaffBuilderValue(storage, "introductionDismissed", "true"));
   }, [reportWrite, storage]);
 
+  const updateActiveDraft = useCallback((score: StaffBuilderScoreV1, captureState: StaffBuilderCaptureState) => {
+    setActiveScore(score);
+    setActiveCaptureState(captureState);
+    if (blockedAreas.has("draft")) return false;
+    const draft: StaffBuilderDraftV1 = {
+      schemaVersion: 1,
+      savedPieceId: activeSavedPieceId,
+      updatedAt: new Date(Math.max(Date.now(), Date.parse(score.updatedAt) + 1)).toISOString(),
+      score,
+      editorPass: "capture",
+      captureState,
+    };
+    return reportWrite("draft", writeStaffBuilderValue(storage, "draft", draft));
+  }, [activeSavedPieceId, blockedAreas, reportWrite, storage]);
+
   const clearCorruptArea = useCallback((area: "library" | "draft") => {
     const result = removeStaffBuilderValue(storage, area);
     if (!result.ok) { reportWrite(area, result); return; }
@@ -176,8 +208,8 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
   }, [reportWrite, storage]);
 
   return {
-    library, activeScore, activeSavedPieceId, recoveryDraft, introductionOpen, issues,
+    library, activeScore, activeCaptureState, activeSavedPieceId, recoveryDraft, introductionOpen, issues,
     createPiece, openPiece, renamePiece, deletePiece, closePiece, restoreDraft, declineDraft,
-    closeIntroduction, reopenIntroduction: () => setIntroductionOpen(true), clearCorruptArea,
+    closeIntroduction, reopenIntroduction: () => setIntroductionOpen(true), clearCorruptArea, updateActiveDraft,
   };
 }

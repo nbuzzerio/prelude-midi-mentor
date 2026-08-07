@@ -48,7 +48,10 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
         <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onOpen={state.openPiece} onRename={state.renamePiece} pieces={state.library.pieces} />
         {state.activeScore
           ? <StaffBuilderWorkspacePlaceholder
+              initialCaptureState={state.activeCaptureState}
+              key={state.activeScore.id}
               onClose={state.closePiece}
+              onDraftChange={state.updateActiveDraft}
               savingAvailable={!state.issues.some(({ area }) => area === "library" || area === "draft")}
               score={state.activeScore}
             />

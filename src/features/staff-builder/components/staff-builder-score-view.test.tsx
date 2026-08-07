@@ -1,9 +1,14 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { StaffBuilderScoreView } from "./staff-builder-score-view";
 
-const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn(() => ({ anchors: { events: new Map(), positions: new Map() }, projection: {}, width: 760, height: 300 })) }));
+const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn(() => ({ anchors: { events: new Map(), positions: new Map([
+  [0, { tick: 0, x: 150, y: 40, width: 30, height: 220 }],
+  [120, { tick: 120, x: 180, y: 40, width: 30, height: 220 }],
+  [240, { tick: 240, x: 210, y: 40, width: 30, height: 220 }],
+  [360, { tick: 360, x: 240, y: 40, width: 30, height: 220 }],
+]) }, projection: {}, width: 760, height: 300 })) }));
 vi.mock("../notation/render-staff-builder-measure", () => ({ renderStaffBuilderMeasure: renderMeasure }));
 
 function score(): StaffBuilderScoreV1 {
@@ -19,26 +24,31 @@ function score(): StaffBuilderScoreV1 {
 afterEach(() => { cleanup(); renderMeasure.mockClear(); });
 
 describe("StaffBuilderScoreView", () => {
-  it("renders measure one with boundary navigation and a semantic summary", () => {
-    render(<StaffBuilderScoreView score={score()} />);
+  it("renders a controlled measure with a semantic summary", () => {
+    render(<StaffBuilderScoreView measureIndex={0} score={score()} />);
     expect(screen.getByRole("heading", { name: "Measure 1 of 2" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Previous Measure" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Next Measure" }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.getByText(/Effective key: C major/)).toBeTruthy();
     expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
     expect(screen.getByText(/Bass:/).parentElement?.textContent).toContain("No events");
     expect(renderMeasure).toHaveBeenCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 0);
   });
 
-  it("navigates to an explicitly changed measure and disables the forward boundary", () => {
-    render(<StaffBuilderScoreView score={score()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+  it("renders the requested changed measure", () => {
+    render(<StaffBuilderScoreView measureIndex={1} score={score()} />);
     expect(screen.getByRole("heading", { name: "Measure 2 of 2" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Previous Measure" }) as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByRole("button", { name: "Next Measure" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/Effective key: G major/)).toBeTruthy();
     expect(screen.getByText(/Effective time signature: 6\/8/)).toBeTruthy();
     expect(screen.getByText(/quarter rest at tick 0/)).toBeTruthy();
     expect(renderMeasure).toHaveBeenLastCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 1);
+  });
+
+  it("uses formatted anchors for cursor position, duration width, and boundary clipping", () => {
+    const { rerender } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} score={score()} />);
+    const cursor = screen.getByTestId("staff-builder-capture-cursor");
+    expect(cursor.style.left).toBe("150px");
+    expect(cursor.style.width).toBe("120px");
+    expect(cursor.style.height).toBe("220px");
+    rerender(<StaffBuilderScoreView cursor={{ offsetTicks: 360, stepDuration: "quarter" }} measureIndex={0} score={score()} />);
+    expect(screen.getByTestId("staff-builder-capture-cursor").style.width).toBe("30px");
   });
 });

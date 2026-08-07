@@ -67,4 +67,51 @@ describe("Staff Builder schema", () => {
     expect(parseStaffBuilderLibrary({ schemaVersion: 2, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
     expect(parseStaffBuilderDraft({ schemaVersion: 2 })).toMatchObject({ ok: false, reason: "unsupported" });
   });
+
+  it("accepts optional validated capture state while preserving older drafts", () => {
+    const score = validScore();
+    const base = { schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture" };
+    const older = parseStaffBuilderDraft(base);
+    expect(older.ok && older.value.captureState).toBeUndefined();
+    expect(parseStaffBuilderDraft({ ...base, captureState: { cursor: { measureIndex: 1, offsetTicks: 120 }, stepDuration: "sixteenth", activeStaff: "bass" } })).toMatchObject({
+      ok: true,
+      value: { captureState: { cursor: { measureIndex: 1, offsetTicks: 120 }, stepDuration: "sixteenth", activeStaff: "bass" } },
+    });
+  });
+
+  it.each([0, 120, 240, 360, 1800])("accepts sixteenth-grid capture position %i", (offsetTicks) => {
+    const score = validScore();
+    const draft = {
+      schemaVersion: 1,
+      savedPieceId: score.id,
+      updatedAt: "2026-08-06T13:00:00.000Z",
+      score,
+      editorPass: "capture",
+      captureState: { cursor: { measureIndex: 0, offsetTicks }, stepDuration: "quarter", activeStaff: "treble" },
+    };
+    expect(parseStaffBuilderDraft(draft)).toMatchObject({ ok: true, value: { captureState: { cursor: { offsetTicks } } } });
+  });
+
+  it.each([37, 121, 239])("rejects off-grid integer capture position %i as corrupt", (offsetTicks) => {
+    const score = validScore();
+    const draft = {
+      schemaVersion: 1,
+      savedPieceId: score.id,
+      updatedAt: "2026-08-06T13:00:00.000Z",
+      score,
+      editorPass: "capture",
+      captureState: { cursor: { measureIndex: 0, offsetTicks }, stepDuration: "quarter", activeStaff: "treble" },
+    };
+    expect(parseStaffBuilderDraft(draft)).toMatchObject({ ok: false, reason: "corrupt" });
+  });
+
+  it.each([
+    { cursor: { measureIndex: 2, offsetTicks: 0 }, stepDuration: "quarter", activeStaff: "treble" },
+    { cursor: { measureIndex: 1, offsetTicks: 1440 }, stepDuration: "quarter", activeStaff: "treble" },
+    { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "half", activeStaff: "treble" },
+    { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", activeStaff: "alto" },
+  ])("rejects invalid capture state %#", (captureState) => {
+    const score = validScore();
+    expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState })).toMatchObject({ ok: false, reason: "corrupt" });
+  });
 });

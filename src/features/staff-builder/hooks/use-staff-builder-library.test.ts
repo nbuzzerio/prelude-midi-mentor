@@ -95,4 +95,47 @@ describe("useStaffBuilderLibrary", () => {
     expect(result.current.activeScore?.title).toBe("Unsaved");
     expect(result.current.issues.some(({ message }) => message.includes("could not be saved"))).toBe(true);
   });
+
+  it("persists score and capture state together with a recoverably newer timestamp", () => {
+    const storage = new MemoryStorage();
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => result.current.createPiece({ title: "Capture", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
+    const score = result.current.activeScore;
+    expect(score).not.toBeNull();
+    const captureState = { cursor: { measureIndex: 0, offsetTicks: 480 }, stepDuration: "eighth" as const, activeStaff: "bass" as const };
+    act(() => result.current.updateActiveDraft(score!, captureState));
+    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.captureState).toEqual(captureState);
+    expect(Date.parse(draft.updatedAt)).toBeGreaterThan(Date.parse(score!.updatedAt));
+    expect(result.current.activeCaptureState).toEqual(captureState);
+  });
+
+  it("restores persisted capture state and defaults older drafts", () => {
+    const storage = new MemoryStorage();
+    seedDraft(storage, { draftUpdatedAt: "2026-08-06T13:00:00.000Z" });
+    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    draft.captureState = { cursor: { measureIndex: 0, offsetTicks: 240 }, stepDuration: "sixteenth", activeStaff: "bass" };
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify(draft));
+    const current = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => current.result.current.restoreDraft());
+    expect(current.result.current.activeCaptureState).toEqual(draft.captureState);
+    current.unmount();
+
+    const olderStorage = new MemoryStorage();
+    seedDraft(olderStorage, { draftUpdatedAt: "2026-08-06T13:00:00.000Z" });
+    const older = renderHook(() => useStaffBuilderLibrary(olderStorage));
+    act(() => older.result.current.restoreDraft());
+    expect(older.result.current.activeCaptureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", activeStaff: "treble" });
+  });
+
+  it("keeps editor changes in memory and reports a failed draft autosave", () => {
+    const storage = new MemoryStorage();
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => result.current.createPiece({ title: "Capture", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
+    storage.failWrites = true;
+    const captureState = { cursor: { measureIndex: 0, offsetTicks: 480 }, stepDuration: "quarter" as const, activeStaff: "treble" as const };
+    act(() => result.current.updateActiveDraft(result.current.activeScore!, captureState));
+    expect(result.current.activeCaptureState.cursor.offsetTicks).toBe(480);
+    expect(result.current.issues.some(({ area }) => area === "draft")).toBe(true);
+  });
 });
