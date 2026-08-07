@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setInstrumentVolume } from "./instrument-volume";
 import { playGrandPianoNote } from "./grand-piano";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { setInstrumentVolume(0.5); vi.unstubAllGlobals(); });
 
 describe("grand-piano playback handles", () => {
   it("returns a handle that can stop started playback", async () => {
@@ -37,5 +38,19 @@ describe("grand-piano playback handles", () => {
     expect(playable.pause).toHaveBeenCalledTimes(1);
     expect(playable.currentTime).toBe(0);
     await expect(playGrandPianoNote(60).started).resolves.toBe(false);
+  });
+
+  it("treats intentional mute as silent success without hiding genuine unavailability", async () => {
+    const audio = vi.fn();
+    vi.stubGlobal("Audio", audio);
+    setInstrumentVolume(0);
+    const muted = playGrandPianoNote(60, 500);
+    await expect(muted.started).resolves.toBe(true);
+    expect(audio).not.toHaveBeenCalled();
+    muted.stop();
+
+    setInstrumentVolume(0.5);
+    vi.stubGlobal("Audio", undefined);
+    await expect(playGrandPianoNote(60, 500).started).resolves.toBe(false);
   });
 });

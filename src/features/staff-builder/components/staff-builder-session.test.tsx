@@ -159,6 +159,18 @@ describe("Staff Builder session", () => {
     expect(screen.getByText(/Measure 1, Beat 2 \(quarter-note beat; tick 480\)/)).toBeTruthy();
   });
 
+  it("shows playback controls while gating rhythmic scopes from the current structural issues", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Playback Draft");
+    expect((screen.getByRole("button", { name: "Play Current Measure" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Play From Here" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Play Entire Piece" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("2 structural issues must be corrected before rhythmic playback.")).toBeTruthy();
+    expect(screen.getByLabelText("Instrument volume")).toBeTruthy();
+  });
+
   it("shows MIDI note-on input immediately as a pending staff preview", () => {
     const storage = new MemoryStorage();
     render(<StaffBuilderSession storage={storage} />);

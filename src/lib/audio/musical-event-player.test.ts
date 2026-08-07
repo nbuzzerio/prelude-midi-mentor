@@ -78,4 +78,53 @@ describe("musical event player", () => {
     }
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("uses a minimum duration for empty playback and trailing silence", async () => {
+    const player = createMusicalEventPlayer(() => handle());
+    const empty = player.play([], { minimumDurationMs: 500 });
+    act(() => vi.advanceTimersByTime(499));
+    let settled = false;
+    void empty.completion.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    act(() => vi.advanceTimersByTime(1));
+    await expect(empty.completion).resolves.toBe("completed");
+
+    const trailing = player.play([{ notes: [60], startTimeMs: 0, durationMs: 100 }], { minimumDurationMs: 300 });
+    act(() => vi.advanceTimersByTime(299));
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    act(() => vi.advanceTimersByTime(1));
+    await expect(trailing.completion).resolves.toBe("completed");
+  });
+
+  it("lets longer audible events exceed the minimum and cancels minimum-duration playback", async () => {
+    const player = createMusicalEventPlayer(() => handle());
+    const longer = player.play([{ notes: [60], startTimeMs: 0, durationMs: 400 }], { minimumDurationMs: 100 });
+    act(() => vi.advanceTimersByTime(399));
+    let settled = false;
+    void longer.completion.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    act(() => vi.advanceTimersByTime(1));
+    await expect(longer.completion).resolves.toBe("completed");
+
+    const cancelled = player.play([], { minimumDurationMs: 1000 });
+    cancelled.cancel();
+    await expect(cancelled.completion).resolves.toBe("cancelled");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("preserves replacement, failure, and no-option behavior with minimum-duration support", async () => {
+    const player = createMusicalEventPlayer(() => handle());
+    const first = player.play([], { minimumDurationMs: 1000 });
+    const second = player.play([{ notes: [60], startTimeMs: 0, durationMs: 10 }]);
+    await expect(first.completion).resolves.toBe("cancelled");
+    act(() => vi.runAllTimers());
+    await expect(second.completion).resolves.toBe("completed");
+
+    const failed = createMusicalEventPlayer(() => handle(false)).play([{ notes: [60], startTimeMs: 0, durationMs: 100 }], { minimumDurationMs: 500 });
+    await expect(failed.completion).resolves.toBe("failed");
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(player.play([]).completion).resolves.toBe("completed");
+  });
 });

@@ -85,6 +85,10 @@ function unavailablePlayback(): PianoPlaybackHandle {
   return { started: Promise.resolve(false), stop: () => {} };
 }
 
+function silentPlayback(): PianoPlaybackHandle {
+  return { started: Promise.resolve(true), stop: () => {} };
+}
+
 function getPitchClass(midiNumber: number): number {
   return (
     ((midiNumber % SEMITONES_PER_OCTAVE) + SEMITONES_PER_OCTAVE) %
@@ -134,7 +138,7 @@ export function playGrandPianoNote(
   const volume = getInstrumentVolume();
 
   if (volume === 0) {
-    return unavailablePlayback();
+    return silentPlayback();
   }
 
   const pitchClass = getPitchClass(midiNumber);

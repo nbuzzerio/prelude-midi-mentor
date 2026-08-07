@@ -88,6 +88,7 @@ button {
 .staff-builder-pass-switcher { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
 .staff-builder-pass-switcher button[aria-pressed="true"] { outline: 2px solid rgb(56 189 248); outline-offset: 2px; }
 .staff-builder-rhythm-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
+.staff-builder-playback-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
 .staff-builder-rhythm-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; }
 .staff-builder-rhythm-edit-grid { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem; }
 .staff-builder-rhythm-edit-grid label,

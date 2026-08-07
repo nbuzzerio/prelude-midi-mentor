@@ -16,6 +16,10 @@ export type MusicalEventPlayback = Readonly<{
   completion: Promise<MusicalEventPlaybackResult>;
 }>;
 
+export type MusicalEventPlaybackOptions = Readonly<{
+  minimumDurationMs?: number;
+}>;
+
 type NotePlayer = (
   notes: readonly number[],
   durationMs: number,
@@ -31,7 +35,7 @@ export function createMusicalEventPlayer(
     activeCancel = null;
   };
 
-  const play = (events: readonly PlayableMusicalEvent[]): MusicalEventPlayback => {
+  const play = (events: readonly PlayableMusicalEvent[], options: MusicalEventPlaybackOptions = {}): MusicalEventPlayback => {
     cancel();
 
     const stableEvents = events.map((event) => ({ ...event, notes: [...event.notes] }));
@@ -57,7 +61,8 @@ export function createMusicalEventPlayer(
     const cancelCurrent = () => finish("cancelled");
     activeCancel = cancelCurrent;
 
-    if (stableEvents.length === 0) {
+    const minimumDurationMs = Math.max(0, options.minimumDurationMs ?? 0);
+    if (stableEvents.length === 0 && minimumDurationMs === 0) {
       finish("completed");
       return { cancel: cancelCurrent, completion };
     }
@@ -83,9 +88,10 @@ export function createMusicalEventPlayer(
       timers.add(timer);
     });
 
-    const endTimeMs = Math.max(
+    const latestEventEndMs = stableEvents.length === 0 ? 0 : Math.max(
       ...stableEvents.map((event) => event.startTimeMs + event.durationMs),
     );
+    const endTimeMs = Math.max(latestEventEndMs, minimumDurationMs);
     const completionTimer = window.setTimeout(() => {
       timers.delete(completionTimer);
       finish("completed");
