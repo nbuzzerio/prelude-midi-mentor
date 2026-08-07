@@ -1,5 +1,6 @@
 import { getMusicKeyDefinition } from "@/lib/music/keys";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import { StaffBuilderScoreView } from "./staff-builder-score-view";
 
 export function StaffBuilderWorkspacePlaceholder({ score, onClose, savingAvailable }: Readonly<{ score: StaffBuilderScoreV1; onClose: () => void; savingAvailable: boolean }>) {
   return (
@@ -15,10 +16,8 @@ export function StaffBuilderWorkspacePlaceholder({ score, onClose, savingAvailab
         <div><dt>Time</dt><dd>{score.initialTimeSignature}</dd></div>
         <div><dt>Tempo</dt><dd>{score.tempoBpm} BPM</dd></div>
       </dl>
-      <div className="rounded border border-dashed border-zinc-600 bg-zinc-950 p-6 text-center">
-        <h3 className="font-semibold">Editor workspace</h3>
-        <p className="mt-2 text-zinc-300">Fast Capture arrives in the next implementation phase. Note entry and playback are not available yet.</p>
-      </div>
+      <StaffBuilderScoreView key={score.id} score={score} />
+      <p className="mt-3 text-sm text-zinc-300">Note entry, event editing, and playback are not available yet.</p>
     </section>
   );
 }

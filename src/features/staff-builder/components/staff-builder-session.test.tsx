@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import StaffBuilderSession from "./staff-builder-session";
@@ -11,6 +11,11 @@ class MemoryStorage implements StaffBuilderStorage {
   removeItem(key: string) { this.values.delete(key); }
 }
 
+beforeEach(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    measureText: (text: string) => ({ width: text.length * 8, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2, actualBoundingBoxLeft: 0, actualBoundingBoxRight: text.length * 8 }),
+  } as CanvasRenderingContext2D);
+});
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 function dismissIntroduction() {
@@ -77,10 +82,15 @@ describe("Staff Builder session", () => {
     expect(screen.getByText("G major")).toBeTruthy();
     expect(screen.getByText("3/4")).toBeTruthy();
     expect(screen.getByText("108 BPM")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Measure 1 of 1" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Previous Measure" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Next Measure" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/Effective key: G major/)).toBeTruthy();
     expect(screen.getByText(/Pieces are stored only in this browser and device/)).toBeTruthy();
     first.unmount();
     render(<StaffBuilderSession storage={storage} />);
     expect(screen.getByRole("heading", { name: "Minuet" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Measure 1 of 1" })).toBeTruthy();
   });
 
   it("renames, opens, and deletes library pieces after confirmation", () => {
@@ -92,7 +102,10 @@ describe("Staff Builder session", () => {
     createPiece("Study");
     fireEvent.click(screen.getByRole("button", { name: "Rename Study" }));
     expect(screen.getByRole("heading", { name: "Renamed Study" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to Library" }));
+    expect(screen.getByRole("heading", { name: "Create a piece" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Open Renamed Study" }));
+    expect(screen.getByRole("heading", { name: "Measure 1 of 1" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Delete Renamed Study" }));
     expect(screen.getByText("No Staff Builder pieces yet.")).toBeTruthy();
   });
