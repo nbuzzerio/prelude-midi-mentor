@@ -12,6 +12,8 @@ describe("StaffBuilderCaptureControls", () => {
   it("dispatches staff, step, navigation, lock, clear, and virtual keyboard actions", () => {
     const actions = { staff: vi.fn(), step: vi.fn(), previous: vi.fn(), lock: vi.fn(), next: vi.fn(), clear: vi.fn(), toggle: vi.fn() };
     render(<StaffBuilderCaptureControls captureState={{ ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 1, offsetTicks: 240 } }} midi={{ connectMidi: vi.fn(), deviceName: null, error: null, status: "disconnected" }} onClear={actions.clear} onInputModeChange={actions.staff} onLock={actions.lock} onNext={actions.next} onPrevious={actions.previous} onStepDurationChange={actions.step} onVirtualPitchToggle={actions.toggle} pending={{ treble: [60], bass: [48] }} positionLabel="Beat 1, eighth-note subdivision (tick 240)" />);
+    expect(screen.getByRole("heading", { name: "Capture Notes" })).toBeTruthy();
+    expect(screen.queryByText("Fast Capture")).toBeNull();
     expect(screen.getByText(/Grand Staff automatically sends B3 and lower/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Bass Only" }));
     fireEvent.change(screen.getByLabelText("Step Duration"), { target: { value: "sixteenth" } });

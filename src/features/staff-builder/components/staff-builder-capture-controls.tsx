@@ -32,7 +32,7 @@ export function StaffBuilderCaptureControls({ captureState, positionLabel, pendi
   return (
     <section aria-labelledby="staff-builder-capture-title" className="staff-builder-capture">
       <div className="staff-builder-capture-heading">
-        <div><h3 className="font-semibold" id="staff-builder-capture-title">Fast Capture</h3><p className="text-sm text-zinc-300">Add pitches that begin at the current position, then lock them.</p></div>
+        <div><h3 className="font-semibold" id="staff-builder-capture-title">Capture Notes</h3><p className="text-sm text-zinc-300">Add pitches that begin at the current position, then lock them.</p></div>
         <MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} />
       </div>
       <div className="staff-builder-capture-options">

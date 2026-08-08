@@ -42,7 +42,7 @@ export function StaffBuilderIntroduction({ onClose, returnFocusRef }: Readonly<{
       <section className="staff-builder-dialog">
         <h2 className="text-xl font-semibold" id="staff-builder-introduction-title">About Staff Builder</h2>
         <p>Staff Builder is more involved than Prelude’s other modes. It helps learners create a simplified reference version of their own learning material.</p>
-        <p>The workflow will use Fast Capture followed by Rhythm Correction. Eventual playback will be mechanically precise and emotionally neutral—a useful baseline, not an ideal expressive performance.</p>
+        <p>The workflow uses Capture Notes followed by Rhythm Correction. Playback is mechanically precise and emotionally neutral—a useful baseline, not an ideal expressive performance.</p>
         <p>Pieces are stored only in this browser and device. They are not synced, and clearing browser data may remove them.</p>
         <label className="flex items-center gap-2">
           <input checked={dismiss} onChange={(event) => setDismiss(event.target.checked)} type="checkbox" />

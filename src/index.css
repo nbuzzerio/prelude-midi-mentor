@@ -18,6 +18,8 @@ button {
   font: inherit;
 }
 
+.prelude-mode-group-start { margin-inline-start: 1rem; }
+
 .staff-builder-shell {
   display: grid;
   gap: 1rem;
@@ -30,6 +32,8 @@ button {
   gap: 1rem;
   grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
 }
+
+.staff-builder-editor-layout { min-width: 0; width: 100%; }
 
 .staff-builder-panel,
 .staff-builder-storage-notice,

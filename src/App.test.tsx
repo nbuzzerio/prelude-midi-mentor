@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -46,6 +46,19 @@ vi.mock("./features/staff-builder/components/staff-builder-session", () => ({
 }));
 
 describe("App focus mode", () => {
+  it("orders and visually groups Prelude modes without changing tab order", () => {
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
+    expect(within(navigation).getAllByRole("button").map(({ textContent }) => textContent?.trim())).toEqual([
+      "Free Play", "Staff Builder", "Flashcards", "Sequences", "Ear Training",
+    ]);
+    expect(screen.getByRole("button", { name: "Flashcards" }).classList.contains("prelude-mode-group-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Free Play" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Sequences" }));
+    expect(screen.getByText("Sequence session")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sequences" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("shares focus state between the visible control and keyboard shortcut", () => {
     render(<App />);
 

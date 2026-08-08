@@ -44,10 +44,8 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
         <div className="flex gap-2"><button className="staff-builder-secondary-button" onClick={state.restoreDraft} type="button">Restore Draft</button><button className="staff-builder-secondary-button" onClick={state.declineDraft} type="button">Use Saved Version</button></div>
       </section>}
 
-      <div className="staff-builder-columns">
-        <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onOpen={state.openPiece} onRename={state.renamePiece} pieces={state.library.pieces} />
-        {state.activeScore
-          ? <StaffBuilderWorkspacePlaceholder
+      {state.activeScore
+        ? <div className="staff-builder-editor-layout"><StaffBuilderWorkspacePlaceholder
               initialCaptureState={state.activeCaptureState}
               initialEditorPass={state.activeEditorPass}
               initialRhythmState={state.activeRhythmState}
@@ -57,9 +55,11 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
               onValidatedSave={state.validateAndSave}
               savingAvailable={!state.issues.some(({ area }) => area === "library" || area === "draft")}
               score={state.activeScore}
-            />
-          : <StaffBuilderPieceSetup onCreate={state.createPiece} />}
-      </div>
+            /></div>
+        : <div className="staff-builder-columns">
+            <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onOpen={state.openPiece} onRename={state.renamePiece} pieces={state.library.pieces} />
+            <StaffBuilderPieceSetup onCreate={state.createPiece} />
+          </div>}
       {state.introductionOpen && <StaffBuilderIntroduction onClose={state.closeIntroduction} returnFocusRef={introductionOpenerRef} />}
     </div>
   );

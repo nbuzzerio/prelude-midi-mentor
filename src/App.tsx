@@ -60,11 +60,13 @@ export default function App() {
 
   return (
     <main className="min-h-screen bg-zinc-950 p-2 sm:p-5 lg:p-10">
-      <div
-        className="mx-auto mb-4 flex w-full max-w-7xl gap-2"
+      <nav
+        aria-label="Prelude modes"
+        className="mx-auto mb-4 flex w-full max-w-7xl flex-wrap gap-2"
         hidden={isFocusMode}
       >
         <button
+          aria-pressed={practiceSection === "freeplay"}
           className={`rounded px-4 py-2 transition ${
             practiceSection === "freeplay"
               ? "bg-sky-500 text-white"
@@ -77,21 +79,7 @@ export default function App() {
         </button>
 
         <button
-          className={`rounded px-4 py-2 transition ${
-            practiceSection === "ear-training"
-              ? "bg-sky-500 text-white"
-              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-          }`}
-          onClick={() => {
-            exitFocusMode();
-            setPracticeSection("ear-training");
-          }}
-          type="button"
-        >
-          Ear Training
-        </button>
-
-        <button
+          aria-pressed={practiceSection === "staff-builder"}
           className={`rounded px-4 py-2 transition ${
             practiceSection === "staff-builder"
               ? "bg-sky-500 text-white"
@@ -107,7 +95,8 @@ export default function App() {
         </button>
 
         <button
-          className={`rounded px-4 py-2 transition ${
+          aria-pressed={practiceSection === "flashcards"}
+          className={`prelude-mode-group-start rounded px-4 py-2 transition ${
             practiceSection === "flashcards"
               ? "bg-sky-500 text-white"
               : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
@@ -119,6 +108,7 @@ export default function App() {
         </button>
 
         <button
+          aria-pressed={practiceSection === "sequence"}
           className={`rounded px-4 py-2 transition ${
             practiceSection === "sequence"
               ? "bg-sky-500 text-white"
@@ -129,7 +119,23 @@ export default function App() {
         >
           Sequences
         </button>
-      </div>
+
+        <button
+          aria-pressed={practiceSection === "ear-training"}
+          className={`rounded px-4 py-2 transition ${
+            practiceSection === "ear-training"
+              ? "bg-sky-500 text-white"
+              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+          }`}
+          onClick={() => {
+            exitFocusMode();
+            setPracticeSection("ear-training");
+          }}
+          type="button"
+        >
+          Ear Training
+        </button>
+      </nav>
 
       {content}
     </main>
