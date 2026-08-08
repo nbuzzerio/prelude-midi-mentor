@@ -147,6 +147,81 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.captureState.cursor.offsetTicks).toBe(240);
   });
 
+  it("jumps Capture Notes to an existing measure start without score mutation or history", () => {
+    const original = appendStaffBuilderMeasure(appendStaffBuilderMeasure(score()));
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 0, offsetTicks: 480 } }, onDraftChange }));
+    act(() => result.current.goToMeasure(2));
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 2, offsetTicks: 0 });
+    expect(result.current.score).toBe(original);
+    expect(result.current.score.measures).toHaveLength(3);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).toHaveBeenLastCalledWith(original, expect.objectContaining({ captureState: expect.objectContaining({ cursor: { measureIndex: 2, offsetTicks: 0 } }) }));
+  });
+
+  it("uses the existing pending confirmation for measure jumps", () => {
+    const original = appendStaffBuilderMeasure(score());
+    const confirmDiscardPending = vi.fn(() => false);
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn(), confirmDiscardPending }));
+    act(() => { result.current.addMidiPitch(64); result.current.setInputMode("bass"); result.current.addMidiPitch(48); });
+    act(() => result.current.goToMeasure(1));
+    expect(confirmDiscardPending).toHaveBeenCalledOnce();
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 0 });
+    expect(result.current.pending).toEqual({ treble: [64], bass: [48] });
+    confirmDiscardPending.mockReturnValue(true);
+    act(() => result.current.goToMeasure(1));
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 1, offsetTicks: 0 });
+    expect(result.current.pending).toEqual({ treble: [], bass: [] });
+  });
+
+  it("persists deterministic and empty Rhythm measure jumps without history", () => {
+    const base = appendStaffBuilderMeasure(appendStaffBuilderMeasure(score()));
+    const withFirst = insertUnresolvedStaffBuilderNotes(base, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const current = insertUnresolvedStaffBuilderNotes(withFirst, { measureIndex: 2, staff: "bass", startTick: 240, midiNumbers: [48] });
+    const targetEventId = current.measures[2]?.events[0]?.id;
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId: current.measures[0]?.events[0]?.id ?? null }, onDraftChange }));
+    act(() => result.current.goToMeasure(1));
+    expect(result.current.rhythm.measureIndex).toBe(1);
+    expect(result.current.rhythm.selection).toBeNull();
+    expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ rhythmState: { measureIndex: 1, selectedEventId: null } }));
+    act(() => result.current.goToMeasure(2));
+    expect(result.current.rhythm.selection).toEqual({ measureIndex: 2, eventId: targetEventId });
+    expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ rhythmState: { measureIndex: 2, selectedEventId: targetEventId } }));
+    expect(result.current.canUndo).toBe(false);
+  });
+
+  it("restores a persisted empty Rhythm measure through the editor boundary", () => {
+    const base = appendStaffBuilderMeasure(score());
+    const current = insertUnresolvedStaffBuilderNotes(base, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const { result, rerender } = renderHook(() => useStaffBuilderEditor({
+      score: current,
+      initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE,
+      initialEditorPass: "rhythm",
+      initialRhythmState: { measureIndex: 1, selectedEventId: null },
+      onDraftChange: vi.fn(),
+    }));
+    expect(result.current.rhythm.measureIndex).toBe(1);
+    expect(result.current.rhythm.selection).toBeNull();
+    rerender();
+    expect(result.current.rhythm.measureIndex).toBe(1);
+    expect(result.current.rhythm.selection).toBeNull();
+  });
+
+  it("rejects ordinary measure jumps while validation owns the visible issue", () => {
+    const original = appendStaffBuilderMeasure(score());
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    act(() => result.current.validation.activate());
+    expect(result.current.validation.active).toBe(true);
+    act(() => result.current.goToMeasure(1));
+    expect(result.current.captureState.cursor.measureIndex).toBe(0);
+    act(() => result.current.validation.next());
+    expect(result.current.validation.activeIssueIndex).toBe(1);
+    act(() => result.current.validation.close());
+    act(() => result.current.goToMeasure(1));
+    expect(result.current.captureState.cursor.measureIndex).toBe(1);
+  });
+
   it.each([
     ["quarter", 480],
     ["eighth", 240],

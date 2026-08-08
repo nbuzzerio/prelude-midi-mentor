@@ -66,7 +66,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   return (
     <section aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
       <div className="staff-builder-measure-navigation">
-        <h3 className="font-semibold" id="staff-builder-score-view-title">Measure {projection.measureNumber} of {score.measures.length}</h3>
+        <h3 className="sr-only" id="staff-builder-score-view-title">Measure {projection.measureNumber} of {score.measures.length}</h3>
       </div>
       <div className="staff-builder-notation-scroll">
         <div className="staff-builder-notation-canvas">

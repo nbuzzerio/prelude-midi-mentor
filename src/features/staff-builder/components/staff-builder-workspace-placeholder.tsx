@@ -5,6 +5,7 @@ import { useStaffBuilderPlayback } from "../hooks/use-staff-builder-playback";
 import { describeStaffBuilderSelectedEvent, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { StaffBuilderCaptureControls } from "./staff-builder-capture-controls";
+import { StaffBuilderMeasureNavigation } from "./staff-builder-measure-navigation";
 import { StaffBuilderPlaybackControls } from "./staff-builder-playback-controls";
 import { StaffBuilderRhythmControls } from "./staff-builder-rhythm-controls";
 import { StaffBuilderScoreView } from "./staff-builder-score-view";
@@ -24,7 +25,7 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   const editor = useStaffBuilderEditor({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave });
   const playback = useStaffBuilderPlayback(editor.score);
   const midi = useStaffBuilderInput(editor.addMidiPitch);
-  const rhythmMeasureIndex = editor.rhythm.selection?.measureIndex ?? initialRhythmState.measureIndex;
+  const rhythmMeasureIndex = editor.rhythm.measureIndex;
   const visibleMeasureIndex = editor.validation.active
     ? editor.validation.activeIssue?.target.measureIndex ?? rhythmMeasureIndex
     : editor.editorPass === "capture" ? editor.captureState.cursor.measureIndex : rhythmMeasureIndex;
@@ -40,7 +41,10 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
     <div className="staff-builder-pass-switcher" aria-label="Editor pass"><button aria-pressed={!editor.validation.active && editor.editorPass === "capture"} className="staff-builder-secondary-button" onClick={editor.switchToCapture} type="button">Capture Notes</button><button aria-pressed={!editor.validation.active && editor.editorPass === "rhythm"} className="staff-builder-secondary-button" disabled={!editor.canEnterRhythm} onClick={editor.switchToRhythm} type="button">Rhythm Correction</button></div>
     {!editor.canEnterRhythm && <p className="text-sm text-zinc-300">Capture at least one event before starting Rhythm Correction.</p>}
     <p aria-live="polite" role="status">{editor.validation.issues.length} structural {editor.validation.issues.length === 1 ? "issue" : "issues"}.</p>
-    <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} onKeyChange={editor.setMeasureKey} onTimeChange={editor.setMeasureTime} score={editor.score} />
+    <div className="staff-builder-score-header">
+      <StaffBuilderMeasureNavigation disabled={editor.validation.active} measureCount={editor.score.measures.length} measureIndex={visibleMeasureIndex} onNavigate={editor.goToMeasure} />
+      <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} onKeyChange={editor.setMeasureKey} onTimeChange={editor.setMeasureTime} score={editor.score} />
+    </div>
     <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} score={editor.score} />
     <StaffBuilderPlaybackControls editorPass={editor.editorPass} issueCount={editor.validation.issues.length} onAuditionSelectedEvent={() => { playback.auditionSelectedEvent(editor.rhythm.selectedEvent); }} onPlayCurrentMeasure={() => playback.playCurrentMeasure(visibleMeasureIndex)} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={() => playback.playFromHere(fromHerePosition)} onStop={playback.stop} selectedEvent={editor.rhythm.selectedEvent} state={playback.state} />
     {editor.validation.active

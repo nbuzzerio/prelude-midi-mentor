@@ -173,6 +173,22 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     persistOutsideRhythmHistory(moved.score, { ...captureState, cursor: moved.cursor });
   }, [captureState, pending, persistOutsideRhythmHistory, score]);
 
+  const goToMeasure = useCallback((measureIndex: number) => {
+    if (validationActive || !Number.isInteger(measureIndex) || measureIndex < 0 || measureIndex >= score.measures.length) return false;
+    if (editorPass === "capture") {
+      if (measureIndex === captureState.cursor.measureIndex && captureState.cursor.offsetTicks === 0) return false;
+      if (hasPending(pending) && !confirmDiscardPending()) return false;
+      const nextCaptureState = { ...captureState, cursor: { measureIndex, offsetTicks: 0 } };
+      setPending(EMPTY_PENDING);
+      persist(score, nextCaptureState);
+      return true;
+    }
+    if (measureIndex === rhythm.measureIndex) return false;
+    const selection = rhythm.goToMeasure(measureIndex);
+    persist(score, captureState, "rhythm", { measureIndex, selectedEventId: selection?.eventId ?? null });
+    return true;
+  }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, validationActive]);
+
   const switchToRhythm = useCallback(() => {
     const selection = reconcileStaffBuilderEventSelection(score, rhythm.selection);
     if (!selection) return false;
@@ -309,6 +325,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     nextPosition: () => navigate("forward"),
     lockAndContinue,
     clearCurrentEntry: () => setPending(EMPTY_PENDING),
+    goToMeasure,
     validation: {
       active: validationActive,
       issues,

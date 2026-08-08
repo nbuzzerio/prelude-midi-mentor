@@ -40,4 +40,60 @@ describe("useStaffBuilderRhythmEditor", () => {
     expect(result.current.status).toMatch(/destination staff/);
     expect(onMutation).not.toHaveBeenCalled();
   });
+
+  it("owns an empty target measure and selects only the first deterministic event in that measure", () => {
+    const first = note("first", 240, "bass");
+    const earlier = note("earlier", 0);
+    const current: StaffBuilderScoreV1 = {
+      ...score([]),
+      measures: [
+        { id: "m1", events: [note("outside", 0)] },
+        { id: "m2", events: [] },
+        { id: "m3", events: [first, earlier] },
+      ],
+    };
+    const { result } = renderHook(() => useStaffBuilderRhythmEditor({ score: current, initialState: { measureIndex: 0, selectedEventId: "outside" }, onMutation: vi.fn(), onSelectionChange: vi.fn() }));
+    let selection;
+    act(() => { selection = result.current.goToMeasure(1); });
+    expect(selection).toBeNull();
+    expect(result.current.measureIndex).toBe(1);
+    expect(result.current.selection).toBeNull();
+    act(() => { selection = result.current.goToMeasure(2); });
+    expect(selection).toEqual({ measureIndex: 2, eventId: "earlier" });
+    expect(result.current.measureIndex).toBe(2);
+    expect(result.current.selection?.eventId).toBe("earlier");
+  });
+
+  it("restores persisted empty-measure ownership and retains it across an authoritative-score rerender", () => {
+    const current: StaffBuilderScoreV1 = {
+      ...score([]),
+      measures: [
+        { id: "m1", events: [note("outside", 0)] },
+        { id: "m2", events: [] },
+      ],
+    };
+    const initialState = { measureIndex: 1, selectedEventId: null };
+    const { result, rerender } = renderHook(({ authoritativeScore }) => useStaffBuilderRhythmEditor({ score: authoritativeScore, initialState, onMutation: vi.fn(), onSelectionChange: vi.fn() }), {
+      initialProps: { authoritativeScore: current },
+    });
+    expect(result.current.measureIndex).toBe(1);
+    expect(result.current.selection).toBeNull();
+    expect(result.current.selectedEvent).toBeNull();
+    rerender({ authoritativeScore: current });
+    expect(result.current.measureIndex).toBe(1);
+    expect(result.current.selection).toBeNull();
+  });
+
+  it("restores a valid event and reconciles a stale event ID through the existing fallback", () => {
+    const current: StaffBuilderScoreV1 = {
+      ...score([]),
+      measures: [{ id: "m1", events: [note("valid", 0)] }, { id: "m2", events: [] }],
+    };
+    const valid = renderHook(() => useStaffBuilderRhythmEditor({ score: current, initialState: { measureIndex: 0, selectedEventId: "valid" }, onMutation: vi.fn(), onSelectionChange: vi.fn() }));
+    expect(valid.result.current.selection).toEqual({ measureIndex: 0, eventId: "valid" });
+    valid.unmount();
+    const stale = renderHook(() => useStaffBuilderRhythmEditor({ score: current, initialState: { measureIndex: 1, selectedEventId: "missing" }, onMutation: vi.fn(), onSelectionChange: vi.fn() }));
+    expect(stale.result.current.selection).toEqual({ measureIndex: 0, eventId: "valid" });
+    stale.unmount();
+  });
 });

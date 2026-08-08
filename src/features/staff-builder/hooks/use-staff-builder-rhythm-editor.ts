@@ -31,15 +31,21 @@ function selectionFromState(score: StaffBuilderScoreV1, state: StaffBuilderRhyth
   return reconcileStaffBuilderEventSelection(score, candidate);
 }
 
+function restoresEmptyMeasure(score: StaffBuilderScoreV1, state: StaffBuilderRhythmState): boolean {
+  return state.selectedEventId === null && score.measures[state.measureIndex]?.events.length === 0;
+}
+
 export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, onSelectionChange }: Readonly<{
   score: StaffBuilderScoreV1;
   initialState: StaffBuilderRhythmState;
   onMutation: (score: StaffBuilderScoreV1, selection: StaffBuilderEventSelection | null) => void;
   onSelectionChange: (selection: StaffBuilderEventSelection | null) => void;
 }>) {
-  const [selection, setSelection] = useState<StaffBuilderEventSelection | null>(() => selectionFromState(score, initialState));
+  const [selection, setSelection] = useState<StaffBuilderEventSelection | null>(() => restoresEmptyMeasure(score, initialState) ? null : selectionFromState(score, initialState));
+  const [measureIndex, setMeasureIndex] = useState(initialState.measureIndex);
+  const [emptyMeasureSelected, setEmptyMeasureSelected] = useState(() => restoresEmptyMeasure(score, initialState));
   const [status, setStatus] = useState<string | null>(null);
-  const reconciled = reconcileStaffBuilderEventSelection(score, selection);
+  const reconciled = emptyMeasureSelected ? null : reconcileStaffBuilderEventSelection(score, selection);
   if (reconciled?.eventId !== selection?.eventId || reconciled?.measureIndex !== selection?.measureIndex) setSelection(reconciled);
   const activeSelection = reconciled;
   const selectedEvent = getSelectedStaffBuilderEvent(score, activeSelection);
@@ -48,6 +54,8 @@ export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, o
 
   const select = useCallback((next: StaffBuilderEventSelection | null) => {
     setSelection(next);
+    setEmptyMeasureSelected(false);
+    if (next) setMeasureIndex(next.measureIndex);
     setStatus(null);
     onSelectionChange(next);
   }, [onSelectionChange]);
@@ -62,13 +70,22 @@ export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, o
 
   return {
     selection: activeSelection,
+    measureIndex: activeSelection?.measureIndex ?? measureIndex,
     selectedEvent,
     selectedIndex,
     eventCount: ordered.length,
     canPrevious: selectedIndex > 0,
     canNext: selectedIndex >= 0 && selectedIndex < ordered.length - 1,
     status,
-    setSelection: (next: StaffBuilderEventSelection | null) => { setSelection(next); setStatus(null); },
+    setSelection: (next: StaffBuilderEventSelection | null) => { setSelection(next); setEmptyMeasureSelected(false); if (next) setMeasureIndex(next.measureIndex); setStatus(null); },
+    goToMeasure: (nextMeasureIndex: number) => {
+      const nextSelection = ordered.find((item) => item.measureIndex === nextMeasureIndex) ?? null;
+      setMeasureIndex(nextMeasureIndex);
+      setSelection(nextSelection);
+      setEmptyMeasureSelected(nextSelection === null);
+      setStatus(null);
+      return nextSelection;
+    },
     selectInitial: () => select(getInitialStaffBuilderRhythmSelection(score)),
     previousEvent: () => activeSelection && select(moveStaffBuilderEventSelection(score, activeSelection, "previous")),
     nextEvent: () => activeSelection && select(moveStaffBuilderEventSelection(score, activeSelection, "next")),

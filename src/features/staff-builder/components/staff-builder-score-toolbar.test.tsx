@@ -38,6 +38,19 @@ describe("StaffBuilderScoreToolbar", () => {
     expect(onKeyChange).toHaveBeenCalledWith(0, "a-minor");
   });
 
+  it("updates effective override and inherited context when the visible measure changes", () => {
+    const props = { onKeyChange: vi.fn(), onTimeChange: vi.fn(), score };
+    const { rerender } = render(<StaffBuilderScoreToolbar measureIndex={0} {...props} />);
+    expect(screen.getByRole("button", { name: "Key signature: C major" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Time signature: 4/4" })).toBeTruthy();
+    rerender(<StaffBuilderScoreToolbar measureIndex={1} {...props} />);
+    expect(screen.getByRole("button", { name: "Key signature: G major" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Time signature: 3/4" })).toBeTruthy();
+    rerender(<StaffBuilderScoreToolbar measureIndex={2} {...props} />);
+    expect(screen.getByRole("button", { name: "Key signature: G major" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Time signature: 3/4" })).toBeTruthy();
+  });
+
   it("discloses shared volume and exposes a non-color-only muted state", () => {
     setInstrumentVolume(0);
     const { container } = render(<StaffBuilderScoreToolbar measureIndex={0} onKeyChange={vi.fn()} onTimeChange={vi.fn()} score={score} />);
