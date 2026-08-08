@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1 } from "./staff-builder-types";
+import type { StaffBuilderDuration } from "./staff-builder-time";
 import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const pitch = (id: string, midiNumber = 60): StaffBuilderPitch => ({ id, midiNumber, letter: "C", accidental: "natural", octave: 4 });
-const note = (id: string, staff: "treble" | "bass", startTick: number, duration: "whole" | "half" | "dotted-half" | "quarter" | "eighth" | "sixteenth" = "whole", pitches = [pitch(`${id}-p`)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "final", duration }, pitches });
+const note = (id: string, staff: "treble" | "bass", startTick: number, duration: StaffBuilderDuration = "whole", pitches = [pitch(`${id}-p`)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "final", duration }, pitches });
 const score = (measures: StaffBuilderScoreV1["measures"], time: StaffBuilderScoreV1["initialTimeSignature"] = "4/4", ties: StaffBuilderScoreV1["ties"] = []): StaffBuilderScoreV1 => ({ schemaVersion: 1, id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: time, measures, ties });
 
 describe("Staff Builder structural validation", () => {
@@ -37,6 +38,26 @@ describe("Staff Builder structural validation", () => {
   it("reports gaps and duration overflow", () => {
     const issues = validateStaffBuilderScore(score([{ id: "m", events: [note("a", "treble", 480, "whole"), note("b", "bass", 0, "half")] }])).map(({ code }) => code);
     expect(issues).toEqual(expect.arrayContaining(["gap", "event-overflow"]));
+  });
+
+  it.each([
+    [1560, "dotted-eighth"],
+    [1680, "eighth"],
+    [1800, "sixteenth"],
+    [1440, "quarter"],
+  ] as const)("suggests the exact duration %s ticks before the barline", (startTick, duration) => {
+    const overflow = validateStaffBuilderScore(score([{ id: "m", events: [note("late", "treble", startTick, "half"), note("bass", "bass", 0)] }])).find(({ code }) => code === "event-overflow");
+    expect(overflow).toMatchObject({
+      message: "This half note extends past the end of measure 1.",
+      corrections: [{ kind: "set-duration", eventId: "late", duration }, { kind: "shorten-duration", eventId: "late" }, { kind: "delete-event", eventId: "late" }],
+    });
+    expect(overflow?.message).not.toMatch(/tick|overflow/i);
+  });
+
+  it("does not suggest an inexact fitting duration", () => {
+    const overflow = validateStaffBuilderScore(score([{ id: "m", events: [note("late", "treble", 1320, "whole"), note("bass", "bass", 0)] }])).find(({ code }) => code === "event-overflow");
+    expect(overflow?.corrections.some(({ kind }) => kind === "set-duration")).toBe(false);
+    expect(overflow?.corrections[0]).toEqual({ kind: "shorten-duration", eventId: "late" });
   });
 
   it("validates dangling, duplicate, conflicting, adjacent, staff, and written tie identity", () => {

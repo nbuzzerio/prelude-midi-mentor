@@ -10,7 +10,7 @@ import {
   routeStaffBuilderCapturePitch,
 } from "../staff-builder-capture";
 import { resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature } from "../staff-builder-score";
-import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
+import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, setStaffBuilderEventDuration, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import type { StaffBuilderDuration, StaffBuilderStepDuration, StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { MusicKeyId } from "@/lib/music/keys";
@@ -226,6 +226,15 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
 
   const applyIssueCorrection = useCallback((correction: StaffBuilderIssue["corrections"][number]) => {
     let result;
+    if (correction.kind === "set-duration") {
+      const measureIndex = score.measures.findIndex((measure) => measure.events.some(({ id }) => id === correction.eventId));
+      if (measureIndex < 0) return false;
+      const selection = { measureIndex, eventId: correction.eventId };
+      const changed = setStaffBuilderEventDuration(score, selection, correction.duration);
+      if (!changed.ok) return false;
+      setValidationStatus(`Changed the event to ${correction.duration.replace("-", " ")} so it ends at the barline.`);
+      return applyHistoryMutation(changed.score, selection);
+    }
     if (correction.kind === "assign-duration" || correction.kind === "shorten-duration") {
       const measureIndex = score.measures.findIndex((measure) => measure.events.some(({ id }) => id === correction.eventId));
       if (measureIndex < 0) return false;

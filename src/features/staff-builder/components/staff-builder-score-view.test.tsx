@@ -61,8 +61,8 @@ describe("StaffBuilderScoreView", () => {
     render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} pendingPreview={{ treble: [64], bass: [48, 52] }} score={score()} />);
     const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1;
     const events = renderScore.measures[0]?.events ?? [];
-    expect(events.find(({ staff }) => staff === "treble")).toMatchObject({ id: expect.stringContaining("__staff-builder-preview"), startTick: 0, pitches: [{ midiNumber: 64 }] });
-    expect(events.find(({ staff }) => staff === "bass")).toMatchObject({ startTick: 0, pitches: [{ midiNumber: 48 }, { midiNumber: 52 }] });
+    expect(events.find(({ staff }) => staff === "treble")).toMatchObject({ id: expect.stringContaining("__staff-builder-preview"), startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 64 }] });
+    expect(events.find(({ staff }) => staff === "bass")).toMatchObject({ startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 48 }, { midiNumber: 52 }] });
     expect(events.some(({ id }) => id === "treble-note")).toBe(false);
     expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
     expect(screen.getByText(/Pending treble preview: note E4 at tick 0/)).toBeTruthy();
@@ -78,6 +78,12 @@ describe("StaffBuilderScoreView", () => {
     expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.some(({ id }) => id.includes("preview"))).toBe(false);
     expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
     expect(JSON.stringify(current)).toBe(before);
+  });
+
+  it.each(["quarter", "eighth", "sixteenth"] as const)("keeps pending notation at quarter duration with %s cursor movement", (stepDuration) => {
+    render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration }} measureIndex={0} pendingPreview={{ treble: [60], bass: [] }} score={score()} />);
+    const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1;
+    expect(renderScore.measures[0]?.events.find(({ id }) => id.includes("preview"))?.rhythm).toEqual({ status: "final", duration: "quarter" });
   });
 
   it("draws a padded selection outline from the public event anchor without a capture cursor", () => {

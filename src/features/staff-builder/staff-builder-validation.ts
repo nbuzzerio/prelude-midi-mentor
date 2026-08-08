@@ -1,5 +1,6 @@
 import { durationToTicks, STAFF_BUILDER_TICKS_PER_QUARTER } from "./staff-builder-time";
 import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
+import { getExactStaffBuilderFittingDuration } from "./staff-builder-corrections";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff, StaffBuilderTie } from "./staff-builder-types";
 
 export type StaffBuilderIssueCode =
@@ -32,6 +33,7 @@ export type StaffBuilderIssueTarget = Readonly<{
 export type StaffBuilderCorrection =
   | Readonly<{ kind: "assign-duration"; eventId: string }>
   | Readonly<{ kind: "shorten-duration"; eventId: string }>
+  | Readonly<{ kind: "set-duration"; eventId: string; duration: Extract<StaffBuilderEvent["rhythm"], { status: "final" }>["duration"] }>
   | Readonly<{ kind: "delete-event"; eventId: string }>
   | Readonly<{ kind: "fill-gap-with-rests"; staff: StaffBuilderStaff; startTick: number; endTick: number }>
   | Readonly<{ kind: "remove-tie"; tieId: string }>;
@@ -117,7 +119,16 @@ export function validateStaffBuilderScore(score: StaffBuilderScoreV1): readonly 
       if (event.startTick >= capacity) {
         issues.push(issue("start-outside-measure", target, `e:${event.id}`, `Measure ${measureIndex + 1} ${event.staff} event starts at tick ${event.startTick}, outside the ${capacity}-tick measure.`, [deleteCorrection]));
       } else if (event.rhythm.status === "final" && event.startTick + durationToTicks(event.rhythm.duration) > capacity) {
-        issues.push(issue("event-overflow", target, `e:${event.id}`, `Measure ${measureIndex + 1} ${event.staff} event extends beyond the barline.`, [{ kind: "shorten-duration", eventId: event.id }, deleteCorrection]));
+        const fittingDuration = getExactStaffBuilderFittingDuration(capacity, event.startTick);
+        const durationName = event.rhythm.duration.replace("-", " ");
+        const eventName = event.kind === "rest" ? "rest" : event.pitches.length === 1 ? "note" : "chord";
+        issues.push(issue(
+          "event-overflow",
+          target,
+          `e:${event.id}`,
+          `This ${durationName} ${eventName} extends past the end of measure ${measureIndex + 1}.`,
+          [...(fittingDuration ? [{ kind: "set-duration" as const, eventId: event.id, duration: fittingDuration }] : []), { kind: "shorten-duration", eventId: event.id }, deleteCorrection],
+        ));
       }
     }
 

@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { createStaffBuilderContinuationAndTies, createStaffBuilderTies, decomposeStaffBuilderGap, fillStaffBuilderGapWithRests, removeStaffBuilderTie, splitStaffBuilderEventAcrossBarline } from "./staff-builder-corrections";
+import { createStaffBuilderContinuationAndTies, createStaffBuilderTies, decomposeStaffBuilderGap, fillStaffBuilderGapWithRests, getExactStaffBuilderFittingDuration, removeStaffBuilderTie, splitStaffBuilderEventAcrossBarline } from "./staff-builder-corrections";
 import type { StaffBuilderScoreV1 } from "./staff-builder-types";
 
 const factories = () => { let id = 0; return { createId: () => `new-${++id}`, now: () => "2026-01-02T00:00:00.000Z" }; };
 const base = (): StaffBuilderScoreV1 => ({ schemaVersion: 1, id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [{ id: "from", kind: "notes", staff: "treble", startTick: 1440, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "fp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }, { id: "fe", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] }] }, { id: "m2", events: [] }], ties: [] });
 
 describe("Staff Builder corrections", () => {
+  it("returns only an exact supported duration for the remaining measure span", () => {
+    expect(getExactStaffBuilderFittingDuration(1920, 1560)).toBe("dotted-eighth");
+    expect(getExactStaffBuilderFittingDuration(1920, 1680)).toBe("eighth");
+    expect(getExactStaffBuilderFittingDuration(1920, 1800)).toBe("sixteenth");
+    expect(getExactStaffBuilderFittingDuration(1920, 1440)).toBe("quarter");
+    expect(getExactStaffBuilderFittingDuration(1920, 1320)).toBeNull();
+  });
   it.each([["2/4", 960, "half"], ["3/4", 1440, "dotted-half"], ["4/4", 1920, "whole"], ["6/8", 1440, "dotted-half"]] as const)("uses an exact full-measure rest in %s", (time, capacity, duration) => {
     expect(decomposeStaffBuilderGap(time, capacity, 0, capacity)).toEqual([{ startTick: 0, duration }]);
   });

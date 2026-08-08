@@ -16,6 +16,27 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("applies an exact overflow duration suggestion as one history mutation and revalidates", () => {
+    const original = score();
+    const current = { ...original, measures: [{ ...original.measures[0]!, events: [
+      { id: "late", kind: "notes" as const, staff: "treble" as const, startTick: 1800, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "p", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] },
+      { id: "bass", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
+    ] }] };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    act(() => result.current.validation.activate());
+    const correction = result.current.validation.activeIssue!.corrections.find(({ kind }) => kind === "set-duration")!;
+    expect(correction).toEqual({ kind: "set-duration", eventId: "late", duration: "sixteenth" });
+    act(() => result.current.validation.applyCorrection(correction));
+    expect(result.current.score.measures[0]?.events.find(({ id }) => id === "late")?.rhythm).toEqual({ status: "final", duration: "sixteenth" });
+    expect(result.current.score.measures[0]?.events.find(({ id }) => id === "bass")).toBe(current.measures[0]?.events.find(({ id }) => id === "bass"));
+    expect(result.current.validation.issues.some(({ code }) => code === "event-overflow")).toBe(false);
+    expect(result.current.validation.issues.some(({ code }) => code === "gap")).toBe(true);
+    expect(result.current.canUndo).toBe(true);
+    act(() => result.current.undo());
+    expect(result.current.score.measures[0]?.events.find(({ id }) => id === "late")?.rhythm).toEqual({ status: "final", duration: "quarter" });
+    expect(result.current.validation.issues.some(({ code }) => code === "event-overflow")).toBe(true);
+  });
+
   it("navigates assign-duration issues to the selected Rhythm event without history and recalculates after editing", () => {
     const current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
     const eventId = current.measures[0]!.events[0]!.id;
@@ -76,6 +97,21 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.captureState.cursor.offsetTicks).toBe(240);
   });
 
+  it.each([
+    ["quarter", 480],
+    ["eighth", 240],
+    ["sixteenth", 120],
+  ] as const)("keeps captured rhythm at quarter while %s Step Duration advances independently", (stepDuration, offsetTicks) => {
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange }));
+    act(() => result.current.setStepDuration(stepDuration));
+    act(() => result.current.addMidiPitch(60));
+    act(() => result.current.lockAndContinue());
+    expect(result.current.score.measures[0]?.events[0]?.rhythm).toEqual({ status: "final", duration: "quarter" });
+    expect(result.current.captureState.cursor.offsetTicks).toBe(offsetTicks);
+    expect(onDraftChange).toHaveBeenLastCalledWith(result.current.score, expect.objectContaining({ captureState: expect.objectContaining({ stepDuration, cursor: { measureIndex: 0, offsetTicks } }) }));
+  });
+
   it("sorts and deduplicates MIDI notes while keeping staff pending groups independent", () => {
     const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
     act(() => { result.current.addMidiPitch(67); result.current.addMidiPitch(60); result.current.addMidiPitch(67); });
@@ -116,14 +152,14 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.pending).toEqual({ treble: [], bass: [] });
   });
 
-  it("locks both staffs as unresolved events, clears pending, spells for the key, and advances once", () => {
+  it("locks both staffs as final quarter events, clears pending, spells for the key, and advances once", () => {
     const { result } = renderHook(() => useStaffBuilderEditor({ score: score("g-major"), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
     act(() => { result.current.addMidiPitch(66); result.current.setInputMode("bass"); });
     act(() => result.current.addMidiPitch(54));
     act(() => result.current.lockAndContinue());
     const events = result.current.score.measures[0]?.events ?? [];
     expect(events).toHaveLength(2);
-    expect(events.every((event) => event.startTick === 0 && event.rhythm.status === "unresolved")).toBe(true);
+    expect(events.every((event) => event.startTick === 0 && event.rhythm.status === "final" && event.rhythm.duration === "quarter")).toBe(true);
     expect(events.map((event) => event.kind === "notes" ? event.pitches[0]?.letter + event.pitches[0]?.accidental : "")).toEqual(["Fsharp", "Fsharp"]);
     expect(result.current.pending).toEqual({ treble: [], bass: [] });
     expect(result.current.captureState.cursor.offsetTicks).toBe(480);
@@ -206,7 +242,7 @@ describe("useStaffBuilderEditor", () => {
     act(() => result.current.addMidiPitch(64));
     act(() => result.current.lockAndContinue());
     expect(result.current.pending.treble).toEqual([]);
-    expect(result.current.score.measures[0]?.events[0]).toMatchObject({ startTick: 480, rhythm: { status: "unresolved" }, pitches: [{ midiNumber: 64 }] });
+    expect(result.current.score.measures[0]?.events[0]).toMatchObject({ startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 64 }] });
   });
 
   it("protects pending input while entering Rhythm Correction and persists the selected pass", () => {

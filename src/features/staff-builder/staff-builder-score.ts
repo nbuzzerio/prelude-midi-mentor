@@ -152,11 +152,12 @@ function replaceAtPosition(events: readonly StaffBuilderEvent[], event: StaffBui
   return [...events.filter((item) => item.staff !== event.staff || item.startTick !== event.startTick), event];
 }
 
-export function insertUnresolvedStaffBuilderNotes(score: StaffBuilderScoreV1, options: Readonly<{
+export function insertStaffBuilderNotes(score: StaffBuilderScoreV1, options: Readonly<{
   measureIndex: number;
   staff: StaffBuilderStaff;
   startTick: number;
   midiNumbers: Iterable<number>;
+  rhythm: Extract<StaffBuilderEvent, { kind: "notes" }>["rhythm"];
   factories?: StaffBuilderFactories;
 }>): StaffBuilderScoreV1 {
   requireStartTick(score, options.measureIndex, options.startTick);
@@ -169,9 +170,19 @@ export function insertUnresolvedStaffBuilderNotes(score: StaffBuilderScoreV1, op
   const pitches = uniqueMidiNumbers.map((midiNumber) => createStaffBuilderPitch({ midiNumber, keySignatureId, id: factories.createId() }));
   const event: StaffBuilderEvent = {
     id: factories.createId(), kind: "notes", staff: options.staff, startTick: options.startTick,
-    rhythm: { status: "unresolved" }, pitches,
+    rhythm: options.rhythm, pitches,
   };
   return updateMeasure(score, options.measureIndex, factories, (measure) => ({ ...measure, events: replaceAtPosition(measure.events, event) }));
+}
+
+export function insertUnresolvedStaffBuilderNotes(score: StaffBuilderScoreV1, options: Readonly<{
+  measureIndex: number;
+  staff: StaffBuilderStaff;
+  startTick: number;
+  midiNumbers: Iterable<number>;
+  factories?: StaffBuilderFactories;
+}>): StaffBuilderScoreV1 {
+  return insertStaffBuilderNotes(score, { ...options, rhythm: { status: "unresolved" } });
 }
 
 export function insertStaffBuilderRest(score: StaffBuilderScoreV1, options: Readonly<{

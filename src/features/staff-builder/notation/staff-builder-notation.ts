@@ -197,7 +197,7 @@ export function projectStaffBuilderPendingPreview(
       kind: "notes",
       staff,
       startTick,
-      rhythm: { status: "unresolved" },
+      rhythm: { status: "final", duration: "quarter" },
       pitches: midiNumbers.map((midiNumber) => createStaffBuilderPitch({
         midiNumber,
         keySignatureId: context.keySignatureId,

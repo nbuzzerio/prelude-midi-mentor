@@ -132,7 +132,7 @@ describe("Staff Builder session", () => {
     expect(screen.getByRole("heading", { name: "Draft" })).toBeTruthy();
   });
 
-  it("persists locked unresolved capture and cursor, but not pending virtual input", () => {
+  it("persists locked final-quarter capture and cursor, but not pending virtual input", () => {
     const storage = new MemoryStorage();
     const first = render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
@@ -147,14 +147,14 @@ describe("Staff Builder session", () => {
     expect(draft.score.measures[0].events).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
     expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
-    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
     draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
-    expect(draft.score.measures[0].events[0]).toMatchObject({ staff: "treble", startTick: 0, rhythm: { status: "unresolved" }, pitches: [{ midiNumber: 60 }] });
+    expect(draft.score.measures[0].events[0]).toMatchObject({ staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 60 }] });
     expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 480 });
     first.unmount();
     render(<StaffBuilderSession storage={storage} />);
     expect(screen.queryByText("A newer Staff Builder draft is available.")).toBeNull();
-    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
     expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
     expect(screen.getByText(/Measure 1, Beat 2 \(quarter-note beat; tick 480\)/)).toBeTruthy();
   });
@@ -246,7 +246,7 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rhythm Correction" }));
     expect(screen.queryByTestId("staff-builder-capture-cursor")).toBeNull();
     expect(screen.getByTestId("staff-builder-selection-outline")).toBeTruthy();
-    expect(screen.getByText(/Selected event: measure 1, treble, .*tick 0.*, C4, unresolved rhythm/)).toBeTruthy();
+    expect(screen.getByText(/Selected event: measure 1, treble, .*tick 0.*, C4, quarter/)).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Target Duration"), { target: { value: "eighth" } });
     fireEvent.click(screen.getByRole("button", { name: "Assign Duration" }));
@@ -256,9 +256,9 @@ describe("Staff Builder session", () => {
     expect(draft.score.measures[0].events[0].rhythm).toEqual({ status: "final", duration: "eighth" });
 
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
     draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
-    expect(draft.score.measures[0].events[0].rhythm).toEqual({ status: "unresolved" });
+    expect(draft.score.measures[0].events[0].rhythm).toEqual({ status: "final", duration: "quarter" });
     fireEvent.click(screen.getByRole("button", { name: "Redo" }));
     expect(screen.getByText(/eighth note C4 at tick 0/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Delete Event" }));

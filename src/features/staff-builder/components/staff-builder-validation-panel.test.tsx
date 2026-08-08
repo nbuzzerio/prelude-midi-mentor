@@ -19,4 +19,15 @@ describe("StaffBuilderValidationPanel", () => {
     expect(apply).toHaveBeenCalledWith(correction);
     expect(screen.getByText("Issue 1 of 1")).toBeTruthy();
   });
+
+  it("offers an exact fitting duration in beginner-facing language", () => {
+    const correction = { kind: "set-duration" as const, eventId: "late", duration: "dotted-eighth" as const };
+    const issue = { id: "overflow", code: "event-overflow" as const, severity: "error" as const, target: { measureIndex: 0, staff: "treble" as const, positionTicks: 1560, eventId: "late" }, message: "This quarter note extends past the end of measure 1.", corrections: [correction] };
+    const apply = vi.fn();
+    render(<StaffBuilderValidationPanel activeIndex={0} activeIssue={issue} issues={[issue]} onActivate={vi.fn()} onClose={vi.fn()} onCorrection={apply} onNext={vi.fn()} onPrevious={vi.fn()} status={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Change to dotted eighth" }));
+    expect(apply).toHaveBeenCalledWith(correction);
+    expect(screen.getByText("This quarter note extends past the end of measure 1.")).toBeTruthy();
+    expect(screen.getByText("Change it to a dotted eighth note so it ends at the barline.")).toBeTruthy();
+  });
 });

@@ -13,6 +13,11 @@ function durationForTicks(ticks: number): StaffBuilderDuration | null {
   return STAFF_BUILDER_DURATIONS.find((duration) => durationToTicks(duration) === ticks) ?? null;
 }
 
+export function getExactStaffBuilderFittingDuration(capacityTicks: number, startTick: number): StaffBuilderDuration | null {
+  if (!Number.isInteger(capacityTicks) || !Number.isInteger(startTick) || capacityTicks <= 0 || startTick < 0 || startTick >= capacityTicks) return null;
+  return durationForTicks(capacityTicks - startTick);
+}
+
 function update(score: StaffBuilderScoreV1, factories: Pick<StaffBuilderFactories, "now">, changes: Partial<StaffBuilderScoreV1>): StaffBuilderScoreV1 {
   return { ...score, ...changes, updatedAt: factories.now() };
 }

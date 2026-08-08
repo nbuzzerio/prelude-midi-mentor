@@ -159,12 +159,12 @@ describe("Staff Builder notation projection", () => {
     const current = { ...score(), initialKeySignatureId: "g-major" as const };
     const before = JSON.stringify(current);
     const preview = projectStaffBuilderPendingPreview(current, 0, 240, { treble: [69, 66], bass: [54] });
-    expect(preview.events.treble).toMatchObject({ staff: "treble", startTick: 240, rhythm: { status: "unresolved" }, pitches: [
+    expect(preview.events.treble).toMatchObject({ staff: "treble", startTick: 240, rhythm: { status: "final", duration: "quarter" }, pitches: [
       { midiNumber: 66, letter: "F", accidental: "sharp" },
       { midiNumber: 69, letter: "A", accidental: "natural" },
     ] });
     expect(preview.events.bass).toMatchObject({ staff: "bass", startTick: 240, pitches: [{ midiNumber: 54, letter: "F", accidental: "sharp" }] });
-    expect(projectStaffBuilderMeasure(preview.renderScore, 0).staves.treble.find((item) => item.kind !== "spacer")).toMatchObject({ startTick: 240, unresolved: true, visualDuration: { duration: "quarter" } });
+    expect(projectStaffBuilderMeasure(preview.renderScore, 0).staves.treble.find((item) => item.kind !== "spacer")).toMatchObject({ startTick: 240, unresolved: false, visualDuration: { duration: "quarter" } });
     expect(JSON.stringify(current)).toBe(before);
   });
 
@@ -193,6 +193,7 @@ describe("Staff Builder notation projection", () => {
     const preview = projectStaffBuilderPendingPreview(current, 0, 0, { treble: [67], bass: [] });
     expect(preview.renderScore.measures[0]?.events).toHaveLength(1);
     expect(preview.renderScore.measures[0]?.events[0]).toMatchObject({ id: expect.stringContaining("__staff-builder-preview"), pitches: [{ midiNumber: 67 }] });
+    expect(preview.events.treble?.rhythm).toEqual({ status: "final", duration: "quarter" });
     expect(preview.summary.treble).toContain("Pending treble preview: note G4 at tick 0");
     expect(preview.summary.bass).toBe("Pending bass preview: none.");
     expect(JSON.stringify(current)).toBe(before);

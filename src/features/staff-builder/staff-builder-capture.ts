@@ -1,6 +1,6 @@
 import {
   appendStaffBuilderMeasure,
-  insertUnresolvedStaffBuilderNotes,
+  insertStaffBuilderNotes,
   resolveStaffBuilderMeasureContext,
   type StaffBuilderFactories,
 } from "./staff-builder-score";
@@ -101,11 +101,12 @@ export function commitStaffBuilderPendingCapture(
   let next = score;
   for (const staff of ["treble", "bass"] as const) {
     if (pending[staff].length === 0) continue;
-    next = insertUnresolvedStaffBuilderNotes(next, {
+    next = insertStaffBuilderNotes(next, {
       measureIndex: cursor.measureIndex,
       staff,
       startTick: cursor.offsetTicks,
       midiNumbers: pending[staff],
+      rhythm: { status: "final", duration: "quarter" },
       factories,
     });
   }

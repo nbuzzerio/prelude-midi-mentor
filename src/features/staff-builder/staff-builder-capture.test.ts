@@ -73,13 +73,13 @@ describe("Staff Builder capture operations", () => {
     expect(moveStaffBuilderCaptureBackward(current, first, "quarter")).toBe(first);
   });
 
-  it("commits sorted unresolved treble and bass groups with effective-key spelling", () => {
+  it("commits sorted final-quarter treble and bass groups with effective-key spelling", () => {
     const factory = factories();
     const current = setStaffBuilderMeasureKeySignature(score(factory), 0, "g-major", factory);
     const committed = commitStaffBuilderPendingCapture(current, { measureIndex: 0, offsetTicks: 240 }, { treble: [69, 66, 66], bass: [54] }, factory);
     const events = committed.measures[0]?.events ?? [];
     expect(events).toHaveLength(2);
-    expect(events.every(({ startTick, rhythm }) => startTick === 240 && rhythm.status === "unresolved")).toBe(true);
+    expect(events.every(({ startTick, rhythm }) => startTick === 240 && rhythm.status === "final" && rhythm.duration === "quarter")).toBe(true);
     const treble = events.find(({ staff }) => staff === "treble");
     expect(treble?.kind === "notes" ? treble.pitches.map(({ midiNumber, letter, accidental }) => ({ midiNumber, letter, accidental })) : []).toEqual([
       { midiNumber: 66, letter: "F", accidental: "sharp" },
@@ -87,13 +87,38 @@ describe("Staff Builder capture operations", () => {
     ]);
   });
 
+  it.each([
+    ["quarter", 480],
+    ["eighth", 240],
+    ["sixteenth", 120],
+  ] as const)("captures a final quarter while %s Step Duration advances by %i ticks", (stepDuration, expectedOffset) => {
+    const factory = factories();
+    const current = score(factory);
+    const committed = commitStaffBuilderPendingCapture(current, { measureIndex: 0, offsetTicks: 0 }, { treble: [60, 64], bass: [] }, factory);
+    const moved = moveStaffBuilderCaptureForward(committed, { measureIndex: 0, offsetTicks: 0 }, stepDuration, factory);
+    expect(committed.measures[0]?.events[0]).toMatchObject({ kind: "notes", rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 60 }, { midiNumber: 64 }] });
+    expect(moved.cursor).toEqual({ measureIndex: 0, offsetTicks: expectedOffset });
+  });
+
   it("replaces an existing same-staff position as a unit and leaves empty commits unchanged", () => {
     const factory = factories();
-    const original = insertUnresolvedStaffBuilderNotes(score(factory), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60, 64], factories: factory });
+    let original = insertUnresolvedStaffBuilderNotes(score(factory), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60, 64], factories: factory });
+    original = insertUnresolvedStaffBuilderNotes(original, { measureIndex: 0, staff: "bass", startTick: 0, midiNumbers: [48], factories: factory });
+    const replacedEvent = original.measures[0]?.events.find(({ staff }) => staff === "treble");
+    original = { ...original, ties: [{ id: "existing-tie", fromEventId: replacedEvent?.id ?? "", fromPitchId: replacedEvent?.kind === "notes" ? replacedEvent.pitches[0]?.id ?? "" : "", toEventId: "missing-event", toPitchId: "missing-pitch" }] };
     expect(commitStaffBuilderPendingCapture(original, { measureIndex: 0, offsetTicks: 0 }, { treble: [], bass: [] }, factory)).toBe(original);
     const replaced = commitStaffBuilderPendingCapture(original, { measureIndex: 0, offsetTicks: 0 }, { treble: [67], bass: [] }, factory);
-    const event = replaced.measures[0]?.events[0];
+    const event = replaced.measures[0]?.events.find(({ staff }) => staff === "treble");
     expect(event?.kind === "notes" ? event.pitches.map(({ midiNumber }) => midiNumber) : []).toEqual([67]);
+    expect(event?.rhythm).toEqual({ status: "final", duration: "quarter" });
+    expect(replaced.measures[0]?.events.find(({ staff }) => staff === "bass")).toBe(original.measures[0]?.events.find(({ staff }) => staff === "bass"));
+    expect(replaced.ties).toEqual(original.ties);
+  });
+
+  it("preserves a late-measure final quarter capture for structural validation", () => {
+    const factory = factories();
+    const committed = commitStaffBuilderPendingCapture(score(factory), { measureIndex: 0, offsetTicks: 1800 }, { treble: [60], bass: [] }, factory);
+    expect(committed.measures[0]?.events[0]).toMatchObject({ startTick: 1800, rhythm: { status: "final", duration: "quarter" } });
   });
 
   it.each([

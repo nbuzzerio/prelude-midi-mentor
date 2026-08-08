@@ -6,6 +6,7 @@ import {
   createStaffBuilderScore,
   getStaffBuilderEventsInScoreOrder,
   insertStaffBuilderRest,
+  insertStaffBuilderNotes,
   insertUnresolvedStaffBuilderNotes,
   removeStaffBuilderEvent,
   renameStaffBuilderScore,
@@ -68,6 +69,14 @@ describe("Staff Builder score", () => {
     expect(treble).toMatchObject({ kind: "notes", rhythm: { status: "unresolved" } });
     expect(treble && treble.kind === "notes" ? treble.pitches.map(({ midiNumber }) => midiNumber) : []).toEqual([60, 64, 67]);
     expect(treble?.rhythm).not.toHaveProperty("durationTicks");
+  });
+
+  it("shares note insertion while preserving explicit final and unresolved rhythm", () => {
+    const factory = factories();
+    let current = insertStaffBuilderNotes(score(factory), { measureIndex: 0, staff: "treble", startTick: 1800, midiNumbers: [60], rhythm: { status: "final", duration: "quarter" }, factories: factory });
+    current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "bass", startTick: 0, midiNumbers: [48], factories: factory });
+    expect(current.measures[0]?.events.find(({ staff }) => staff === "treble")?.rhythm).toEqual({ status: "final", duration: "quarter" });
+    expect(current.measures[0]?.events.find(({ staff }) => staff === "bass")?.rhythm).toEqual({ status: "unresolved" });
   });
 
   it("replaces one same-staff location as a unit without merging", () => {
