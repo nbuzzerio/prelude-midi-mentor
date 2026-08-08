@@ -17,6 +17,7 @@ import type { StaffBuilderScoreV1, StaffBuilderStaff } from "../staff-builder-ty
 import {
   projectStaffBuilderMeasure,
   type StaffBuilderMeasureProjection,
+  type StaffBuilderMeasureProjectionOptions,
   type StaffBuilderProjectedEvent,
   type StaffBuilderProjectedTickable,
 } from "./staff-builder-notation";
@@ -42,7 +43,12 @@ export type StaffBuilderPositionAnchor = Readonly<{
 
 export type StaffBuilderRenderAnchors = Readonly<{
   events: ReadonlyMap<string, StaffBuilderEventAnchor>;
+  authoritativeEvents: ReadonlyMap<string, StaffBuilderEventAnchor>;
   positions: ReadonlyMap<number, StaffBuilderPositionAnchor>;
+}>;
+
+export type StaffBuilderMeasureRenderOptions = StaffBuilderMeasureProjectionOptions & Readonly<{
+  excludedEventIds?: ReadonlySet<string>;
 }>;
 
 export type StaffBuilderMeasureRenderResult = Readonly<{
@@ -50,6 +56,7 @@ export type StaffBuilderMeasureRenderResult = Readonly<{
   projection: StaffBuilderMeasureProjection;
   width: number;
   height: number;
+  coordinateSpace: Readonly<{ width: number; height: number }>;
 }>;
 
 const RENDER_WIDTH = 760;
@@ -83,9 +90,7 @@ function createTickable(item: StaffBuilderProjectedTickable): RenderedTickable {
     ? [item.staff === "treble" ? "b/4" : "d/3"]
     : item.pitches.map((_pitch, index) => pitchKey(item, index));
   const note = new StaveNote({ clef: item.staff, duration: `${duration}${item.kind === "rest" ? "r" : ""}`, keys });
-  if (item.layoutDurationTicks !== item.visualDuration.ticks) {
-    note.setDuration(new Fraction(item.layoutDurationTicks * 128, 15));
-  }
+  note.setDuration(new Fraction(item.layoutDurationTicks * 128, 15));
   if (item.visualDuration.dots > 0) Dot.buildAndAttach([note], { all: true });
   return { projection: item, note };
 }
@@ -180,8 +185,8 @@ function createPositionAnchors(
   return anchors;
 }
 
-export function renderStaffBuilderMeasure(container: HTMLDivElement, score: StaffBuilderScoreV1, measureIndex: number): StaffBuilderMeasureRenderResult {
-  const projection = projectStaffBuilderMeasure(score, measureIndex);
+export function renderStaffBuilderMeasure(container: HTMLDivElement, score: StaffBuilderScoreV1, measureIndex: number, options?: StaffBuilderMeasureRenderOptions): StaffBuilderMeasureRenderResult {
+  const projection = projectStaffBuilderMeasure(score, measureIndex, options);
   container.replaceChildren();
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(RENDER_WIDTH, RENDER_HEIGHT);
@@ -193,6 +198,9 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   bassStave.addKeySignature(projection.vexflowKeySignature);
   trebleStave.addTimeSignature(projection.timeSignature);
   bassStave.addTimeSignature(projection.timeSignature);
+  const sharedNoteStartX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
+  trebleStave.setNoteStartX(sharedNoteStartX);
+  bassStave.setNoteStartX(sharedNoteStartX);
   trebleStave.setContext(context).draw();
   bassStave.setContext(context).draw();
   new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.BRACE).setContext(context).draw();
@@ -207,7 +215,8 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const beamConfig = (staff: StaffBuilderStaff) => ({ groups: beamGroups(projection.beams[staff].beatGroups), beamRests: false, maintainStemDirections: false });
   const trebleBeams = Beam.generateBeams(trebleRendered.map(({ note }) => note), beamConfig("treble"));
   const bassBeams = Beam.generateBeams(bassRendered.map(({ note }) => note), beamConfig("bass"));
-  new Formatter().joinVoices([trebleVoice]).joinVoices([bassVoice]).format([trebleVoice, bassVoice], RENDER_WIDTH - FORMAT_PADDING);
+  const formatter = new Formatter().joinVoices([trebleVoice, bassVoice]);
+  formatter.format([trebleVoice, bassVoice], RENDER_WIDTH - FORMAT_PADDING);
   trebleVoice.draw(context, trebleStave);
   bassVoice.draw(context, bassStave);
   [...trebleBeams, ...bassBeams].forEach((beam) => beam.setContext(context).draw());
@@ -224,13 +233,16 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   });
 
   configureSvg(container, RENDER_WIDTH, RENDER_HEIGHT);
+  const eventAnchors = createEventAnchors([...trebleRendered, ...bassRendered]);
   return {
     anchors: {
-      events: createEventAnchors([...trebleRendered, ...bassRendered]),
+      events: eventAnchors,
+      authoritativeEvents: new Map([...eventAnchors].filter(([eventId]) => !options?.excludedEventIds?.has(eventId))),
       positions: createPositionAnchors(projection, [...trebleRendered, ...bassRendered], trebleStave, bassStave),
     },
     projection,
     width: RENDER_WIDTH,
     height: RENDER_HEIGHT,
+    coordinateSpace: { width: RENDER_WIDTH, height: RENDER_HEIGHT },
   };
 }

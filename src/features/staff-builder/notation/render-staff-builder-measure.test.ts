@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Accidental, Beam, Dot, Stave, StaveConnector, StaveTie } from "vexflow";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { renderStaffBuilderMeasure } from "./render-staff-builder-measure";
+import { projectStaffBuilderPendingPreview } from "./staff-builder-notation";
 
 function score(): StaffBuilderScoreV1 {
   return {
@@ -112,6 +113,48 @@ describe("renderStaffBuilderMeasure", () => {
     }
     const chord = result.anchors.events.get("chord");
     expect(chord?.x).toBeLessThanOrEqual(chord?.onsetX ?? 0);
+    expect(result.coordinateSpace).toEqual({ width: result.width, height: result.height });
+  });
+
+  it("keeps cross-staff committed and grid onsets aligned while pending chords change", () => {
+    const current: StaffBuilderScoreV1 = {
+      ...score(),
+      initialKeySignatureId: "c-major",
+      measures: [{ id: "measure", events: [
+        { id: "before-treble", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "bt", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+        { id: "before-bass", kind: "notes", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "bb", midiNumber: 48, letter: "C", accidental: "natural", octave: 3 }] },
+        { id: "after-treble", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "at", midiNumber: 67, letter: "G", accidental: "natural", octave: 4 }] },
+        { id: "after-bass", kind: "notes", staff: "bass", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "ab", midiNumber: 43, letter: "G", accidental: "natural", octave: 2 }] },
+      ] }],
+      ties: [],
+    };
+    const renderPreview = (treble: readonly number[], bass: readonly number[]) => {
+      const preview = projectStaffBuilderPendingPreview(current, 0, 240, { treble, bass }, "eighth");
+      return renderStaffBuilderMeasure(document.createElement("div"), preview.renderScore, 0, {
+        excludedEventIds: preview.previewEventIds,
+        layoutDurationTicksByEventId: preview.layoutDurationTicksByEventId,
+      });
+    };
+    const trebleOnly = renderPreview([62], []);
+    const both = renderPreview([62, 65, 69], [47, 50]);
+    const changedTreble = renderPreview([62, 65], [47, 50]);
+    for (const result of [trebleOnly, both, changedTreble]) {
+      for (const eventId of ["before-treble", "before-bass", "after-treble", "after-bass"]) {
+        const anchor = result.anchors.authoritativeEvents.get(eventId);
+        expect(anchor).toBeDefined();
+        expect(anchor?.onsetX, eventId).toBeCloseTo(result.anchors.positions.get(anchor?.startTick ?? -1)?.x ?? -1, 5);
+      }
+      expect(result.anchors.events.get([...result.anchors.events.keys()].find((id) => id.includes("preview")) ?? "")).toBeDefined();
+      expect([...result.anchors.authoritativeEvents.keys()].some((id) => id.includes("preview"))).toBe(false);
+      const positions = [...result.anchors.positions.values()];
+      expect(positions.every(({ width }) => width > 0)).toBe(true);
+      expect(positions.map(({ tick }) => tick)).toEqual([...positions.map(({ tick }) => tick)].sort((left, right) => left - right));
+      expect(positions.map(({ x }) => x)).toEqual([...positions.map(({ x }) => x)].sort((left, right) => left - right));
+      const treblePreview = result.anchors.events.get([...result.anchors.events.keys()].find((id) => id.includes(":treble:240:event")) ?? "");
+      const bassPreview = result.anchors.events.get([...result.anchors.events.keys()].find((id) => id.includes(":bass:240:event")) ?? "");
+      if (treblePreview && bassPreview) expect(treblePreview.onsetX).toBeCloseTo(bassPreview.onsetX, 5);
+    }
+    expect(changedTreble.anchors.authoritativeEvents.get("after-bass")?.onsetX).toBeCloseTo(both.anchors.authoritativeEvents.get("after-bass")?.onsetX ?? -1, 5);
   });
 
   it.each([{ ticks: [0, 240] }, { ticks: [0, 120, 240] }])("renders unresolved quarter-note visuals at distinct increasing onsets $ticks", ({ ticks }) => {

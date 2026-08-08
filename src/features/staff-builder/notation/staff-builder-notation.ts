@@ -2,12 +2,14 @@ import { getMusicKeyDefinition } from "@/lib/music/keys";
 import { createStaffBuilderPitch, resolveStaffBuilderMeasureContext } from "../staff-builder-score";
 import type { StaffBuilderPendingCapture } from "../staff-builder-capture";
 import {
-  STAFF_BUILDER_DURATIONS,
   STAFF_BUILDER_TICKS_PER_QUARTER,
+  STAFF_BUILDER_DURATIONS,
   durationToTicks,
   type StaffBuilderDuration,
+  type StaffBuilderStepDuration,
   type StaffBuilderTimeSignature,
 } from "../staff-builder-time";
+import { stepDurationToTicks } from "../staff-builder-time";
 import type {
   StaffBuilderEvent,
   StaffBuilderPitch,
@@ -86,7 +88,13 @@ export type StaffBuilderMeasureProjection = Readonly<{
 export type StaffBuilderPendingPreviewProjection = Readonly<{
   renderScore: StaffBuilderScoreV1;
   events: Readonly<Record<StaffBuilderStaff, StaffBuilderEvent | null>>;
+  layoutDurationTicksByEventId: ReadonlyMap<string, number>;
+  previewEventIds: ReadonlySet<string>;
   summary: Readonly<Record<StaffBuilderStaff, string>>;
+}>;
+
+export type StaffBuilderMeasureProjectionOptions = Readonly<{
+  layoutDurationTicksByEventId?: ReadonlyMap<string, number>;
 }>;
 
 const VISUAL_DURATIONS: Readonly<Record<StaffBuilderDuration, StaffBuilderVisualDuration>> = {
@@ -114,7 +122,7 @@ export function getStaffBuilderVisualDuration(duration: StaffBuilderDuration): S
   return VISUAL_DURATIONS[duration];
 }
 
-function projectEvent(event: StaffBuilderEvent, nextStartTick: number | undefined, capacityTicks: number): StaffBuilderProjectedEvent {
+function projectEvent(event: StaffBuilderEvent, nextStartTick: number | undefined, capacityTicks: number, layoutDurationOverride?: number): StaffBuilderProjectedEvent {
   const unresolved = event.rhythm.status === "unresolved";
   const duration = unresolved ? "quarter" : event.rhythm.duration;
   const visualDuration = getStaffBuilderVisualDuration(duration);
@@ -125,7 +133,7 @@ function projectEvent(event: StaffBuilderEvent, nextStartTick: number | undefine
     eventId: event.id,
     staff: event.staff,
     startTick: event.startTick,
-    layoutDurationTicks: Math.max(1, Math.min(visualDuration.ticks, ticksUntilNextOnset || visualDuration.ticks, ticksUntilMeasureEnd || visualDuration.ticks)),
+    layoutDurationTicks: Math.max(1, Math.min(layoutDurationOverride ?? visualDuration.ticks, ticksUntilNextOnset || visualDuration.ticks, ticksUntilMeasureEnd || visualDuration.ticks)),
     visualDuration,
     unresolved,
     pitches: event.kind === "notes" ? event.pitches : [],
@@ -154,7 +162,7 @@ function gapSpacers(staff: StaffBuilderStaff, startTick: number, gapTicks: numbe
   return spacers;
 }
 
-function projectStaff(events: readonly StaffBuilderEvent[], staff: StaffBuilderStaff, capacityTicks: number): readonly StaffBuilderProjectedTickable[] {
+function projectStaff(events: readonly StaffBuilderEvent[], staff: StaffBuilderStaff, capacityTicks: number, options?: StaffBuilderMeasureProjectionOptions): readonly StaffBuilderProjectedTickable[] {
   const projected: StaffBuilderProjectedTickable[] = [];
   let occupiedUntil = 0;
   const ordered = events.filter((event) => event.staff === staff && event.startTick < capacityTicks)
@@ -162,7 +170,7 @@ function projectStaff(events: readonly StaffBuilderEvent[], staff: StaffBuilderS
     .filter((event, index, values) => index === 0 || values[index - 1]?.startTick !== event.startTick);
   ordered.forEach((event, index) => {
     if (event.startTick > occupiedUntil) projected.push(...gapSpacers(staff, occupiedUntil, event.startTick - occupiedUntil));
-    const projection = projectEvent(event, ordered[index + 1]?.startTick, capacityTicks);
+    const projection = projectEvent(event, ordered[index + 1]?.startTick, capacityTicks, options?.layoutDurationTicksByEventId?.get(event.id));
     projected.push(projection);
     occupiedUntil = Math.max(occupiedUntil, event.startTick + projection.layoutDurationTicks);
   });
@@ -180,6 +188,7 @@ export function projectStaffBuilderPendingPreview(
   measureIndex: number,
   startTick: number,
   pending: StaffBuilderPendingCapture,
+  stepDuration: StaffBuilderStepDuration = "quarter",
 ): StaffBuilderPendingPreviewProjection {
   const measure = score.measures[measureIndex];
   if (!measure) throw new Error(`Unknown measure index ${measureIndex}.`);
@@ -206,6 +215,9 @@ export function projectStaffBuilderPendingPreview(
     };
   }
   const previewEvents = Object.values(events).filter((event): event is StaffBuilderEvent => event !== null);
+  const previewEventIds = new Set(previewEvents.map(({ id }) => id));
+  const layoutDurationTicks = stepDurationToTicks(stepDuration);
+  const layoutDurationTicksByEventId = new Map(previewEvents.map(({ id }) => [id, layoutDurationTicks]));
   const renderScore = previewEvents.length === 0 ? score : {
     ...score,
     measures: score.measures.map((item, index) => index !== measureIndex ? item : {
@@ -225,6 +237,8 @@ export function projectStaffBuilderPendingPreview(
   return {
     renderScore,
     events,
+    layoutDurationTicksByEventId,
+    previewEventIds,
     summary: { treble: previewSummary("treble"), bass: previewSummary("bass") },
   };
 }
@@ -274,13 +288,13 @@ function projectTies(score: StaffBuilderScoreV1, eventById: ReadonlyMap<string, 
   return { ties, unavailableTies, boundaryTies };
 }
 
-export function projectStaffBuilderMeasure(score: StaffBuilderScoreV1, measureIndex: number): StaffBuilderMeasureProjection {
+export function projectStaffBuilderMeasure(score: StaffBuilderScoreV1, measureIndex: number, options?: StaffBuilderMeasureProjectionOptions): StaffBuilderMeasureProjection {
   const measure = score.measures[measureIndex];
   if (!measure) throw new Error(`Unknown measure index ${measureIndex}.`);
   const context = resolveStaffBuilderMeasureContext(score, measureIndex);
   const key = getMusicKeyDefinition(context.keySignatureId);
-  const treble = projectStaff(measure.events, "treble", context.capacityTicks);
-  const bass = projectStaff(measure.events, "bass", context.capacityTicks);
+  const treble = projectStaff(measure.events, "treble", context.capacityTicks, options);
+  const bass = projectStaff(measure.events, "bass", context.capacityTicks, options);
   const projectedEvents = [...treble, ...bass].filter((item): item is StaffBuilderProjectedEvent => item.kind !== "spacer");
   const eventById = new Map(projectedEvents.map((event) => [event.eventId, event]));
   const tieProjection = projectTies(score, eventById);

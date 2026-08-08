@@ -3,16 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { StaffBuilderScoreView } from "./staff-builder-score-view";
 
-const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: unknown, renderedScore: unknown, measureIndex: number) => {
+const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: unknown, renderedScore: unknown, measureIndex: number, options?: unknown) => {
   void container;
   void renderedScore;
   void measureIndex;
-  return { anchors: { events: new Map([["treble-note", { eventId: "treble-note", staff: "treble", startTick: 0, onsetX: 160, x: 155, y: 60, width: 20, height: 40 }]]), positions: new Map([
+  void options;
+  const events = new Map([["treble-note", { eventId: "treble-note", staff: "treble", startTick: 0, onsetX: 160, x: 155, y: 60, width: 20, height: 40 }]]);
+  return { anchors: { events, authoritativeEvents: events, positions: new Map([
   [0, { tick: 0, x: 150, y: 40, width: 30, height: 220 }],
   [120, { tick: 120, x: 180, y: 40, width: 30, height: 220 }],
   [240, { tick: 240, x: 210, y: 40, width: 30, height: 220 }],
   [360, { tick: 360, x: 240, y: 40, width: 30, height: 220 }],
-  ]) }, projection: {}, width: 760, height: 300 };
+  ]) }, projection: {}, width: 760, height: 300, coordinateSpace: { width: 760, height: 300 } };
 }) }));
 vi.mock("../notation/render-staff-builder-measure", () => ({ renderStaffBuilderMeasure: renderMeasure }));
 
@@ -35,7 +37,7 @@ describe("StaffBuilderScoreView", () => {
     expect(screen.getByText(/Effective key: C major/)).toBeTruthy();
     expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
     expect(screen.getByText(/Bass:/).parentElement?.textContent).toContain("No events");
-    expect(renderMeasure).toHaveBeenCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 0);
+    expect(renderMeasure).toHaveBeenCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 0, expect.any(Object));
   });
 
   it("renders the requested changed measure", () => {
@@ -44,7 +46,7 @@ describe("StaffBuilderScoreView", () => {
     expect(screen.getByText(/Effective key: G major/)).toBeTruthy();
     expect(screen.getByText(/Effective time signature: 6\/8/)).toBeTruthy();
     expect(screen.getByText(/quarter rest at tick 0/)).toBeTruthy();
-    expect(renderMeasure).toHaveBeenLastCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 1);
+    expect(renderMeasure).toHaveBeenLastCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 1, expect.any(Object));
   });
 
   it("uses formatted anchors for cursor position, duration width, and boundary clipping", () => {
@@ -84,6 +86,9 @@ describe("StaffBuilderScoreView", () => {
     render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration }} measureIndex={0} pendingPreview={{ treble: [60], bass: [] }} score={score()} />);
     const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1;
     expect(renderScore.measures[0]?.events.find(({ id }) => id.includes("preview"))?.rhythm).toEqual({ status: "final", duration: "quarter" });
+    const options = renderMeasure.mock.calls.at(-1)?.[3] as { layoutDurationTicksByEventId: ReadonlyMap<string, number>; excludedEventIds: ReadonlySet<string> };
+    expect([...options.layoutDurationTicksByEventId.values()]).toEqual([{ quarter: 480, eighth: 240, sixteenth: 120 }[stepDuration]]);
+    expect([...options.excludedEventIds].every((id) => id.includes("preview"))).toBe(true);
   });
 
   it("draws a padded selection outline from the public event anchor without a capture cursor", () => {

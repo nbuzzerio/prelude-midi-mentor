@@ -179,6 +179,40 @@ describe("Staff Builder notation projection", () => {
     expect(first.events.treble?.id).toContain(":0:treble:120:event");
   });
 
+  it.each([
+    ["quarter", 480],
+    ["eighth", 240],
+    ["sixteenth", 120],
+  ] as const)("keeps pending musical duration at quarter while capping %s render layout to %i ticks", (stepDuration, layoutTicks) => {
+    const current = score();
+    const before = JSON.stringify(current);
+    const preview = projectStaffBuilderPendingPreview(current, 0, 720, { treble: [60, 64], bass: [48, 52] }, stepDuration);
+    expect(Object.values(preview.events).every((event) => event?.rhythm.status === "final" && event.rhythm.duration === "quarter")).toBe(true);
+    expect([...preview.layoutDurationTicksByEventId.values()]).toEqual([layoutTicks, layoutTicks]);
+    const projection = projectStaffBuilderMeasure(preview.renderScore, 0, { layoutDurationTicksByEventId: preview.layoutDurationTicksByEventId });
+    expect([...projection.staves.treble, ...projection.staves.bass]
+      .filter((item): item is Extract<typeof item, { kind: "notes" | "rest" }> => item.kind !== "spacer" && preview.previewEventIds.has(item.eventId))
+      .map(({ layoutDurationTicks }) => layoutDurationTicks)).toEqual([layoutTicks, layoutTicks]);
+    expect(JSON.stringify(current)).toBe(before);
+  });
+
+  it.each([1800, 1680])("clips a pending quarter preview at the final boundary from tick %i", (startTick) => {
+    const preview = projectStaffBuilderPendingPreview(score(), 0, startTick, { treble: [60], bass: [] }, "quarter");
+    const event = projectStaffBuilderMeasure(preview.renderScore, 0, { layoutDurationTicksByEventId: preview.layoutDurationTicksByEventId })
+      .staves.treble.find((item) => item.kind !== "spacer");
+    expect(event).toMatchObject({ startTick, layoutDurationTicks: 1920 - startTick, visualDuration: { duration: "quarter" } });
+  });
+
+  it("keeps deterministic preview identity and layout metadata while one pending staff changes", () => {
+    const current = score();
+    const first = projectStaffBuilderPendingPreview(current, 0, 360, { treble: [60], bass: [48, 52] }, "sixteenth");
+    const second = projectStaffBuilderPendingPreview(current, 0, 360, { treble: [60, 64, 67], bass: [48, 52] }, "sixteenth");
+    expect(second.events.bass?.id).toBe(first.events.bass?.id);
+    expect(second.events.bass?.kind === "notes" ? second.events.bass.pitches : []).toEqual(first.events.bass?.kind === "notes" ? first.events.bass.pitches : []);
+    expect([...second.layoutDurationTicksByEventId.values()]).toEqual([120, 120]);
+    expect(second.previewEventIds).toEqual(new Set([second.events.treble?.id, second.events.bass?.id]));
+  });
+
   it("projects a bass-only pending preview without adding a treble event", () => {
     const preview = projectStaffBuilderPendingPreview(score(), 0, 360, { treble: [], bass: [48] });
     expect(preview.events.treble).toBeNull();

@@ -29,13 +29,18 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const pendingTreble = pendingPreview?.treble ?? EMPTY_PENDING_PREVIEW.treble;
   const pendingBass = pendingPreview?.bass ?? EMPTY_PENDING_PREVIEW.bass;
   const preview = useMemo(
-    () => projectStaffBuilderPendingPreview(score, measureIndex, cursorOffsetTicks ?? 0, { treble: pendingTreble, bass: pendingBass }),
-    [cursorOffsetTicks, measureIndex, pendingBass, pendingTreble, score],
+    () => projectStaffBuilderPendingPreview(score, measureIndex, cursorOffsetTicks ?? 0, { treble: pendingTreble, bass: pendingBass }, cursorStepDuration ?? "quarter"),
+    [cursorOffsetTicks, cursorStepDuration, measureIndex, pendingBass, pendingTreble, score],
   );
+  const previewEventIds = preview.previewEventIds;
+  const previewLayoutDurationTicksByEventId = preview.layoutDurationTicksByEventId;
 
   useLayoutEffect(() => {
     if (!notationRef.current) return;
-    const result = renderStaffBuilderMeasure(notationRef.current, preview.renderScore, measureIndex);
+    const result = renderStaffBuilderMeasure(notationRef.current, preview.renderScore, measureIndex, {
+      excludedEventIds: previewEventIds,
+      layoutDurationTicksByEventId: previewLayoutDurationTicksByEventId,
+    });
     if (cursorOffsetTicks !== undefined && cursorStepDuration !== undefined) {
       const start = result.anchors.positions.get(cursorOffsetTicks);
       const endTick = Math.min(projection.capacityTicks, cursorOffsetTicks + stepDurationToTicks(cursorStepDuration));
@@ -56,7 +61,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       setIssueGeometry({ x: issuePosition.x, y: issuePosition.y, width: Math.max(issuePosition.width, end - issuePosition.x), height: issuePosition.height });
     } else setIssueGeometry(null);
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, issue, measureIndex, onRender, preview.renderScore, projection.capacityTicks, selectedEventId]);
+  }, [cursorOffsetTicks, cursorStepDuration, issue, measureIndex, onRender, preview.renderScore, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId]);
 
   return (
     <section aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
