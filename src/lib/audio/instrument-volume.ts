@@ -2,6 +2,7 @@ const DEFAULT_INSTRUMENT_VOLUME = 0.5;
 const INSTRUMENT_VOLUME_STORAGE_KEY = "prelude-instrument-volume";
 
 let instrumentVolume: number | null = null;
+const listeners = new Set<() => void>();
 
 function clampVolume(volume: number): number {
   return Math.min(1, Math.max(0, volume));
@@ -44,4 +45,11 @@ export function setInstrumentVolume(volume: number): void {
       String(instrumentVolume),
     );
   }
+
+  listeners.forEach((listener) => listener());
+}
+
+export function subscribeInstrumentVolume(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }

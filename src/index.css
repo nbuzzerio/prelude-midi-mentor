@@ -93,6 +93,12 @@ button {
 .staff-builder-pass-switcher button[aria-pressed="true"] { outline: 2px solid rgb(56 189 248); outline-offset: 2px; }
 .staff-builder-rhythm-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
 .staff-builder-playback-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
+.staff-builder-score-toolbar { display: grid; gap: 0.75rem; margin: 1rem 0; }
+.staff-builder-score-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.staff-builder-toolbar-trigger { display: inline-flex; cursor: pointer; align-items: center; justify-content: center; gap: 0.4rem; border: 1px solid rgb(82 82 91); border-radius: 0.5rem; background: rgb(39 39 42); padding: 0.5rem 0.75rem; color: white; }
+.staff-builder-toolbar-trigger:hover { background: rgb(63 63 70); }
+.staff-builder-toolbar-trigger:focus-visible { outline: 2px solid rgb(125 211 252); outline-offset: 2px; }
+.staff-builder-volume-trigger { margin-inline-start: auto; }
 .staff-builder-rhythm-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; }
 .staff-builder-rhythm-edit-grid { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem; }
 .staff-builder-rhythm-edit-grid label,

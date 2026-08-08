@@ -14,7 +14,9 @@ describe("StaffBuilderCaptureControls", () => {
     render(<StaffBuilderCaptureControls captureState={{ ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 1, offsetTicks: 240 } }} midi={{ connectMidi: vi.fn(), deviceName: null, error: null, status: "disconnected" }} onClear={actions.clear} onInputModeChange={actions.staff} onLock={actions.lock} onNext={actions.next} onPrevious={actions.previous} onStepDurationChange={actions.step} onVirtualPitchToggle={actions.toggle} pending={{ treble: [60], bass: [48] }} positionLabel="Beat 1, eighth-note subdivision (tick 240)" />);
     expect(screen.getByRole("heading", { name: "Capture Notes" })).toBeTruthy();
     expect(screen.queryByText("Fast Capture")).toBeNull();
-    expect(screen.getByText(/Grand Staff automatically sends B3 and lower/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Bass Only" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Input Options: Grand Staff/ }));
+    expect(screen.getByText(/Grand Staff automatically routes B3 and lower/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Bass Only" }));
     fireEvent.change(screen.getByLabelText("Step Duration"), { target: { value: "sixteenth" } });
     fireEvent.click(screen.getByRole("button", { name: "Previous Position" }));
@@ -35,9 +37,9 @@ describe("StaffBuilderCaptureControls", () => {
 
   it("disables previous at the score origin and clear when no pitches are pending", () => {
     render(<StaffBuilderCaptureControls captureState={DEFAULT_STAFF_BUILDER_CAPTURE_STATE} midi={{ connectMidi: vi.fn(), deviceName: null, error: null, status: "disconnected" }} onClear={vi.fn()} onInputModeChange={vi.fn()} onLock={vi.fn()} onNext={vi.fn()} onPrevious={vi.fn()} onStepDurationChange={vi.fn()} onVirtualPitchToggle={vi.fn()} pending={{ treble: [], bass: [] }} positionLabel="Beat 1 (quarter-note beat; tick 0)" />);
-    expect(screen.getByRole("button", { name: "Grand Staff" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Input Options: Grand Staff/ }).getAttribute("aria-expanded")).toBe("false");
     expect((screen.getByRole("button", { name: "Previous Position" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Clear Current Entry" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Clear Current Entry" })).toBeNull();
   });
 
   it("highlights the deduplicated union of both pending staffs in every input mode", () => {

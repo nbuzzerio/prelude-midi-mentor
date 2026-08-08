@@ -178,10 +178,12 @@ describe("Staff Builder session", () => {
     render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
     createPiece("Playback Draft");
-    expect((screen.getByRole("button", { name: "Play Current Measure" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Play Measure" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Play From Here" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Play Entire Piece" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText("2 structural issues must be corrected before rhythmic playback.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Play Piece" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Playback unavailable: 2 score issues remain.")).toBeTruthy();
+    expect(screen.queryByLabelText("Instrument volume")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Instrument volume/ }));
     expect(screen.getByLabelText("Instrument volume")).toBeTruthy();
   });
 
@@ -199,7 +201,7 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fill All Empty Beats With Rests" }));
     expect(screen.getByText("All issues are corrected. Ready to save.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Play Entire Piece" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Play Piece" }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText("Saved and ready for playback.")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText("Saved and ready for playback.")).toBeTruthy();
@@ -226,6 +228,7 @@ describe("Staff Builder session", () => {
     render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
     createPiece("Grand Capture");
+    fireEvent.click(screen.getByRole("button", { name: /Input Options: Grand Staff/ }));
     expect(screen.getByRole("button", { name: "Grand Staff" }).getAttribute("aria-pressed")).toBe("true");
     act(() => { midiBoundary.onNote?.(48); midiBoundary.onNote?.(60); });
     expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
@@ -252,6 +255,7 @@ describe("Staff Builder session", () => {
     const lowKey = screen.getByRole("button", { name: "C, MIDI 48" });
     const highKey = screen.getByRole("button", { name: "C, MIDI 72" });
 
+    fireEvent.click(screen.getByRole("button", { name: /Input Options: Grand Staff/ }));
     fireEvent.click(screen.getByRole("button", { name: "Treble Only" }));
     act(() => midiBoundary.onNote?.(48));
     fireEvent.click(screen.getByRole("button", { name: "Grand Staff" }));

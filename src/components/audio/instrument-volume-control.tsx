@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import {
   getInstrumentVolume,
   setInstrumentVolume,
+  subscribeInstrumentVolume,
 } from "@/lib/audio/instrument-volume";
 
-type InstrumentVolumeControlProps =
+type InstrumentVolumeControlProps = (
   | Readonly<{
       onReplayCorrectVirtualChordsChange: (enabled: boolean) => void;
       replayCorrectVirtualChords: boolean;
@@ -14,19 +15,22 @@ type InstrumentVolumeControlProps =
       onReplayCorrectVirtualChordsChange?: never;
       replayCorrectVirtualChords?: never;
       showReplayCompletedChords: false;
+    }>) & Readonly<{
+      inputId?: string;
     }>;
 
 export default function InstrumentVolumeControl(
   props: InstrumentVolumeControlProps,
 ) {
-  const [volumePercent, setVolumePercent] = useState(() =>
-    Math.round(getInstrumentVolume() * 100),
-  );
+  const volumePercent = Math.round(useSyncExternalStore(
+    subscribeInstrumentVolume,
+    getInstrumentVolume,
+    getInstrumentVolume,
+  ) * 100);
 
   const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextVolumePercent = Number(event.target.value);
 
-    setVolumePercent(nextVolumePercent);
     setInstrumentVolume(nextVolumePercent / 100);
   };
 
@@ -35,7 +39,7 @@ export default function InstrumentVolumeControl(
       <div className="flex items-center justify-between gap-4">
         <label
           className="text-sm font-semibold text-white"
-          htmlFor="instrument-volume"
+          htmlFor={props.inputId ?? "instrument-volume"}
         >
           Instrument volume
         </label>
@@ -47,7 +51,7 @@ export default function InstrumentVolumeControl(
 
       <input
         className="mt-3 w-full cursor-pointer"
-        id="instrument-volume"
+        id={props.inputId ?? "instrument-volume"}
         max="100"
         min="0"
         onChange={handleVolumeChange}
