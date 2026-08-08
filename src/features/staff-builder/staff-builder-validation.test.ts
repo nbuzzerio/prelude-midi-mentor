@@ -36,8 +36,11 @@ describe("Staff Builder structural validation", () => {
   });
 
   it("reports gaps and duration overflow", () => {
-    const issues = validateStaffBuilderScore(score([{ id: "m", events: [note("a", "treble", 480, "whole"), note("b", "bass", 0, "half")] }])).map(({ code }) => code);
-    expect(issues).toEqual(expect.arrayContaining(["gap", "event-overflow"]));
+    const issues = validateStaffBuilderScore(score([{ id: "m", events: [note("a", "treble", 480, "whole"), note("b", "bass", 0, "half")] }]));
+    expect(issues.map(({ code }) => code)).toEqual(expect.arrayContaining(["gap", "event-overflow"]));
+    const gap = issues.find(({ code }) => code === "gap");
+    expect(gap?.message).toMatch(/empty beats in measure 1/i);
+    expect(gap?.message).not.toMatch(/tick|structural gap/i);
   });
 
   it.each([

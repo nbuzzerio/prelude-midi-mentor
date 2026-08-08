@@ -16,6 +16,21 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("saves an already valid score explicitly with beginner-facing readiness status", () => {
+    const original = score();
+    const valid = { ...original, measures: [{ ...original.measures[0]!, events: [
+      { id: "treble", kind: "rest" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
+      { id: "bass", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
+    ] }] };
+    const onValidatedSave = vi.fn(() => ({ ok: true }));
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: valid, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn(), onValidatedSave }));
+    act(() => result.current.validation.activate());
+    expect(onValidatedSave).toHaveBeenCalledWith(valid, expect.any(Object));
+    expect(result.current.validation.active).toBe(false);
+    expect(result.current.validation.status).toBe("Saved and ready for playback.");
+    expect(result.current.canUndo).toBe(false);
+  });
+
   it("applies an exact overflow duration suggestion as one history mutation and revalidates", () => {
     const original = score();
     const current = { ...original, measures: [{ ...original.measures[0]!, events: [
@@ -82,9 +97,44 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.validation.activeIssue?.target.staff).toBe("treble");
     act(() => result.current.validation.applyCorrection(result.current.validation.activeIssue!.corrections[0]!));
     expect(result.current.validation.activeIssue?.target.staff).toBe("bass");
+    expect(result.current.validation.status).toBe("Added rest for the selected empty beats.");
     expect(result.current.canUndo).toBe(true);
     act(() => result.current.undo());
     expect(result.current.validation.issues).toHaveLength(2);
+  });
+
+  it("fills all current safe gaps as one history mutation and requires an explicit final Save", () => {
+    const onValidatedSave = vi.fn(() => ({ ok: true }));
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn(), onValidatedSave }));
+    act(() => result.current.validation.activate());
+    act(() => result.current.validation.fillAllGaps());
+    expect(result.current.validation.issues).toEqual([]);
+    expect(result.current.validation.status).toBe("All issues are corrected. Ready to save.");
+    expect(result.current.canUndo).toBe(true);
+    expect(onValidatedSave).not.toHaveBeenCalled();
+    expect(result.current.score.measures[0]?.events.map(({ staff, rhythm }) => ({ staff, duration: rhythm.status === "final" ? rhythm.duration : null }))).toEqual([
+      { staff: "treble", duration: "whole" },
+      { staff: "bass", duration: "whole" },
+    ]);
+    act(() => result.current.undo());
+    expect(result.current.validation.issues.map(({ code }) => code).filter((code) => code === "gap")).toHaveLength(2);
+    expect(result.current.score.measures[0]?.events).toEqual([]);
+    act(() => result.current.redo());
+    expect(result.current.validation.issues).toEqual([]);
+    act(() => result.current.validation.activate());
+    expect(onValidatedSave).toHaveBeenCalledOnce();
+    expect(result.current.validation.status).toBe("Saved and ready for playback.");
+  });
+
+  it("fills safe gaps while retaining an unrelated tie issue", () => {
+    const original = { ...score(), ties: [{ id: "dangling", fromEventId: "missing", fromPitchId: "missing", toEventId: "also-missing", toPitchId: "also-missing" }] };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    act(() => result.current.validation.activate());
+    act(() => result.current.validation.fillAllGaps());
+    expect(result.current.validation.issues.map(({ code }) => code)).toEqual(["tie-endpoint-missing"]);
+    expect(result.current.validation.active).toBe(true);
+    expect(result.current.validation.status).toBe("Filled all empty beats with rests.");
+    expect(result.current.canUndo).toBe(true);
   });
   it("owns the default cursor and changes step duration without changing pending input", () => {
     const onDraftChange = vi.fn();

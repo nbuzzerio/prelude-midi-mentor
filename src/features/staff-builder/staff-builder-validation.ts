@@ -154,13 +154,13 @@ export function validateStaffBuilderScore(score: StaffBuilderScoreV1): readonly 
           const crossingEventId = occupyingEvent?.id ?? event.id;
           issues.push(issue("overlap", { measureIndex, staff, positionTicks: event.startTick, eventId: event.id }, `e:${event.id}|crossed-by:${crossingEventId}`, `Measure ${measureIndex + 1} ${staff} event ${crossingEventId} extends across the event at tick ${event.startTick}.`, [{ kind: "shorten-duration", eventId: crossingEventId }, { kind: "delete-event", eventId: event.id }]));
         } else if (event.startTick > occupiedUntil) {
-          issues.push(issue("gap", { measureIndex, staff, positionTicks: occupiedUntil, endTicks: event.startTick }, `end:${event.startTick}`, `Measure ${measureIndex + 1} ${staff} has a rhythmic gap from tick ${occupiedUntil} to ${event.startTick}.`, [{ kind: "fill-gap-with-rests", staff, startTick: occupiedUntil, endTick: event.startTick }]));
+          issues.push(issue("gap", { measureIndex, staff, positionTicks: occupiedUntil, endTicks: event.startTick }, `end:${event.startTick}`, `This ${staff} staff has empty beats in measure ${measureIndex + 1}.`, [{ kind: "fill-gap-with-rests", staff, startTick: occupiedUntil, endTick: event.startTick }]));
         }
         const eventEnd = event.startTick + durationToTicks(event.rhythm.duration);
         if (eventEnd > occupiedUntil) { occupiedUntil = eventEnd; occupyingEvent = event; }
       }
       if (occupiedUntil < capacity) {
-        issues.push(issue("gap", { measureIndex, staff, positionTicks: occupiedUntil, endTicks: capacity }, `end:${capacity}`, `Measure ${measureIndex + 1} ${staff} has a rhythmic gap from tick ${occupiedUntil} to ${capacity}.`, [{ kind: "fill-gap-with-rests", staff, startTick: occupiedUntil, endTick: capacity }]));
+        issues.push(issue("gap", { measureIndex, staff, positionTicks: occupiedUntil, endTicks: capacity }, `end:${capacity}`, `This ${staff} staff has empty beats in measure ${measureIndex + 1}.`, [{ kind: "fill-gap-with-rests", staff, startTick: occupiedUntil, endTick: capacity }]));
       }
     }
   });

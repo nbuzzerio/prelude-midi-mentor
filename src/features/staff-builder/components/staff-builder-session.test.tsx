@@ -171,6 +171,31 @@ describe("Staff Builder session", () => {
     expect(screen.getByLabelText("Instrument volume")).toBeTruthy();
   });
 
+  it("uses Save to guide gap correction while preserving autosave and requiring explicit final readiness", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Save Study");
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const issue = screen.getByText("This treble staff has empty beats in measure 1.");
+    expect(document.activeElement).toBe(issue);
+    expect(screen.queryByText("Saved and ready for playback.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add Rest" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fill All Empty Beats With Rests" }));
+    expect(screen.getByText("All issues are corrected. Ready to save.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Play Entire Piece" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText("Saved and ready for playback.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByText("Saved and ready for playback.")).toBeTruthy();
+    const library = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
+    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(library.pieces[0].measures[0].events).toHaveLength(2);
+    expect(draft.score).toEqual(library.pieces[0]);
+    expect(draft.updatedAt).toBe(library.pieces[0].updatedAt);
+  });
+
   it("shows MIDI note-on input immediately as a pending staff preview", () => {
     const storage = new MemoryStorage();
     render(<StaffBuilderSession storage={storage} />);

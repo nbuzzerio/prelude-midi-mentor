@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createStaffBuilderContinuationAndTies, createStaffBuilderTies, decomposeStaffBuilderGap, fillStaffBuilderGapWithRests, getExactStaffBuilderFittingDuration, removeStaffBuilderTie, splitStaffBuilderEventAcrossBarline } from "./staff-builder-corrections";
+import { createStaffBuilderContinuationAndTies, createStaffBuilderTies, decomposeStaffBuilderGap, fillAllStaffBuilderGapsWithRests, fillStaffBuilderGapWithRests, getExactStaffBuilderFittingDuration, removeStaffBuilderTie, splitStaffBuilderEventAcrossBarline } from "./staff-builder-corrections";
 import type { StaffBuilderScoreV1 } from "./staff-builder-types";
 
 const factories = () => { let id = 0; return { createId: () => `new-${++id}`, now: () => "2026-01-02T00:00:00.000Z" }; };
@@ -27,6 +27,47 @@ describe("Staff Builder corrections", () => {
     const result = fillStaffBuilderGapWithRests(original, { measureIndex: 0, staff: "bass", startTick: 0, endTick: 1920, factories: factories() });
     expect(result.ok && result.score.measures[0]?.events[0]).toMatchObject({ id: "new-1", kind: "rest", rhythm: { duration: "whole" } });
     expect(original.measures[0]?.events).toEqual([]);
+  });
+
+  it("atomically fills safe gaps across measures and staves with beat-aware rests", () => {
+    const note = (id: string, staff: "treble" | "bass", startTick: number, duration: "quarter" | "dotted-quarter") => ({ id, kind: "notes" as const, staff, startTick, rhythm: { status: "final" as const, duration }, pitches: [{ id: `${id}-p`, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] });
+    const original: StaffBuilderScoreV1 = { ...base(), measures: [
+      { id: "m1", events: [note("m1-note", "treble", 480, "quarter")] },
+      { id: "m2", timeSignatureChange: "6/8", events: [note("m2-note", "treble", 720, "dotted-quarter")] },
+    ] };
+    const result = fillAllStaffBuilderGapsWithRests(original, [
+      { measureIndex: 0, staff: "treble", startTick: 0, endTick: 480 },
+      { measureIndex: 0, staff: "treble", startTick: 960, endTick: 1920 },
+      { measureIndex: 0, staff: "bass", startTick: 0, endTick: 1920 },
+      { measureIndex: 1, staff: "treble", startTick: 0, endTick: 720 },
+      { measureIndex: 1, staff: "bass", startTick: 0, endTick: 1440 },
+    ], factories());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.score.updatedAt).toBe("2026-01-02T00:00:00.000Z");
+    expect(result.score.measures[0]?.events.filter(({ kind }) => kind === "rest").map(({ staff, startTick, rhythm }) => ({ staff, startTick, duration: rhythm.status === "final" ? rhythm.duration : null }))).toEqual([
+      { staff: "treble", startTick: 0, duration: "quarter" },
+      { staff: "treble", startTick: 960, duration: "quarter" },
+      { staff: "treble", startTick: 1440, duration: "quarter" },
+      { staff: "bass", startTick: 0, duration: "whole" },
+    ]);
+    expect(result.score.measures[1]?.events.filter(({ kind }) => kind === "rest").map(({ staff, rhythm }) => ({ staff, duration: rhythm.status === "final" ? rhythm.duration : null }))).toEqual([
+      { staff: "treble", duration: "dotted-quarter" },
+      { staff: "bass", duration: "dotted-half" },
+    ]);
+    expect(original.measures.flatMap(({ events }) => events).some(({ kind }) => kind === "rest")).toBe(false);
+  });
+
+  it("rejects stale bulk gaps before generating IDs or partially changing the score", () => {
+    let created = 0;
+    const original = { ...base(), measures: [{ id: "m1", events: [] }] };
+    const result = fillAllStaffBuilderGapsWithRests(original, [
+      { measureIndex: 0, staff: "treble", startTick: 0, endTick: 1920 },
+      { measureIndex: 0, staff: "bass", startTick: 0, endTick: 960 },
+    ], { createId: () => `id-${++created}`, now: () => "changed" });
+    expect(result).toEqual({ ok: false, error: "stale-correction", score: original });
+    expect(result.score).toBe(original);
+    expect(created).toBe(0);
   });
 
   it("creates and removes explicit partial chord ties", () => {

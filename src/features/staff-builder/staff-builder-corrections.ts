@@ -1,10 +1,11 @@
 import { getMusicKeyDefinition, type MusicKeyId } from "@/lib/music/keys";
 import { resolveStaffBuilderMeasureContext, type StaffBuilderFactories } from "./staff-builder-score";
-import { durationToTicks, getMeasureCapacityTicks, STAFF_BUILDER_DURATIONS, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "./staff-builder-time";
+import { durationToTicks, getMeasureCapacityTicks, STAFF_BUILDER_DURATIONS, STAFF_BUILDER_TICKS_PER_QUARTER, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "./staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff, StaffBuilderTie } from "./staff-builder-types";
 
-export type StaffBuilderCorrectionError = "event-missing" | "pitch-missing" | "invalid-timing" | "conflict" | "tie-conflict" | "incompatible-pitch" | "unsupported-span";
+export type StaffBuilderCorrectionError = "event-missing" | "pitch-missing" | "invalid-timing" | "conflict" | "tie-conflict" | "incompatible-pitch" | "unsupported-span" | "stale-correction";
 export type StaffBuilderCorrectionResult = Readonly<{ ok: true; score: StaffBuilderScoreV1 }> | Readonly<{ ok: false; error: StaffBuilderCorrectionError; score: StaffBuilderScoreV1 }>;
+export type StaffBuilderGapCorrectionTarget = Readonly<{ measureIndex: number; staff: StaffBuilderStaff; startTick: number; endTick: number }>;
 
 const defaultFactories: StaffBuilderFactories = { createId: () => crypto.randomUUID(), now: () => new Date().toISOString() };
 const ORDERED_DURATIONS = [...STAFF_BUILDER_DURATIONS].sort((a, b) => durationToTicks(b) - durationToTicks(a) || a.localeCompare(b));
@@ -70,6 +71,59 @@ export function fillStaffBuilderGapWithRests(score: StaffBuilderScoreV1, options
   const factories = options.factories ?? defaultFactories;
   const rests: StaffBuilderEvent[] = pieces.map(({ startTick, duration }) => ({ id: factories.createId(), kind: "rest", staff: options.staff, startTick, rhythm: { status: "final", duration } }));
   return { ok: true, score: update(score, factories, { measures: score.measures.map((item, index) => index === options.measureIndex ? { ...item, events: [...item.events, ...rests] } : item) }) };
+}
+
+function getSafeStaffGaps(score: StaffBuilderScoreV1, measureIndex: number, staff: StaffBuilderStaff): readonly Readonly<{ startTick: number; endTick: number }>[] | null {
+  const measure = score.measures[measureIndex];
+  if (!measure) return null;
+  const capacity = resolveStaffBuilderMeasureContext(score, measureIndex).capacityTicks;
+  const events = measure.events.filter((event) => event.staff === staff).sort((left, right) => left.startTick - right.startTick || left.id.localeCompare(right.id));
+  if (events.some((event, index) => event.rhythm.status !== "final"
+    || event.startTick % (STAFF_BUILDER_TICKS_PER_QUARTER / 4) !== 0
+    || event.startTick >= capacity
+    || event.startTick + durationToTicks(event.rhythm.duration) > capacity
+    || (index > 0 && events[index - 1]?.startTick === event.startTick))) return null;
+  const gaps: Array<{ startTick: number; endTick: number }> = [];
+  let occupiedUntil = 0;
+  for (const event of events) {
+    if (event.rhythm.status !== "final" || event.startTick < occupiedUntil) return null;
+    if (event.startTick > occupiedUntil) gaps.push({ startTick: occupiedUntil, endTick: event.startTick });
+    occupiedUntil = event.startTick + durationToTicks(event.rhythm.duration);
+  }
+  if (occupiedUntil < capacity) gaps.push({ startTick: occupiedUntil, endTick: capacity });
+  return gaps;
+}
+
+export function fillAllStaffBuilderGapsWithRests(score: StaffBuilderScoreV1, gaps: readonly StaffBuilderGapCorrectionTarget[], factories: StaffBuilderFactories = defaultFactories): StaffBuilderCorrectionResult {
+  if (gaps.length === 0) return { ok: false, error: "unsupported-span", score };
+  const seen = new Set<string>();
+  const planned: Array<Readonly<{ measureIndex: number; staff: StaffBuilderStaff; startTick: number; duration: StaffBuilderDuration }>> = [];
+  for (const gap of gaps) {
+    const key = `${gap.measureIndex}:${gap.staff}:${gap.startTick}:${gap.endTick}`;
+    if (seen.has(key)) return { ok: false, error: "stale-correction", score };
+    seen.add(key);
+    const context = score.measures[gap.measureIndex] ? resolveStaffBuilderMeasureContext(score, gap.measureIndex) : null;
+    const safeGaps = getSafeStaffGaps(score, gap.measureIndex, gap.staff);
+    if (!context || !safeGaps?.some((candidate) => candidate.startTick === gap.startTick && candidate.endTick === gap.endTick)) {
+      return { ok: false, error: "stale-correction", score };
+    }
+    const pieces = decomposeStaffBuilderGap(context.timeSignature, context.capacityTicks, gap.startTick, gap.endTick);
+    if (!pieces) return { ok: false, error: "unsupported-span", score };
+    planned.push(...pieces.map((piece) => ({ measureIndex: gap.measureIndex, staff: gap.staff, ...piece })));
+  }
+  const restsByMeasure = new Map<number, StaffBuilderEvent[]>();
+  for (const piece of planned) {
+    const rests = restsByMeasure.get(piece.measureIndex) ?? [];
+    rests.push({ id: factories.createId(), kind: "rest", staff: piece.staff, startTick: piece.startTick, rhythm: { status: "final", duration: piece.duration } });
+    restsByMeasure.set(piece.measureIndex, rests);
+  }
+  return {
+    ok: true,
+    score: update(score, factories, { measures: score.measures.map((measure, measureIndex) => {
+      const rests = restsByMeasure.get(measureIndex);
+      return rests ? { ...measure, events: [...measure.events, ...rests] } : measure;
+    }) }),
+  };
 }
 
 export function removeStaffBuilderTie(score: StaffBuilderScoreV1, tieId: string, factories: Pick<StaffBuilderFactories, "now"> = defaultFactories): StaffBuilderCorrectionResult {
