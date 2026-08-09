@@ -9,6 +9,5 @@ A place to quickly capture ideas without interrupting development.
 - AI Coach
 - Chord Identification
 - Interval Drills
-- Ear Training
 - Daily Challenge
 - Heatmap of missed notes

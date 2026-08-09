@@ -223,7 +223,7 @@ Prelude should teach the concept behind the music, not only require correct note
 
 Students and teachers should be able to create targeted practice material without needing professional notation software.
 
-The planned Lesson Builder will use MIDI step recording.
+Staff Builder now provides the first practical transcription and practice-material creation workflow through MIDI and virtual-keyboard capture, direct score editing, validation, playback, and local projects.
 
 A user may:
 
@@ -242,7 +242,7 @@ This workflow should support:
 - song excerpts
 - original musical ideas
 
-Lesson data should also be importable and exportable in structured formats so lessons can be generated, shared, and edited in multiple ways.
+Future Lesson Builder work should connect that score foundation to Guided Lesson consumption, teacher assignments, sharing, and structured import/export. A Staff Builder project is not yet a Guided Lesson.
 
 ---
 

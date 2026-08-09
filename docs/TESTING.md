@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** v2.0 Release Suite
-> **Current milestone:** v2.0 Practice Platform
-> **Last updated:** August 2026
+> **Status:** Post-v2.3 Staff Builder checkpoint (unreleased)
+> **Latest release:** v2.3.0 — Melodic Interval Ear Training
+> **Last updated:** August 9, 2026
 
 ## Purpose
 
@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 48 passed
-- Tests: 502 passed
+- Test files: 90 passed
+- Tests: 909 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -324,7 +324,23 @@ Automated coverage includes:
 - top-level mode switching and Focus Staff suppression
 - Ear Training Mobile Play state preservation and accessible status/answer names
 
-## Intentionally Not Tested for v2.0
+### Block 12 — Staff Builder
+
+Automated coverage includes:
+
+- score-domain invariants, measure context, meter capacity, notes, chords, rests, and ties
+- Capture Notes routing, rhythmic cursor movement, pending input, replacement, and rest insertion
+- Rhythm Correction selection, duration, event type, staff, spelling, ties, deletion, and score history
+- validation, guided corrections, draft persistence, validated Save, and local project recovery
+- deterministic event, measure, position, and piece playback, including silence and partial chords
+- playback-follow measure display and sliding highlight without editor-state mutation
+- renderer projection and public event, position, playback, and notation-control anchors
+- deterministic pointer ownership, tap-versus-drag behavior, and responsive interaction geometry
+- Duration, Key, and Time radial controls and their opening-gesture guard
+- mobile virtual-keyboard lifecycle, safe-area presentation, and responsive state preservation
+- accessible score semantics, direct notation controls, disclosures, and workspace integration
+
+## Intentionally Not Deeply Tested
 
 The initial suite should not deeply test:
 
@@ -343,7 +359,7 @@ These areas are better served by build checks, focused manual verification, or l
 
 ## Release Verification
 
-Before the v2.0.0 release, run:
+Before declaring a release or implementation checkpoint complete, run:
 
 ```bash
 pnpm verify
@@ -389,6 +405,14 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - ascending and descending prompt timing and pitch quality across C4–C6
 - rapid Replay replacement, mode switching, reset, and settings changes during playback
 - Ear Training answer-grid touch targets, keyboard focus, and screen-reader announcements
+- Staff Builder physical MIDI capture and same-position replacement in treble, bass, and grand routing
+- Staff Builder on Chromebook mouse and touch, including direct notation targets and tap-versus-swipe behavior
+- Android portrait and landscape layout, folded/unfolded devices where available, and the mobile keyboard sheet
+- radial Duration, Key, and Time control reachability, touch ergonomics, focus return, and edge clamping
+- direct event, rhythmic-position, clef/brace, key, and time taps at responsive score scales
+- audition, measure, from-here, and piece playback, Stop, and the sliding playback highlight
+- rests, ties, partial chords, trailing silence, key/time changes, Undo/Redo, and guided validation corrections
+- local project close/reopen, draft recovery, validated Save, and installed-PWA behavior
 
 This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issues found during normal use may be recorded through the project's bug-log workflow.
 

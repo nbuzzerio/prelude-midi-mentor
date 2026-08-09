@@ -62,6 +62,15 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Prompt-oriented feedback, streaks, accuracy, and response-time statistics
 - Focus Staff exclusion and a dedicated Mobile Play answer layout
 
+### Staff Builder (Post-v2.3 Development)
+
+- Beginner-friendly sheet-music transcription and practice-material building
+- MIDI and virtual-keyboard capture on a multi-measure grand staff
+- Direct notation editing for rhythm, rests, ties, key, time, and staff routing
+- Deterministic event, measure, position, and piece playback
+- Local project persistence with draft autosave and validated Save
+- Responsive desktop, Chromebook, and mobile interaction
+
 ### Real-Time Input and Feedback
 
 - Physical MIDI keyboard support
@@ -120,7 +129,7 @@ The goal is to connect three ideas:
 
 ## How It Works
 
-Prelude currently provides four complementary practice modes:
+Prelude currently provides five complementary top-level modes:
 
 ```text
 Flashcards
@@ -134,11 +143,16 @@ Free Play
 
 Ear Training
     └── Identify ascending and descending melodic intervals by sound
+
+Staff Builder
+    |-- Transcribe and edit practice material directly on a score
 ```
 
 Flashcards and Sequences generate musical targets, render them using standard notation, validate MIDI or virtual-piano input, and provide immediate feedback.
 
 Free Play removes the target and grading layers. Physical MIDI and virtual-piano notes share the same live held-note state and key-aware spelling pipeline before appearing on a persistent grand staff. Players can use No Key or one of the supported major and minor keys, choose a chromatic spelling preference, and change notation settings without clearing or replaying held notes.
+
+Staff Builder is a separate learning-focused score editor. It combines beginner-oriented capture, direct score correction, validation, deterministic playback, and local projects without turning Prelude into a professional notation editor or a Guided Lesson engine.
 
 Shared MIDI, notation, keyboard, audio, interval-domain, and musical-event playback systems keep the experience consistent while each mode retains its own state machine.
 
@@ -239,6 +253,7 @@ Prelude's automated suite covers:
 - focused session orchestration
 - shared Mobile Play browser lifecycle, Focus Staff coordination, state preservation, and mode-specific presentation
 - Ear Training target generation, prompt scheduling, grading, and session statistics
+- Staff Builder score invariants, capture, correction, validation, persistence, playback, interaction geometry, radial controls, and responsive presentation
 
 Mobile Play preserves each mode's input contract: Flashcards and Sequences retain graded toggle input, while Free Play alone adds momentary multitouch press/release input. Mobile Play and Focus Staff are mutually exclusive. Fullscreen and landscape lock are enhancements rather than requirements; if fullscreen exits externally, the Mobile Play layout remains active until the user exits it.
 
@@ -317,6 +332,8 @@ src/
 - **lib/** — Reusable audio, music, practice, MIDI, and platform logic that is independent of React.
 - **types/** — Shared TypeScript models used throughout the application.
 
+Current top-level feature domains under `features/` are `ear-training`, `flashcards`, `freeplay`, `sequences`, and `staff-builder`. Staff Builder keeps its score domain, editor orchestration, rendering projection, playback projection, persistence, and focused UI components together within that feature boundary.
+
 For a more detailed technical explanation, see
 [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
@@ -324,16 +341,17 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Prelude's v2.0 practice foundation is feature-complete.
+Prelude's latest release is **v2.3.0 — Melodic Interval Ear Training**.
 
-The application now supports four complementary practice modes:
+The application now supports five complementary top-level modes:
 
 - Flashcards for isolated notes and triads
 - Sequences for intervals, scales, arpeggios, and chord progressions
 - Free Play for live grand-staff notation without grading
 - Ear Training for melodic interval identification by sound
+- Staff Builder for beginner-friendly score transcription and editing
 
-Melodic-interval Ear Training is implemented. Focused manual QA and release finalization remain before this milestone is complete. Staff Builder is the next major capability after this milestone is finalized, followed by v3.0 QA and the later UI/UX overhaul.
+Staff Builder is complete at the current post-v2.3 development checkpoint but remains unreleased. Feature development is paused for combined Chromebook, phone, and physical-MIDI manual QA; release scope and version will be decided afterward.
 
 See [`ROADMAP.md`](./docs/ROADMAP.md) for completed milestones and future development areas.
 
@@ -375,13 +393,9 @@ Planned areas include:
 
 ### Lesson Creation
 
-A future MIDI step recorder will allow students and teachers to create exercises by:
+Staff Builder now supplies the practical score-transcription foundation: users can select rhythmic positions, capture MIDI or virtual-keyboard notes, correct rhythm and rests, preview playback, and save local projects.
 
-1. Selecting a rhythmic position
-2. Playing notes through MIDI
-3. Assigning a duration
-4. Previewing the result
-5. Saving or exporting the lesson
+Future Lesson Builder work will build on that foundation with Guided Lesson integration, teacher workflows, sharing, structured interchange, and lesson consumption. Staff Builder projects are not currently Guided Lessons.
 
 ### Creative Exploration
 
@@ -407,6 +421,8 @@ Prelude uses separate practice models for isolated and ordered exercises.
 `SequenceTarget` represents ordered musical material such as intervals, scales, arpeggios, and chord progressions.
 
 Free Play bypasses target generation and grading. It preserves held MIDI pitches, applies Free Play-owned key and chromatic-spelling context, and supplies explicitly spelled notes to the shared grand-staff renderer.
+
+Staff Builder owns an application-level score model independent of VexFlow. Capture Notes and Rhythm Correction are separate workflows over that score; VexFlow remains decorative while React-owned controls use public renderer geometry for direct interaction. Deterministic score playback reuses the shared musical-event player.
 
 These modes share lower-level systems for MIDI input, virtual-piano interaction, music notation, audio playback, and musical note models while keeping their session behavior independent.
 

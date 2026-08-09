@@ -820,6 +820,78 @@ Ear Training needs reliable two-note prompt replay now, while Staff Builder will
 
 ---
 
+# 2026-08 — Staff Builder Is a Learning-Focused Score Editor
+
+## Decision
+
+Staff Builder prioritizes beginner transcription and creation of practice material rather than professional engraving or general-purpose composition. The visible score is the primary editing surface where practical, while complete explicit controls remain available as fallbacks.
+
+## Reason
+
+Prelude's purpose is transferable musicianship. A constrained score editor can keep first-week learners close to notation without importing the complexity and expectations of professional notation software or prematurely defining Guided Lessons.
+
+## Consequences
+
+- Beginner defaults and learner-facing corrections take priority over exposing every engine capability immediately.
+- Staff Builder projects remain distinct from future Guided Lessons and teacher assignments.
+- Advanced correction capabilities remain available without dominating the main workspace.
+
+---
+
+# 2026-08 — Staff Builder Owns Score Data Independently of VexFlow
+
+## Decision
+
+Measures, events, staves, rhythm, ties, tempo, and measure context are application-owned domain data. VexFlow renders decorative notation and returns public render geometry; React owns semantic interaction overlays.
+
+## Reason
+
+Musical meaning must remain stable across rendering, validation, persistence, playback, responsive presentation, and future lesson integration. Depending on VexFlow SVG nodes or private renderer state would couple core behavior to an implementation detail.
+
+## Consequences
+
+- Renderer anchors are transient and never enter score history or persistence.
+- Direct score interaction uses public geometry rather than querying SVG DOM.
+- Rendering can evolve without redefining the score schema or editor ownership.
+
+---
+
+# 2026-08 — Capture Notes and Rhythm Correction Are Separate Workflows Over One Score
+
+## Decision
+
+Capture Notes optimizes transcription and rhythmic cursor movement; Rhythm Correction edits selected authoritative events. Both operate on one score but retain separate interaction state and responsibilities.
+
+## Reason
+
+Pitch entry and detailed correction have different beginner workflows. Combining them into one state machine would obscure intent and make direct score editing harder to reason about.
+
+## Consequences
+
+- Capture owns pending pitches, routing, Step Duration, cursor navigation, and lock/rest entry.
+- Rhythm owns event selection and explicit duration, event-type, staff, spelling, tie, and deletion operations.
+- Capture mutations may invalidate stale Rhythm history; history is not a universal command log.
+
+---
+
+# 2026-08 — Draft Autosave and Validated Save Have Different Meanings
+
+## Decision
+
+Staff Builder continuously preserves recoverable draft work locally, while the explicit Save action represents a score that has passed structural validation.
+
+## Reason
+
+Learners should not lose incomplete work, but an incomplete draft should not be presented as ready practice material. One save concept cannot communicate both guarantees clearly.
+
+## Consequences
+
+- Draft persistence may contain unresolved issues and editor position.
+- Validated Save remains gated by score validation and guided correction.
+- Both meanings use the existing local persistence boundary; no cloud or lesson-sharing model is implied.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:

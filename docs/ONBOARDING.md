@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Version:** 2.0
-> **Last Updated:** August 2026
-> **Current Milestone:** v2.0 Practice Platform
+> **Latest Release:** v2.3.0 — Melodic Interval Ear Training
+> **Last Updated:** August 9, 2026
+> **Current Milestone:** Post-v2.3 Staff Builder stabilization (unreleased)
 
 ---
 
@@ -60,7 +60,7 @@ Features should never exist simply because they are technically interesting—th
 
 ---
 
-# v2.0 Goal
+# Practice Platform Foundation
 
 The current milestone completes Prelude's foundational practice platform before work begins on more advanced musicianship and guided-learning systems.
 
@@ -157,6 +157,16 @@ Completed features include:
 - Automated deployment
 - Production hosting on DigitalOcean
 
+## Staff Builder
+
+- Application-owned multi-measure grand-staff score model
+- MIDI and virtual-keyboard Capture Notes with rhythmic positioning and staff routing
+- Direct duration, rest, tie, spelling, staff, key, and time correction
+- Validation with guided corrections and learner-facing issue text
+- Local project library, draft autosave, and distinct validated Save
+- Deterministic event, measure, position, and piece playback with playback-follow visualization
+- Direct notation interaction, radial controls, responsive score scaling, and a mobile keyboard bottom sheet
+
 ## Quality
 
 - Vitest test runner
@@ -172,21 +182,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's current practice foundation includes Flashcards, Sequences, Chord Progressions, key-aware Free Play, shared Mobile Play, and melodic-interval Ear Training.
+Prelude's latest release is v2.3.0. Staff Builder has since reached a completed implementation checkpoint at `92cf7e5` but remains post-v2.3, unreleased development.
 
-The Ear Training MVP is implemented and awaiting final manual verification and release finalization. Staff Builder is the next major capability planned before v3.0 QA and the later UI/UX overhaul. Future work should continue according to [`ROADMAP.md`](./ROADMAP.md).
+Feature development is paused for vacation. On return, perform combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, playback, and persistence QA; fix only confirmed stabilization defects; then decide release scope and version before selecting another feature milestone.
 
-Mobile Play is presentation and browser lifecycle, not a shared practice state machine. `useMobilePlay` owns best-effort fullscreen/orientation handling; feature sessions retain their targets and settings. Flashcards and Sequences keep graded toggle input, while Free Play alone uses momentary multitouch callbacks. Current staff enlargement is transform-based and mode-specific; container-measured responsive VexFlow sizing is intentionally deferred.
+Staff Builder owns its score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, local persistence/library, notation projection, and playback projection. Capture and Rhythm are separate workflows over one authoritative score. VexFlow remains decorative; React owns accessible interaction through public renderer geometry. Score playback reuses the shared musical-event scheduler, while playback-follow presentation never mutates editor cursor or selection.
 
-Ear Training owns a stable aural target, explicit prompt/replay state, interval-button grading, and session statistics. Shared interval facts live in `lib/music/intervals.ts`. Ordered sound uses the React-independent `lib/audio/musical-event-player.ts`, which schedules cancellable note/chord events by offsets and durations. This boundary prepares deterministic playback reuse for Staff Builder without implementing Staff Builder, measures, tempo, looping, or transport UI.
-
-Likely next areas include:
-
-- quality-of-life and accessibility improvements
-- richer session analytics
-- improved touch interaction
-- combined ascending and descending sequence practice
-- ear-training, rhythm, and guided-lesson systems
+The August 9, 2026 verification checkpoint is 90 passing test files and 909 passing tests, with `pnpm verify` and the production build passing.
 
 ---
 

@@ -8,7 +8,7 @@
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides Flashcards, Sequences, and Free Play supporting:
+The current application provides five top-level modes: Flashcards, Sequences, Free Play, Ear Training, and Staff Builder. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals
@@ -30,7 +30,7 @@ The current application provides Flashcards, Sequences, and Free Play supporting
 - Live ungraded MIDI and virtual-keyboard notation on a persistent grand staff
 - Free Play key signatures and key-aware enharmonic spelling
 
-Prelude is currently a frontend-only application built with React and Vite. Ear Training adds melodic interval identification without reusing the notation-first Flashcard or performed-step Sequence state machines.
+Prelude is currently a frontend-only application built with React and Vite. Ear Training owns melodic interval identification without reusing notation-first practice state machines. Staff Builder owns a separate score-editing domain while reusing shared MIDI, audio, and music primitives.
 
 ---
 
@@ -344,7 +344,7 @@ Prelude keeps musical data separate from notation rendering.
 
 `src/lib/audio/musical-event-player.ts` is a React-independent scheduling boundary over cancellable grand-piano playback. A stable ordered event collection supplies MIDI notes, start offsets, and durations. One event may contain simultaneous notes. The player supports immediate zero-offset events, pending and active cancellation, replacement, completion, stale-callback protection, and non-throwing browser playback failure.
 
-Ear Training translates each two-note target into two events. The boundary is intentionally small enough for current prompts while being reusable by the later Staff Builder for deterministic score playback. It does not define measures, beats, tempo, looping, notation, lessons, or transport UI.
+Ear Training translates each two-note target into two events. Staff Builder projects its score into the same boundary for deterministic playback while retaining measures, beats, tempo, notation, editor state, and transport UI inside its feature domain.
 
 ```text
 PracticeTarget / SequenceTarget / Held Notes
@@ -434,6 +434,77 @@ Each session derives the effective layout state as `isMobilePlayMode && !isFocus
 Flashcards and Sequences continue to supply only `onNoteToggle` to `PianoKeyboard`. Free Play supplies toggle input plus momentary `onNotePress` and `onNoteRelease` callbacks for multitouch and clears momentary pointer notes on Mobile Play exit without affecting physical MIDI notes.
 
 `MusicStaff` applies transform-based Mobile Play scaling by mode because the grand staff, flashcard staff, and sequence staff have different rendered proportions. These transforms are scoped to active staff instances. Container-measured responsive VexFlow sizing is deferred to the later UI/UX overhaul.
+
+---
+
+# Staff Builder
+
+Staff Builder is a feature-owned, learning-focused score editor. It creates local practice material without turning Prelude into a professional notation editor or merging score authoring with the future Guided Lesson engine.
+
+## Ownership Boundaries
+
+The Staff Builder feature separates durable responsibilities:
+
+- the score domain owns measures, events, staves, rhythm, pitches, rests, ties, tempo, and measure context;
+- editor orchestration coordinates Capture Notes, Rhythm Correction, validation, history, and persistence;
+- Capture Notes owns beginner transcription state, pending pitches, routing, cursor movement, and lock/rest operations;
+- Rhythm Correction owns authoritative event selection and explicit correction operations;
+- validation identifies structural issues while correction functions apply immutable score changes;
+- persistence owns the local project library, schema validation, recovery, draft state, and validated saves;
+- playback projects score data into shared musical events;
+- notation rendering returns decorative output and public interaction geometry.
+
+These boundaries live inside `src/features/staff-builder`; they do not turn Flashcards, Sequences, Free Play, Ear Training, or future Guided Lessons into one state machine.
+
+## Application-Owned Score Model
+
+Staff Builder score data is independent of VexFlow. Measures contain authoritative note/chord/rest events with staff, onset, and rhythm. Notes retain explicitly spelled pitches, ties are explicit score relationships, and effective key/time context is resolved from initial settings and measure overrides. Tempo and variable measure capacities remain score-domain facts.
+
+The persistence schema validates stored data at the browser-storage boundary. Renderer geometry and transient UI state are never persisted as musical score data.
+
+## Capture Notes and Rhythm Correction
+
+Capture Notes and Rhythm Correction are separate workflows over one score.
+
+Capture Notes is optimized for first-week transcription: MIDI or virtual-keyboard pitches are previewed, routed to grand/treble/bass input, and committed at a rhythmic cursor. Newly captured notes retain the beginner default of final quarter-note duration. Step Duration controls cursor advancement and the exact duration of an intentionally inserted rest.
+
+Rhythm Correction selects authoritative events and supports duration changes, note/rest conversion, staff reassignment, spelling, ties, and deletion. It retains detailed explicit controls as a fallback even when the same operation is available directly from the score.
+
+History is score history, not a universal command log. Rhythm and context mutations record reversible score snapshots. Capture score mutations intentionally clear stale Rhythm history when replaying it would conflict with the newly captured score.
+
+## Rendering and Direct Score Interaction
+
+VexFlow renders decorative notation. Its SVG remains hidden from assistive technology and is not queried for editor behavior. The Staff Builder renderer instead returns public render-only geometry for rendered and authoritative events, rhythmic timeline positions, and notation controls covering the clefs, grand-staff region, key signature, and time signature. Playback-follow geometry is derived from the public rhythmic-position geometry rather than a separate renderer-owned playback-anchor family.
+
+React owns semantic controls, focus, hover, highlights, hit testing, and pointer orchestration. Cross-domain pointer ownership is deterministic:
+
+1. original notation-control geometry;
+2. actual authoritative event geometry;
+3. expanded notation touch geometry;
+4. expanded event touch geometry;
+5. Capture position.
+
+Meaningful pointer movement or cancellation suppresses activation so notation controls and score events do not convert a swipe into an edit.
+
+## Radial Controls
+
+Duration, Key, and Time wheels are specialized Staff Builder components sharing narrow local helpers for ring placement, anchor conversion, and viewport clamping. Duration retains event-type conversion behavior while Key and Time remain mutually exclusive context selectors.
+
+A pointer gesture that opens any radial wheel cannot activate a newly mounted choice. The wheel arms only after a subsequent pointer gesture; keyboard users can operate it immediately, and Escape returns focus to the opening score control.
+
+## Staff Builder Playback and Follow Visualization
+
+Staff Builder projects score events into the shared React-independent musical-event player. The projection accounts for rests, trailing silence, ties, partial chords, playback scopes, tempo, and variable measure capacities. Staff Builder does not introduce a second audio scheduler.
+
+The playback scheduler exposes its authoritative time origin. Staff Builder samples that clock to display the current measure and a sliding score highlight. Visualization does not schedule audio, and playback-follow measure display is ephemeral: it does not move the Capture cursor or Rhythm selection.
+
+## Persistence, Validation, and Save
+
+Staff Builder remains frontend-only. Draft autosave continuously preserves work and editor position in local browser storage. Validated Save has a distinct product meaning: the score has passed structural validation and is ready for later playback or use. Guided correction mode provides learner-facing fixes such as exact overflow durations and atomic gap filling without conflating validation with input collection.
+
+## Responsive Presentation
+
+Responsive score scaling, compact controls, and the mobile virtual-keyboard bottom sheet are presentations over the same authoritative editor state. Exactly one virtual-keyboard presentation is active at a time. Safe-area and viewport handling belong to the presentation layer; they do not create a mobile-specific score or Capture state machine.
 
 ---
 

@@ -76,3 +76,55 @@ A high-level record of significant milestones in Prelude's development.
 - Added sequence validation and statistics tests.
 - Added tests for all Sequence Mode hooks.
 - Expanded the automated suite to 223 passing tests across 18 test files.
+
+---
+
+## v2.0.0
+
+### Practice Platform
+
+- Expanded Sequence Mode beyond melodic intervals with major and minor scales and arpeggio exercises.
+- Added seventh-arpeggio practice and related Sequence settings improvements.
+- Added the initial ungraded Free Play mode on an interactive grand staff.
+
+---
+
+## v2.1.0
+
+### Chord Progressions
+
+- Added playable chord progressions to Sequence Mode.
+- Added curated Roman-numeral progression templates and deterministic triad realization.
+- Added physical MIDI and persistent virtual-keyboard chord input with progression-focused practice controls.
+
+---
+
+## v2.2.0
+
+### Key-Aware Free Play
+
+- Added supported major and minor key contexts and visible key signatures to Free Play.
+- Added key-aware diatonic spelling with Automatic, Prefer sharps, and Prefer flats chromatic controls.
+- Added live respelling of held notes when notation settings change without clearing or replaying them.
+
+---
+
+## v2.3.0
+
+### Melodic Interval Ear Training
+
+- Released ascending and descending melodic interval identification.
+- Added stable prompt/replay behavior, interval-name grading, session statistics, and mobile presentation.
+
+---
+
+## Post-v2.3 Development (Unreleased)
+
+### Staff Builder Foundation
+
+- Added a learning-focused multi-measure score editor with MIDI and virtual-keyboard Capture Notes.
+- Added direct score correction for rhythm, rests, ties, spelling, staff routing, key, and meter.
+- Added score validation, guided corrections, score history, local project persistence, and distinct draft/validated saves.
+- Added deterministic score playback and playback-follow visualization through the shared musical-event player.
+- Added score-first notation controls, specialized radial controls, deterministic interaction geometry, and responsive mobile workflows.
+- Completed the August 9, 2026 implementation checkpoint at `92cf7e5`; physical-device and responsive manual QA remains before any release decision.

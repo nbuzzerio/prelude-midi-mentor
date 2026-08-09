@@ -1,6 +1,8 @@
 # Prelude: MIDI Mentor — ROADMAP
 
 > This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
+>
+> **Current checkpoint:** August 9, 2026 — Staff Builder foundation complete in post-v2.3 development; manual device QA and any release decision remain pending.
 
 ---
 
@@ -160,7 +162,47 @@ Future Free Play ideas such as chord analysis, phrase history, last-measure disp
 
 ## Current Direction
 
-Chord Progressions, Free Play, shared Mobile Play, and melodic-interval Ear Training are complete. Staff Builder is the next major capability, followed by v3.0 QA and the later UI/UX overhaul. Remaining unchecked Harmony, Musicianship, Lesson, Playback, and Composer items continue to describe future possibilities rather than a strict delivery order.
+Chord Progressions, key-aware Free Play, shared Mobile Play, melodic-interval Ear Training, and the post-v2.3 Staff Builder foundation are complete. Feature development is intentionally paused for vacation. On return:
+
+1. Perform combined physical-MIDI, Chromebook touch/mouse, Android portrait/landscape, responsive, playback, and persistence QA.
+2. Fix only defects confirmed by that stabilization pass.
+3. Decide release scope and version after QA; no post-v2.3 release number is selected yet.
+4. Select the next feature milestone only after the checkpoint is stable.
+
+Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
+
+---
+
+# ✅ Post-v2.3 — Staff Builder Foundation (Completed, Unreleased)
+
+Staff Builder provides a beginner-focused transcription and practice-material workflow. It is current post-v2.3 development and is not part of the v2.3.0 release.
+
+## Score and Editing Foundation
+
+- [x] Application-owned multi-measure grand-staff score model
+- [x] Notes, chords, rests, durations, ties, tempo, key signatures, and time signatures
+- [x] MIDI and virtual-keyboard Capture Notes with grand, treble, and bass routing
+- [x] Rhythmic cursor positioning and direct measure navigation
+- [x] Duration editing, rest insertion, staff reassignment, spelling, ties, and deletion
+- [x] Score-history Undo and Redo
+
+## Validation, Projects, and Playback
+
+- [x] Score validation with guided learner-facing corrections
+- [x] Draft autosave and distinct validated Save
+- [x] Local project library and persistence
+- [x] Event, measure, position, and piece playback with Stop
+- [x] Deterministic score projection through shared musical-event playback
+- [x] Playback-follow measure display and sliding score highlight
+
+## Score-First and Mobile UX
+
+- [x] Direct event, rhythmic-position, clef/brace, key, and time interaction
+- [x] Specialized duration, key, and time radial controls
+- [x] Deterministic pointer ownership and tap-versus-drag protection
+- [x] Responsive score scaling and touch-compensated interaction
+- [x] Safe-area-aware mobile virtual-keyboard bottom sheet with one active presentation
+- [x] Collapsed technical and advanced fallback controls
 
 ---
 
@@ -249,24 +291,28 @@ Move from isolated flashcards to structured lessons.
 
 # ✏️ Phase 6 — Lesson Builder
 
-Allow users to create their own practice material.
+Build lesson authoring, sharing, and consumption on top of the completed Staff Builder score foundation. A Staff Builder project is not yet a Guided Lesson.
 
 ## MIDI Step Recorder
 
-- [ ] Measure editor
-- [ ] Beat/grid editor
-- [ ] Step recording using MIDI
-- [ ] Duration editing
-- [ ] Rest insertion
-- [ ] Playback preview
+- [x] Measure editor foundation
+- [x] Beat/grid positioning foundation
+- [x] Step-style MIDI/VKB capture foundation
+- [x] Duration editing
+- [x] Rest insertion
+- [x] Playback preview
 
 ## Lesson Editing
 
-- [ ] Edit existing lessons
+- [x] Edit existing local Staff Builder projects
 - [ ] Duplicate measures
 - [ ] Copy/Paste measures
 - [ ] JSON import/export
-- [ ] Local lesson library
+- [x] Local Staff Builder project library
+- [ ] Guided Lesson data-model integration
+- [ ] Teacher assignment workflow
+- [ ] Lesson sharing and consumption
+- [ ] Structured external interchange and export
 
 ---
 
