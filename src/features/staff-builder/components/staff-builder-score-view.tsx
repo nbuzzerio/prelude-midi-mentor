@@ -8,6 +8,7 @@ import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDu
 import type { StaffBuilderIssue } from "../staff-builder-validation";
 import { StaffBuilderDurationWheel } from "./staff-builder-duration-wheel";
 import { getStaffBuilderInternalTouchSize, getStaffBuilderPresentationScale, resolveStaffBuilderPositionTick, staffBuilderClientPointToInternal, type StaffBuilderInternalPoint } from "./staff-builder-interaction-geometry";
+import { resolveStaffBuilderPlaybackGeometry } from "./staff-builder-playback-geometry";
 import { StaffBuilderStaffModeSelector } from "./staff-builder-staff-mode-selector";
 
 type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: number }>;
@@ -30,11 +31,12 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, selectedEventId, issue, inputMode = "grand", staffModeDisabled = true, onInputModeChange, onEventSelect, onPositionSelect, onAssignDuration, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, issue, inputMode = "grand", staffModeDisabled = true, onInputModeChange, onEventSelect, onPositionSelect, onAssignDuration, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
   pendingPreview?: StaffBuilderPendingCapture;
+  playbackPosition?: Readonly<{ offsetTicks: number }>;
   selectedEventId?: string;
   issue?: StaffBuilderIssue | null;
   inputMode?: StaffBuilderCaptureInputMode;
@@ -102,6 +104,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     .filter((target): target is typeof target & { event: StaffBuilderEvent } => target.event !== undefined);
   const selectedEvent = score.measures[measureIndex]?.events.find(({ id }) => id === selectedEventId);
   const durationAnchor = durationEventId && durationEventId === selectedEventId ? renderResult?.anchors.authoritativeEvents.get(durationEventId) : undefined;
+  const playbackGeometry = playbackPosition && renderResult ? resolveStaffBuilderPlaybackGeometry(renderResult.anchors.positions, playbackPosition.offsetTicks) : null;
 
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
@@ -177,6 +180,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
         <div className="staff-builder-notation-presentation" style={{ width: (renderResult?.coordinateSpace.width ?? 760) * presentationScale, height: (renderResult?.coordinateSpace.height ?? 300) * presentationScale }}>
         <div className="staff-builder-notation-canvas" onPointerCancel={() => { pointerGesture.current = null; }} onPointerDown={handlePointerDown} onPointerUp={(pointerEvent) => handlePointerUp(pointerEvent.pointerId, pointerEvent.clientX, pointerEvent.clientY)} ref={canvasRef} style={{ transform: `scale(${presentationScale})`, width: renderResult?.coordinateSpace.width ?? 760, height: renderResult?.coordinateSpace.height ?? 300 }}>
           <div ref={notationRef} />
+          {playbackGeometry && <div aria-hidden="true" className="staff-builder-playback-highlight" data-testid="staff-builder-playback-highlight" style={{ left: playbackGeometry.x, top: playbackGeometry.y, width: playbackGeometry.width, height: playbackGeometry.height }} />}
           {onEventSelect && authoritativeTargets.map(({ anchor, event }) => {
             const width = getStaffBuilderInternalTouchSize(anchor.width, presentationScale);
             const height = getStaffBuilderInternalTouchSize(anchor.height, presentationScale);

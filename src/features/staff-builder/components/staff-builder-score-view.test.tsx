@@ -81,6 +81,19 @@ describe("StaffBuilderScoreView", () => {
     expect(screen.getByTestId("staff-builder-capture-cursor").style.width).toBe("30px");
   });
 
+  it("places an interpolated playback highlight in the shared internal coordinate plane", () => {
+    const { rerender } = render(<StaffBuilderScoreView measureIndex={0} playbackPosition={{ offsetTicks: 60 }} score={score()} />);
+    const highlight = screen.getByTestId("staff-builder-playback-highlight");
+    expect(highlight.getAttribute("aria-hidden")).toBe("true");
+    expect(highlight.style.left).toBe("165px");
+    expect(highlight.style.top).toBe("40px");
+    expect(highlight.style.width).toBe("30px");
+    expect(highlight.style.height).toBe("220px");
+    expect(highlight.parentElement?.classList.contains("staff-builder-notation-canvas")).toBe(true);
+    rerender(<StaffBuilderScoreView measureIndex={0} score={score()} />);
+    expect(screen.queryByTestId("staff-builder-playback-highlight")).toBeNull();
+  });
+
   it("renders treble and bass pending previews while keeping committed semantic output separate", () => {
     render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} pendingPreview={{ treble: [64], bass: [48, 52] }} score={score()} />);
     const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1;

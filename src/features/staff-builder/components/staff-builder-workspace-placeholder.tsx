@@ -1,5 +1,5 @@
 import type { StaffBuilderCaptureState } from "../staff-builder-capture";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStaffBuilderEditor, type StaffBuilderEditorPass, type StaffBuilderPersistedEditorState } from "../hooks/use-staff-builder-editor";
 import { useStaffBuilderInput } from "../hooks/use-staff-builder-input";
 import { useStaffBuilderMobilePresentation } from "../hooks/use-staff-builder-mobile-presentation";
@@ -28,6 +28,7 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
 }>) {
   const editor = useStaffBuilderEditor({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave });
   const playback = useStaffBuilderPlayback(editor.score);
+  const stopPlayback = playback.stop;
   const midi = useStaffBuilderInput(editor.addMidiPitch);
   const mobilePresentation = useStaffBuilderMobilePresentation();
   const mobileKeyboardOwnerAvailable = mobilePresentation && !editor.validation.active && editor.editorPass === "capture";
@@ -38,9 +39,12 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   const scoreRegionRef = useRef<HTMLDivElement>(null);
   const keyboardLauncherRef = useRef<HTMLButtonElement>(null);
   const rhythmMeasureIndex = editor.rhythm.measureIndex;
-  const visibleMeasureIndex = editor.validation.active
+  const editorVisibleMeasureIndex = editor.validation.active
     ? editor.validation.activeIssue?.target.measureIndex ?? rhythmMeasureIndex
     : editor.editorPass === "capture" ? editor.captureState.cursor.measureIndex : rhythmMeasureIndex;
+  const playbackPosition = playback.state.status === "playing" ? playback.position : null;
+  const playbackOwnsMeasure = playbackPosition !== null;
+  const visibleMeasureIndex = playbackPosition?.measureIndex ?? editorVisibleMeasureIndex;
   const fromHerePosition = editor.editorPass === "capture"
     ? editor.captureState.cursor
     : editor.rhythm.selection
@@ -52,6 +56,13 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
     setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
     requestAnimationFrame(() => keyboardLauncherRef.current?.focus({ preventScroll: true }));
   };
+  const playbackLifecycle = `${editor.editorPass}:${editor.validation.active}`;
+  const previousPlaybackLifecycle = useRef(playbackLifecycle);
+  useEffect(() => {
+    if (previousPlaybackLifecycle.current === playbackLifecycle) return;
+    previousPlaybackLifecycle.current = playbackLifecycle;
+    if (playback.state.status === "playing") stopPlayback();
+  }, [playback.state.status, stopPlayback, playbackLifecycle]);
 
   return <section className={`staff-builder-panel${showMobileKeyboard ? " staff-builder-mobile-keyboard-open" : ""}`} aria-labelledby="staff-builder-workspace-title">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold" id="staff-builder-workspace-title">{editor.score.title}</h2><p className={savingAvailable ? "text-sky-300" : "text-amber-300"}>{savingAvailable ? `${editor.validation.issues.length === 0 ? "Ready to save" : "Needs validation"} · Draft saved automatically.` : "In memory · Local saving unavailable"}</p></div><button className="staff-builder-secondary-button" onClick={() => { if (window.confirm("Return to Piece Library?")) onClose(); }} type="button">Piece Library</button></div>
@@ -60,14 +71,14 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
     {!editor.canEnterRhythm && <p className="text-sm text-zinc-300">Capture at least one event before starting Rhythm Correction.</p>}
     <p aria-live="polite" role="status">{editor.validation.issues.length} structural {editor.validation.issues.length === 1 ? "issue" : "issues"}.</p>
     <div className="staff-builder-score-header">
-      <StaffBuilderMeasureNavigation disabled={editor.validation.active} measureCount={editor.score.measures.length} measureIndex={visibleMeasureIndex} onNavigate={editor.goToMeasure} />
+      <StaffBuilderMeasureNavigation disabled={editor.validation.active || playbackOwnsMeasure} disabledReason={playbackOwnsMeasure ? "Measure navigation is unavailable while playback follows the score." : undefined} measureCount={editor.score.measures.length} measureIndex={visibleMeasureIndex} onNavigate={editor.goToMeasure} />
       <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} onKeyChange={editor.setMeasureKey} onTimeChange={editor.setMeasureTime} score={editor.score} />
     </div>
     <div className="staff-builder-immediate-workspace" ref={scoreRegionRef}>
-      <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onInputModeChange={editor.setInputMode} onPositionSelect={!editor.validation.active && editor.editorPass === "capture" ? editor.setCapturePosition : undefined} score={editor.score} staffModeDisabled={editor.validation.active || editor.editorPass !== "capture"} />
+      <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onInputModeChange={editor.setInputMode} onPositionSelect={!editor.validation.active && editor.editorPass === "capture" ? editor.setCapturePosition : undefined} playbackPosition={playbackPosition ? { offsetTicks: playbackPosition.offsetTicks } : undefined} score={editor.score} staffModeDisabled={editor.validation.active || editor.editorPass !== "capture"} />
       {!editor.validation.active && editor.editorPass === "capture" && <StaffBuilderCaptureStrip captureState={editor.captureState} hasPending={editor.hasPending} keyboardLauncherRef={keyboardLauncherRef} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onOpenKeyboard={() => setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: true })} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} showKeyboardLauncher={mobilePresentation} />}
     </div>
-    <StaffBuilderPlaybackControls editorPass={editor.editorPass} issueCount={editor.validation.issues.length} onAuditionSelectedEvent={() => { playback.auditionSelectedEvent(editor.rhythm.selectedEvent); }} onPlayCurrentMeasure={() => playback.playCurrentMeasure(visibleMeasureIndex)} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={() => playback.playFromHere(fromHerePosition)} onStop={playback.stop} selectedEvent={editor.rhythm.selectedEvent} state={playback.state} />
+    <StaffBuilderPlaybackControls editorPass={editor.editorPass} issueCount={editor.validation.issues.length} onAuditionSelectedEvent={() => { playback.auditionSelectedEvent(editor.rhythm.selectedEvent, editor.rhythm.selection ? { measureIndex: editor.rhythm.selection.measureIndex, offsetTicks: editor.rhythm.selectedEvent?.startTick ?? 0 } : undefined); }} onPlayCurrentMeasure={() => playback.playCurrentMeasure(visibleMeasureIndex)} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={() => playback.playFromHere(fromHerePosition)} onStop={playback.stop} selectedEvent={editor.rhythm.selectedEvent} state={playback.state} />
     {editor.validation.active
       ? <StaffBuilderValidationPanel activeIndex={editor.validation.activeIssueIndex} activeIssue={editor.validation.activeIssue} issues={editor.validation.issues} onActivate={editor.validation.activate} onClose={editor.validation.close} onCorrection={editor.validation.applyCorrection} onFillAllGaps={editor.validation.fillAllGaps} onNext={editor.validation.next} onPrevious={editor.validation.previous} status={editor.validation.status} />
       : editor.editorPass === "capture"

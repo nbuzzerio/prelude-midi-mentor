@@ -14,6 +14,7 @@ export type MusicalEventPlaybackResult = "completed" | "cancelled" | "failed";
 export type MusicalEventPlayback = Readonly<{
   cancel: () => void;
   completion: Promise<MusicalEventPlaybackResult>;
+  startedAtMs: number;
 }>;
 
 export type MusicalEventPlaybackOptions = Readonly<{
@@ -37,6 +38,7 @@ export function createMusicalEventPlayer(
 
   const play = (events: readonly PlayableMusicalEvent[], options: MusicalEventPlaybackOptions = {}): MusicalEventPlayback => {
     cancel();
+    const startedAtMs = performance.now();
 
     const stableEvents = events.map((event) => ({ ...event, notes: [...event.notes] }));
     const timers = new Set<number>();
@@ -64,7 +66,7 @@ export function createMusicalEventPlayer(
     const minimumDurationMs = Math.max(0, options.minimumDurationMs ?? 0);
     if (stableEvents.length === 0 && minimumDurationMs === 0) {
       finish("completed");
-      return { cancel: cancelCurrent, completion };
+      return { cancel: cancelCurrent, completion, startedAtMs };
     }
 
     const startEvent = (event: PlayableMusicalEvent) => {
@@ -98,7 +100,7 @@ export function createMusicalEventPlayer(
     }, Math.max(0, endTimeMs));
     timers.add(completionTimer);
 
-    return { cancel: cancelCurrent, completion };
+    return { cancel: cancelCurrent, completion, startedAtMs };
   };
 
   return { cancel, play };

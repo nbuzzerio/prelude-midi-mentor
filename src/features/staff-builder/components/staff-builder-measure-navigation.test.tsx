@@ -60,4 +60,12 @@ describe("StaffBuilderMeasureNavigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Current measure: Measure 2 of 3" }));
     expect(screen.getByRole("button", { name: "Measure 3" })).toBeTruthy();
   });
+
+  it("explains when playback temporarily owns the displayed measure", () => {
+    const reason = "Measure navigation is unavailable while playback follows the score.";
+    render(<StaffBuilderMeasureNavigation disabled disabledReason={reason} measureCount={3} measureIndex={1} onNavigate={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Previous Measure" }).getAttribute("title")).toBe(reason);
+    expect(screen.getByRole("button", { name: "Current measure: Measure 2 of 3" }).getAttribute("title")).toBe(reason);
+    expect(screen.getByRole("button", { name: "Next Measure" }).getAttribute("title")).toBe(reason);
+  });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { durationToTicks, STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "./staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff } from "./staff-builder-types";
-import { projectStaffBuilderEventAudition, projectStaffBuilderPlayback } from "./staff-builder-playback";
+import { projectStaffBuilderEventAudition, projectStaffBuilderPlayback, resolveStaffBuilderPlaybackPosition, sampleStaffBuilderPlaybackTick } from "./staff-builder-playback";
 
 let nextId = 0;
 const pitch = (midiNumber: number, id = `p-${++nextId}`): StaffBuilderPitch => ({ id, midiNumber, letter: midiNumber === 64 ? "E" : midiNumber === 67 ? "G" : "C", accidental: "natural", octave: 4 });
@@ -40,6 +40,27 @@ function tiedScore(chain = false, partial = false): StaffBuilderScoreV1 {
 }
 
 describe("Staff Builder playback projection", () => {
+  it("samples the monotonic timeline at start, midpoint, endpoint, and reduced-motion boundaries", () => {
+    const clock = { startedAtMs: 1000, durationMs: 2000, scopeStartTick: 480, scopeEndTick: 2400 };
+    expect(sampleStaffBuilderPlaybackTick(clock, 1000)).toBe(480);
+    expect(sampleStaffBuilderPlaybackTick(clock, 2000)).toBe(1440);
+    expect(sampleStaffBuilderPlaybackTick(clock, 3000)).toBe(2400);
+    expect(sampleStaffBuilderPlaybackTick(clock, 1666, true)).toBe(1080);
+    expect(clock.durationMs).toBe(2000);
+  });
+
+  it("locates variable-measure ticks and handles exact boundaries deterministically", () => {
+    const score = baseScore([
+      { id: "m1", events: [fullRest("t1", "treble"), fullRest("b1", "bass")] },
+      { id: "m2", timeSignatureChange: "3/4", events: [fullRest("t2", "treble", "dotted-half"), fullRest("b2", "bass", "dotted-half")] },
+    ]);
+    expect(resolveStaffBuilderPlaybackPosition(score, 0)).toEqual({ measureIndex: 0, offsetTicks: 0 });
+    expect(resolveStaffBuilderPlaybackPosition(score, 1919.5)).toEqual({ measureIndex: 0, offsetTicks: 1919.5 });
+    expect(resolveStaffBuilderPlaybackPosition(score, 1920)).toEqual({ measureIndex: 1, offsetTicks: 0 });
+    expect(resolveStaffBuilderPlaybackPosition(score, 1920, true)).toEqual({ measureIndex: 0, offsetTicks: 1920 });
+    expect(resolveStaffBuilderPlaybackPosition(score, 3360, true)).toEqual({ measureIndex: 1, offsetTicks: 1440 });
+  });
+
   it("projects a note, chord, rests omission, and treble/bass simultaneity deterministically", () => {
     const score = baseScore([{ id: "m", events: [note("chord", "treble", 0, "whole", [pitch(60), pitch(64), pitch(67)]), fullRest("bass", "bass")] }]);
     expect(projectStaffBuilderPlayback(score, { kind: "entire-piece" })).toMatchObject({ events: [{ notes: [60, 64, 67], startTimeMs: 0, durationMs: 2000 }], durationMs: 2000 });

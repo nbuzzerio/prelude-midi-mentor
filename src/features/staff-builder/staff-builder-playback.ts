@@ -7,6 +7,7 @@ import { validateStaffBuilderScore } from "./staff-builder-validation";
 export const STAFF_BUILDER_AUDITION_DURATION_MS = 600;
 
 export type StaffBuilderPlaybackPosition = Readonly<{ measureIndex: number; offsetTicks: number }>;
+export type StaffBuilderPlaybackClock = Readonly<{ startedAtMs: number; durationMs: number; scopeStartTick: number; scopeEndTick: number }>;
 export type StaffBuilderPlaybackScope =
   | Readonly<{ kind: "measure"; measureIndex: number }>
   | Readonly<{ kind: "from-position"; position: StaffBuilderPlaybackPosition }>
@@ -37,6 +38,26 @@ function measureTiming(score: StaffBuilderScoreV1) {
   const capacities = score.measures.map((_measure, measureIndex) => resolveStaffBuilderMeasureContext(score, measureIndex).capacityTicks);
   const starts = capacities.map((_capacity, measureIndex) => getMeasureStartTick(capacities, measureIndex));
   return { capacities, starts, totalTicks: capacities.reduce((sum, capacity) => sum + capacity, 0) };
+}
+
+export function sampleStaffBuilderPlaybackTick(clock: StaffBuilderPlaybackClock, sampledAtMs: number, reducedMotion = false): number {
+  if (clock.durationMs <= 0 || sampledAtMs <= clock.startedAtMs) return clock.scopeStartTick;
+  const progress = Math.min(1, (sampledAtMs - clock.startedAtMs) / clock.durationMs);
+  const tick = clock.scopeStartTick + (clock.scopeEndTick - clock.scopeStartTick) * progress;
+  if (!reducedMotion || progress === 1) return tick;
+  return clock.scopeStartTick + Math.floor((tick - clock.scopeStartTick) / 120) * 120;
+}
+
+export function resolveStaffBuilderPlaybackPosition(score: StaffBuilderScoreV1, absoluteTick: number, preferPreviousBoundary = false): StaffBuilderPlaybackPosition {
+  const { capacities, starts, totalTicks } = measureTiming(score);
+  const tick = Math.max(0, Math.min(Number.isFinite(absoluteTick) ? absoluteTick : 0, totalTicks));
+  for (let measureIndex = 0; measureIndex < capacities.length; measureIndex += 1) {
+    const start = starts[measureIndex] ?? 0;
+    const end = start + (capacities[measureIndex] ?? 0);
+    const isLast = measureIndex === capacities.length - 1;
+    if (tick < end || isLast || (preferPreviousBoundary && tick === end)) return { measureIndex, offsetTicks: tick - start };
+  }
+  return { measureIndex: 0, offsetTicks: 0 };
 }
 
 function flattenSoundingPitches(score: StaffBuilderScoreV1, measureStarts: readonly number[]): readonly SoundingPitch[] {

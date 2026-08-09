@@ -8,9 +8,15 @@ function handle(started = true): PianoPlaybackHandle {
 }
 
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("musical event player", () => {
+  it("exposes the monotonic scheduler origin", () => {
+    vi.spyOn(performance, "now").mockReturnValue(1234.5);
+    const playback = createMusicalEventPlayer(() => handle()).play([]);
+    expect(playback.startedAtMs).toBe(1234.5);
+  });
+
   it("plays zero-offset notes immediately, chords simultaneously, and later events in order", () => {
     const playNotes = vi.fn(() => handle());
     const player = createMusicalEventPlayer(playNotes);

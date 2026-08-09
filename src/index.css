@@ -108,6 +108,7 @@ button {
 .staff-builder-notation-canvas { position: relative; transform-origin: top left; }
 .staff-builder-event-target { position: absolute; z-index: 2; cursor: pointer; border: 0; border-radius: 0.35rem; background: transparent; padding: 0; }
 .staff-builder-event-target:hover { background: rgb(56 189 248 / 12%); }
+.staff-builder-playback-highlight { position: absolute; z-index: 1; pointer-events: none; border-inline-start: 4px solid rgb(3 105 161 / 90%); border-radius: 0.2rem; background: rgb(14 165 233 / 22%); box-shadow: inset 0.2rem 0 0 rgb(255 255 255 / 75%); }
 .staff-builder-capture-cursor { position: absolute; z-index: 2; pointer-events: none; border: 2px solid rgb(2 132 199 / 75%); border-radius: 0.25rem; background: rgb(56 189 248 / 20%); }
 .staff-builder-selection-outline { position: absolute; z-index: 3; pointer-events: none; border: 3px solid rgb(217 70 239); border-radius: 0.35rem; box-shadow: 0 0 0 2px white; }
 .staff-builder-issue-outline { position: absolute; z-index: 4; pointer-events: none; border: 3px dashed rgb(185 28 28); border-radius: 0.35rem; background: rgb(254 202 202 / 20%); }
