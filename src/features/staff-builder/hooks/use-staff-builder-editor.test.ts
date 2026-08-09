@@ -1,7 +1,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE } from "../staff-builder-capture";
-import { appendStaffBuilderMeasure, createStaffBuilderScore, insertUnresolvedStaffBuilderNotes } from "../staff-builder-score";
+import { appendStaffBuilderMeasure, createStaffBuilderScore, insertStaffBuilderRest, insertUnresolvedStaffBuilderNotes } from "../staff-builder-score";
 import { setStaffBuilderEventDuration } from "../staff-builder-rhythm";
 import { useStaffBuilderEditor } from "./use-staff-builder-editor";
 
@@ -629,5 +629,75 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.score).toBe(replacement);
     expect(result.current.canUndo).toBe(false);
     expect(result.current.canRedo).toBe(false);
+  });
+
+  it.each([
+    ["treble", "quarter", 480, ["treble"]],
+    ["bass", "eighth", 240, ["bass"]],
+    ["grand", "sixteenth", 120, ["treble", "bass"]],
+  ] as const)("adds and advances a %s %s capture rest while clearing pending pitches", (inputMode, stepDuration, offsetTicks, staves) => {
+    const onDraftChange = vi.fn();
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, inputMode, stepDuration };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState, onDraftChange }));
+    act(() => result.current.addMidiPitch(60));
+    act(() => result.current.addRestAndContinue());
+    expect(result.current.pending).toEqual({ treble: [], bass: [] });
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks });
+    expect(result.current.score.measures[0]!.events.map(({ staff }) => staff).sort()).toEqual([...staves].sort());
+    expect(result.current.score.measures[0]!.events.every(({ kind, rhythm }) => kind === "rest" && rhythm.status === "final" && rhythm.duration === stepDuration)).toBe(true);
+    expect(result.current.captureStatus).toMatch(new RegExp(`${stepDuration} rest added`, "i"));
+    expect(onDraftChange).toHaveBeenCalledOnce();
+    expect(result.current.canUndo).toBe(false);
+  });
+
+  it("targets a selected treble rest even when replacement input is a low pitch", () => {
+    let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "bass", startTick: 240, midiNumbers: [43] });
+    current = insertStaffBuilderRest(current, { measureIndex: 0, staff: "treble", startTick: 240, duration: "eighth" });
+    const bass = current.measures[0]!.events.find(({ staff }) => staff === "bass")!;
+    const selectedRest = current.measures[0]!.events.find(({ staff }) => staff === "treble")!;
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId: selectedRest.id }, onDraftChange }));
+    act(() => result.current.captureRestAsNote({ measureIndex: 0, eventId: selectedRest.id }));
+    expect(result.current.editorPass).toBe("capture");
+    expect(result.current.captureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 240 }, stepDuration: "eighth", inputMode: "treble" });
+    expect(result.current.pending).toEqual({ treble: [], bass: [] });
+    expect(result.current.score).toBe(current);
+    expect(result.current.canUndo).toBe(false);
+    act(() => result.current.addMidiPitch(48));
+    act(() => result.current.lockAndContinue());
+    const replacement = result.current.score.measures[0]!.events.find(({ staff, startTick }) => staff === "treble" && startTick === 240)!;
+    expect(replacement.kind === "notes" ? replacement.pitches.map(({ midiNumber }) => midiNumber) : []).toEqual([48]);
+    expect(replacement.id).not.toBe(selectedRest.id);
+    expect(result.current.score.measures[0]!.events.find(({ staff }) => staff === "bass")).toBe(bass);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("targets a selected bass rest even when replacement input is a high pitch", () => {
+    let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const treble = current.measures[0]!.events[0]!;
+    current = insertStaffBuilderRest(current, { measureIndex: 0, staff: "bass", startTick: 240, duration: "quarter" });
+    const rest = current.measures[0]!.events.find(({ staff }) => staff === "bass")!;
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId: rest.id }, onDraftChange: vi.fn() }));
+    act(() => result.current.captureRestAsNote({ measureIndex: 0, eventId: rest.id }));
+    expect(result.current.captureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 240 }, stepDuration: "quarter", inputMode: "bass" });
+    expect(result.current.pending).toEqual({ treble: [], bass: [] });
+    expect(result.current.score).toBe(current);
+    act(() => result.current.addMidiPitch(72));
+    expect(result.current.pending).toEqual({ treble: [], bass: [72] });
+    act(() => result.current.lockAndContinue());
+    const replacement = result.current.score.measures[0]!.events.find(({ staff, startTick }) => staff === "bass" && startTick === 240)!;
+    expect(replacement.kind === "notes" ? replacement.pitches.map(({ midiNumber }) => midiNumber) : []).toEqual([72]);
+    expect(result.current.score.measures[0]!.events.find(({ staff }) => staff === "treble")).toBe(treble);
+  });
+
+  it("retains the existing Capture Step for an unsupported rest duration", () => {
+    const current = insertStaffBuilderRest(score(), { measureIndex: 0, staff: "treble", startTick: 0, duration: "half" });
+    const rest = current.measures[0]!.events[0]!;
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, stepDuration: "sixteenth" as const };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId: rest.id }, onDraftChange: vi.fn() }));
+    act(() => result.current.captureRestAsNote({ measureIndex: 0, eventId: rest.id }));
+    expect(result.current.captureState.stepDuration).toBe("sixteenth");
+    expect(result.current.captureState.inputMode).toBe("treble");
   });
 });

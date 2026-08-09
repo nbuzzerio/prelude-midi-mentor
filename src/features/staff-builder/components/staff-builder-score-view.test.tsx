@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderEventSelection } from "../staff-builder-rhythm";
 import type { StaffBuilderDuration } from "../staff-builder-time";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
-import { StaffBuilderScoreView } from "./staff-builder-score-view";
+import { StaffBuilderScoreDetails, StaffBuilderScoreView } from "./staff-builder-score-view";
 
 const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: unknown, renderedScore: unknown, measureIndex: number, options?: unknown) => {
   void container;
@@ -56,19 +56,46 @@ describe("StaffBuilderScoreView", () => {
   it("renders a controlled measure with a semantic summary", () => {
     render(<StaffBuilderScoreView measureIndex={0} score={score()} />);
     expect(screen.getByRole("heading", { name: "Measure 1 of 2" })).toBeTruthy();
-    expect(screen.getByText(/Effective key: C major/)).toBeTruthy();
-    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
-    expect(screen.getByText(/Bass:/).parentElement?.textContent).toContain("No events");
+    expect(screen.getByLabelText(/Effective key: C major/)).toBeTruthy();
+    expect(screen.getByLabelText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Bass: No events/)).toBeTruthy();
     expect(renderMeasure).toHaveBeenCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 0, expect.any(Object));
   });
 
   it("renders the requested changed measure", () => {
     render(<StaffBuilderScoreView measureIndex={1} score={score()} />);
     expect(screen.getByRole("heading", { name: "Measure 2 of 2" })).toBeTruthy();
-    expect(screen.getByText(/Effective key: G major/)).toBeTruthy();
-    expect(screen.getByText(/Effective time signature: 6\/8/)).toBeTruthy();
-    expect(screen.getByText(/quarter rest at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Effective key: G major/)).toBeTruthy();
+    expect(screen.getByLabelText(/Effective time signature: 6\/8/)).toBeTruthy();
+    expect(screen.getByLabelText(/quarter rest at tick 0/)).toBeTruthy();
     expect(renderMeasure).toHaveBeenLastCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 1, expect.any(Object));
+  });
+
+  it("keeps technical narration out of the staff card and reveals it in collapsed Score details", () => {
+    const { container } = render(<><StaffBuilderScoreView measureIndex={0} score={score()} /><StaffBuilderScoreDetails measureIndex={0} score={score()} /></>);
+    expect(container.querySelector(".staff-builder-score-view .staff-builder-measure-summary")).toBeNull();
+    const details = screen.getByText("Score details").parentElement as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.querySelector(".staff-builder-measure-summary")?.textContent).toContain("unresolved rhythm note C4 at tick 0");
+    expect(details.querySelector(".staff-builder-measure-summary")?.getAttribute("aria-hidden")).toBe("true");
+    expect(container.querySelector("#staff-builder-score-semantics")?.getAttribute("aria-label")).toContain("unresolved rhythm note C4 at tick 0");
+    fireEvent.click(screen.getByText("Score details"));
+    expect(details.open).toBe(true);
+  });
+
+  it("includes invalid timing once in accessible score semantics while keeping visible details aria-hidden", () => {
+    const current = score();
+    const invalid = { ...current, measures: [{ ...current.measures[0]!, events: [{ ...current.measures[0]!.events[0]!, startTick: 2040 }] }, current.measures[1]!] };
+    const { container } = render(<><StaffBuilderScoreView measureIndex={0} score={invalid} /><StaffBuilderScoreDetails measureIndex={0} score={invalid} /></>);
+    const message = "Invalid timing: 1 event(s) begin outside this measure and are indicated at the boundary.";
+    const semantics = container.querySelector("#staff-builder-score-semantics")!;
+    expect(semantics.getAttribute("aria-label")).toContain(message);
+    const detailsCopy = container.querySelector(".staff-builder-score-details .staff-builder-measure-summary")!;
+    expect(detailsCopy.textContent).toContain(message);
+    expect(detailsCopy.getAttribute("aria-hidden")).toBe("true");
+    expect(container.querySelectorAll(`[aria-label*="${message}"]`)).toHaveLength(1);
+    fireEvent.click(screen.getByText("Score details"));
+    expect((screen.getByText("Score details").parentElement as HTMLDetailsElement).open).toBe(true);
   });
 
   it("uses formatted anchors for cursor position, duration width, and boundary clipping", () => {
@@ -101,9 +128,9 @@ describe("StaffBuilderScoreView", () => {
     expect(events.find(({ staff }) => staff === "treble")).toMatchObject({ id: expect.stringContaining("__staff-builder-preview"), startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 64 }] });
     expect(events.find(({ staff }) => staff === "bass")).toMatchObject({ startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 48 }, { midiNumber: 52 }] });
     expect(events.some(({ id }) => id === "treble-note")).toBe(false);
-    expect(screen.getByText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
-    expect(screen.getByText(/Pending treble preview: note E4 at tick 0/)).toBeTruthy();
-    expect(screen.getByText(/Pending bass preview: chord C3, E3 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note E4 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending bass preview: chord C3, E3 at tick 0/)).toBeTruthy();
   });
 
   it("updates and removes pending preview immediately without mutating the source score", () => {
@@ -113,7 +140,7 @@ describe("StaffBuilderScoreView", () => {
     expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.find(({ id }) => id.includes("preview"))).toMatchObject({ startTick: 240, pitches: [{ midiNumber: 66 }] });
     rerender(<StaffBuilderScoreView cursor={{ offsetTicks: 240, stepDuration: "eighth" }} measureIndex={0} pendingPreview={{ treble: [], bass: [] }} score={current} />);
     expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.some(({ id }) => id.includes("preview"))).toBe(false);
-    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: none/)).toBeTruthy();
     expect(JSON.stringify(current)).toBe(before);
   });
 
@@ -165,6 +192,23 @@ describe("StaffBuilderScoreView", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Eighth-note duration" }));
     expect(assign).toHaveBeenCalledWith("eighth");
     expect(screen.queryByRole("radiogroup")).toBeNull();
+  });
+
+  it("routes wheel center actions through Rhythm conversion and Capture-at-rest orchestration", () => {
+    const convert = vi.fn(() => true);
+    const capture = vi.fn(() => true);
+    function Harness() {
+      const [selection, setSelection] = useState<StaffBuilderEventSelection | null>(null);
+      return <StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onCaptureRestAsNote={capture} onConvertToRest={convert} onEventSelect={(next) => { setSelection(next); return true; }} score={interactiveScore()} selectedEventId={selection?.eventId} />;
+    }
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: /half-note chord/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Convert note or chord to rest" }));
+    expect(convert).toHaveBeenCalledWith("half");
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /quarter rest/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace rest with notes" }));
+    expect(capture).toHaveBeenCalledWith({ measureIndex: 0, eventId: "bass-rest" });
   });
 
   it("does not open direct editing when editor orchestration rejects selection", () => {
@@ -282,15 +326,15 @@ describe("StaffBuilderScoreView", () => {
     expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 240 });
   });
 
-  it("keeps event selection and contextual UI in the scaled interaction plane", () => {
+  it("keeps event selection in the scaled plane while owning duration UI outside the notation canvas", () => {
     const select = vi.fn(() => true);
-    const { container } = render(<StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onEventSelect={select} score={interactiveScore()} selectedEventId="treble-note" />);
+    const { container } = render(<StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onEventSelect={select} playbackPosition={{ offsetTicks: 60 }} score={interactiveScore()} selectedEventId="treble-note" />);
     const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
     canvas.getBoundingClientRect = () => ({ x: -20, y: 10, left: -20, top: 10, right: 360, bottom: 160, width: 380, height: 150, toJSON: () => ({}) });
     fireEvent.pointerDown(canvas, { pointerId: 26, clientX: 60, clientY: 45 });
     fireEvent.pointerUp(canvas, { pointerId: 26, clientX: 60, clientY: 45 });
     expect(select).toHaveBeenCalledWith({ measureIndex: 0, eventId: "treble-note" });
-    expect(container.querySelector(".staff-builder-duration-wheel")?.parentElement).toBe(canvas);
+    expect(container.querySelector(".staff-builder-duration-wheel")?.parentElement).toBe(container.querySelector(".staff-builder-score-view"));
     expect(container.querySelector(".staff-builder-selection-outline")?.parentElement).toBe(canvas);
   });
 
@@ -302,7 +346,7 @@ describe("StaffBuilderScoreView", () => {
       disconnect() { /* no resources */ }
     });
     const select = vi.fn(() => true);
-    const { container } = render(<StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onEventSelect={select} score={interactiveScore()} selectedEventId="treble-note" />);
+    const { container } = render(<StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onEventSelect={select} playbackPosition={{ offsetTicks: 60 }} score={interactiveScore()} selectedEventId="treble-note" />);
     const scroll = container.querySelector(".staff-builder-notation-scroll") as HTMLDivElement;
     Object.defineProperty(scroll, "clientWidth", { configurable: true, value: 480 });
     act(() => resize?.());
@@ -316,7 +360,12 @@ describe("StaffBuilderScoreView", () => {
     fireEvent.pointerDown(canvas, { pointerId: 27, clientX: 135 * scale, clientY: 70 * scale });
     fireEvent.pointerUp(canvas, { pointerId: 27, clientX: 135 * scale, clientY: 70 * scale });
     expect(select).toHaveBeenCalledWith({ measureIndex: 0, eventId: "treble-note" });
-    expect((container.querySelector(".staff-builder-duration-wheel") as HTMLElement).style.transform).toContain(`${1 / scale}`);
+    const wheel = container.querySelector(".staff-builder-duration-wheel") as HTMLElement;
+    expect(wheel.style.transform).toBe("");
+    expect(Number.parseFloat(wheel.style.top)).toBeGreaterThanOrEqual(8);
+    expect(Number.parseFloat(wheel.style.top) + 268).toBeLessThanOrEqual(window.innerHeight - 8);
+    expect(screen.getAllByRole("radio").every((radio) => Number.parseFloat((radio as HTMLElement).style.width) >= 44)).toBe(true);
+    expect(container.querySelector(".staff-builder-playback-highlight")?.parentElement).toBe(canvas);
   });
 
   it("retains the 44px internal event-target minimum at presentation scale one", () => {

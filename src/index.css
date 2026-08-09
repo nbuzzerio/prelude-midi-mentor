@@ -64,7 +64,7 @@ button {
 .staff-builder-dialog-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgb(0 0 0 / 75%); padding: 1rem; }
 .staff-builder-dialog { display: grid; gap: 1rem; max-width: 38rem; border: 1px solid rgb(82 82 91); border-radius: 0.75rem; background: rgb(24 24 27); padding: 1.5rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 50%); }
 .staff-builder-score-view { display: grid; gap: 0.75rem; min-width: 0; border: 1px solid rgb(63 63 70); border-radius: 0.5rem; background: rgb(250 250 250); padding: 0.75rem; color: rgb(24 24 27); }
-.staff-builder-score-header { display: grid; gap: 0.5rem; margin: 1rem 0 0.75rem; }
+.staff-builder-score-header { margin: 1rem 0 0.75rem; }
 .staff-builder-measure-navigation { position: relative; display: grid; justify-items: center; }
 .staff-builder-measure-navigation-controls { display: flex; max-width: 100%; align-items: center; justify-content: center; gap: 0.5rem; }
 .staff-builder-score-navigation-button,
@@ -135,8 +135,10 @@ button {
 .staff-builder-lock-action { gap: 0.25rem; padding-inline: 0.65rem; }
 .staff-builder-capture-strip svg:not(.staff-builder-music-glyph svg),
 .staff-builder-duration-close svg { width: 1.25rem; height: 1.25rem; }
-.staff-builder-duration-wheel { position: absolute; z-index: 6; display: grid; grid-template-columns: repeat(5, 2.75rem); width: 14.75rem; min-height: 7.25rem; gap: 0.25rem; border: 1px solid rgb(82 82 91); border-radius: 0.75rem; background: rgb(250 250 250); padding: 0.35rem; box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 35%); }
-.staff-builder-duration-wheel .staff-builder-duration-close { grid-column: 5; grid-row: 1; }
+.staff-builder-duration-wheel { position: fixed; z-index: 65; width: 16.75rem; height: 16.75rem; pointer-events: none; border: 1px solid rgb(82 82 91); border-radius: 9999px; background: rgb(250 250 250 / 97%); box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 35%); }
+.staff-builder-duration-wheel button { position: absolute; width: 3rem; height: 3rem; pointer-events: auto; transform: translate(-50%, -50%); }
+.staff-builder-duration-wheel .staff-builder-duration-center { top: 50%; left: 50%; width: 3.5rem; height: 3.5rem; border-radius: 9999px; border-width: 2px; }
+.staff-builder-duration-wheel .staff-builder-duration-close { top: 1.35rem; right: 0.15rem; left: auto; width: 2.75rem; height: 2.75rem; transform: none; border-radius: 9999px; }
 .staff-builder-mobile-keyboard-sheet { position: fixed; z-index: 60; inset-inline: 0; bottom: 0; display: grid; max-height: min(46dvh, 22rem); gap: 0.5rem; overflow: hidden; border-top: 1px solid rgb(82 82 91); background: rgb(24 24 27); padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom)); box-shadow: 0 -0.75rem 2rem rgb(0 0 0 / 45%); }
 .staff-builder-mobile-keyboard-actions { display: flex; justify-content: space-between; gap: 0.5rem; }
 .staff-builder-mobile-keyboard-actions button { display: inline-flex; min-width: 2.75rem; min-height: 2.75rem; cursor: pointer; align-items: center; justify-content: center; gap: 0.35rem; border: 1px solid rgb(82 82 91); border-radius: 0.45rem; background: rgb(244 244 245); padding-inline: 0.75rem; color: rgb(24 24 27); }
@@ -152,11 +154,16 @@ button {
 .staff-builder-rhythm-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
 .staff-builder-playback-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
 .staff-builder-score-toolbar { display: grid; gap: 0.75rem; }
-.staff-builder-score-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.staff-builder-score-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.35rem; }
+.staff-builder-score-toolbar-row .staff-builder-measure-navigation-controls { display: flex; width: auto; gap: 0.35rem; }
+.staff-builder-score-toolbar-row .staff-builder-score-navigation-button { width: 2.75rem; padding-inline: 0.5rem; }
+.staff-builder-score-toolbar-row .staff-builder-score-navigation-button svg { width: 1.25rem; height: 1.25rem; }
 .staff-builder-toolbar-trigger { display: inline-flex; cursor: pointer; align-items: center; justify-content: center; gap: 0.4rem; border: 1px solid rgb(82 82 91); border-radius: 0.5rem; background: rgb(39 39 42); padding: 0.5rem 0.75rem; color: white; }
 .staff-builder-toolbar-trigger:hover { background: rgb(63 63 70); }
 .staff-builder-toolbar-trigger:focus-visible { outline: 2px solid rgb(125 211 252); outline-offset: 2px; }
-.staff-builder-volume-trigger { margin-inline-start: auto; }
+.staff-builder-score-details { margin-top: 0.75rem; border: 1px solid rgb(63 63 70); border-radius: 0.5rem; padding: 0.65rem 0.75rem; }
+.staff-builder-score-details summary { cursor: pointer; font-weight: 700; }
+.staff-builder-score-details .staff-builder-measure-summary { margin-top: 0.65rem; }
 .staff-builder-rhythm-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; }
 .staff-builder-rhythm-edit-grid { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem; }
 .staff-builder-rhythm-edit-grid label,

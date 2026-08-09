@@ -7,6 +7,7 @@ import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "../staff-builder-ty
 import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDuration } from "../staff-builder-time";
 import type { StaffBuilderIssue } from "../staff-builder-validation";
 import { StaffBuilderDurationWheel } from "./staff-builder-duration-wheel";
+import { STAFF_BUILDER_DURATION_WHEEL_SIZE, type StaffBuilderDisplayedAnchor, type StaffBuilderOverlayBounds } from "./staff-builder-duration-wheel-geometry";
 import { getStaffBuilderInternalTouchSize, getStaffBuilderPresentationScale, resolveStaffBuilderPositionTick, staffBuilderClientPointToInternal, type StaffBuilderInternalPoint } from "./staff-builder-interaction-geometry";
 import { resolveStaffBuilderPlaybackGeometry } from "./staff-builder-playback-geometry";
 import { StaffBuilderStaffModeSelector } from "./staff-builder-staff-mode-selector";
@@ -31,7 +32,7 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, issue, inputMode = "grand", staffModeDisabled = true, onInputModeChange, onEventSelect, onPositionSelect, onAssignDuration, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, issue, inputMode = "grand", staffModeDisabled = true, onInputModeChange, onEventSelect, onPositionSelect, onAssignDuration, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
@@ -45,6 +46,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   onEventSelect?: (selection: StaffBuilderEventSelection) => boolean;
   onPositionSelect?: (position: Readonly<{ measureIndex: number; offsetTicks: number }>) => boolean;
   onAssignDuration?: (duration: StaffBuilderDuration) => boolean;
+  onConvertToRest?: (duration: StaffBuilderDuration) => boolean;
+  onCaptureRestAsNote?: (selection: StaffBuilderEventSelection) => boolean;
   onRender?: (result: StaffBuilderMeasureRenderResult) => void;
 }>) {
   const notationRef = useRef<HTMLDivElement>(null);
@@ -57,6 +60,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const [issueGeometry, setIssueGeometry] = useState<CursorGeometry | null>(null);
   const [renderResult, setRenderResult] = useState<StaffBuilderMeasureRenderResult | null>(null);
   const [durationEventId, setDurationEventId] = useState<string | null>(null);
+  const [durationOverlay, setDurationOverlay] = useState<Readonly<{ anchor: StaffBuilderDisplayedAnchor; bounds: StaffBuilderOverlayBounds }> | null>(null);
   const [presentationScale, setPresentationScale] = useState(1);
   const projection = projectStaffBuilderMeasure(score, measureIndex);
   const cursorOffsetTicks = cursor?.offsetTicks;
@@ -69,6 +73,14 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   );
   const previewEventIds = preview.previewEventIds;
   const previewLayoutDurationTicksByEventId = preview.layoutDurationTicksByEventId;
+  const semanticDescription = [
+    `Measure ${projection.measureNumber}. Effective key: ${projection.keySignatureName}. Effective time signature: ${projection.timeSignature}.`,
+    `Treble: ${projection.summary.treble}`,
+    `Bass: ${projection.summary.bass}`,
+    ...(pendingPreview ? [preview.summary.treble, preview.summary.bass] : []),
+    ...(projection.boundaryTies ?? []).map((tie) => `${tie.description} Tie ${tie.tieId}, ${tie.direction}, event ${tie.eventId}.`),
+    ...((projection.invalidEventIds ?? []).length > 0 ? [`Invalid timing: ${projection.invalidEventIds.length} event(s) begin outside this measure and are indicated at the boundary.`] : []),
+  ].join(" ");
 
   useLayoutEffect(() => {
     if (!notationRef.current) return;
@@ -115,6 +127,45 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     observer.observe(scroll);
     return () => observer.disconnect();
   }, [renderResult?.coordinateSpace.width]);
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !durationAnchor) { setDurationOverlay(null); return; }
+    const update = () => {
+      const canvasRect = canvas.getBoundingClientRect();
+      const visualViewport = window.visualViewport;
+      const viewportLeft = visualViewport?.offsetLeft ?? 0;
+      const viewportTop = visualViewport?.offsetTop ?? 0;
+      const viewportWidth = visualViewport?.width ?? window.innerWidth;
+      const viewportHeight = visualViewport?.height ?? window.innerHeight;
+      const margin = 8;
+      setDurationOverlay({
+        anchor: {
+          x: canvasRect.left + durationAnchor.x * presentationScale,
+          y: canvasRect.top + durationAnchor.y * presentationScale,
+          width: durationAnchor.width * presentationScale,
+          height: durationAnchor.height * presentationScale,
+        },
+        bounds: {
+          left: viewportLeft + margin,
+          top: viewportTop + margin,
+          width: Math.max(STAFF_BUILDER_DURATION_WHEEL_SIZE, viewportWidth - margin * 2),
+          height: Math.max(STAFF_BUILDER_DURATION_WHEEL_SIZE, viewportHeight - margin * 2),
+        },
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
+    };
+  }, [durationAnchor, presentationScale]);
 
   const activateEvent = (eventId: string) => {
     if (!onEventSelect?.({ measureIndex, eventId })) return;
@@ -170,10 +221,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   };
 
   return (
-    <section aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
-      <div className="staff-builder-measure-navigation">
-        <h3 className="sr-only" id="staff-builder-score-view-title">Measure {projection.measureNumber} of {score.measures.length}</h3>
-      </div>
+    <section aria-describedby="staff-builder-score-semantics" aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
+      <h3 className="sr-only" id="staff-builder-score-view-title">Measure {projection.measureNumber} of {score.measures.length}</h3>
       <div className="staff-builder-score-interaction-plane">
         {onInputModeChange && <StaffBuilderStaffModeSelector disabled={staffModeDisabled} inputMode={inputMode} onChange={onInputModeChange} />}
         <div className="staff-builder-notation-scroll" ref={scrollRef}>
@@ -194,22 +243,34 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           {issueGeometry && <div aria-hidden="true" className="staff-builder-issue-outline" data-testid="staff-builder-issue-outline" style={{ left: issueGeometry.x, top: issueGeometry.y, width: issueGeometry.width, height: issueGeometry.height }}><span>!</span></div>}
           {(projection.boundaryTies ?? []).some(({ direction }) => direction === "incoming") && <div aria-hidden="true" className="staff-builder-boundary-tie staff-builder-boundary-tie-incoming">Tie in</div>}
           {(projection.boundaryTies ?? []).some(({ direction }) => direction === "outgoing") && <div aria-hidden="true" className="staff-builder-boundary-tie staff-builder-boundary-tie-outgoing">Tie out</div>}
-          {durationAnchor && selectedEvent && renderResult && onAssignDuration && <StaffBuilderDurationWheel anchor={durationAnchor} coordinateSpace={renderResult.coordinateSpace} currentDuration={selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : undefined} eventKind={selectedEvent.kind} key={durationEventId} onChoose={(duration) => {
-            if (selectedEvent.rhythm.status === "final" && selectedEvent.rhythm.duration === duration) { closeDuration(); return; }
-            if (onAssignDuration(duration)) closeDuration();
-          }} onClose={closeDuration} presentationScale={presentationScale} />}
         </div>
         </div>
         </div>
       </div>
-      <div className="staff-builder-measure-summary">
-        <p><strong>Measure {projection.measureNumber}.</strong> Effective key: {projection.keySignatureName}. Effective time signature: {projection.timeSignature}.</p>
-        <p><strong>Treble:</strong> {projection.summary.treble}</p>
-        <p><strong>Bass:</strong> {projection.summary.bass}</p>
-        {pendingPreview && <><p>{preview.summary.treble}</p><p>{preview.summary.bass}</p></>}
-        {(projection.boundaryTies ?? []).map((tie) => <p key={tie.tieId}>{tie.description} Tie {tie.tieId}, {tie.direction}, event {tie.eventId}.</p>)}
-        {(projection.invalidEventIds ?? []).length > 0 && <p><strong>Invalid timing:</strong> {projection.invalidEventIds.length} event(s) begin outside this measure and are indicated at the boundary.</p>}
-      </div>
+      {durationOverlay && selectedEvent && onAssignDuration && <StaffBuilderDurationWheel anchor={durationOverlay.anchor} bounds={durationOverlay.bounds} currentDuration={selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : undefined} eventKind={selectedEvent.kind} key={durationEventId} onChoose={(duration) => {
+        if (selectedEvent.rhythm.status === "final" && selectedEvent.rhythm.duration === duration) { closeDuration(); return; }
+        if (onAssignDuration(duration)) closeDuration();
+      }} onClose={closeDuration} onToggleEventType={() => {
+        const changed = selectedEvent.kind === "rest"
+          ? onCaptureRestAsNote?.({ measureIndex, eventId: selectedEvent.id })
+          : onConvertToRest?.(selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : "quarter");
+        if (changed) closeDuration();
+      }} />}
+      <div aria-label={semanticDescription} className="sr-only" id="staff-builder-score-semantics" />
     </section>
   );
+}
+
+export function StaffBuilderScoreDetails({ score, measureIndex }: Readonly<{ score: StaffBuilderScoreV1; measureIndex: number }>) {
+  const projection = projectStaffBuilderMeasure(score, measureIndex);
+  return <details className="staff-builder-score-details">
+    <summary>Score details</summary>
+    <div aria-hidden="true" className="staff-builder-measure-summary">
+      <p><strong>Measure {projection.measureNumber}.</strong> Effective key: {projection.keySignatureName}. Effective time signature: {projection.timeSignature}.</p>
+      <p><strong>Treble:</strong> {projection.summary.treble}</p>
+      <p><strong>Bass:</strong> {projection.summary.bass}</p>
+      {(projection.boundaryTies ?? []).map((tie) => <p key={tie.tieId}>{tie.description} Tie {tie.tieId}, {tie.direction}, event {tie.eventId}.</p>)}
+      {(projection.invalidEventIds ?? []).length > 0 && <p><strong>Invalid timing:</strong> {projection.invalidEventIds.length} event(s) begin outside this measure and are indicated at the boundary.</p>}
+    </div>
+  </details>;
 }

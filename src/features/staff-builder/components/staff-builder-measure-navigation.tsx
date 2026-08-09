@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export function StaffBuilderMeasureNavigation({ measureIndex, measureCount, disabled = false, disabledReason, onNavigate }: Readonly<{
   measureIndex: number;
@@ -23,7 +24,7 @@ export function StaffBuilderMeasureNavigation({ measureIndex, measureCount, disa
     }
   }}>
     <div className="staff-builder-measure-navigation-controls">
-      <button aria-label="Previous Measure" className="staff-builder-score-navigation-button" disabled={disabled || measureIndex === 0} onClick={() => onNavigate(measureIndex - 1)} title={disabledTitle} type="button">Previous</button>
+      <button aria-label="Previous Measure" className="staff-builder-score-navigation-button" disabled={disabled || measureIndex === 0} onClick={() => onNavigate(measureIndex - 1)} title={disabledTitle} type="button"><ChevronLeft aria-hidden="true" /></button>
       <button
         aria-controls="staff-builder-measure-picker"
         aria-expanded={open}
@@ -35,7 +36,7 @@ export function StaffBuilderMeasureNavigation({ measureIndex, measureCount, disa
         title={disabledTitle}
         type="button"
       >Measure {measureIndex + 1} of {measureCount} <span aria-hidden="true">▾</span></button>
-      <button aria-label="Next Measure" className="staff-builder-score-navigation-button" disabled={disabled || measureIndex >= measureCount - 1} onClick={() => onNavigate(measureIndex + 1)} title={disabledTitle} type="button">Next</button>
+      <button aria-label="Next Measure" className="staff-builder-score-navigation-button" disabled={disabled || measureIndex >= measureCount - 1} onClick={() => onNavigate(measureIndex + 1)} title={disabledTitle} type="button"><ChevronRight aria-hidden="true" /></button>
     </div>
     {open && <ul aria-label="Choose a measure" className="staff-builder-measure-picker" id="staff-builder-measure-picker">
       {Array.from({ length: measureCount }, (_value, index) => <li key={index}>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appendStaffBuilderMeasure, createStaffBuilderScore, insertUnresolvedStaffBuilderNotes, setStaffBuilderMeasureKeySignature, type StaffBuilderFactories } from "./staff-builder-score";
-import { commitStaffBuilderPendingCapture, DEFAULT_STAFF_BUILDER_CAPTURE_STATE, formatStaffBuilderCapturePosition, moveStaffBuilderCaptureBackward, moveStaffBuilderCaptureForward, routeStaffBuilderCapturePitch } from "./staff-builder-capture";
+import { commitStaffBuilderCaptureRest, commitStaffBuilderPendingCapture, DEFAULT_STAFF_BUILDER_CAPTURE_STATE, formatStaffBuilderCapturePosition, moveStaffBuilderCaptureBackward, moveStaffBuilderCaptureForward, routeStaffBuilderCapturePitch } from "./staff-builder-capture";
 
 function factories(): StaffBuilderFactories {
   let id = 0;
@@ -119,6 +119,40 @@ describe("Staff Builder capture operations", () => {
     const factory = factories();
     const committed = commitStaffBuilderPendingCapture(score(factory), { measureIndex: 0, offsetTicks: 1800 }, { treble: [60], bass: [] }, factory);
     expect(committed.measures[0]?.events[0]).toMatchObject({ startTick: 1800, rhythm: { status: "final", duration: "quarter" } });
+  });
+
+  it.each([
+    ["treble", ["treble"]],
+    ["bass", ["bass"]],
+    ["grand", ["bass", "treble"]],
+  ] as const)("adds capture rests atomically for %s routing and replaces only targeted staves", (inputMode, expectedStaves) => {
+    const factory = factories();
+    let current = insertUnresolvedStaffBuilderNotes(score(factory), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60], factories: factory });
+    current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "bass", startTick: 0, midiNumbers: [48], factories: factory });
+    const result = commitStaffBuilderCaptureRest(current, { cursor: { measureIndex: 0, offsetTicks: 0 }, inputMode, stepDuration: "eighth" }, factory);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const atPosition = result.score.measures[0]!.events.filter(({ startTick }) => startTick === 0);
+    expect(atPosition).toHaveLength(2);
+    for (const staff of ["treble", "bass"] as const) {
+      const event = atPosition.find((item) => item.staff === staff)!;
+      if ((expectedStaves as readonly string[]).includes(staff)) expect(event).toMatchObject({ kind: "rest", rhythm: { status: "final", duration: "eighth" } });
+      else expect(event).toBe(current.measures[0]!.events.find((item) => item.staff === staff));
+    }
+  });
+
+  it.each(["quarter", "eighth", "sixteenth"] as const)("uses the exact %s Step Duration for capture rests", (stepDuration) => {
+    const result = commitStaffBuilderCaptureRest(score(), { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, inputMode: "treble", stepDuration });
+    expect(result.ok && result.score.measures[0]!.events[0]).toMatchObject({ kind: "rest", rhythm: { status: "final", duration: stepDuration } });
+  });
+
+  it("rejects the entire Grand Staff rest operation when a targeted event participates in a tie", () => {
+    const factory = factories();
+    let current = insertUnresolvedStaffBuilderNotes(score(factory), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60], factories: factory });
+    current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "bass", startTick: 0, midiNumbers: [48], factories: factory });
+    const treble = current.measures[0]!.events.find(({ staff }) => staff === "treble")!;
+    const tied = { ...current, ties: [{ id: "tie", fromEventId: treble.id, fromPitchId: treble.kind === "notes" ? treble.pitches[0]!.id : "", toEventId: "later", toPitchId: "later-pitch" }] };
+    expect(commitStaffBuilderCaptureRest(tied, DEFAULT_STAFF_BUILDER_CAPTURE_STATE, factory)).toEqual({ ok: false, error: "tied-event", score: tied });
   });
 
   it.each([

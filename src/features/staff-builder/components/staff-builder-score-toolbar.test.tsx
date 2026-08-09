@@ -15,7 +15,7 @@ afterEach(() => { cleanup(); setInstrumentVolume(0.5); });
 describe("StaffBuilderScoreToolbar", () => {
   it("shows inherited effective context and opens only one editor at a time", () => {
     const onKeyChange = vi.fn(); const onTimeChange = vi.fn();
-    render(<StaffBuilderScoreToolbar measureIndex={2} onKeyChange={onKeyChange} onTimeChange={onTimeChange} score={score} />);
+    render(<StaffBuilderScoreToolbar measureIndex={2} onKeyChange={onKeyChange} onNavigate={vi.fn()} onTimeChange={onTimeChange} score={score} />);
     const key = screen.getByRole("button", { name: "Key signature: G major" });
     const time = screen.getByRole("button", { name: "Time signature: 3/4" });
     expect(key.getAttribute("aria-expanded")).toBe("false");
@@ -32,14 +32,14 @@ describe("StaffBuilderScoreToolbar", () => {
 
   it("edits measure 1 initial context through existing callbacks", () => {
     const onKeyChange = vi.fn();
-    render(<StaffBuilderScoreToolbar measureIndex={0} onKeyChange={onKeyChange} onTimeChange={vi.fn()} score={score} />);
+    render(<StaffBuilderScoreToolbar measureIndex={0} onKeyChange={onKeyChange} onNavigate={vi.fn()} onTimeChange={vi.fn()} score={score} />);
     fireEvent.click(screen.getByRole("button", { name: "Key signature: C major" }));
     fireEvent.change(screen.getByLabelText("Key signature"), { target: { value: "a-minor" } });
     expect(onKeyChange).toHaveBeenCalledWith(0, "a-minor");
   });
 
   it("updates effective override and inherited context when the visible measure changes", () => {
-    const props = { onKeyChange: vi.fn(), onTimeChange: vi.fn(), score };
+    const props = { onKeyChange: vi.fn(), onNavigate: vi.fn(), onTimeChange: vi.fn(), score };
     const { rerender } = render(<StaffBuilderScoreToolbar measureIndex={0} {...props} />);
     expect(screen.getByRole("button", { name: "Key signature: C major" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Time signature: 4/4" })).toBeTruthy();
@@ -53,7 +53,7 @@ describe("StaffBuilderScoreToolbar", () => {
 
   it("discloses shared volume and exposes a non-color-only muted state", () => {
     setInstrumentVolume(0);
-    const { container } = render(<StaffBuilderScoreToolbar measureIndex={0} onKeyChange={vi.fn()} onTimeChange={vi.fn()} score={score} />);
+    const { container } = render(<StaffBuilderScoreToolbar measureIndex={0} onKeyChange={vi.fn()} onNavigate={vi.fn()} onTimeChange={vi.fn()} score={score} />);
     const trigger = screen.getByRole("button", { name: "Instrument volume, 0 percent, muted" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(trigger.textContent).toContain("0%");
@@ -61,5 +61,14 @@ describe("StaffBuilderScoreToolbar", () => {
     fireEvent.click(trigger);
     fireEvent.change(screen.getByLabelText("Instrument volume"), { target: { value: "70" } });
     expect(screen.getByRole("button", { name: "Instrument volume, 70 percent" })).toBeTruthy();
+  });
+
+  it("composes one toolbar row in key, time, previous, measure, next, volume order", () => {
+    const { container } = render(<StaffBuilderScoreToolbar measureIndex={1} onKeyChange={vi.fn()} onNavigate={vi.fn()} onTimeChange={vi.fn()} score={score} />);
+    const row = container.querySelector(".staff-builder-score-toolbar-row")!;
+    expect(row.querySelectorAll(".staff-builder-score-toolbar-row")).toHaveLength(0);
+    expect([...row.querySelectorAll("button")].slice(0, 6).map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Key signature: G major", "Time signature: 3/4", "Previous Measure", "Current measure: Measure 2 of 3", "Next Measure", "Instrument volume, 50 percent",
+    ]);
   });
 });

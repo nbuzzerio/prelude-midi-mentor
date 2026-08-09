@@ -152,15 +152,15 @@ describe("Staff Builder session", () => {
     dismissIntroduction();
     createPiece("Capture");
     fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
-    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
-    expect(screen.getByText("Pending bass preview: none.")).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending bass preview: none/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Clear Current Entry" }));
-    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: none/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
     let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Lock pitches and continue" }));
-    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: none/)).toBeTruthy();
     expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
     draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events[0]).toMatchObject({ staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 60 }] });
@@ -169,7 +169,7 @@ describe("Staff Builder session", () => {
     render(<StaffBuilderSession storage={storage} />);
     expect(screen.queryByText("A newer Staff Builder draft is available.")).toBeNull();
     expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
-    expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: none/)).toBeTruthy();
     expect(screen.getByText(/Measure 1, Beat 2 \(quarter-note beat; tick 480\)/)).toBeTruthy();
   });
 
@@ -203,10 +203,10 @@ describe("Staff Builder session", () => {
     const sheet = screen.getByRole("region", { name: "Virtual keyboard" });
     expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
     fireEvent.click(sheet.querySelector('[aria-label="C, MIDI 60"]') as HTMLElement);
-    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Close virtual keyboard" }));
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
-    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open virtual keyboard" })));
 
     fireEvent.click(screen.getByRole("button", { name: "Open virtual keyboard" }));
@@ -242,7 +242,7 @@ describe("Staff Builder session", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open virtual keyboard" }));
     fireEvent.click(screen.getByRole("region", { name: "Virtual keyboard" }).querySelector('[aria-label="D, MIDI 62"]') as HTMLElement);
-    expect(screen.getByText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
     const responsiveDismissedLauncher = screen.getByRole("button", { name: "Open virtual keyboard" });
     const responsiveDismissedFocus = vi.spyOn(responsiveDismissedLauncher, "focus");
 
@@ -252,7 +252,7 @@ describe("Staff Builder session", () => {
     });
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
     expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
-    expect(screen.getByText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
     expect(responsiveDismissedFocus).not.toHaveBeenCalled();
 
     act(() => {
@@ -262,7 +262,7 @@ describe("Staff Builder session", () => {
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
     expect(screen.queryByTestId("staff-builder-virtual-keyboard")).toBeNull();
     expect(screen.getByRole("button", { name: "Open virtual keyboard" })).toBeTruthy();
-    expect(screen.getByText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
   });
 
   it("shows playback controls while gating rhythmic scopes from the current structural issues", () => {
@@ -310,7 +310,7 @@ describe("Staff Builder session", () => {
     dismissIntroduction();
     createPiece("MIDI Capture");
     act(() => midiBoundary.onNote?.(66));
-    expect(screen.getByText(/Pending treble preview: note .* at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note .* at tick 0/)).toBeTruthy();
     const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events).toEqual([]);
   });
@@ -323,12 +323,12 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: /Input Options: Grand Staff/ }));
     expect(screen.getByRole("button", { name: "Grand Staff" }).getAttribute("aria-pressed")).toBe("true");
     act(() => { midiBoundary.onNote?.(48); midiBoundary.onNote?.(60); });
-    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
-    expect(screen.getByText(/Pending bass preview: note C3 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending bass preview: note C3 at tick 0/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "B, MIDI 59" }));
-    expect(screen.getByText(/Pending bass preview: chord C3, B3 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending bass preview: chord C3, B3 at tick 0/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "B, MIDI 59" }));
-    expect(screen.getByText(/Pending bass preview: note C3 at tick 0/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending bass preview: note C3 at tick 0/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Lock pitches and continue" }));
     const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.captureState.inputMode).toBe("grand");

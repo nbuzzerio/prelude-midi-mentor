@@ -1,6 +1,7 @@
 import {
   appendStaffBuilderMeasure,
   insertStaffBuilderNotes,
+  insertStaffBuilderRest,
   resolveStaffBuilderMeasureContext,
   type StaffBuilderFactories,
 } from "./staff-builder-score";
@@ -111,4 +112,31 @@ export function commitStaffBuilderPendingCapture(
     });
   }
   return next;
+}
+
+export type StaffBuilderCaptureRestResult =
+  | Readonly<{ ok: true; score: StaffBuilderScoreV1; staves: readonly StaffBuilderStaff[] }>
+  | Readonly<{ ok: false; error: "tied-event"; score: StaffBuilderScoreV1 }>;
+
+export function commitStaffBuilderCaptureRest(
+  score: StaffBuilderScoreV1,
+  state: StaffBuilderCaptureState,
+  factories?: StaffBuilderFactories,
+): StaffBuilderCaptureRestResult {
+  const staves: readonly StaffBuilderStaff[] = state.inputMode === "grand"
+    ? ["treble", "bass"]
+    : [state.inputMode];
+  const events = score.measures[state.cursor.measureIndex]?.events ?? [];
+  const replaced = events.filter(({ staff, startTick }) => staves.includes(staff) && startTick === state.cursor.offsetTicks);
+  if (replaced.some(({ id }) => score.ties.some((tie) => tie.fromEventId === id || tie.toEventId === id))) {
+    return { ok: false, error: "tied-event", score };
+  }
+  const nextScore = staves.reduce((current, staff) => insertStaffBuilderRest(current, {
+    measureIndex: state.cursor.measureIndex,
+    staff,
+    startTick: state.cursor.offsetTicks,
+    duration: state.stepDuration,
+    factories,
+  }), score);
+  return { ok: true, score: nextScore, staves };
 }

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   commitStaffBuilderPendingCapture,
+  commitStaffBuilderCaptureRest,
   formatStaffBuilderCapturePosition,
   moveStaffBuilderCaptureBackward,
   moveStaffBuilderCaptureForward,
@@ -57,6 +58,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   const [validationActive, setValidationActive] = useState(false);
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
   const [validationStatus, setValidationStatus] = useState<string | null>(null);
+  const [captureStatus, setCaptureStatus] = useState<string | null>(null);
   if (initialScoreFingerprint !== sourceFingerprint) {
     setSourceFingerprint(initialScoreFingerprint);
     if (initialScoreFingerprint !== scoreFingerprint(score)) {
@@ -185,6 +187,19 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     persistOutsideRhythmHistory(moved.score, { ...captureState, cursor: moved.cursor });
   }, [captureState, pending, persistOutsideRhythmHistory, score]);
 
+  const addRestAndContinue = useCallback(() => {
+    const committed = commitStaffBuilderCaptureRest(score, captureState);
+    if (!committed.ok) {
+      setCaptureStatus("This position is tied. Remove the tie before replacing it with a rest.");
+      return false;
+    }
+    const moved = moveStaffBuilderCaptureForward(committed.score, captureState.cursor, captureState.stepDuration);
+    setPending(EMPTY_PENDING);
+    setCaptureStatus(`${captureState.stepDuration === "quarter" ? "Quarter" : captureState.stepDuration === "eighth" ? "Eighth" : "Sixteenth"} rest added to ${committed.staves.length === 2 ? "treble and bass" : committed.staves[0]}.`);
+    persistOutsideRhythmHistory(moved.score, { ...captureState, cursor: moved.cursor });
+    return true;
+  }, [captureState, persistOutsideRhythmHistory, score]);
+
   const goToMeasure = useCallback((measureIndex: number) => {
     if (validationActive || !Number.isInteger(measureIndex) || measureIndex < 0 || measureIndex >= score.measures.length) return false;
     if (editorPass === "capture") {
@@ -225,6 +240,21 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   const switchToCapture = useCallback(() => {
     persist(score, captureState, "capture", selectionToState(rhythm.selection));
   }, [captureState, persist, rhythm.selection, score, selectionToState]);
+
+  const captureRestAsNote = useCallback((selection: StaffBuilderEventSelection) => {
+    const event = score.measures[selection.measureIndex]?.events.find(({ id }) => id === selection.eventId);
+    if (!event || event.kind !== "rest") return false;
+    if (hasPending(pending) && !confirmDiscardPending()) return false;
+    const supportedStep = event.rhythm.status === "final" && (["quarter", "eighth", "sixteenth"] as const).includes(event.rhythm.duration as StaffBuilderStepDuration)
+      ? event.rhythm.duration as StaffBuilderStepDuration
+      : captureState.stepDuration;
+    const nextCaptureState = { ...captureState, cursor: { measureIndex: selection.measureIndex, offsetTicks: event.startTick }, stepDuration: supportedStep, inputMode: event.staff };
+    setPending(EMPTY_PENDING);
+    setCaptureStatus("Enter replacement pitches, then choose Lock.");
+    rhythm.setSelection(selection);
+    persist(score, nextCaptureState, "capture", selectionToState(selection));
+    return true;
+  }, [captureState, confirmDiscardPending, pending, persist, rhythm, score, selectionToState]);
 
   const undo = useCallback(() => {
     const restored = history.undo(score);
@@ -330,6 +360,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
       captureState.cursor.offsetTicks,
     ),
     pending,
+    captureStatus,
     rhythm,
     canEnterRhythm: getInitialStaffBuilderRhythmSelection(score) !== null,
     switchToRhythm,
@@ -348,6 +379,8 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     previousPosition: () => navigate("backward"),
     nextPosition: () => navigate("forward"),
     lockAndContinue,
+    addRestAndContinue,
+    captureRestAsNote,
     clearCurrentEntry: () => setPending(EMPTY_PENDING),
     goToMeasure,
     validation: {
