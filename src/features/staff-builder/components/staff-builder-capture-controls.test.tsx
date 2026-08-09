@@ -47,4 +47,12 @@ describe("StaffBuilderCaptureControls", () => {
     rerender(<StaffBuilderCaptureControls {...props} captureState={DEFAULT_STAFF_BUILDER_CAPTURE_STATE} pending={{ treble: [], bass: [] }} />);
     expect(screen.getByText("Active MIDI: none")).toBeTruthy();
   });
+
+  it("unmounts the inline virtual keyboard for mobile presentation", () => {
+    const props = { captureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, midi: { connectMidi: vi.fn(), deviceName: null, error: null, status: "disconnected" as const }, onInputModeChange: vi.fn(), onVirtualPitchToggle: vi.fn(), pending: { treble: [], bass: [] }, positionLabel: "Beat 1" };
+    const { rerender } = render(<StaffBuilderCaptureControls {...props} />);
+    expect(screen.getByTestId("staff-builder-virtual-keyboard")).toBeTruthy();
+    rerender(<StaffBuilderCaptureControls {...props} showVirtualKeyboard={false} />);
+    expect(screen.queryByTestId("staff-builder-virtual-keyboard")).toBeNull();
+  });
 });

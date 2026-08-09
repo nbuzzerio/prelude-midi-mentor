@@ -24,7 +24,7 @@ beforeEach(() => {
     measureText: (text: string) => ({ width: text.length * 8, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2, actualBoundingBoxLeft: 0, actualBoundingBoxRight: text.length * 8 }),
   } as CanvasRenderingContext2D);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 function dismissIntroduction() {
   fireEvent.click(screen.getByRole("button", { name: "Begin" }));
@@ -171,6 +171,57 @@ describe("Staff Builder session", () => {
     expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
     expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
     expect(screen.getByText(/Measure 1, Beat 2 \(quarter-note beat; tick 480\)/)).toBeTruthy();
+  });
+
+  it("mounts exactly one responsive virtual keyboard and preserves capture state across presentation changes", () => {
+    let mobile = false;
+    let mediaListener: ((event: MediaQueryListEvent) => void) | null = null;
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      get matches() { return mobile; },
+      media: "(max-width: 700px), (pointer: coarse) and (max-width: 900px)",
+      onchange: null,
+      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => { mediaListener = listener; },
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Responsive Capture");
+
+    expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Open virtual keyboard" })).toBeNull();
+
+    act(() => {
+      mobile = true;
+      mediaListener?.({ matches: true } as MediaQueryListEvent);
+    });
+    expect(screen.queryByTestId("staff-builder-virtual-keyboard")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    const sheet = screen.getByRole("region", { name: "Virtual keyboard" });
+    expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
+    fireEvent.click(sheet.querySelector('[aria-label="C, MIDI 60"]') as HTMLElement);
+    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close virtual keyboard" }));
+    expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
+    expect(screen.getByText(/Pending treble preview: note C4 at tick 0/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    fireEvent.click(screen.getByRole("region", { name: "Virtual keyboard" }).querySelector('[aria-label="Lock pitches and continue"]') as HTMLElement);
+    expect(screen.getByRole("region", { name: "Virtual keyboard" })).toBeTruthy();
+    expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
+    expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/tick 480/)).toBeTruthy();
+
+    act(() => {
+      mobile = false;
+      mediaListener?.({ matches: false } as MediaQueryListEvent);
+    });
+    expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
+    expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
+    expect(screen.getByText(/tick 480/)).toBeTruthy();
   });
 
   it("shows playback controls while gating rhythmic scopes from the current structural issues", () => {

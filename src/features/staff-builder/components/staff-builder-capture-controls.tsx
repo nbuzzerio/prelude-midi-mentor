@@ -1,20 +1,19 @@
 import MidiStatus from "@/components/midi/midi-status";
-import PianoKeyboard from "@/components/notation/piano-keyboard";
 import type { StaffBuilderCaptureInputMode, StaffBuilderCaptureState, StaffBuilderPendingCapture } from "../staff-builder-capture";
 import { useState } from "react";
+import { StaffBuilderVirtualKeyboard } from "./staff-builder-virtual-keyboard";
 
-const EMPTY_MIDI_SET = new Set<number>();
 const INPUT_MODE_LABELS: Readonly<Record<StaffBuilderCaptureInputMode, string>> = { grand: "Grand Staff", treble: "Treble Only", bass: "Bass Only" };
 
-export function StaffBuilderCaptureControls({ captureState, positionLabel, pending, onInputModeChange, onVirtualPitchToggle, midi }: Readonly<{
+export function StaffBuilderCaptureControls({ captureState, positionLabel, pending, onInputModeChange, onVirtualPitchToggle, midi, showVirtualKeyboard = true }: Readonly<{
   captureState: StaffBuilderCaptureState;
   positionLabel: string;
   pending: StaffBuilderPendingCapture;
   onInputModeChange: (mode: StaffBuilderCaptureInputMode) => void;
   onVirtualPitchToggle: (midiNumber: number) => void;
+  showVirtualKeyboard?: boolean;
   midi: Readonly<{ connectMidi: () => Promise<void>; deviceName: string | null; error: string | null; status: "disconnected" | "connecting" | "connected" | "unsupported" | "error" }>;
 }>) {
-  const activePitches = [...new Set([...pending.treble, ...pending.bass])];
   const [inputOptionsOpen, setInputOptionsOpen] = useState(false);
   const pendingLabel = (values: readonly number[]) => values.length ? values.join(", ") : "none";
 
@@ -33,9 +32,7 @@ export function StaffBuilderCaptureControls({ captureState, positionLabel, pendi
       <p aria-live="polite" className="staff-builder-capture-status">
         Measure {captureState.cursor.measureIndex + 1}, {positionLabel}; Input Mode {INPUT_MODE_LABELS[captureState.inputMode]}; Step Duration {captureState.stepDuration}; pending treble MIDI pitches {pendingLabel(pending.treble)}; pending bass MIDI pitches {pendingLabel(pending.bass)}.
       </p>
-      <div className="staff-builder-capture-keyboard">
-        <PianoKeyboard activeMidiNumbers={new Set(activePitches)} failedMidiNumbers={EMPTY_MIDI_SET} lastAnswer={null} onNoteToggle={onVirtualPitchToggle} targetMidiNumbers={EMPTY_MIDI_SET} visualMode="freeplay" />
-      </div>
+      {showVirtualKeyboard && <div className="staff-builder-capture-keyboard"><StaffBuilderVirtualKeyboard onVirtualPitchToggle={onVirtualPitchToggle} pending={pending} /></div>}
     </section>
   );
 }

@@ -413,6 +413,44 @@ describe("useStaffBuilderEditor", () => {
     expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ editorPass: "rhythm", rhythmState: { measureIndex: 0, selectedEventId: target.eventId } }));
   });
 
+  it("moves the Capture cursor directly without score history and reuses pending confirmation", () => {
+    const current = score();
+    const before = JSON.stringify(current);
+    const onDraftChange = vi.fn();
+    const confirmDiscardPending = vi.fn(() => false);
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, confirmDiscardPending }));
+    act(() => result.current.addMidiPitch(60));
+    let moved = true;
+    act(() => { moved = result.current.setCapturePosition({ measureIndex: 0, offsetTicks: 240 }); });
+    expect(moved).toBe(false);
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 0 });
+    expect(result.current.pending.treble).toEqual([60]);
+    confirmDiscardPending.mockReturnValue(true);
+    act(() => { moved = result.current.setCapturePosition({ measureIndex: 0, offsetTicks: 240 }); });
+    expect(moved).toBe(true);
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 240 });
+    expect(result.current.pending.treble).toEqual([]);
+    expect(JSON.stringify(result.current.score)).toBe(before);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ captureState: expect.objectContaining({ cursor: { measureIndex: 0, offsetTicks: 240 } }) }));
+  });
+
+  it("defensively rejects invalid, cross-measure, Rhythm, and validation position changes", () => {
+    let current = appendStaffBuilderMeasure(score());
+    current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange }));
+    act(() => {
+      expect(result.current.setCapturePosition({ measureIndex: 0, offsetTicks: -120 })).toBe(false);
+      expect(result.current.setCapturePosition({ measureIndex: 0, offsetTicks: 121 })).toBe(false);
+      expect(result.current.setCapturePosition({ measureIndex: 0, offsetTicks: 1920 })).toBe(false);
+      expect(result.current.setCapturePosition({ measureIndex: 1, offsetTicks: 0 })).toBe(false);
+    });
+    act(() => result.current.switchToRhythm());
+    act(() => { expect(result.current.setCapturePosition({ measureIndex: 0, offsetTicks: 240 })).toBe(false); });
+    expect(onDraftChange).toHaveBeenCalledTimes(1);
+  });
+
   it("retains a Rhythm Correction selection across passes and measures", () => {
     let current = appendStaffBuilderMeasure(score());
     current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });

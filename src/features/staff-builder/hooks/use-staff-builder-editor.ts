@@ -135,6 +135,18 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     persist(score, next);
   }, [captureState, persist, score]);
 
+  const setCapturePosition = useCallback((position: Readonly<{ measureIndex: number; offsetTicks: number }>) => {
+    if (validationActive || editorPass !== "capture" || position.measureIndex !== captureState.cursor.measureIndex) return false;
+    const capacity = resolveStaffBuilderMeasureContext(score, position.measureIndex).capacityTicks;
+    if (!Number.isInteger(position.offsetTicks) || position.offsetTicks < 0 || position.offsetTicks >= capacity || position.offsetTicks % 120 !== 0) return false;
+    if (position.offsetTicks === captureState.cursor.offsetTicks) return false;
+    if (hasPending(pending) && !confirmDiscardPending()) return false;
+    const nextCaptureState = { ...captureState, cursor: position };
+    setPending(EMPTY_PENDING);
+    persist(score, nextCaptureState);
+    return true;
+  }, [captureState, confirmDiscardPending, editorPass, pending, persist, score, validationActive]);
+
   const addMidiPitch = useCallback((midiNumber: number) => {
     setPending((current) => {
       const staff = routeStaffBuilderCapturePitch(captureState.inputMode, midiNumber);
@@ -330,6 +342,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     hasPending: hasPending(pending),
     setInputMode,
     setStepDuration,
+    setCapturePosition,
     addMidiPitch,
     toggleVirtualPitch,
     previousPosition: () => navigate("backward"),

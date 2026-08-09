@@ -32,4 +32,16 @@ describe("StaffBuilderCaptureStrip", () => {
     expect((screen.getByRole("button", { name: "Previous Position" }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.getByRole("button", { name: "Clear Current Entry" })).toBeTruthy();
   });
+
+  it("shows a labelled decorative keyboard launcher only for mobile presentation", () => {
+    const a = actions();
+    const open = vi.fn();
+    const { rerender } = render(<StaffBuilderCaptureStrip captureState={DEFAULT_STAFF_BUILDER_CAPTURE_STATE} hasPending={false} onClear={a.clear} onLock={a.lock} onNext={a.next} onOpenKeyboard={open} onPrevious={a.previous} onStepDurationChange={a.step} />);
+    expect(screen.queryByRole("button", { name: "Open virtual keyboard" })).toBeNull();
+    rerender(<StaffBuilderCaptureStrip captureState={DEFAULT_STAFF_BUILDER_CAPTURE_STATE} hasPending={false} onClear={a.clear} onLock={a.lock} onNext={a.next} onOpenKeyboard={open} onPrevious={a.previous} onStepDurationChange={a.step} showKeyboardLauncher />);
+    const launcher = screen.getByRole("button", { name: "Open virtual keyboard" });
+    fireEvent.click(launcher);
+    expect(open).toHaveBeenCalledOnce();
+    expect(launcher.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  });
 });

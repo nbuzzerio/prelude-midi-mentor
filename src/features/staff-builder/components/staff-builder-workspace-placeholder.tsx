@@ -1,12 +1,15 @@
 import type { StaffBuilderCaptureState } from "../staff-builder-capture";
+import { useRef, useState } from "react";
 import { useStaffBuilderEditor, type StaffBuilderEditorPass, type StaffBuilderPersistedEditorState } from "../hooks/use-staff-builder-editor";
 import { useStaffBuilderInput } from "../hooks/use-staff-builder-input";
+import { useStaffBuilderMobilePresentation } from "../hooks/use-staff-builder-mobile-presentation";
 import { useStaffBuilderPlayback } from "../hooks/use-staff-builder-playback";
 import { describeStaffBuilderSelectedEvent, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { StaffBuilderCaptureControls } from "./staff-builder-capture-controls";
 import { StaffBuilderCaptureStrip } from "./staff-builder-capture-strip";
 import { StaffBuilderMeasureNavigation } from "./staff-builder-measure-navigation";
+import { StaffBuilderMobileKeyboardSheet } from "./staff-builder-mobile-keyboard-sheet";
 import { StaffBuilderPlaybackControls } from "./staff-builder-playback-controls";
 import { StaffBuilderRhythmControls } from "./staff-builder-rhythm-controls";
 import { StaffBuilderScoreView } from "./staff-builder-score-view";
@@ -26,6 +29,10 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   const editor = useStaffBuilderEditor({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave });
   const playback = useStaffBuilderPlayback(editor.score);
   const midi = useStaffBuilderInput(editor.addMidiPitch);
+  const mobilePresentation = useStaffBuilderMobilePresentation();
+  const [mobileKeyboardOpen, setMobileKeyboardOpen] = useState(false);
+  const scoreRegionRef = useRef<HTMLDivElement>(null);
+  const keyboardLauncherRef = useRef<HTMLButtonElement>(null);
   const rhythmMeasureIndex = editor.rhythm.measureIndex;
   const visibleMeasureIndex = editor.validation.active
     ? editor.validation.activeIssue?.target.measureIndex ?? rhythmMeasureIndex
@@ -35,8 +42,14 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
     : editor.rhythm.selection
       ? { measureIndex: editor.rhythm.selection.measureIndex, offsetTicks: editor.rhythm.selectedEvent?.startTick ?? 0 }
       : { measureIndex: visibleMeasureIndex, offsetTicks: 0 };
+  const showMobileKeyboard = mobilePresentation && mobileKeyboardOpen && !editor.validation.active && editor.editorPass === "capture";
 
-  return <section className="staff-builder-panel" aria-labelledby="staff-builder-workspace-title">
+  const closeMobileKeyboard = () => {
+    setMobileKeyboardOpen(false);
+    requestAnimationFrame(() => keyboardLauncherRef.current?.focus({ preventScroll: true }));
+  };
+
+  return <section className={`staff-builder-panel${showMobileKeyboard ? " staff-builder-mobile-keyboard-open" : ""}`} aria-labelledby="staff-builder-workspace-title">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold" id="staff-builder-workspace-title">{editor.score.title}</h2><p className={savingAvailable ? "text-sky-300" : "text-amber-300"}>{savingAvailable ? `${editor.validation.issues.length === 0 ? "Ready to save" : "Needs validation"} · Draft saved automatically.` : "In memory · Local saving unavailable"}</p></div><button className="staff-builder-secondary-button" onClick={() => { if (window.confirm("Return to Piece Library?")) onClose(); }} type="button">Piece Library</button></div>
     <dl className="staff-builder-metadata"><div><dt>Tempo</dt><dd>{editor.score.tempoBpm} BPM</dd></div></dl>
     <div className="staff-builder-pass-switcher" aria-label="Editor pass"><button aria-pressed={!editor.validation.active && editor.editorPass === "capture"} className="staff-builder-secondary-button" onClick={editor.switchToCapture} type="button">Capture Notes</button><button aria-pressed={!editor.validation.active && editor.editorPass === "rhythm"} className="staff-builder-secondary-button" disabled={!editor.canEnterRhythm} onClick={editor.switchToRhythm} type="button">Rhythm Correction</button></div>
@@ -46,14 +59,17 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
       <StaffBuilderMeasureNavigation disabled={editor.validation.active} measureCount={editor.score.measures.length} measureIndex={visibleMeasureIndex} onNavigate={editor.goToMeasure} />
       <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} onKeyChange={editor.setMeasureKey} onTimeChange={editor.setMeasureTime} score={editor.score} />
     </div>
-    <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onInputModeChange={editor.setInputMode} score={editor.score} staffModeDisabled={editor.validation.active || editor.editorPass !== "capture"} />
-    {!editor.validation.active && editor.editorPass === "capture" && <StaffBuilderCaptureStrip captureState={editor.captureState} hasPending={editor.hasPending} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} />}
+    <div className="staff-builder-immediate-workspace" ref={scoreRegionRef}>
+      <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onInputModeChange={editor.setInputMode} onPositionSelect={!editor.validation.active && editor.editorPass === "capture" ? editor.setCapturePosition : undefined} score={editor.score} staffModeDisabled={editor.validation.active || editor.editorPass !== "capture"} />
+      {!editor.validation.active && editor.editorPass === "capture" && <StaffBuilderCaptureStrip captureState={editor.captureState} hasPending={editor.hasPending} keyboardLauncherRef={keyboardLauncherRef} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onOpenKeyboard={() => setMobileKeyboardOpen(true)} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} showKeyboardLauncher={mobilePresentation} />}
+    </div>
     <StaffBuilderPlaybackControls editorPass={editor.editorPass} issueCount={editor.validation.issues.length} onAuditionSelectedEvent={() => { playback.auditionSelectedEvent(editor.rhythm.selectedEvent); }} onPlayCurrentMeasure={() => playback.playCurrentMeasure(visibleMeasureIndex)} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={() => playback.playFromHere(fromHerePosition)} onStop={playback.stop} selectedEvent={editor.rhythm.selectedEvent} state={playback.state} />
     {editor.validation.active
       ? <StaffBuilderValidationPanel activeIndex={editor.validation.activeIssueIndex} activeIssue={editor.validation.activeIssue} issues={editor.validation.issues} onActivate={editor.validation.activate} onClose={editor.validation.close} onCorrection={editor.validation.applyCorrection} onFillAllGaps={editor.validation.fillAllGaps} onNext={editor.validation.next} onPrevious={editor.validation.previous} status={editor.validation.status} />
       : editor.editorPass === "capture"
-        ? <StaffBuilderCaptureControls captureState={editor.captureState} midi={midi} onInputModeChange={editor.setInputMode} onVirtualPitchToggle={editor.toggleVirtualPitch} pending={editor.pending} positionLabel={editor.positionLabel} />
+        ? <StaffBuilderCaptureControls captureState={editor.captureState} midi={midi} onInputModeChange={editor.setInputMode} onVirtualPitchToggle={editor.toggleVirtualPitch} pending={editor.pending} positionLabel={editor.positionLabel} showVirtualKeyboard={!mobilePresentation} />
         : <StaffBuilderRhythmControls canNext={editor.rhythm.canNext} canPrevious={editor.rhythm.canPrevious} canRedo={editor.canRedo} canUndo={editor.canUndo} eventCount={editor.rhythm.eventCount} onAssignDuration={editor.rhythm.assignDuration} onConvertToRest={editor.rhythm.convertToRest} onCreateTies={editor.createTies} onDelete={editor.rhythm.deleteEvent} onMoveToStaff={editor.rhythm.moveToStaff} onNext={editor.rhythm.nextEvent} onPrevious={editor.rhythm.previousEvent} onRedo={editor.redo} onRemoveTie={editor.removeTie} onRespellPitch={editor.rhythm.respellPitch} onSplitAndTie={editor.splitAndTie} onUndo={editor.undo} score={editor.score} selectedDescription={describeStaffBuilderSelectedEvent(editor.score, editor.rhythm.selection)} selectedEvent={editor.rhythm.selectedEvent} selectedIndex={editor.rhythm.selectedIndex} selectedMeasureIndex={rhythmMeasureIndex} status={editor.rhythm.status} />}
     {!editor.validation.active && <StaffBuilderValidationPanel activeIndex={-1} activeIssue={null} issues={editor.validation.issues} onActivate={editor.validation.activate} onClose={editor.validation.close} onCorrection={editor.validation.applyCorrection} onFillAllGaps={editor.validation.fillAllGaps} onNext={editor.validation.next} onPrevious={editor.validation.previous} status={editor.validation.status} />}
+    {showMobileKeyboard && <StaffBuilderMobileKeyboardSheet onClose={closeMobileKeyboard} onLock={editor.lockAndContinue} onVirtualPitchToggle={editor.toggleVirtualPitch} pending={editor.pending} scoreRegionRef={scoreRegionRef} />}
   </section>;
 }

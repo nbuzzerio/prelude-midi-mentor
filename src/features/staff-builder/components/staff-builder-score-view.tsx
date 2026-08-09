@@ -7,10 +7,12 @@ import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "../staff-builder-ty
 import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDuration } from "../staff-builder-time";
 import type { StaffBuilderIssue } from "../staff-builder-validation";
 import { StaffBuilderDurationWheel } from "./staff-builder-duration-wheel";
+import { getStaffBuilderInternalTouchSize, getStaffBuilderPresentationScale, resolveStaffBuilderPositionTick, staffBuilderClientPointToInternal, type StaffBuilderInternalPoint } from "./staff-builder-interaction-geometry";
 import { StaffBuilderStaffModeSelector } from "./staff-builder-staff-mode-selector";
 
 type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: number }>;
-type PointerGesture = Readonly<{ pointerId: number; startX: number; startY: number; eventId: string }>;
+type PointerIntent = Readonly<{ kind: "event"; eventId: string }> | Readonly<{ kind: "position"; offsetTicks: number }>;
+type PointerGesture = Readonly<{ pointerId: number; startX: number; startY: number; intent: PointerIntent }>;
 
 const EMPTY_PENDING_PREVIEW: StaffBuilderPendingCapture = { treble: [], bass: [] };
 const TAP_MOVEMENT_THRESHOLD_PX = 8;
@@ -28,7 +30,7 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, selectedEventId, issue, inputMode = "grand", staffModeDisabled = true, onInputModeChange, onEventSelect, onAssignDuration, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, selectedEventId, issue, inputMode = "grand", staffModeDisabled = true, onInputModeChange, onEventSelect, onPositionSelect, onAssignDuration, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
@@ -39,11 +41,13 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   staffModeDisabled?: boolean;
   onInputModeChange?: (mode: StaffBuilderCaptureInputMode) => void;
   onEventSelect?: (selection: StaffBuilderEventSelection) => boolean;
+  onPositionSelect?: (position: Readonly<{ measureIndex: number; offsetTicks: number }>) => boolean;
   onAssignDuration?: (duration: StaffBuilderDuration) => boolean;
   onRender?: (result: StaffBuilderMeasureRenderResult) => void;
 }>) {
   const notationRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const pointerGesture = useRef<PointerGesture | null>(null);
   const ignoredSyntheticClick = useRef<symbol | null>(null);
   const [cursorGeometry, setCursorGeometry] = useState<CursorGeometry | null>(null);
@@ -51,6 +55,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const [issueGeometry, setIssueGeometry] = useState<CursorGeometry | null>(null);
   const [renderResult, setRenderResult] = useState<StaffBuilderMeasureRenderResult | null>(null);
   const [durationEventId, setDurationEventId] = useState<string | null>(null);
+  const [presentationScale, setPresentationScale] = useState(1);
   const projection = projectStaffBuilderMeasure(score, measureIndex);
   const cursorOffsetTicks = cursor?.offsetTicks;
   const cursorStepDuration = cursor?.stepDuration;
@@ -98,21 +103,32 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const selectedEvent = score.measures[measureIndex]?.events.find(({ id }) => id === selectedEventId);
   const durationAnchor = durationEventId && durationEventId === selectedEventId ? renderResult?.anchors.authoritativeEvents.get(durationEventId) : undefined;
 
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll || typeof ResizeObserver === "undefined") return;
+    const update = () => setPresentationScale(getStaffBuilderPresentationScale(scroll.clientWidth, renderResult?.coordinateSpace.width ?? 760));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(scroll);
+    return () => observer.disconnect();
+  }, [renderResult?.coordinateSpace.width]);
+
   const activateEvent = (eventId: string) => {
     if (!onEventSelect?.({ measureIndex, eventId })) return;
     setDurationEventId(eventId);
   };
-  const resolvePointerTarget = (clientX: number, clientY: number) => {
+  const pointerToInternal = (clientX: number, clientY: number): StaffBuilderInternalPoint | null => {
     const canvas = canvasRef.current;
     const coordinateSpace = renderResult?.coordinateSpace;
     if (!canvas || !coordinateSpace) return null;
-    const rect = canvas.getBoundingClientRect();
-    const x = (clientX - rect.left) * coordinateSpace.width / Math.max(rect.width, 1);
-    const y = (clientY - rect.top) * coordinateSpace.height / Math.max(rect.height, 1);
+    return staffBuilderClientPointToInternal(canvas.getBoundingClientRect(), coordinateSpace, { x: clientX, y: clientY });
+  };
+  const resolveEventTarget = (point: StaffBuilderInternalPoint) => {
+    const { x, y } = point;
     const candidates = authoritativeTargets.map((target) => {
       const { anchor } = target;
-      const width = Math.max(44, anchor.width);
-      const height = Math.max(44, anchor.height);
+      const width = getStaffBuilderInternalTouchSize(anchor.width, presentationScale);
+      const height = getStaffBuilderInternalTouchSize(anchor.height, presentationScale);
       const left = anchor.x + anchor.width / 2 - width / 2;
       const top = anchor.y + anchor.height / 2 - height / 2;
       return { ...target, actual: x >= anchor.x && x <= anchor.x + anchor.width && y >= anchor.y && y <= anchor.y + anchor.height, distance: Math.abs(x - anchor.onsetX), area: anchor.width * anchor.height, contains: x >= left && x <= left + width && y >= top && y <= top + height };
@@ -129,13 +145,20 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     if (Math.hypot(clientX - gesture.startX, clientY - gesture.startY) > TAP_MOVEMENT_THRESHOLD_PX) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    [...canvas.querySelectorAll<HTMLButtonElement>(".staff-builder-event-target")].find(({ dataset }) => dataset.eventId === gesture.eventId)?.focus({ preventScroll: true });
-    activateEvent(gesture.eventId);
+    const intent = gesture.intent;
+    if (intent.kind === "event") {
+      const eventId = intent.eventId;
+      [...canvas.querySelectorAll<HTMLButtonElement>(".staff-builder-event-target")].find(({ dataset }) => dataset.eventId === eventId)?.focus({ preventScroll: true });
+      activateEvent(eventId);
+    } else onPositionSelect?.({ measureIndex, offsetTicks: intent.offsetTicks });
   };
   const handlePointerDown = (pointerEvent: ReactPointerEvent<HTMLDivElement>) => {
-    if (!(pointerEvent.target as Element).closest(".staff-builder-event-target")) { pointerGesture.current = null; return; }
-    const eventId = resolvePointerTarget(pointerEvent.clientX, pointerEvent.clientY);
-    pointerGesture.current = eventId ? { pointerId: pointerEvent.pointerId, startX: pointerEvent.clientX, startY: pointerEvent.clientY, eventId } : null;
+    const point = pointerToInternal(pointerEvent.clientX, pointerEvent.clientY);
+    if (!point) { pointerGesture.current = null; return; }
+    const eventId = onEventSelect ? resolveEventTarget(point) : null;
+    const offsetTicks = eventId === null && onPositionSelect && renderResult ? resolveStaffBuilderPositionTick(renderResult.anchors.positions, point) : null;
+    const intent: PointerIntent | null = eventId ? { kind: "event", eventId } : offsetTicks !== null ? { kind: "position", offsetTicks } : null;
+    pointerGesture.current = intent ? { pointerId: pointerEvent.pointerId, startX: pointerEvent.clientX, startY: pointerEvent.clientY, intent } : null;
   };
   const closeDuration = () => {
     const returnTo = durationEventId;
@@ -150,12 +173,13 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       </div>
       <div className="staff-builder-score-interaction-plane">
         {onInputModeChange && <StaffBuilderStaffModeSelector disabled={staffModeDisabled} inputMode={inputMode} onChange={onInputModeChange} />}
-        <div className="staff-builder-notation-scroll">
-        <div className="staff-builder-notation-canvas" onPointerCancel={() => { pointerGesture.current = null; }} onPointerDown={handlePointerDown} onPointerUp={(pointerEvent) => handlePointerUp(pointerEvent.pointerId, pointerEvent.clientX, pointerEvent.clientY)} ref={canvasRef}>
+        <div className="staff-builder-notation-scroll" ref={scrollRef}>
+        <div className="staff-builder-notation-presentation" style={{ width: (renderResult?.coordinateSpace.width ?? 760) * presentationScale, height: (renderResult?.coordinateSpace.height ?? 300) * presentationScale }}>
+        <div className="staff-builder-notation-canvas" onPointerCancel={() => { pointerGesture.current = null; }} onPointerDown={handlePointerDown} onPointerUp={(pointerEvent) => handlePointerUp(pointerEvent.pointerId, pointerEvent.clientX, pointerEvent.clientY)} ref={canvasRef} style={{ transform: `scale(${presentationScale})`, width: renderResult?.coordinateSpace.width ?? 760, height: renderResult?.coordinateSpace.height ?? 300 }}>
           <div ref={notationRef} />
           {onEventSelect && authoritativeTargets.map(({ anchor, event }) => {
-            const width = Math.max(44, anchor.width);
-            const height = Math.max(44, anchor.height);
+            const width = getStaffBuilderInternalTouchSize(anchor.width, presentationScale);
+            const height = getStaffBuilderInternalTouchSize(anchor.height, presentationScale);
             return <button aria-label={eventAccessibleName(event, measureIndex)} className="staff-builder-event-target" data-event-id={event.id} key={event.id} onClick={(clickEvent) => {
               if (clickEvent.detail !== 0 && ignoredSyntheticClick.current !== null) { ignoredSyntheticClick.current = null; return; }
               activateEvent(event.id);
@@ -169,7 +193,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           {durationAnchor && selectedEvent && renderResult && onAssignDuration && <StaffBuilderDurationWheel anchor={durationAnchor} coordinateSpace={renderResult.coordinateSpace} currentDuration={selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : undefined} eventKind={selectedEvent.kind} key={durationEventId} onChoose={(duration) => {
             if (selectedEvent.rhythm.status === "final" && selectedEvent.rhythm.duration === duration) { closeDuration(); return; }
             if (onAssignDuration(duration)) closeDuration();
-          }} onClose={closeDuration} />}
+          }} onClose={closeDuration} presentationScale={presentationScale} />}
+        </div>
         </div>
         </div>
       </div>

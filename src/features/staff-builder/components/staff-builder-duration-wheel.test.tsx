@@ -62,4 +62,20 @@ describe("StaffBuilderDurationWheel", () => {
     rerender(<StaffBuilderDurationWheel anchor={{ ...anchor, x: 0, y: 0 }} coordinateSpace={{ width: 200, height: 100 }} eventKind="notes" onChoose={vi.fn()} onClose={vi.fn()} />);
     expect(document.querySelector(".staff-builder-duration-wheel")?.getAttribute("style")).toContain("left: 0px; top: 0px");
   });
+
+  it("counter-scales to normal CSS size and clamps its displayed footprint", () => {
+    const scale = 480 / 760;
+    const { rerender } = render(<StaffBuilderDurationWheel anchor={anchor} coordinateSpace={{ width: 760, height: 300 }} eventKind="notes" onChoose={vi.fn()} onClose={vi.fn()} presentationScale={scale} />);
+    let wheel = document.querySelector(".staff-builder-duration-wheel") as HTMLElement;
+    expect(wheel.style.transform).toBe(`scale(${1 / scale})`);
+    expect(wheel.style.transformOrigin).toBe("top left");
+    expect(Number.parseFloat(wheel.style.left) * scale).toBeGreaterThanOrEqual(0);
+    expect(Number.parseFloat(wheel.style.left) * scale + 236).toBeLessThanOrEqual(480);
+
+    rerender(<StaffBuilderDurationWheel anchor={{ ...anchor, x: 735, y: 290 }} coordinateSpace={{ width: 760, height: 300 }} eventKind="notes" onChoose={vi.fn()} onClose={vi.fn()} presentationScale={scale} />);
+    wheel = document.querySelector(".staff-builder-duration-wheel") as HTMLElement;
+    expect(Number.parseFloat(wheel.style.left) * scale).toBeGreaterThanOrEqual(0);
+    expect(Number.parseFloat(wheel.style.left) * scale + 236).toBeLessThanOrEqual(480);
+    expect(Number.parseFloat(wheel.style.top) * scale + 116).toBeLessThanOrEqual(300 * scale);
+  });
 });

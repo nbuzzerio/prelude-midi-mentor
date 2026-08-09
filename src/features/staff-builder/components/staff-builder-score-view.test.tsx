@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderEventSelection } from "../staff-builder-rhythm";
@@ -50,7 +50,7 @@ function interactiveScore(): StaffBuilderScoreV1 {
   ] }, current.measures[1]!] };
 }
 
-afterEach(() => { cleanup(); renderMeasure.mockClear(); });
+afterEach(() => { cleanup(); renderMeasure.mockClear(); vi.unstubAllGlobals(); });
 
 describe("StaffBuilderScoreView", () => {
   it("renders a controlled measure with a semantic summary", () => {
@@ -245,5 +245,92 @@ describe("StaffBuilderScoreView", () => {
     expect(document.activeElement).toBe(quarter);
     expect(quarter.getAttribute("aria-checked")).toBe("true");
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("moves to empty sixteenth-grid positions without creating tabbable position controls", () => {
+    const position = vi.fn(() => true);
+    const { container } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} onPositionSelect={position} score={interactiveScore()} />);
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 760, bottom: 300, width: 760, height: 300, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { pointerId: 20, clientX: 225, clientY: 200 });
+    fireEvent.pointerUp(canvas, { pointerId: 20, clientX: 226, clientY: 201 });
+    expect(position).toHaveBeenCalledOnce();
+    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 240 });
+    expect(screen.queryByRole("button", { name: /position at/i })).toBeNull();
+  });
+
+  it("keeps empty-position taps aligned when the coordinate plane is scaled and scrolled", () => {
+    const position = vi.fn(() => true);
+    const { container } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} onPositionSelect={position} score={interactiveScore()} />);
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: -100, y: 20, left: -100, top: 20, right: 280, bottom: 170, width: 380, height: 150, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { pointerId: 21, clientX: 12.5, clientY: 120 });
+    fireEvent.pointerUp(canvas, { pointerId: 21, clientX: 12.5, clientY: 120 });
+    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 240 });
+  });
+
+  it("keeps event selection and contextual UI in the scaled interaction plane", () => {
+    const select = vi.fn(() => true);
+    const { container } = render(<StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onEventSelect={select} score={interactiveScore()} selectedEventId="treble-note" />);
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: -20, y: 10, left: -20, top: 10, right: 360, bottom: 160, width: 380, height: 150, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { pointerId: 26, clientX: 60, clientY: 45 });
+    fireEvent.pointerUp(canvas, { pointerId: 26, clientX: 60, clientY: 45 });
+    expect(select).toHaveBeenCalledWith({ measureIndex: 0, eventId: "treble-note" });
+    expect(container.querySelector(".staff-builder-duration-wheel")?.parentElement).toBe(canvas);
+    expect(container.querySelector(".staff-builder-selection-outline")?.parentElement).toBe(canvas);
+  });
+
+  it("compensates displayed event targets and hit testing at the minimum score scale", () => {
+    let resize: (() => void) | undefined;
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: () => void) { resize = callback; }
+      observe() { /* test trigger controls timing */ }
+      disconnect() { /* no resources */ }
+    });
+    const select = vi.fn(() => true);
+    const { container } = render(<StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onEventSelect={select} score={interactiveScore()} selectedEventId="treble-note" />);
+    const scroll = container.querySelector(".staff-builder-notation-scroll") as HTMLDivElement;
+    Object.defineProperty(scroll, "clientWidth", { configurable: true, value: 480 });
+    act(() => resize?.());
+    const scale = 480 / 760;
+    const target = screen.getByRole("button", { name: /Unresolved-duration note C4/ });
+    expect(Number.parseFloat(target.style.width) * scale).toBeCloseTo(44);
+    expect(Number.parseFloat(target.style.height) * scale).toBeGreaterThanOrEqual(44);
+
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 480, bottom: 300 * scale, width: 480, height: 300 * scale, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { pointerId: 27, clientX: 135 * scale, clientY: 70 * scale });
+    fireEvent.pointerUp(canvas, { pointerId: 27, clientX: 135 * scale, clientY: 70 * scale });
+    expect(select).toHaveBeenCalledWith({ measureIndex: 0, eventId: "treble-note" });
+    expect((container.querySelector(".staff-builder-duration-wheel") as HTMLElement).style.transform).toContain(`${1 / scale}`);
+  });
+
+  it("retains the 44px internal event-target minimum at presentation scale one", () => {
+    render(<StaffBuilderScoreView measureIndex={0} onEventSelect={() => true} score={interactiveScore()} />);
+    const target = screen.getByRole("button", { name: /Unresolved-duration note C4/ });
+    expect(target.style.width).toBe("44px");
+    expect(target.style.height).toBe("44px");
+  });
+
+  it("gives authoritative events precedence over positions and rejects drag or cancelled position gestures", () => {
+    const select = vi.fn(() => true);
+    const position = vi.fn(() => true);
+    const { container } = render(<StaffBuilderScoreView measureIndex={0} onEventSelect={select} onPositionSelect={position} score={interactiveScore()} />);
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 760, bottom: 300, width: 760, height: 300, toJSON: () => ({}) });
+    const event = screen.getByRole("button", { name: /Unresolved-duration note C4/ });
+    fireEvent.pointerDown(event, { pointerId: 22, clientX: 160, clientY: 70 });
+    fireEvent.pointerUp(event, { pointerId: 22, clientX: 160, clientY: 70 });
+    expect(select).toHaveBeenCalledOnce();
+    expect(position).not.toHaveBeenCalled();
+    fireEvent.pointerDown(canvas, { pointerId: 23, clientX: 225, clientY: 200 });
+    fireEvent.pointerUp(canvas, { pointerId: 23, clientX: 250, clientY: 200 });
+    fireEvent.pointerDown(canvas, { pointerId: 24, clientX: 225, clientY: 200 });
+    fireEvent.pointerUp(canvas, { pointerId: 24, clientX: 225, clientY: 225 });
+    fireEvent.pointerDown(canvas, { pointerId: 25, clientX: 225, clientY: 200 });
+    fireEvent.pointerCancel(canvas, { pointerId: 25 });
+    fireEvent.pointerUp(canvas, { pointerId: 25, clientX: 225, clientY: 200 });
+    expect(position).not.toHaveBeenCalled();
   });
 });
