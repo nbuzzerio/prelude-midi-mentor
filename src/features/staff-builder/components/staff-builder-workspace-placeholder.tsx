@@ -30,7 +30,11 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   const playback = useStaffBuilderPlayback(editor.score);
   const midi = useStaffBuilderInput(editor.addMidiPitch);
   const mobilePresentation = useStaffBuilderMobilePresentation();
-  const [mobileKeyboardOpen, setMobileKeyboardOpen] = useState(false);
+  const mobileKeyboardOwnerAvailable = mobilePresentation && !editor.validation.active && editor.editorPass === "capture";
+  const [mobileKeyboardState, setMobileKeyboardState] = useState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
+  if (mobileKeyboardState.ownerAvailable !== mobileKeyboardOwnerAvailable) {
+    setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
+  }
   const scoreRegionRef = useRef<HTMLDivElement>(null);
   const keyboardLauncherRef = useRef<HTMLButtonElement>(null);
   const rhythmMeasureIndex = editor.rhythm.measureIndex;
@@ -42,10 +46,10 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
     : editor.rhythm.selection
       ? { measureIndex: editor.rhythm.selection.measureIndex, offsetTicks: editor.rhythm.selectedEvent?.startTick ?? 0 }
       : { measureIndex: visibleMeasureIndex, offsetTicks: 0 };
-  const showMobileKeyboard = mobilePresentation && mobileKeyboardOpen && !editor.validation.active && editor.editorPass === "capture";
+  const showMobileKeyboard = mobileKeyboardOwnerAvailable && mobileKeyboardState.ownerAvailable && mobileKeyboardState.open;
 
   const closeMobileKeyboard = () => {
-    setMobileKeyboardOpen(false);
+    setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
     requestAnimationFrame(() => keyboardLauncherRef.current?.focus({ preventScroll: true }));
   };
 
@@ -61,7 +65,7 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
     </div>
     <div className="staff-builder-immediate-workspace" ref={scoreRegionRef}>
       <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onInputModeChange={editor.setInputMode} onPositionSelect={!editor.validation.active && editor.editorPass === "capture" ? editor.setCapturePosition : undefined} score={editor.score} staffModeDisabled={editor.validation.active || editor.editorPass !== "capture"} />
-      {!editor.validation.active && editor.editorPass === "capture" && <StaffBuilderCaptureStrip captureState={editor.captureState} hasPending={editor.hasPending} keyboardLauncherRef={keyboardLauncherRef} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onOpenKeyboard={() => setMobileKeyboardOpen(true)} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} showKeyboardLauncher={mobilePresentation} />}
+      {!editor.validation.active && editor.editorPass === "capture" && <StaffBuilderCaptureStrip captureState={editor.captureState} hasPending={editor.hasPending} keyboardLauncherRef={keyboardLauncherRef} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onOpenKeyboard={() => setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: true })} onPrevious={editor.previousPosition} onStepDurationChange={editor.setStepDuration} showKeyboardLauncher={mobilePresentation} />}
     </div>
     <StaffBuilderPlaybackControls editorPass={editor.editorPass} issueCount={editor.validation.issues.length} onAuditionSelectedEvent={() => { playback.auditionSelectedEvent(editor.rhythm.selectedEvent); }} onPlayCurrentMeasure={() => playback.playCurrentMeasure(visibleMeasureIndex)} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={() => playback.playFromHere(fromHerePosition)} onStop={playback.stop} selectedEvent={editor.rhythm.selectedEvent} state={playback.state} />
     {editor.validation.active
