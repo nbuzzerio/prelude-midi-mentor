@@ -14,7 +14,12 @@ describe("StaffBuilderScoreToolbar", () => {
   it("composes one immediate row in previous, measure, next, volume order without key or time", () => {
     const { container } = render(<StaffBuilderScoreToolbar measureIndex={1} onNavigate={vi.fn()} score={score} />);
     const labels = [...container.querySelectorAll(".staff-builder-score-toolbar-row button")].map((button) => button.getAttribute("aria-label"));
-    expect(labels).toEqual(["Previous Measure", "Current measure: Measure 2 of 2", "Next Measure", "Instrument volume, 50 percent"]);
+    expect(labels).toEqual(["Previous Measure", "Measure 2 of 2", "Next Measure", "Instrument volume, 50 percent"]);
+    expect(container.querySelectorAll(".staff-builder-score-toolbar-row")).toHaveLength(1);
+    expect(container.querySelectorAll(".staff-builder-score-toolbar-playback, .staff-builder-score-toolbar-navigation, .staff-builder-score-toolbar-volume")).toHaveLength(3);
+    expect(container.querySelector(".staff-builder-measure-label-full")?.textContent).toBe("Measure 2 of 2");
+    expect(container.querySelector(".staff-builder-measure-label-compact")?.textContent).toBe("M 2/2");
+    expect(container.querySelector(".staff-builder-volume-percent")?.textContent).toBe("50%");
     expect(screen.queryByRole("button", { name: /Key signature/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Time signature/ })).toBeNull();
   });

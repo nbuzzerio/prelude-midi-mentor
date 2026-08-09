@@ -40,8 +40,11 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
   const selectedStatusRef = useRef<HTMLParagraphElement>(null);
   const hasDuration = targetDuration !== "";
   return (
-    <section aria-labelledby="staff-builder-rhythm-title" className="staff-builder-rhythm-controls">
-      <div className="staff-builder-rhythm-heading"><div><h3 className="font-semibold" id="staff-builder-rhythm-title">Rhythm Correction</h3><p>Event {selectedIndex + 1} of {eventCount}</p></div><div className="flex gap-2"><button className="staff-builder-secondary-button" disabled={!canUndo} onClick={onUndo} type="button">Undo</button><button className="staff-builder-secondary-button" disabled={!canRedo} onClick={onRedo} type="button">Redo</button></div></div>
+    <section className="staff-builder-rhythm-controls">
+      <details>
+      <summary>Rhythm Correction controls</summary>
+      <div className="staff-builder-rhythm-controls-content">
+      <div className="staff-builder-rhythm-heading"><div><h3 className="font-semibold">Detailed event correction</h3><p>Event {selectedIndex + 1} of {eventCount}</p></div><div className="flex gap-2"><button className="staff-builder-secondary-button" disabled={!canUndo} onClick={onUndo} type="button">Undo</button><button className="staff-builder-secondary-button" disabled={!canRedo} onClick={onRedo} type="button">Redo</button></div></div>
       <p aria-live="polite" ref={selectedStatusRef} tabIndex={-1}>{selectedDescription}</p>
       <div className="staff-builder-capture-actions"><button className="staff-builder-secondary-button" disabled={!canPrevious} onClick={onPrevious} type="button">Previous Event</button><button className="staff-builder-secondary-button" disabled={!canNext} onClick={onNext} type="button">Next Event</button></div>
       {selectedEvent && <>
@@ -58,6 +61,8 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
         {score && onCreateTies && onRemoveTie && onSplitAndTie && <StaffBuilderTieControls event={selectedEvent} measureIndex={selectedMeasureIndex ?? 0} onCreateTies={onCreateTies} onRemoveTie={onRemoveTie} onSplitAndTie={onSplitAndTie} score={score} />}
         <button className="staff-builder-danger-button" onClick={() => { selectedStatusRef.current?.focus(); onDelete(); }} type="button">Delete Event</button>
       </>}
+      </div>
+      </details>
       {status && <p aria-live="polite" className="text-amber-300" role="status">{status}</p>}
     </section>
   );

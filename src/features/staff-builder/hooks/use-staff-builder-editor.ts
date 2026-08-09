@@ -10,7 +10,7 @@ import {
   type StaffBuilderPendingCapture,
   routeStaffBuilderCapturePitch,
 } from "../staff-builder-capture";
-import { resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature } from "../staff-builder-score";
+import { resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
 import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, setStaffBuilderEventDuration, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import type { StaffBuilderDuration, StaffBuilderStepDuration, StaffBuilderTimeSignature } from "../staff-builder-time";
@@ -350,6 +350,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     reconcileIssueAfterMutation(activeIssue, next);
     return true;
   }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythmState, score]);
+  const setTempo = useCallback((tempoBpm: number) => {
+    if (!Number.isInteger(tempoBpm) || tempoBpm < 40 || tempoBpm > 240) return false;
+    return applyHistoryMutation(tempoBpm === score.tempoBpm ? score : updateStaffBuilderTempo(score, tempoBpm));
+  }, [applyHistoryMutation, score]);
 
   return {
     score,
@@ -397,6 +401,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
       fillAllGaps,
     },
     applyScoreMutation: applyHistoryMutation,
+    setTempo,
     setMeasureKey,
     setMeasureTime,
     createTies: (fromEventId: string, toEventId: string, fromPitchIds: readonly string[]) => {

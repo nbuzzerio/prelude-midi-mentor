@@ -61,10 +61,34 @@ button {
 .staff-builder-primary-button { background: rgb(2 132 199); color: white; font-weight: 700; }
 .staff-builder-metadata { display: flex; flex-wrap: wrap; gap: 1.5rem; margin: 1rem 0; }
 .staff-builder-metadata dt { color: rgb(161 161 170); font-size: 0.875rem; }
+.staff-builder-primary-editor-bar { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 0.5rem; margin: 0.75rem 0 0.35rem; }
+.staff-builder-primary-editor-main { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: end; gap: 0.75rem; min-width: 0; }
+.staff-builder-primary-editor-meta { display: flex; align-items: end; gap: 0.5rem; }
+.staff-builder-issue-count { margin: 0; color: rgb(212 212 216); font-size: 0.8rem; white-space: nowrap; }
+.staff-builder-tempo-control { display: grid; gap: 0.2rem; color: rgb(212 212 216); font-size: 0.8rem; }
+.staff-builder-tempo-input { display: flex; min-height: 2.75rem; align-items: center; gap: 0.35rem; border: 1px solid rgb(82 82 91); border-radius: 0.5rem; background: rgb(9 9 11); padding: 0.25rem 0.55rem; color: white; }
+.staff-builder-tempo-input input { width: 4.25rem; min-height: 2.1rem; border: 0; background: transparent; color: white; font: inherit; font-size: 1rem; }
+.staff-builder-tempo-input input:focus { outline: 0; }
+.staff-builder-tempo-input:focus-within { outline: 2px solid rgb(125 211 252); outline-offset: 2px; }
+.staff-builder-history-controls,
+.staff-builder-quick-playback { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.staff-builder-history-controls button,
+.staff-builder-quick-playback button { display: inline-flex; width: 2.75rem; min-width: 2.75rem; height: 2.75rem; cursor: pointer; align-items: center; justify-content: center; border: 1px solid rgb(82 82 91); border-radius: 0.5rem; background: rgb(39 39 42); color: white; }
+.staff-builder-history-controls button:hover,
+.staff-builder-quick-playback button:hover { background: rgb(63 63 70); }
+.staff-builder-history-controls button:focus-visible,
+.staff-builder-quick-playback button:focus-visible { outline: 2px solid rgb(125 211 252); outline-offset: 2px; }
+.staff-builder-history-controls button:disabled,
+.staff-builder-quick-playback button:disabled { cursor: not-allowed; opacity: 0.45; }
+.staff-builder-quick-playback-group { position: relative; }
+.staff-builder-quick-playback-reason { position: absolute; top: calc(100% + 0.1rem); left: 0; color: rgb(212 212 216); font-size: 0.65rem; line-height: 1; white-space: nowrap; }
+.staff-builder-quick-playback button[aria-pressed="true"] { border-color: rgb(56 189 248); background: rgb(3 105 161); }
+.staff-builder-history-controls svg,
+.staff-builder-quick-playback svg { width: 1.25rem; height: 1.25rem; }
 .staff-builder-dialog-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgb(0 0 0 / 75%); padding: 1rem; }
 .staff-builder-dialog { display: grid; gap: 1rem; max-width: 38rem; border: 1px solid rgb(82 82 91); border-radius: 0.75rem; background: rgb(24 24 27); padding: 1.5rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 50%); }
 .staff-builder-score-view { display: grid; gap: 0.75rem; min-width: 0; border: 1px solid rgb(63 63 70); border-radius: 0.5rem; background: rgb(250 250 250); padding: 0.75rem; color: rgb(24 24 27); }
-.staff-builder-score-header { margin: 1rem 0 0.75rem; }
+.staff-builder-score-header { margin: 0.35rem 0 0.5rem; }
 .staff-builder-measure-navigation { position: relative; display: grid; justify-items: center; }
 .staff-builder-measure-navigation-controls { display: flex; max-width: 100%; align-items: center; justify-content: center; gap: 0.5rem; }
 .staff-builder-score-navigation-button,
@@ -165,12 +189,19 @@ button {
 .staff-builder-mobile-keyboard-keys .piano-keyboard { min-height: 100%; }
 .staff-builder-virtual-keyboard { height: 100%; }
 .staff-builder-mobile-keyboard-open { padding-bottom: min(46dvh, 22rem); }
-.staff-builder-pass-switcher { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+.staff-builder-pass-switcher { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.staff-builder-pass-label-compact,
+.staff-builder-measure-label-compact { display: none; }
 .staff-builder-pass-switcher button[aria-pressed="true"] { outline: 2px solid rgb(56 189 248); outline-offset: 2px; }
 .staff-builder-rhythm-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
+.staff-builder-rhythm-controls summary { cursor: pointer; font-weight: 700; }
+.staff-builder-rhythm-controls-content { display: grid; gap: 0.75rem; padding-top: 0.75rem; }
 .staff-builder-playback-controls { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
 .staff-builder-score-toolbar { display: grid; gap: 0.75rem; }
-.staff-builder-score-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.35rem; }
+.staff-builder-score-toolbar-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; }
+.staff-builder-score-toolbar-playback { justify-self: start; }
+.staff-builder-score-toolbar-navigation { min-width: 0; justify-self: center; }
+.staff-builder-score-toolbar-volume { justify-self: end; }
 .staff-builder-score-toolbar-row .staff-builder-measure-navigation-controls { display: flex; width: auto; gap: 0.35rem; }
 .staff-builder-score-toolbar-row .staff-builder-score-navigation-button { width: 2.75rem; padding-inline: 0.5rem; }
 .staff-builder-score-toolbar-row .staff-builder-score-navigation-button svg { width: 1.25rem; height: 1.25rem; }
@@ -203,7 +234,43 @@ button {
   .staff-builder-score-navigation-button,
   .staff-builder-measure-selector { min-width: 0; overflow: hidden; padding-inline: clamp(0.25rem, 2vw, 0.75rem); text-overflow: ellipsis; white-space: nowrap; }
   .staff-builder-score-interaction-plane { grid-template-columns: 1fr; }
+  .staff-builder-primary-editor-bar { flex-wrap: nowrap; align-items: end; gap: 0.3rem; }
+  .staff-builder-primary-editor-main { flex-wrap: nowrap; gap: 0.35rem; }
+  .staff-builder-primary-editor-meta { align-items: center; gap: 0.3rem; }
+  .staff-builder-pass-switcher { flex-wrap: nowrap; gap: 0.25rem; }
+  .staff-builder-pass-switcher button { min-height: 2.5rem; padding-inline: 0.45rem; }
+  .staff-builder-pass-label-full,
+  .staff-builder-measure-label-full,
+  .staff-builder-volume-percent { display: none; }
+  .staff-builder-pass-label-compact,
+  .staff-builder-measure-label-compact { display: inline; }
+  .staff-builder-tempo-input { min-height: 2.5rem; padding-inline: 0.4rem; }
+  .staff-builder-tempo-input input { width: 3.35rem; }
+  .staff-builder-history-controls { flex-wrap: nowrap; gap: 0.2rem; }
+  .staff-builder-score-toolbar-row { gap: 0.25rem; }
+  .staff-builder-score-toolbar-row .staff-builder-measure-navigation-controls { gap: 0.15rem; }
+  .staff-builder-score-toolbar-row .staff-builder-measure-selector { min-width: 3.8rem; }
+  .staff-builder-volume-trigger { width: 2.75rem; padding-inline: 0.4rem; }
   .staff-builder-staff-mode-selector { grid-template-columns: repeat(3, 2.75rem); justify-content: center; }
+}
+
+@media (max-width: 480px) {
+  .staff-builder-panel { padding: 0.5rem; }
+  .staff-builder-primary-editor-bar { font-size: 0.8rem; }
+  .staff-builder-primary-editor-main { gap: 0.2rem; }
+  .staff-builder-primary-editor-meta { flex-direction: column; align-items: end; gap: 0.1rem; }
+  .staff-builder-history-controls button,
+  .staff-builder-quick-playback button,
+  .staff-builder-score-toolbar-row .staff-builder-score-navigation-button,
+  .staff-builder-volume-trigger { width: 2rem; min-width: 2rem; height: 2rem; min-height: 2rem; padding: 0; }
+  .staff-builder-quick-playback { flex-wrap: nowrap; gap: 0.125rem; }
+  .staff-builder-score-toolbar-row { gap: 0.125rem; }
+  .staff-builder-score-toolbar-row .staff-builder-measure-navigation-controls { gap: 0.125rem; }
+  .staff-builder-score-toolbar-row .staff-builder-measure-selector { min-width: 2.75rem; padding-inline: 0.15rem; }
+  .staff-builder-measure-caret { display: none; }
+  .staff-builder-history-controls svg,
+  .staff-builder-quick-playback svg,
+  .staff-builder-score-toolbar-row svg { width: 1rem; height: 1rem; }
 }
 
 @media (hover: none) and (pointer: coarse) {

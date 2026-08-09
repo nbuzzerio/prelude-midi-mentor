@@ -28,14 +28,14 @@ export function StaffBuilderMeasureNavigation({ measureIndex, measureCount, disa
       <button
         aria-controls="staff-builder-measure-picker"
         aria-expanded={open}
-        aria-label={`Current measure: Measure ${measureIndex + 1} of ${measureCount}`}
+        aria-label={`Measure ${measureIndex + 1} of ${measureCount}`}
         className="staff-builder-measure-selector"
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         ref={triggerRef}
         title={disabledTitle}
         type="button"
-      >Measure {measureIndex + 1} of {measureCount} <span aria-hidden="true">▾</span></button>
+      ><span aria-hidden="true" className="staff-builder-measure-label-full">Measure {measureIndex + 1} of {measureCount}</span><span aria-hidden="true" className="staff-builder-measure-label-compact">M {measureIndex + 1}/{measureCount}</span> <span aria-hidden="true" className="staff-builder-measure-caret">&#9662;</span></button>
       <button aria-label="Next Measure" className="staff-builder-score-navigation-button" disabled={disabled || measureIndex >= measureCount - 1} onClick={() => onNavigate(measureIndex + 1)} title={disabledTitle} type="button"><ChevronRight aria-hidden="true" /></button>
     </div>
     {open && <ul aria-label="Choose a measure" className="staff-builder-measure-picker" id="staff-builder-measure-picker">

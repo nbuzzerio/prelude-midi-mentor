@@ -9,6 +9,9 @@ describe("StaffBuilderRhythmControls", () => {
   it("requires a target duration and dispatches editing, navigation, history, spelling, and deletion", () => {
     const actions = { previous: vi.fn(), next: vi.fn(), duration: vi.fn(), rest: vi.fn(), staff: vi.fn(), spell: vi.fn(), delete: vi.fn(), undo: vi.fn(), redo: vi.fn() };
     render(<StaffBuilderRhythmControls canNext canPrevious canRedo canUndo eventCount={2} onAssignDuration={actions.duration} onConvertToRest={actions.rest} onDelete={actions.delete} onMoveToStaff={actions.staff} onNext={actions.next} onPrevious={actions.previous} onRedo={actions.redo} onRespellPitch={actions.spell} onUndo={actions.undo} selectedDescription="Selected event description" selectedEvent={selectedEvent} selectedIndex={0} status={null} />);
+    const details = screen.getByText("Rhythm Correction controls").parentElement as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    fireEvent.click(screen.getByText("Rhythm Correction controls"));
     expect((screen.getByRole("button", { name: "Assign Duration" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Target Duration"), { target: { value: "dotted-quarter" } });
     fireEvent.click(screen.getByRole("button", { name: "Assign Duration" }));
@@ -24,6 +27,8 @@ describe("StaffBuilderRhythmControls", () => {
   it("announces restrictions and disables boundaries and unavailable history", () => {
     render(<StaffBuilderRhythmControls canNext={false} canPrevious={false} canRedo={false} canUndo={false} eventCount={1} onAssignDuration={vi.fn()} onConvertToRest={vi.fn()} onDelete={vi.fn()} onMoveToStaff={vi.fn()} onNext={vi.fn()} onPrevious={vi.fn()} onRedo={vi.fn()} onRespellPitch={vi.fn()} onUndo={vi.fn()} selectedDescription="Selected" selectedEvent={selectedEvent} selectedIndex={0} status="Tied events cannot be removed." />);
     expect(screen.getByRole("status").textContent).toContain("Tied events");
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    fireEvent.click(screen.getByText("Rhythm Correction controls"));
     expect((screen.getByRole("button", { name: "Previous Event" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Undo" }) as HTMLButtonElement).disabled).toBe(true);
   });

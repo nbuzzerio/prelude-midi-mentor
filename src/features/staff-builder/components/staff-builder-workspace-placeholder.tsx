@@ -8,12 +8,16 @@ import { describeStaffBuilderSelectedEvent, type StaffBuilderRhythmState } from 
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { StaffBuilderCaptureControls } from "./staff-builder-capture-controls";
 import { StaffBuilderCaptureStrip } from "./staff-builder-capture-strip";
+import { StaffBuilderHistoryControls } from "./staff-builder-history-controls";
 import { StaffBuilderMeasureContextControls } from "./staff-builder-measure-context-controls";
 import { StaffBuilderMobileKeyboardSheet } from "./staff-builder-mobile-keyboard-sheet";
+import { getStaffBuilderPlaybackAvailability } from "./staff-builder-playback-availability";
 import { StaffBuilderPlaybackControls } from "./staff-builder-playback-controls";
+import { StaffBuilderQuickPlaybackControls } from "./staff-builder-quick-playback-controls";
 import { StaffBuilderRhythmControls } from "./staff-builder-rhythm-controls";
 import { StaffBuilderScoreDetails, StaffBuilderScoreView } from "./staff-builder-score-view";
 import { StaffBuilderScoreToolbar } from "./staff-builder-score-toolbar";
+import { StaffBuilderTempoControl } from "./staff-builder-tempo-control";
 import { StaffBuilderValidationPanel } from "./staff-builder-validation-panel";
 
 export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave, onClose, savingAvailable }: Readonly<{
@@ -51,6 +55,10 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
       ? { measureIndex: editor.rhythm.selection.measureIndex, offsetTicks: editor.rhythm.selectedEvent?.startTick ?? 0 }
       : { measureIndex: visibleMeasureIndex, offsetTicks: 0 };
   const showMobileKeyboard = mobileKeyboardOwnerAvailable && mobileKeyboardState.ownerAvailable && mobileKeyboardState.open;
+  const playbackAvailability = getStaffBuilderPlaybackAvailability(editor.editorPass, editor.validation.issues.length, editor.rhythm.selectedEvent);
+  const auditionSelectedEvent = () => playback.auditionSelectedEvent(editor.rhythm.selectedEvent, editor.rhythm.selection ? { measureIndex: editor.rhythm.selection.measureIndex, offsetTicks: editor.rhythm.selectedEvent?.startTick ?? 0 } : undefined);
+  const playCurrentMeasure = () => playback.playCurrentMeasure(visibleMeasureIndex);
+  const playFromHere = () => playback.playFromHere(fromHerePosition);
 
   const closeMobileKeyboard = () => {
     setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
@@ -66,21 +74,28 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
 
   return <section className={`staff-builder-panel${showMobileKeyboard ? " staff-builder-mobile-keyboard-open" : ""}`} aria-labelledby="staff-builder-workspace-title">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold" id="staff-builder-workspace-title">{editor.score.title}</h2><p className={savingAvailable ? "text-sky-300" : "text-amber-300"}>{savingAvailable ? `${editor.validation.issues.length === 0 ? "Ready to save" : "Needs validation"} · Draft saved automatically.` : "In memory · Local saving unavailable"}</p></div><button className="staff-builder-secondary-button" onClick={() => { if (window.confirm("Return to Piece Library?")) onClose(); }} type="button">Piece Library</button></div>
-    <dl className="staff-builder-metadata"><div><dt>Tempo</dt><dd>{editor.score.tempoBpm} BPM</dd></div></dl>
-    <div className="staff-builder-pass-switcher" aria-label="Editor pass"><button aria-pressed={!editor.validation.active && editor.editorPass === "capture"} className="staff-builder-secondary-button" onClick={editor.switchToCapture} type="button">Capture Notes</button><button aria-pressed={!editor.validation.active && editor.editorPass === "rhythm"} className="staff-builder-secondary-button" disabled={!editor.canEnterRhythm} onClick={editor.switchToRhythm} type="button">Rhythm Correction</button></div>
-    {!editor.canEnterRhythm && <p className="text-sm text-zinc-300">Capture at least one event before starting Rhythm Correction.</p>}
-    <p aria-live="polite" role="status">{editor.validation.issues.length} structural {editor.validation.issues.length === 1 ? "issue" : "issues"}.</p>
+    <div className="staff-builder-primary-editor-bar">
+      <div className="staff-builder-primary-editor-main">
+        <StaffBuilderTempoControl onTempoChange={editor.setTempo} tempoBpm={editor.score.tempoBpm} />
+        <div className="staff-builder-pass-switcher" aria-label="Editor pass"><button aria-label="Capture Notes" aria-pressed={!editor.validation.active && editor.editorPass === "capture"} className="staff-builder-secondary-button" onClick={editor.switchToCapture} type="button"><span className="staff-builder-pass-label-full">Capture Notes</span><span aria-hidden="true" className="staff-builder-pass-label-compact">Capture</span></button><button aria-label="Rhythm Correction" aria-pressed={!editor.validation.active && editor.editorPass === "rhythm"} className="staff-builder-secondary-button" disabled={!editor.canEnterRhythm} onClick={editor.switchToRhythm} type="button"><span className="staff-builder-pass-label-full">Rhythm Correction</span><span aria-hidden="true" className="staff-builder-pass-label-compact">Rhythm</span></button></div>
+      </div>
+      <div className="staff-builder-primary-editor-meta">
+        <p aria-label={`${editor.validation.issues.length} structural ${editor.validation.issues.length === 1 ? "issue" : "issues"}`} aria-live="polite" className="staff-builder-issue-count" role="status">{editor.validation.issues.length} {editor.validation.issues.length === 1 ? "issue" : "issues"}</p>
+        <StaffBuilderHistoryControls canRedo={editor.canRedo} canUndo={editor.canUndo} onRedo={editor.redo} onUndo={editor.undo} />
+      </div>
+    </div>
     <div className="staff-builder-score-header">
-      <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} navigationDisabled={editor.validation.active || playbackOwnsMeasure} navigationDisabledReason={playbackOwnsMeasure ? "Measure navigation is unavailable while playback follows the score." : undefined} onNavigate={editor.goToMeasure} score={editor.score} />
+      <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} navigationDisabled={editor.validation.active || playbackOwnsMeasure} navigationDisabledReason={playbackOwnsMeasure ? "Measure navigation is unavailable while playback follows the score." : undefined} onNavigate={editor.goToMeasure} playbackControls={<StaffBuilderQuickPlaybackControls availability={playbackAvailability} onAuditionSelectedEvent={auditionSelectedEvent} onPlayCurrentMeasure={playCurrentMeasure} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={playFromHere} onStop={playback.stop} state={playback.state} />} score={editor.score} />
     </div>
     <div className="staff-builder-immediate-workspace" ref={scoreRegionRef}>
       <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, onInputModeChange: editor.setInputMode, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onCaptureRestAsNote={editor.validation.active ? undefined : editor.captureRestAsNote} onConvertToRest={editor.validation.active ? undefined : editor.rhythm.convertToRest} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onKeyChange={editor.validation.active ? undefined : editor.setMeasureKey} onPositionSelect={!editor.validation.active && editor.editorPass === "capture" ? editor.setCapturePosition : undefined} onTimeChange={editor.validation.active ? undefined : editor.setMeasureTime} playbackPosition={playbackPosition ? { offsetTicks: playbackPosition.offsetTicks } : undefined} score={editor.score} />
       {!editor.validation.active && editor.editorPass === "capture" && <StaffBuilderCaptureStrip captureState={editor.captureState} hasPending={editor.hasPending} keyboardLauncherRef={keyboardLauncherRef} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onOpenKeyboard={() => setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: true })} onPrevious={editor.previousPosition} onRest={editor.addRestAndContinue} onStepDurationChange={editor.setStepDuration} showKeyboardLauncher={mobilePresentation} />}
     </div>
     {editor.captureStatus && <p aria-live="polite" className="staff-builder-capture-status" role="status">{editor.captureStatus}</p>}
+    {!editor.canEnterRhythm && <p className="text-sm text-zinc-300">Capture at least one event before starting Rhythm Correction.</p>}
     <StaffBuilderScoreDetails measureIndex={visibleMeasureIndex} score={editor.score} />
     <details className="staff-builder-measure-settings"><summary>Measure settings</summary><StaffBuilderMeasureContextControls control="both" measureIndex={visibleMeasureIndex} onKeyChange={editor.setMeasureKey} onTimeChange={editor.setMeasureTime} score={editor.score} /></details>
-    <StaffBuilderPlaybackControls editorPass={editor.editorPass} issueCount={editor.validation.issues.length} onAuditionSelectedEvent={() => { playback.auditionSelectedEvent(editor.rhythm.selectedEvent, editor.rhythm.selection ? { measureIndex: editor.rhythm.selection.measureIndex, offsetTicks: editor.rhythm.selectedEvent?.startTick ?? 0 } : undefined); }} onPlayCurrentMeasure={() => playback.playCurrentMeasure(visibleMeasureIndex)} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={() => playback.playFromHere(fromHerePosition)} onStop={playback.stop} selectedEvent={editor.rhythm.selectedEvent} state={playback.state} />
+    <StaffBuilderPlaybackControls editorPass={editor.editorPass} issueCount={editor.validation.issues.length} onAuditionSelectedEvent={auditionSelectedEvent} onPlayCurrentMeasure={playCurrentMeasure} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={playFromHere} onStop={playback.stop} selectedEvent={editor.rhythm.selectedEvent} state={playback.state} />
     {editor.validation.active
       ? <StaffBuilderValidationPanel activeIndex={editor.validation.activeIssueIndex} activeIssue={editor.validation.activeIssue} issues={editor.validation.issues} onActivate={editor.validation.activate} onClose={editor.validation.close} onCorrection={editor.validation.applyCorrection} onFillAllGaps={editor.validation.fillAllGaps} onNext={editor.validation.next} onPrevious={editor.validation.previous} status={editor.validation.status} />
       : editor.editorPass === "capture"

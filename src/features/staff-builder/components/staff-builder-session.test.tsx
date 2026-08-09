@@ -99,7 +99,7 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByText("Measure settings"));
     expect((screen.getByLabelText("Key signature") as HTMLSelectElement).value).toBe("g-major");
     expect((screen.getByLabelText("Time signature") as HTMLSelectElement).value).toBe("3/4");
-    expect(screen.getByText("108 BPM")).toBeTruthy();
+    expect((screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement).value).toBe("108");
     expect(screen.getByRole("heading", { name: "Measure 1 of 1" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Piece Library" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Capture Notes" }).getAttribute("aria-pressed")).toBe("true");
@@ -113,6 +113,22 @@ describe("Staff Builder session", () => {
     render(<StaffBuilderSession storage={storage} />);
     expect(screen.getByRole("heading", { name: "Minuet" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Measure 1 of 1" })).toBeTruthy();
+  });
+
+  it("edits tempo through authoritative persistence and immediate history", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Tempo Study");
+    const tempo = screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement;
+    fireEvent.change(tempo, { target: { value: "101" } });
+    fireEvent.keyDown(tempo, { key: "Enter" });
+    expect((screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement).value).toBe("101");
+    expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null").score.tempoBpm).toBe(101);
+    fireEvent.click(screen.getByRole("button", { name: "Undo last score edit" }));
+    expect((screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement).value).toBe("108");
+    fireEvent.click(screen.getByRole("button", { name: "Redo last score edit" }));
+    expect((screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement).value).toBe("101");
   });
 
   it("renames, opens, and deletes library pieces after confirmation", () => {
@@ -273,10 +289,22 @@ describe("Staff Builder session", () => {
     render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
     createPiece("Playback Draft");
-    expect((screen.getByRole("button", { name: "Play Measure" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Play From Here" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Play Piece" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText("Playback unavailable: 2 score issues remain.")).toBeTruthy();
+    const primaryBar = document.querySelector(".staff-builder-primary-editor-bar") as HTMLElement;
+    expect(primaryBar.contains(screen.getByRole("spinbutton", { name: "Tempo" }))).toBe(true);
+    expect(primaryBar.contains(screen.getByRole("button", { name: "Capture Notes" }))).toBe(true);
+    expect(primaryBar.contains(screen.getByRole("button", { name: "Rhythm Correction" }))).toBe(true);
+    expect(primaryBar.contains(screen.getByRole("button", { name: "Undo last score edit" }))).toBe(true);
+    expect(primaryBar.contains(screen.getByRole("status", { name: "2 structural issues" }))).toBe(true);
+    expect(screen.getByRole("status", { name: "2 structural issues" }).textContent).toBe("2 issues");
+    expect(document.querySelectorAll(".staff-builder-score-toolbar-row")).toHaveLength(1);
+    expect(document.querySelectorAll(".staff-builder-score-toolbar-playback, .staff-builder-score-toolbar-navigation, .staff-builder-score-toolbar-volume")).toHaveLength(3);
+    expect(document.querySelectorAll(".staff-builder-quick-playback")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Play Measure" }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Play From Here" }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Play Piece" }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByText("Playback unavailable: 2 score issues remain.")).toHaveLength(2);
+    expect(screen.getAllByText("2 issues block playback")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Stop playback" })).toBeNull();
     expect(screen.queryByLabelText("Instrument volume")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Instrument volume/ }));
     expect(screen.getByLabelText("Instrument volume")).toBeTruthy();
@@ -296,7 +324,7 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fill All Empty Beats With Rests" }));
     expect(screen.getByText("All issues are corrected. Ready to save.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Play Piece" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getAllByRole("button", { name: "Play Piece" }).every((button) => !(button as HTMLButtonElement).disabled)).toBe(true);
     expect(screen.queryByText("Saved and ready for playback.")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText("Saved and ready for playback.")).toBeTruthy();
@@ -384,6 +412,9 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rhythm Correction" }));
     expect(screen.queryByTestId("staff-builder-capture-cursor")).toBeNull();
     expect(screen.getByTestId("staff-builder-selection-outline")).toBeTruthy();
+    const rhythmDetails = screen.getByText("Rhythm Correction controls").parentElement as HTMLDetailsElement;
+    expect(rhythmDetails.open).toBe(false);
+    fireEvent.click(screen.getByText("Rhythm Correction controls"));
     expect(screen.getByText(/Selected event: measure 1, treble, .*tick 0.*, C4, quarter/)).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Target Duration"), { target: { value: "eighth" } });
@@ -392,6 +423,11 @@ describe("Staff Builder session", () => {
     let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft).toMatchObject({ editorPass: "rhythm", rhythmState: { measureIndex: 0 } });
     expect(draft.score.measures[0].events[0].rhythm).toEqual({ status: "final", duration: "eighth" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Capture Notes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rhythm Correction" }));
+    expect((screen.getByText("Rhythm Correction controls").parentElement as HTMLDetailsElement).open).toBe(false);
+    fireEvent.click(screen.getByText("Rhythm Correction controls"));
 
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();

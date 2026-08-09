@@ -1,6 +1,7 @@
 import type { StaffBuilderEditorPass } from "../hooks/use-staff-builder-editor";
 import type { StaffBuilderPlaybackState } from "../hooks/use-staff-builder-playback";
 import type { StaffBuilderEvent } from "../staff-builder-types";
+import { getStaffBuilderPlaybackAvailability } from "./staff-builder-playback-availability";
 
 export function StaffBuilderPlaybackControls({
   editorPass,
@@ -23,11 +24,7 @@ export function StaffBuilderPlaybackControls({
   selectedEvent: StaffBuilderEvent | null;
   state: StaffBuilderPlaybackState;
 }>) {
-  const fullPlaybackReady = issueCount === 0;
-  const auditionReady = editorPass === "rhythm" && selectedEvent?.kind === "notes" && selectedEvent.rhythm.status === "final";
-  const fullPlaybackReason = fullPlaybackReady
-    ? null
-    : `Playback unavailable: ${issueCount} score ${issueCount === 1 ? "issue remains" : "issues remain"}.`;
+  const { auditionReady, fullPlaybackReady, fullPlaybackReason } = getStaffBuilderPlaybackAvailability(editorPass, issueCount, selectedEvent);
 
   return <section className="staff-builder-playback-controls" aria-labelledby="staff-builder-playback-title">
     <h3 id="staff-builder-playback-title">Playback</h3>

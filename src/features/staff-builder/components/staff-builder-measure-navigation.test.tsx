@@ -13,13 +13,13 @@ describe("StaffBuilderMeasureNavigation", () => {
     render(<StaffBuilderMeasureNavigation measureCount={3} measureIndex={measureIndex} onNavigate={vi.fn()} />);
     expect((screen.getByRole("button", { name: "Previous Measure" }) as HTMLButtonElement).disabled).toBe(previousDisabled);
     expect((screen.getByRole("button", { name: "Next Measure" }) as HTMLButtonElement).disabled).toBe(nextDisabled);
-    expect(screen.getByRole("button", { name: `Current measure: Measure ${measureIndex + 1} of 3` })).toBeTruthy();
+    expect(screen.getByRole("button", { name: `Measure ${measureIndex + 1} of 3` })).toBeTruthy();
   });
 
   it("opens exactly the existing measures, identifies the current measure, selects, and closes", () => {
     const onNavigate = vi.fn();
     render(<StaffBuilderMeasureNavigation measureCount={3} measureIndex={1} onNavigate={onNavigate} />);
-    const trigger = screen.getByRole("button", { name: "Current measure: Measure 2 of 3" });
+    const trigger = screen.getByRole("button", { name: "Measure 2 of 3" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
@@ -34,7 +34,7 @@ describe("StaffBuilderMeasureNavigation", () => {
 
   it("closes on Escape and disables every ordinary control during validation", () => {
     const { rerender } = render(<StaffBuilderMeasureNavigation measureCount={3} measureIndex={1} onNavigate={vi.fn()} />);
-    const trigger = screen.getByRole("button", { name: "Current measure: Measure 2 of 3" });
+    const trigger = screen.getByRole("button", { name: "Measure 2 of 3" });
     fireEvent.click(trigger);
     fireEvent.keyDown(screen.getByLabelText("Choose a measure"), { key: "Escape" });
     expect(screen.queryByLabelText("Choose a measure")).toBeNull();
@@ -47,7 +47,7 @@ describe("StaffBuilderMeasureNavigation", () => {
   it("closes an open picker when disabled and opens normally after navigation is re-enabled", () => {
     const onNavigate = vi.fn();
     const { rerender } = render(<StaffBuilderMeasureNavigation measureCount={3} measureIndex={1} onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole("button", { name: "Current measure: Measure 2 of 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Measure 2 of 3" }));
     expect(screen.getByRole("button", { name: "Measure 3" })).toBeTruthy();
     expect(screen.getByLabelText("Choose a measure")).toBeTruthy();
 
@@ -57,7 +57,7 @@ describe("StaffBuilderMeasureNavigation", () => {
     expect(onNavigate).not.toHaveBeenCalled();
 
     rerender(<StaffBuilderMeasureNavigation measureCount={3} measureIndex={1} onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole("button", { name: "Current measure: Measure 2 of 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Measure 2 of 3" }));
     expect(screen.getByRole("button", { name: "Measure 3" })).toBeTruthy();
   });
 
@@ -65,7 +65,7 @@ describe("StaffBuilderMeasureNavigation", () => {
     const reason = "Measure navigation is unavailable while playback follows the score.";
     render(<StaffBuilderMeasureNavigation disabled disabledReason={reason} measureCount={3} measureIndex={1} onNavigate={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Previous Measure" }).getAttribute("title")).toBe(reason);
-    expect(screen.getByRole("button", { name: "Current measure: Measure 2 of 3" }).getAttribute("title")).toBe(reason);
+    expect(screen.getByRole("button", { name: "Measure 2 of 3" }).getAttribute("title")).toBe(reason);
     expect(screen.getByRole("button", { name: "Next Measure" }).getAttribute("title")).toBe(reason);
   });
 });

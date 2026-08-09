@@ -16,6 +16,33 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("persists tempo as one history mutation and supports Undo and Redo", () => {
+    const original = score();
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange }));
+    act(() => expect(result.current.setTempo(101)).toBe(true));
+    expect(result.current.score.tempoBpm).toBe(101);
+    expect(result.current.canUndo).toBe(true);
+    expect(onDraftChange).toHaveBeenCalledTimes(1);
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ tempoBpm: 101 }), expect.any(Object));
+    act(() => result.current.undo());
+    expect(result.current.score.tempoBpm).toBe(100);
+    act(() => result.current.redo());
+    expect(result.current.score.tempoBpm).toBe(101);
+    const calls = onDraftChange.mock.calls.length;
+    act(() => expect(result.current.setTempo(101)).toBe(false));
+    expect(onDraftChange).toHaveBeenCalledTimes(calls);
+  });
+
+  it.each([39, 100.5, 241])("rejects unsupported tempo %s", (tempoBpm) => {
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange }));
+    act(() => expect(result.current.setTempo(tempoBpm)).toBe(false));
+    expect(result.current.score.tempoBpm).toBe(100);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
   it("saves an already valid score explicitly with beginner-facing readiness status", () => {
     const original = score();
     const valid = { ...original, measures: [{ ...original.measures[0]!, events: [
