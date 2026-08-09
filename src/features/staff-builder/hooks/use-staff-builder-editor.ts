@@ -200,6 +200,16 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     return true;
   }, [captureState, confirmDiscardPending, pending, persist, rhythm, score, selectionToState]);
 
+  const selectRhythmEventFromScore = useCallback((selection: StaffBuilderEventSelection) => {
+    if (validationActive || !score.measures[selection.measureIndex]?.events.some(({ id }) => id === selection.eventId)) return false;
+    if (editorPass === "capture" && hasPending(pending) && !confirmDiscardPending()) return false;
+    const nextRhythmState = selectionToState(selection);
+    setPending(EMPTY_PENDING);
+    rhythm.setSelection(selection);
+    persist(score, captureState, "rhythm", nextRhythmState);
+    return true;
+  }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, selectionToState, validationActive]);
+
   const switchToCapture = useCallback(() => {
     persist(score, captureState, "capture", selectionToState(rhythm.selection));
   }, [captureState, persist, rhythm.selection, score, selectionToState]);
@@ -311,6 +321,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     rhythm,
     canEnterRhythm: getInitialStaffBuilderRhythmSelection(score) !== null,
     switchToRhythm,
+    selectRhythmEventFromScore,
     switchToCapture,
     canUndo: history.canUndo,
     canRedo: history.canRedo,

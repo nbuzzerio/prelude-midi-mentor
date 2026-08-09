@@ -1,35 +1,21 @@
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import type { StaffBuilderCaptureInputMode, StaffBuilderCaptureState, StaffBuilderPendingCapture } from "../staff-builder-capture";
-import type { StaffBuilderStepDuration } from "../staff-builder-time";
 import { useState } from "react";
 
 const EMPTY_MIDI_SET = new Set<number>();
-const STEP_LABELS: Readonly<Record<StaffBuilderStepDuration, string>> = {
-  quarter: "Quarter",
-  eighth: "Eighth",
-  sixteenth: "Sixteenth",
-};
-
 const INPUT_MODE_LABELS: Readonly<Record<StaffBuilderCaptureInputMode, string>> = { grand: "Grand Staff", treble: "Treble Only", bass: "Bass Only" };
 
-export function StaffBuilderCaptureControls({ captureState, positionLabel, pending, onInputModeChange, onStepDurationChange, onPrevious, onLock, onNext, onClear, onVirtualPitchToggle, midi }: Readonly<{
+export function StaffBuilderCaptureControls({ captureState, positionLabel, pending, onInputModeChange, onVirtualPitchToggle, midi }: Readonly<{
   captureState: StaffBuilderCaptureState;
   positionLabel: string;
   pending: StaffBuilderPendingCapture;
   onInputModeChange: (mode: StaffBuilderCaptureInputMode) => void;
-  onStepDurationChange: (duration: StaffBuilderStepDuration) => void;
-  onPrevious: () => void;
-  onLock: () => void;
-  onNext: () => void;
-  onClear: () => void;
   onVirtualPitchToggle: (midiNumber: number) => void;
   midi: Readonly<{ connectMidi: () => Promise<void>; deviceName: string | null; error: string | null; status: "disconnected" | "connecting" | "connected" | "unsupported" | "error" }>;
 }>) {
   const activePitches = [...new Set([...pending.treble, ...pending.bass])];
-  const hasPendingPitches = activePitches.length > 0;
   const [inputOptionsOpen, setInputOptionsOpen] = useState(false);
-  const tick = captureState.cursor.offsetTicks;
   const pendingLabel = (values: readonly number[]) => values.length ? values.join(", ") : "none";
 
   return (
@@ -41,20 +27,11 @@ export function StaffBuilderCaptureControls({ captureState, positionLabel, pendi
       <div className="staff-builder-capture-options">
         <div><button aria-controls="staff-builder-input-options" aria-expanded={inputOptionsOpen} className="staff-builder-toolbar-trigger" onClick={() => setInputOptionsOpen((open) => !open)} type="button">Input Options: {INPUT_MODE_LABELS[captureState.inputMode]} <span aria-hidden="true">▾</span></button>
         {inputOptionsOpen && <fieldset id="staff-builder-input-options"><legend>Staff routing</legend><div className="flex flex-wrap gap-2">
-          {(["grand", "treble", "bass"] as const).map((mode) => <button aria-pressed={captureState.inputMode === mode} className="staff-builder-secondary-button" key={mode} onClick={() => onInputModeChange(mode)} type="button">{INPUT_MODE_LABELS[mode]}</button>)}
+          {(["treble", "grand", "bass"] as const).map((mode) => <button aria-pressed={captureState.inputMode === mode} className="staff-builder-secondary-button" key={mode} onClick={() => onInputModeChange(mode)} type="button">{INPUT_MODE_LABELS[mode]}</button>)}
         </div><p className="text-sm text-zinc-300">Grand Staff automatically routes B3 and lower to bass and C4 and higher to treble.</p></fieldset>}</div>
-        <label>Step Duration<select onChange={(event) => onStepDurationChange(event.target.value as StaffBuilderStepDuration)} value={captureState.stepDuration}>
-          {Object.entries(STEP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select></label>
-      </div>
-      <div className="staff-builder-capture-actions">
-        <button className="staff-builder-secondary-button" disabled={captureState.cursor.measureIndex === 0 && tick === 0} onClick={onPrevious} type="button">Previous Position</button>
-        <button className="staff-builder-primary-button" onClick={onLock} type="button">Lock &amp; Continue</button>
-        <button className="staff-builder-secondary-button" onClick={onNext} type="button">Next Position</button>
-        {hasPendingPitches && <button className="staff-builder-secondary-button" onClick={onClear} type="button">Clear Current Entry</button>}
       </div>
       <p aria-live="polite" className="staff-builder-capture-status">
-        Measure {captureState.cursor.measureIndex + 1}, {positionLabel}; Input Mode {INPUT_MODE_LABELS[captureState.inputMode]}; Step Duration {STEP_LABELS[captureState.stepDuration]}; pending treble MIDI pitches {pendingLabel(pending.treble)}; pending bass MIDI pitches {pendingLabel(pending.bass)}.
+        Measure {captureState.cursor.measureIndex + 1}, {positionLabel}; Input Mode {INPUT_MODE_LABELS[captureState.inputMode]}; Step Duration {captureState.stepDuration}; pending treble MIDI pitches {pendingLabel(pending.treble)}; pending bass MIDI pitches {pendingLabel(pending.bass)}.
       </p>
       <div className="staff-builder-capture-keyboard">
         <PianoKeyboard activeMidiNumbers={new Set(activePitches)} failedMidiNumbers={EMPTY_MIDI_SET} lastAnswer={null} onNoteToggle={onVirtualPitchToggle} targetMidiNumbers={EMPTY_MIDI_SET} visualMode="freeplay" />

@@ -389,6 +389,30 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.editorPass).toBe("capture");
   });
 
+  it("coordinates direct score selection through the existing pending confirmation and rhythm state", () => {
+    let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "treble", startTick: 480, midiNumbers: [64] });
+    const target = { measureIndex: 0, eventId: current.measures[0]!.events[1]!.id };
+    const confirmDiscardPending = vi.fn(() => false);
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, confirmDiscardPending }));
+    act(() => result.current.addMidiPitch(67));
+    let selected = true;
+    act(() => { selected = result.current.selectRhythmEventFromScore(target); });
+    expect(selected).toBe(false);
+    expect(result.current.editorPass).toBe("capture");
+    expect(result.current.pending.treble).toEqual([67]);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    confirmDiscardPending.mockReturnValue(true);
+    act(() => { selected = result.current.selectRhythmEventFromScore(target); });
+    expect(selected).toBe(true);
+    expect(result.current.editorPass).toBe("rhythm");
+    expect(result.current.pending.treble).toEqual([]);
+    expect(result.current.rhythm.selection).toEqual(target);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ editorPass: "rhythm", rhythmState: { measureIndex: 0, selectedEventId: target.eventId } }));
+  });
+
   it("retains a Rhythm Correction selection across passes and measures", () => {
     let current = appendStaffBuilderMeasure(score());
     current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });

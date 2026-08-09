@@ -159,7 +159,7 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
     let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events).toEqual([]);
-    fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lock pitches and continue" }));
     expect(screen.getByText("Pending treble preview: none.")).toBeTruthy();
     expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
     draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
@@ -237,7 +237,7 @@ describe("Staff Builder session", () => {
     expect(screen.getByText(/Pending bass preview: chord C3, B3 at tick 0/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "B, MIDI 59" }));
     expect(screen.getByText(/Pending bass preview: note C3 at tick 0/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lock pitches and continue" }));
     const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.captureState.inputMode).toBe("grand");
     expect(draft.captureState).not.toHaveProperty("activeStaff");
@@ -283,7 +283,7 @@ describe("Staff Builder session", () => {
     dismissIntroduction();
     createPiece("Rhythm Study");
     fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
-    fireEvent.click(screen.getByRole("button", { name: "Lock & Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lock pitches and continue" }));
     expect(screen.getByTestId("staff-builder-capture-cursor")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Rhythm Correction" }));
