@@ -116,6 +116,23 @@ describe("renderStaffBuilderMeasure", () => {
     expect(result.coordinateSpace).toEqual({ width: result.width, height: result.height });
   });
 
+  it.each(["c-major", "a-minor"] as const)("returns five usable public notation-control anchors for %s", (initialKeySignatureId) => {
+    const result = renderStaffBuilderMeasure(document.createElement("div"), { ...score(), initialKeySignatureId }, 0);
+    const controls = result.anchors.notationControls;
+    expect(Object.keys(controls)).toEqual(["trebleClef", "grandStaff", "bassClef", "keySignature", "timeSignature"]);
+    for (const anchor of Object.values(controls)) {
+      expect(anchor.x).toBeGreaterThanOrEqual(0);
+      expect(anchor.y).toBeGreaterThanOrEqual(0);
+      expect(anchor.x + anchor.width).toBeLessThanOrEqual(760);
+      expect(anchor.y + anchor.height).toBeLessThanOrEqual(300);
+      expect(anchor.width).toBeGreaterThan(0);
+      expect(anchor.height).toBeGreaterThan(0);
+    }
+    expect(controls.keySignature.width).toBeGreaterThanOrEqual(12);
+    expect(controls.grandStaff.height).toBeGreaterThanOrEqual(44);
+    expect(controls.keySignature.x + controls.keySignature.width).toBeLessThanOrEqual(controls.timeSignature.x);
+  });
+
   it("keeps cross-staff committed and grid onsets aligned while pending chords change", () => {
     const current: StaffBuilderScoreV1 = {
       ...score(),

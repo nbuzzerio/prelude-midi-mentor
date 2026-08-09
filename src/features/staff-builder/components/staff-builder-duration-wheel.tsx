@@ -3,16 +3,18 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "../staff-builder-time";
 import { StaffBuilderMusicGlyph } from "./staff-builder-music-glyph";
 import { getStaffBuilderDurationRingPosition, getStaffBuilderDurationWheelPlacement, type StaffBuilderDisplayedAnchor, type StaffBuilderOverlayBounds } from "./staff-builder-duration-wheel-geometry";
+import { useStaffBuilderRadialActivationGuard } from "./use-staff-builder-radial-activation-guard";
 
 const LABELS: Readonly<Record<StaffBuilderDuration, string>> = {
   whole: "Whole", "dotted-half": "Dotted half", half: "Half", "dotted-quarter": "Dotted quarter",
   quarter: "Quarter", "dotted-eighth": "Dotted eighth", eighth: "Eighth", sixteenth: "Sixteenth",
 };
-export function StaffBuilderDurationWheel({ anchor, bounds, eventKind, currentDuration, onChoose, onToggleEventType = () => undefined, onClose }: Readonly<{
+export function StaffBuilderDurationWheel({ anchor, bounds, eventKind, currentDuration, openedByPointer = false, onChoose, onToggleEventType = () => undefined, onClose }: Readonly<{
   anchor: StaffBuilderDisplayedAnchor;
   bounds: StaffBuilderOverlayBounds;
   eventKind: "notes" | "rest";
   currentDuration?: StaffBuilderDuration;
+  openedByPointer?: boolean;
   onChoose: (duration: StaffBuilderDuration) => void;
   onToggleEventType?: () => void;
   onClose: () => void;
@@ -20,6 +22,7 @@ export function StaffBuilderDurationWheel({ anchor, bounds, eventKind, currentDu
   const placement = getStaffBuilderDurationWheelPlacement(anchor, bounds);
   const [focusedDuration, setFocusedDuration] = useState<StaffBuilderDuration>(currentDuration ?? "quarter");
   const wheelRef = useRef<HTMLDivElement>(null);
+  const activationGuard = useStaffBuilderRadialActivationGuard(openedByPointer);
   useLayoutEffect(() => { [...(wheelRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])].find(({ dataset }) => dataset.duration === focusedDuration)?.focus({ preventScroll: true }); }, [focusedDuration]);
   const handleDurationKey = (key: string) => {
     const index = STAFF_BUILDER_DURATIONS.indexOf(focusedDuration);
@@ -33,17 +36,17 @@ export function StaffBuilderDurationWheel({ anchor, bounds, eventKind, currentDu
   };
   const duration = currentDuration ?? "quarter";
   const oppositeFamily = eventKind === "rest" ? "note" : "rest";
-  return <div className="staff-builder-duration-wheel" data-testid="staff-builder-duration-wheel" onKeyDown={(event) => {
+  return <div aria-label="Duration choices" className="staff-builder-duration-wheel" data-testid="staff-builder-duration-wheel" onKeyDown={(event) => {
     if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
     if ((event.target as HTMLElement).getAttribute("role") === "radio" && handleDurationKey(event.key)) event.preventDefault();
-  }} ref={wheelRef} style={placement}>
+  }} onPointerDownCapture={activationGuard.onPointerDownCapture} ref={wheelRef} role="dialog" style={placement}>
     <div aria-label={`Duration for selected ${eventKind === "rest" ? "rest" : "note or chord"}`} className="staff-builder-duration-options" role="radiogroup">
       {STAFF_BUILDER_DURATIONS.map((item, index) => {
         const position = getStaffBuilderDurationRingPosition(index);
-        return <button aria-checked={currentDuration === item} aria-label={`${LABELS[item]}-${eventKind === "rest" ? "rest" : "note"} duration`} className="staff-builder-duration-option" data-duration={item} key={item} onClick={() => onChoose(item)} onFocus={() => setFocusedDuration(item)} role="radio" style={{ ...position, width: 48, height: 48 }} tabIndex={focusedDuration === item ? 0 : -1} title={`${LABELS[item]} ${eventKind === "rest" ? "rest" : "note"}`} type="button"><StaffBuilderMusicGlyph family={eventKind === "rest" ? "rest" : "note"} kind={item} /></button>;
+        return <button aria-checked={currentDuration === item} aria-label={`${LABELS[item]}-${eventKind === "rest" ? "rest" : "note"} duration`} className="staff-builder-duration-option" data-duration={item} key={item} onClick={(event) => activationGuard.activate(event, () => onChoose(item))} onFocus={() => setFocusedDuration(item)} role="radio" style={{ ...position, width: 48, height: 48 }} tabIndex={focusedDuration === item ? 0 : -1} title={`${LABELS[item]} ${eventKind === "rest" ? "rest" : "note"}`} type="button"><StaffBuilderMusicGlyph family={eventKind === "rest" ? "rest" : "note"} kind={item} /></button>;
       })}
     </div>
-    <button aria-label={eventKind === "rest" ? "Replace rest with notes" : "Convert note or chord to rest"} className="staff-builder-duration-center" onClick={onToggleEventType} title={eventKind === "rest" ? "Enter replacement pitches" : "Convert to rest"} type="button"><StaffBuilderMusicGlyph family={oppositeFamily} kind={duration} /></button>
-    <button aria-label="Close duration choices" className="staff-builder-duration-close" onClick={onClose} title="Close" type="button"><X aria-hidden="true" /></button>
+    <button aria-label={eventKind === "rest" ? "Replace rest with notes" : "Convert note or chord to rest"} className="staff-builder-duration-center" onClick={(event) => activationGuard.activate(event, onToggleEventType)} title={eventKind === "rest" ? "Enter replacement pitches" : "Convert to rest"} type="button"><StaffBuilderMusicGlyph family={oppositeFamily} kind={duration} /></button>
+    <button aria-label="Close duration choices" className="staff-builder-duration-close" onClick={(event) => activationGuard.activate(event, onClose)} title="Close" type="button"><X aria-hidden="true" /></button>
   </div>;
 }

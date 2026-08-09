@@ -41,10 +41,26 @@ export type StaffBuilderPositionAnchor = Readonly<{
   height: number;
 }>;
 
+export type StaffBuilderNotationControlAnchor = Readonly<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}>;
+
+export type StaffBuilderNotationControlAnchors = Readonly<{
+  trebleClef: StaffBuilderNotationControlAnchor;
+  grandStaff: StaffBuilderNotationControlAnchor;
+  bassClef: StaffBuilderNotationControlAnchor;
+  keySignature: StaffBuilderNotationControlAnchor;
+  timeSignature: StaffBuilderNotationControlAnchor;
+}>;
+
 export type StaffBuilderRenderAnchors = Readonly<{
   events: ReadonlyMap<string, StaffBuilderEventAnchor>;
   authoritativeEvents: ReadonlyMap<string, StaffBuilderEventAnchor>;
   positions: ReadonlyMap<number, StaffBuilderPositionAnchor>;
+  notationControls: StaffBuilderNotationControlAnchors;
 }>;
 
 export type StaffBuilderMeasureRenderOptions = StaffBuilderMeasureProjectionOptions & Readonly<{
@@ -194,8 +210,10 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const staveWidth = RENDER_WIDTH - STAVE_X - STAVE_RIGHT_PADDING;
   const trebleStave = new Stave(STAVE_X, TREBLE_Y, staveWidth).addClef("treble");
   const bassStave = new Stave(STAVE_X, BASS_Y, staveWidth).addClef("bass");
+  const clefEndX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
   trebleStave.addKeySignature(projection.vexflowKeySignature);
   bassStave.addKeySignature(projection.vexflowKeySignature);
+  const keyEndX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
   trebleStave.addTimeSignature(projection.timeSignature);
   bassStave.addTimeSignature(projection.timeSignature);
   const sharedNoteStartX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
@@ -234,11 +252,26 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
 
   configureSvg(container, RENDER_WIDTH, RENDER_HEIGHT);
   const eventAnchors = createEventAnchors([...trebleRendered, ...bassRendered]);
+  const trebleTop = trebleStave.getTopLineTopY() - 28;
+  const trebleBottom = trebleStave.getBottomLineBottomY() + 28;
+  const bassTop = bassStave.getTopLineTopY() - 28;
+  const bassBottom = bassStave.getBottomLineBottomY() + 28;
+  const signatureTop = trebleTop;
+  const signatureBottom = bassBottom;
+  const keyWidth = Math.max(12, keyEndX - clefEndX);
+  const timeWidth = Math.max(12, sharedNoteStartX - keyEndX);
   return {
     anchors: {
       events: eventAnchors,
       authoritativeEvents: new Map([...eventAnchors].filter(([eventId]) => !options?.excludedEventIds?.has(eventId))),
       positions: createPositionAnchors(projection, [...trebleRendered, ...bassRendered], trebleStave, bassStave),
+      notationControls: {
+        trebleClef: { x: STAVE_X, y: trebleTop, width: Math.max(12, clefEndX - STAVE_X), height: trebleBottom - trebleTop },
+        grandStaff: { x: Math.max(0, STAVE_X - 18), y: trebleBottom - 8, width: 18, height: Math.max(44, bassTop - trebleBottom + 16) },
+        bassClef: { x: STAVE_X, y: bassTop, width: Math.max(12, clefEndX - STAVE_X), height: bassBottom - bassTop },
+        keySignature: { x: keyEndX - keyWidth, y: signatureTop, width: keyWidth, height: signatureBottom - signatureTop },
+        timeSignature: { x: keyEndX, y: signatureTop, width: timeWidth, height: signatureBottom - signatureTop },
+      },
     },
     projection,
     width: RENDER_WIDTH,

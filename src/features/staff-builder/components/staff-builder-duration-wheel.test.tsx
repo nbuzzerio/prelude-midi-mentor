@@ -96,4 +96,18 @@ describe("StaffBuilderDurationWheel", () => {
     rerender(<StaffBuilderDurationWheel anchor={anchor} bounds={bounds} currentDuration="half" eventKind="rest" onChoose={vi.fn()} onClose={vi.fn()} onToggleEventType={toggle} />);
     expect(screen.getByRole("button", { name: "Replace rest with notes" }).querySelector('[data-glyph-family="note"][data-glyph-kind="half"]')).toBeTruthy();
   });
+
+  it("requires a new pointerdown after a pointer-opened wheel while keyboard remains immediate", () => {
+    const choose = vi.fn(); const toggle = vi.fn(); const close = vi.fn();
+    render(<StaffBuilderDurationWheel anchor={anchor} bounds={bounds} eventKind="notes" openedByPointer onChoose={choose} onClose={close} onToggleEventType={toggle} />);
+    fireEvent.click(screen.getByRole("button", { name: "Convert note or chord to rest" }), { detail: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Close duration choices" }), { detail: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Half-note duration" }), { detail: 1 });
+    expect(toggle).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled(); expect(choose).not.toHaveBeenCalled();
+    fireEvent.pointerDown(screen.getByRole("radio", { name: "Half-note duration" }), { pointerId: 2 });
+    fireEvent.click(screen.getByRole("radio", { name: "Half-note duration" }), { detail: 1 });
+    expect(choose).toHaveBeenCalledWith("half");
+    fireEvent.click(screen.getByRole("button", { name: "Convert note or chord to rest" }), { detail: 0 });
+    expect(toggle).toHaveBeenCalledOnce();
+  });
 });

@@ -16,9 +16,18 @@ const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: u
     ["treble-chord", { eventId: "treble-chord", staff: "treble", startTick: 480, onsetX: 280, x: 275, y: 55, width: 24, height: 48 }],
     ["bass-rest", { eventId: "bass-rest", staff: "bass", startTick: 960, onsetX: 400, x: 395, y: 170, width: 20, height: 24 }],
     ["overlap-note", { eventId: "overlap-note", staff: "treble", startTick: 120, onsetX: 180, x: 176, y: 64, width: 8, height: 12 }],
+    ["time-padding-event", { eventId: "time-padding-event", staff: "treble", startTick: 240, onsetX: 113, x: 110, y: 76, width: 6, height: 12 }],
+    ["key-padding-event", { eventId: "key-padding-event", staff: "treble", startTick: 240, onsetX: 83, x: 82.5, y: 76, width: 1, height: 12 }],
+    ["grand-padding-event", { eventId: "grand-padding-event", staff: "bass", startTick: 240, onsetX: 28, x: 25, y: 126, width: 6, height: 12 }],
   ]);
   const events = new Map([...authoritativeEvents, ["__staff-builder-preview", { eventId: "__staff-builder-preview", staff: "treble", startTick: 240, onsetX: 220, x: 215, y: 60, width: 20, height: 40 }]]);
-  return { anchors: { events, authoritativeEvents, positions: new Map([
+  return { anchors: { events, authoritativeEvents, notationControls: {
+    trebleClef: { x: 20, y: 45, width: 35, height: 70 },
+    grandStaff: { x: 2, y: 105, width: 18, height: 90 },
+    bassClef: { x: 20, y: 145, width: 35, height: 70 },
+    keySignature: { x: 58, y: 45, width: 24, height: 170 },
+    timeSignature: { x: 84, y: 45, width: 24, height: 170 },
+  }, positions: new Map([
   [0, { tick: 0, x: 150, y: 40, width: 30, height: 220 }],
   [120, { tick: 120, x: 180, y: 40, width: 30, height: 220 }],
   [240, { tick: 240, x: 210, y: 40, width: 30, height: 220 }],
@@ -50,9 +59,118 @@ function interactiveScore(): StaffBuilderScoreV1 {
   ] }, current.measures[1]!] };
 }
 
+function priorityScore(): StaffBuilderScoreV1 {
+  const current = score();
+  return { ...current, measures: [{ ...current.measures[0]!, events: [
+    { id: "time-padding-event", kind: "notes", staff: "treble", startTick: 240, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "time-pitch", midiNumber: 72, letter: "C", accidental: "natural", octave: 5 }] },
+    { id: "key-padding-event", kind: "notes", staff: "treble", startTick: 240, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "key-pitch", midiNumber: 71, letter: "B", accidental: "natural", octave: 4 }] },
+    { id: "grand-padding-event", kind: "notes", staff: "bass", startTick: 240, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "grand-pitch", midiNumber: 48, letter: "C", accidental: "natural", octave: 3 }] },
+  ] }, current.measures[1]! ] };
+}
+
 afterEach(() => { cleanup(); renderMeasure.mockClear(); vi.unstubAllGlobals(); });
 
 describe("StaffBuilderScoreView", () => {
+  it("owns five direct notation controls with routing state and opens effective Key/Time wheels", async () => {
+    const route = vi.fn(); const key = vi.fn(); const time = vi.fn();
+    render(<StaffBuilderScoreView inputMode="grand" measureIndex={0} onInputModeChange={route} onKeyChange={key} onTimeChange={time} score={score()} />);
+    const treble = screen.getByRole("button", { name: "Use treble staff" });
+    const grand = screen.getByRole("button", { name: "Use grand staff" });
+    const bass = screen.getByRole("button", { name: "Use bass staff" });
+    expect(grand.getAttribute("aria-pressed")).toBe("true");
+    expect(treble.title).toBe("Use treble staff"); expect(bass.title).toBe("Use bass staff");
+    fireEvent.click(treble); fireEvent.click(grand); fireEvent.click(bass);
+    expect(route.mock.calls.map(([mode]) => mode)).toEqual(["treble", "grand", "bass"]);
+    const keyTrigger = screen.getByRole("button", { name: "Key signature: C major. Change key signature." });
+    expect(keyTrigger.getAttribute("aria-haspopup")).toBe("dialog");
+    fireEvent.click(keyTrigger, { detail: 0 });
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Key signature choices" })).toBeTruthy());
+    expect(screen.getByRole("radio", { name: "C major" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: "A minor" }), { detail: 0 });
+    expect(key).toHaveBeenCalledWith(0, "a-minor");
+    fireEvent.click(screen.getByRole("button", { name: "Time signature: 4/4. Change time signature." }), { detail: 0 });
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Time signature choices" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("radio", { name: "Time signature 3/4" }), { detail: 0 });
+    expect(time).toHaveBeenCalledWith(0, "3/4");
+  });
+
+  it("does not expose routing notation controls outside Capture Notes", () => {
+    render(<StaffBuilderScoreView measureIndex={0} onKeyChange={vi.fn()} onTimeChange={vi.fn()} score={score()} />);
+    expect(screen.queryByRole("button", { name: "Use treble staff" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Key signature: C major/ })).toBeTruthy();
+  });
+
+  it("resolves notation taps once while horizontal, vertical, and cancelled gestures activate nothing", async () => {
+    const route = vi.fn(); const key = vi.fn(); const time = vi.fn();
+    const { container } = render(<StaffBuilderScoreView inputMode="grand" measureIndex={0} onInputModeChange={route} onKeyChange={key} onTimeChange={time} score={score()} />);
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 760, bottom: 300, width: 760, height: 300, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { pointerId: 30, clientX: 37, clientY: 75 });
+    fireEvent.pointerUp(canvas, { pointerId: 30, clientX: 37, clientY: 75 });
+    expect(route).toHaveBeenCalledTimes(1); expect(route).toHaveBeenLastCalledWith("treble");
+    fireEvent.pointerDown(canvas, { pointerId: 31, clientX: 64, clientY: 80 });
+    fireEvent.pointerUp(canvas, { pointerId: 31, clientX: 90, clientY: 80 });
+    fireEvent.pointerDown(canvas, { pointerId: 32, clientX: 81, clientY: 80 });
+    fireEvent.pointerUp(canvas, { pointerId: 32, clientX: 81, clientY: 105 });
+    fireEvent.pointerDown(canvas, { pointerId: 33, clientX: 64, clientY: 80 });
+    fireEvent.pointerCancel(canvas, { pointerId: 33 });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(key).not.toHaveBeenCalled(); expect(time).not.toHaveBeenCalled();
+    fireEvent.pointerDown(canvas, { pointerId: 34, clientX: 64, clientY: 80 });
+    fireEvent.pointerUp(canvas, { pointerId: 34, clientX: 64, clientY: 80 });
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Key signature choices" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("radio", { name: "A minor" }), { detail: 1 });
+    expect(key).not.toHaveBeenCalled();
+  });
+
+  it("composes original notation, actual events, expanded notation, then Capture positions", async () => {
+    const select = vi.fn((selection: StaffBuilderEventSelection) => { void selection; return true; }); const route = vi.fn(); const position = vi.fn(() => true);
+    const { container } = render(<StaffBuilderScoreView inputMode="grand" measureIndex={0} onEventSelect={select} onInputModeChange={route} onKeyChange={vi.fn()} onPositionSelect={position} onTimeChange={vi.fn()} score={priorityScore()} />);
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 760, bottom: 300, width: 760, height: 300, toJSON: () => ({}) });
+    const keyControl = screen.getByRole("button", { name: /Key signature: C major/ });
+    const timeControl = screen.getByRole("button", { name: /Time signature: 4\/4/ });
+    const grandControl = screen.getByRole("button", { name: "Use grand staff" });
+    fireEvent.pointerMove(canvas, { clientX: 95, clientY: 80, pointerType: "mouse" });
+    expect(timeControl.getAttribute("data-hovered")).toBe("true");
+    expect(canvas.title).toBe("Change time signature");
+    fireEvent.pointerMove(canvas, { clientX: 64, clientY: 80, pointerType: "mouse" });
+    expect(keyControl.getAttribute("data-hovered")).toBe("true");
+    expect(canvas.title).toBe("Change key signature");
+    fireEvent.pointerMove(canvas, { clientX: 113, clientY: 80, pointerType: "mouse" });
+    expect(timeControl.getAttribute("data-hovered")).toBeNull();
+    expect(canvas.title).toBe("");
+    fireEvent.pointerMove(canvas, { clientX: 83, clientY: 80, pointerType: "mouse" });
+    expect(keyControl.getAttribute("data-hovered")).toBeNull();
+    fireEvent.pointerMove(canvas, { clientX: 118, clientY: 100, pointerType: "mouse" });
+    expect(timeControl.getAttribute("data-hovered")).toBe("true");
+    fireEvent.pointerMove(canvas, { clientX: 28, clientY: 130, pointerType: "mouse" });
+    expect(grandControl.getAttribute("data-hovered")).toBeNull();
+    const tap = (pointerId: number, clientX: number, clientY: number) => {
+      fireEvent.pointerDown(canvas, { pointerId, clientX, clientY });
+      fireEvent.pointerUp(canvas, { pointerId, clientX, clientY });
+    };
+    tap(40, 113, 80);
+    tap(41, 83, 80);
+    tap(42, 28, 130);
+    expect(select.mock.calls.map(([selection]) => selection.eventId)).toEqual(["time-padding-event", "key-padding-event", "grand-padding-event"]);
+    expect(route).not.toHaveBeenCalled();
+
+    tap(43, 95, 80);
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Time signature choices" })).toBeTruthy());
+    expect(select).toHaveBeenCalledTimes(3);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    tap(44, 64, 80);
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Key signature choices" })).toBeTruthy());
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    tap(45, 118, 100);
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Time signature choices" })).toBeTruthy());
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+    tap(46, 225, 200);
+    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 240 });
+  });
+
   it("renders a controlled measure with a semantic summary", () => {
     render(<StaffBuilderScoreView measureIndex={0} score={score()} />);
     expect(screen.getByRole("heading", { name: "Measure 1 of 2" })).toBeTruthy();

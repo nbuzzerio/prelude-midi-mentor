@@ -94,8 +94,11 @@ describe("Staff Builder session", () => {
     expect(first.container.querySelector(".staff-builder-columns")).toBeNull();
     expect(first.container.querySelector(".staff-builder-editor-layout")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Minuet" })).toBeTruthy();
-    expect(screen.getByText("G major")).toBeTruthy();
-    expect(screen.getByText("3/4")).toBeTruthy();
+    const measureSettings = screen.getByText("Measure settings").parentElement as HTMLDetailsElement;
+    expect(measureSettings.open).toBe(false);
+    fireEvent.click(screen.getByText("Measure settings"));
+    expect((screen.getByLabelText("Key signature") as HTMLSelectElement).value).toBe("g-major");
+    expect((screen.getByLabelText("Time signature") as HTMLSelectElement).value).toBe("3/4");
     expect(screen.getByText("108 BPM")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Measure 1 of 1" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Piece Library" })).toBeTruthy();
