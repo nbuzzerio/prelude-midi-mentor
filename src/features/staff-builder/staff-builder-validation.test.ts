@@ -14,6 +14,28 @@ describe("Staff Builder structural validation", () => {
     expect(validateStaffBuilderScore(score([{ id: "m", events: [note("t", "treble", 0, duration), note("b", "bass", 0, duration)] }], time))).toEqual([]);
   });
 
+  it("accepts independent 6/8 subdivisions on treble and bass", () => {
+    const events = [
+      note("t1", "treble", 0, "dotted-quarter"), note("t2", "treble", 720, "eighth"),
+      note("t3", "treble", 960, "eighth"), note("t4", "treble", 1200, "eighth"),
+      note("b1", "bass", 0, "dotted-quarter"), note("b2", "bass", 720, "dotted-quarter"),
+    ];
+    expect(validateStaffBuilderScore(score([{ id: "m", events }], "6/8"))).toEqual([]);
+  });
+
+  it.each([
+    ["2/4", [note("t", "treble", 0, "half"), note("b1", "bass", 0, "quarter"), note("b2", "bass", 480, "quarter")]],
+    ["3/4", [note("t", "treble", 0, "dotted-half"), note("b1", "bass", 0, "half"), note("b2", "bass", 960, "quarter")]],
+    ["4/4", [note("t", "treble", 0, "whole"), note("b1", "bass", 0, "half"), note("b2", "bass", 960, "half")]],
+  ] as const)("accepts mismatched cross-staff subdivisions in %s", (time, events) => {
+    expect(validateStaffBuilderScore(score([{ id: "m", events }], time))).toEqual([]);
+  });
+
+  it("treats a chord as one rhythmic event and permits a simultaneous opposite-staff onset", () => {
+    const chord = note("chord", "treble", 0, "whole", [pitch("c", 60), pitch("e", 64), pitch("g", 67)]);
+    expect(validateStaffBuilderScore(score([{ id: "m", events: [chord, note("bass", "bass", 0, "whole")] }]))).toEqual([]);
+  });
+
   it("orders unresolved, invalid timing, conflict, and suppressed coverage issues deterministically", () => {
     const unresolved: StaffBuilderEvent = { id: "u", kind: "notes", staff: "treble", startTick: 121, rhythm: { status: "unresolved" }, pitches: [pitch("up")] };
     const current = score([{ id: "m", events: [unresolved, note("outside", "bass", 2040, "quarter")] }]);

@@ -406,6 +406,10 @@ describe("useMidi", () => {
 
     expect(updatedOnHeldNotesChanged).toHaveBeenCalledWith(new Set([60]));
     expect(updatedOnNotePlayed).toHaveBeenCalledWith(60);
+    expect(input.addEventListener).toHaveBeenCalledTimes(1);
+    expect(input.removeEventListener).toHaveBeenCalledTimes(1);
+    expect(access.addEventListener).toHaveBeenCalledTimes(1);
+    expect(access.removeEventListener).not.toHaveBeenCalled();
   });
 
   it("connects when a MIDI input appears after access was granted", async () => {

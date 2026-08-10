@@ -167,6 +167,8 @@ button {
 .staff-builder-duration-wheel button { position: absolute; width: 3rem; height: 3rem; pointer-events: auto; transform: translate(-50%, -50%); }
 .staff-builder-duration-wheel .staff-builder-duration-center { top: 50%; left: 50%; width: 3.5rem; height: 3.5rem; border-radius: 9999px; border-width: 2px; }
 .staff-builder-duration-wheel .staff-builder-duration-close { top: 1.35rem; right: 0.15rem; left: auto; width: 2.75rem; height: 2.75rem; transform: none; border-radius: 9999px; }
+.staff-builder-duration-wheel .staff-builder-duration-delete { right: 0.15rem; bottom: 1.35rem; left: auto; width: 2.75rem; height: 2.75rem; transform: none; border-color: rgb(190 24 93); border-radius: 9999px; color: rgb(190 24 93); }
+.staff-builder-duration-delete svg { width: 1.2rem; height: 1.2rem; }
 .staff-builder-radial-wheel { position: fixed; z-index: 65; pointer-events: none; border: 1px solid rgb(82 82 91); border-radius: 9999px; background: rgb(250 250 250 / 97%); box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 35%); }
 .staff-builder-radial-wheel button { position: absolute; display: inline-flex; min-width: 2.75rem; min-height: 2.75rem; pointer-events: auto; transform: translate(-50%, -50%); cursor: pointer; align-items: center; justify-content: center; border: 1px solid rgb(82 82 91); border-radius: 9999px; background: rgb(244 244 245); color: rgb(24 24 27); }
 .staff-builder-radial-wheel button:hover { background: rgb(224 242 254); }

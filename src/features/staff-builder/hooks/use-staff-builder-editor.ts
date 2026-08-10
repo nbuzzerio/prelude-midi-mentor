@@ -13,7 +13,7 @@ import {
 import { resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
 import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, setStaffBuilderEventDuration, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
-import type { StaffBuilderDuration, StaffBuilderStepDuration, StaffBuilderTimeSignature } from "../staff-builder-time";
+import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { MusicKeyId } from "@/lib/music/keys";
 import { createStaffBuilderTies, fillAllStaffBuilderGapsWithRests, fillStaffBuilderGapWithRests, removeStaffBuilderTie, setStaffBuilderInitialKey, setStaffBuilderInitialTime, splitStaffBuilderEventAcrossBarline } from "../staff-builder-corrections";
 import { validateStaffBuilderScore, type StaffBuilderIssue } from "../staff-builder-validation";
@@ -133,9 +133,14 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
 
   const setStepDuration = useCallback((stepDuration: StaffBuilderStepDuration) => {
     if (stepDuration === captureState.stepDuration) return;
-    const next = { ...captureState, stepDuration };
+    const stepTicks = stepDurationToTicks(stepDuration);
+    const offsetTicks = Math.floor(captureState.cursor.offsetTicks / stepTicks) * stepTicks;
+    const cursorMoves = offsetTicks !== captureState.cursor.offsetTicks;
+    if (cursorMoves && hasPending(pending) && !confirmDiscardPending()) return;
+    if (cursorMoves) setPending(EMPTY_PENDING);
+    const next = { ...captureState, stepDuration, cursor: { ...captureState.cursor, offsetTicks } };
     persist(score, next);
-  }, [captureState, persist, score]);
+  }, [captureState, confirmDiscardPending, pending, persist, score]);
 
   const setCapturePosition = useCallback((position: Readonly<{ measureIndex: number; offsetTicks: number }>) => {
     if (validationActive || editorPass !== "capture" || position.measureIndex !== captureState.cursor.measureIndex) return false;
@@ -217,15 +222,22 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, validationActive]);
 
   const switchToRhythm = useCallback(() => {
-    const selection = reconcileStaffBuilderEventSelection(score, rhythm.selection);
-    if (!selection) return false;
+    if (!getInitialStaffBuilderRhythmSelection(score)) return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
-    const nextRhythmState = selectionToState(selection);
+    const measureIndex = captureState.cursor.measureIndex;
+    const events = [...(score.measures[measureIndex]?.events ?? [])].sort((left, right) =>
+      Math.abs(left.startTick - captureState.cursor.offsetTicks) - Math.abs(right.startTick - captureState.cursor.offsetTicks)
+      || left.startTick - right.startTick
+      || (left.staff === right.staff ? 0 : left.staff === "treble" ? -1 : 1)
+      || left.id.localeCompare(right.id));
+    const selection = events[0] ? { measureIndex, eventId: events[0].id } : null;
+    const nextRhythmState = { measureIndex, selectedEventId: selection?.eventId ?? null };
     setPending(EMPTY_PENDING);
-    rhythm.setSelection(selection);
+    if (selection) rhythm.setSelection(selection);
+    else rhythm.goToMeasure(measureIndex);
     persist(score, captureState, "rhythm", nextRhythmState);
     return true;
-  }, [captureState, confirmDiscardPending, pending, persist, rhythm, score, selectionToState]);
+  }, [captureState, confirmDiscardPending, pending, persist, rhythm, score]);
 
   const selectRhythmEventFromScore = useCallback((selection: StaffBuilderEventSelection) => {
     if (validationActive || !score.measures[selection.measureIndex]?.events.some(({ id }) => id === selection.eventId)) return false;
@@ -238,8 +250,12 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, selectionToState, validationActive]);
 
   const switchToCapture = useCallback(() => {
-    persist(score, captureState, "capture", selectionToState(rhythm.selection));
-  }, [captureState, persist, rhythm.selection, score, selectionToState]);
+    const selected = rhythm.selectedEvent;
+    const nextCursor = selected && rhythm.selection
+      ? { measureIndex: rhythm.selection.measureIndex, offsetTicks: selected.startTick }
+      : { measureIndex: rhythm.measureIndex, offsetTicks: rhythm.measureIndex === captureState.cursor.measureIndex ? captureState.cursor.offsetTicks : 0 };
+    persist(score, { ...captureState, cursor: nextCursor }, "capture", { measureIndex: rhythm.measureIndex, selectedEventId: rhythm.selection?.eventId ?? null });
+  }, [captureState, persist, rhythm.measureIndex, rhythm.selectedEvent, rhythm.selection, score]);
 
   const captureRestAsNote = useCallback((selection: StaffBuilderEventSelection) => {
     const event = score.measures[selection.measureIndex]?.events.find(({ id }) => id === selection.eventId);

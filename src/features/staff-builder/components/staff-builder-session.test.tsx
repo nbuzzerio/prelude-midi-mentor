@@ -244,7 +244,7 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Capture Notes" }));
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
     expect(screen.getByRole("button", { name: "Open virtual keyboard" })).toBeTruthy();
-    expect(screen.getByText(/tick 480/)).toBeTruthy();
+    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Open virtual keyboard" }));
     expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
@@ -252,16 +252,20 @@ describe("Staff Builder session", () => {
     const validationDismissedFocus = vi.spyOn(validationDismissedLauncher, "focus");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByRole("heading", { name: "Structural correction" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Capture Notes" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Rhythm Correction" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Close Correction Mode" })).toHaveLength(1);
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
     expect(screen.queryByTestId("staff-builder-virtual-keyboard")).toBeNull();
     expect(validationDismissedFocus).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Close Correction Mode" }));
+    expect((screen.getByRole("button", { name: "Capture Notes" }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
     expect(screen.getByRole("button", { name: "Open virtual keyboard" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Open virtual keyboard" }));
     fireEvent.click(screen.getByRole("region", { name: "Virtual keyboard" }).querySelector('[aria-label="D, MIDI 62"]') as HTMLElement);
-    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 0/)).toBeTruthy();
     const responsiveDismissedLauncher = screen.getByRole("button", { name: "Open virtual keyboard" });
     const responsiveDismissedFocus = vi.spyOn(responsiveDismissedLauncher, "focus");
 
@@ -271,7 +275,7 @@ describe("Staff Builder session", () => {
     });
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
     expect(screen.getAllByTestId("staff-builder-virtual-keyboard")).toHaveLength(1);
-    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 0/)).toBeTruthy();
     expect(responsiveDismissedFocus).not.toHaveBeenCalled();
 
     act(() => {
@@ -281,7 +285,7 @@ describe("Staff Builder session", () => {
     expect(screen.queryByRole("region", { name: "Virtual keyboard" })).toBeNull();
     expect(screen.queryByTestId("staff-builder-virtual-keyboard")).toBeNull();
     expect(screen.getByRole("button", { name: "Open virtual keyboard" })).toBeTruthy();
-    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 480/)).toBeTruthy();
+    expect(screen.getByLabelText(/Pending treble preview: note D4 at tick 0/)).toBeTruthy();
   });
 
   it("shows playback controls while gating rhythmic scopes from the current structural issues", () => {

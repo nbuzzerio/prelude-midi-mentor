@@ -98,16 +98,19 @@ describe("StaffBuilderDurationWheel", () => {
   });
 
   it("requires a new pointerdown after a pointer-opened wheel while keyboard remains immediate", () => {
-    const choose = vi.fn(); const toggle = vi.fn(); const close = vi.fn();
-    render(<StaffBuilderDurationWheel anchor={anchor} bounds={bounds} eventKind="notes" openedByPointer onChoose={choose} onClose={close} onToggleEventType={toggle} />);
+    const choose = vi.fn(); const toggle = vi.fn(); const close = vi.fn(); const remove = vi.fn();
+    render(<StaffBuilderDurationWheel anchor={anchor} bounds={bounds} eventKind="notes" openedByPointer onChoose={choose} onClose={close} onDelete={remove} onToggleEventType={toggle} />);
     fireEvent.click(screen.getByRole("button", { name: "Convert note or chord to rest" }), { detail: 1 });
     fireEvent.click(screen.getByRole("button", { name: "Close duration choices" }), { detail: 1 });
     fireEvent.click(screen.getByRole("radio", { name: "Half-note duration" }), { detail: 1 });
-    expect(toggle).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled(); expect(choose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Delete selected note or chord" }), { detail: 1 });
+    expect(toggle).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled(); expect(choose).not.toHaveBeenCalled(); expect(remove).not.toHaveBeenCalled();
     fireEvent.pointerDown(screen.getByRole("radio", { name: "Half-note duration" }), { pointerId: 2 });
     fireEvent.click(screen.getByRole("radio", { name: "Half-note duration" }), { detail: 1 });
     expect(choose).toHaveBeenCalledWith("half");
     fireEvent.click(screen.getByRole("button", { name: "Convert note or chord to rest" }), { detail: 0 });
     expect(toggle).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Delete selected note or chord" }), { detail: 0 });
+    expect(remove).toHaveBeenCalledOnce();
   });
 });

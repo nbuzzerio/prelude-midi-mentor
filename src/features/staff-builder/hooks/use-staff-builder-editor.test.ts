@@ -165,13 +165,83 @@ describe("useStaffBuilderEditor", () => {
   });
   it("owns the default cursor and changes step duration without changing pending input", () => {
     const onDraftChange = vi.fn();
-    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, confirmDiscardPending: () => true }));
+    const confirmDiscardPending = vi.fn(() => true);
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, confirmDiscardPending }));
     act(() => result.current.addMidiPitch(64));
     act(() => result.current.setStepDuration("eighth"));
     expect(result.current.captureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "eighth", inputMode: "grand" });
     expect(result.current.pending.treble).toEqual([64]);
+    expect(confirmDiscardPending).not.toHaveBeenCalled();
     act(() => result.current.nextPosition());
     expect(result.current.captureState.cursor.offsetTicks).toBe(240);
+  });
+
+  it.each([
+    ["4/4", 360, "quarter", 0],
+    ["4/4", 600, "quarter", 480],
+    ["4/4", 360, "eighth", 240],
+    ["4/4", 480, "quarter", 480],
+    ["2/4", 840, "quarter", 480],
+    ["3/4", 1320, "eighth", 1200],
+    ["6/8", 1320, "quarter", 960],
+  ] as const)("snaps %s tick %i down to the %s grid at %i", (time, offsetTicks, stepDuration, expectedTick) => {
+    const current = { ...score(), initialTimeSignature: time };
+    const before = JSON.stringify(current);
+    const onDraftChange = vi.fn();
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 0, offsetTicks }, stepDuration: "sixteenth" as const };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, onDraftChange }));
+    act(() => result.current.setStepDuration(stepDuration));
+    expect(result.current.captureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: expectedTick }, stepDuration });
+    expect(result.current.pending.treble).toEqual([]);
+    expect(JSON.stringify(result.current.score)).toBe(before);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ captureState: expect.objectContaining({ cursor: { measureIndex: 0, offsetTicks: expectedTick }, stepDuration }) }));
+  });
+
+  it("cancels an off-grid Step change without moving or discarding pending input", () => {
+    const confirmDiscardPending = vi.fn(() => false);
+    const onDraftChange = vi.fn();
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 0, offsetTicks: 360 }, stepDuration: "sixteenth" as const };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState, onDraftChange, confirmDiscardPending }));
+    act(() => result.current.addMidiPitch(62));
+    act(() => result.current.setStepDuration("quarter"));
+    expect(confirmDiscardPending).toHaveBeenCalledOnce();
+    expect(result.current.captureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 360 }, stepDuration: "sixteenth" });
+    expect(result.current.pending.treble).toEqual([62]);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(result.current.canUndo).toBe(false);
+  });
+
+  it("confirms an off-grid Step change by clearing pending input and snapping", () => {
+    const confirmDiscardPending = vi.fn(() => true);
+    const current = score();
+    const onDraftChange = vi.fn();
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 0, offsetTicks: 600 }, stepDuration: "sixteenth" as const };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, onDraftChange, confirmDiscardPending }));
+    act(() => result.current.addMidiPitch(62));
+    act(() => result.current.setStepDuration("quarter"));
+    expect(confirmDiscardPending).toHaveBeenCalledOnce();
+    expect(result.current.captureState).toMatchObject({ cursor: { measureIndex: 0, offsetTicks: 480 }, stepDuration: "quarter" });
+    expect(result.current.pending).toEqual({ treble: [], bass: [] });
+    expect(result.current.score).toBe(current);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Previous and Next on the newly selected grid after snapping", () => {
+    const current = score();
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 0, offsetTicks: 600 }, stepDuration: "sixteenth" as const };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, onDraftChange: vi.fn() }));
+    act(() => result.current.setStepDuration("quarter"));
+    expect(result.current.captureState.cursor.offsetTicks).toBe(480);
+    act(() => result.current.nextPosition());
+    expect(result.current.captureState.cursor.offsetTicks).toBe(960);
+    act(() => result.current.previousPosition());
+    expect(result.current.captureState.cursor.offsetTicks).toBe(480);
+    act(() => result.current.previousPosition());
+    expect(result.current.captureState.cursor.offsetTicks).toBe(0);
+    expect(result.current.score).toBe(current);
+    expect(result.current.canUndo).toBe(false);
   });
 
   it("jumps Capture Notes to an existing measure start without score mutation or history", () => {
@@ -521,17 +591,40 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.rhythm.selection).toEqual({ measureIndex: 0, eventId: replacementId });
   });
 
-  it("selects the earliest unresolved event on first entry", () => {
+  it("selects the exact event at the Capture focus before rhythm status", () => {
     let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
     current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "treble", startTick: 240, midiNumbers: [62] });
     const first = { measureIndex: 0, eventId: current.measures[0]!.events[0]!.id };
     const resolved = setStaffBuilderEventDuration(current, first, "quarter");
     expect(resolved.ok).toBe(true);
     current = resolved.score;
-    const unresolvedId = current.measures[0]!.events[1]!.id;
+    const exactId = current.measures[0]!.events[0]!.id;
     const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
     act(() => result.current.switchToRhythm());
-    expect(result.current.rhythm.selection).toEqual({ measureIndex: 0, eventId: unresolvedId });
+    expect(result.current.rhythm.selection).toEqual({ measureIndex: 0, eventId: exactId });
+  });
+
+  it("selects the nearest deterministic event in the Capture measure", () => {
+    let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "bass", startTick: 480, midiNumbers: [48] });
+    const nearestId = current.measures[0]!.events.find(({ startTick }) => startTick === 480)!.id;
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 0, offsetTicks: 360 } };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, onDraftChange: vi.fn() }));
+    act(() => result.current.switchToRhythm());
+    expect(result.current.rhythm.selection).toEqual({ measureIndex: 0, eventId: nearestId });
+  });
+
+  it("retains an empty Capture measure in Rhythm without searching another measure", () => {
+    let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    current = appendStaffBuilderMeasure(current);
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 1, offsetTicks: 480 } };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, onDraftChange: vi.fn() }));
+    act(() => result.current.switchToRhythm());
+    expect(result.current.editorPass).toBe("rhythm");
+    expect(result.current.rhythm.measureIndex).toBe(1);
+    expect(result.current.rhythm.selection).toBeNull();
+    act(() => result.current.switchToCapture());
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 1, offsetTicks: 480 });
   });
 
   it("disables Rhythm Correction without events", () => {
@@ -586,6 +679,7 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.canUndo).toBe(true);
     expect(result.current.canRedo).toBe(true);
     act(() => result.current.switchToCapture());
+    act(() => result.current.setCapturePosition({ measureIndex: 0, offsetTicks: 480 }));
     act(() => result.current.addMidiPitch(64));
     act(() => result.current.lockAndContinue());
     expect(result.current.canUndo).toBe(false);
@@ -621,6 +715,7 @@ describe("useStaffBuilderEditor", () => {
     const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId }, onDraftChange: vi.fn() }));
     act(() => result.current.rhythm.assignDuration("half"));
     act(() => result.current.switchToCapture());
+    act(() => result.current.setCapturePosition({ measureIndex: 0, offsetTicks: 1440 }));
     act(() => result.current.nextPosition());
     expect(result.current.score.measures).toHaveLength(2);
     expect(result.current.canUndo).toBe(false);

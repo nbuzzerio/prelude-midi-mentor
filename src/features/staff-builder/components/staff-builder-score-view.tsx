@@ -9,7 +9,7 @@ import type { StaffBuilderIssue } from "../staff-builder-validation";
 import type { MusicKeyId } from "@/lib/music/keys";
 import { StaffBuilderDurationWheel } from "./staff-builder-duration-wheel";
 import { STAFF_BUILDER_DURATION_WHEEL_SIZE, type StaffBuilderDisplayedAnchor, type StaffBuilderOverlayBounds } from "./staff-builder-duration-wheel-geometry";
-import { getStaffBuilderInternalTouchSize, getStaffBuilderPresentationScale, resolveStaffBuilderPositionTick, staffBuilderClientPointToInternal, type StaffBuilderInternalPoint } from "./staff-builder-interaction-geometry";
+import { getStaffBuilderInternalTouchSize, getStaffBuilderPresentationScale, getStaffBuilderTemporalRegion, resolveStaffBuilderStepPositionTick, staffBuilderClientPointToInternal, type StaffBuilderInternalPoint } from "./staff-builder-interaction-geometry";
 import { StaffBuilderKeyWheel } from "./staff-builder-key-wheel";
 import { STAFF_BUILDER_KEY_WHEEL_SIZE } from "./staff-builder-key-wheel-options";
 import { resolveStaffBuilderExpandedNotationControl, resolveStaffBuilderOriginalNotationControl, type StaffBuilderNotationControlName } from "./staff-builder-notation-control-geometry";
@@ -36,7 +36,7 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, issue, inputMode = "grand", onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, issue, inputMode = "grand", onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
@@ -51,6 +51,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   onEventSelect?: (selection: StaffBuilderEventSelection) => boolean;
   onPositionSelect?: (position: Readonly<{ measureIndex: number; offsetTicks: number }>) => boolean;
   onAssignDuration?: (duration: StaffBuilderDuration) => boolean;
+  onDeleteEvent?: () => boolean;
   onConvertToRest?: (duration: StaffBuilderDuration) => boolean;
   onCaptureRestAsNote?: (selection: StaffBuilderEventSelection) => boolean;
   onRender?: (result: StaffBuilderMeasureRenderResult) => void;
@@ -99,11 +100,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     });
     setRenderResult(result);
     if (cursorOffsetTicks !== undefined && cursorStepDuration !== undefined) {
-      const start = result.anchors.positions.get(cursorOffsetTicks);
       const endTick = Math.min(projection.capacityTicks, cursorOffsetTicks + stepDurationToTicks(cursorStepDuration));
-      const covered = [...result.anchors.positions.values()].filter(({ tick }) => tick >= cursorOffsetTicks && tick < endTick);
-      const right = covered.reduce((maximum, anchor) => Math.max(maximum, anchor.x + anchor.width), start ? start.x + start.width : 0);
-      setCursorGeometry(start ? { x: start.x, y: start.y, width: Math.max(start.width, right - start.x), height: start.height } : null);
+      setCursorGeometry(getStaffBuilderTemporalRegion(result.anchors.timeline, cursorOffsetTicks, endTick - cursorOffsetTicks));
     } else {
       setCursorGeometry(null);
     }
@@ -125,7 +123,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     .filter((target): target is typeof target & { event: StaffBuilderEvent } => target.event !== undefined);
   const selectedEvent = score.measures[measureIndex]?.events.find(({ id }) => id === selectedEventId);
   const durationAnchor = durationEventId && durationEventId === selectedEventId ? renderResult?.anchors.authoritativeEvents.get(durationEventId) : undefined;
-  const playbackGeometry = playbackPosition && renderResult ? resolveStaffBuilderPlaybackGeometry(renderResult.anchors.positions, playbackPosition.offsetTicks) : null;
+  const playbackGeometry = playbackPosition && renderResult ? resolveStaffBuilderPlaybackGeometry(renderResult.anchors.timeline, playbackPosition.offsetTicks) : null;
 
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
@@ -258,7 +256,9 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       ? resolveStaffBuilderExpandedNotationControl(notationAnchors, applicable, presentationScale, point) : null;
     const notationControl = originalNotationControl ?? expandedNotationControl;
     const eventId = notationControl === null && actualEventId === null && onEventSelect ? resolveEventTarget(point) : actualEventId;
-    const offsetTicks = notationControl === null && eventId === null && onPositionSelect && renderResult ? resolveStaffBuilderPositionTick(renderResult.anchors.positions, point) : null;
+    const offsetTicks = notationControl === null && eventId === null && onPositionSelect && renderResult && cursorStepDuration
+      ? resolveStaffBuilderStepPositionTick(renderResult.anchors.timeline, point, stepDurationToTicks(cursorStepDuration))
+      : null;
     return notationControl ? { kind: "notation", control: notationControl } : eventId ? { kind: "event", eventId } : offsetTicks !== null ? { kind: "position", offsetTicks } : null;
   };
   const handlePointerUp = (pointerId: number, clientX: number, clientY: number) => {
@@ -349,7 +349,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       {durationOverlay && selectedEvent && onAssignDuration && <StaffBuilderDurationWheel anchor={durationOverlay.anchor} bounds={durationOverlay.bounds} currentDuration={selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : undefined} eventKind={selectedEvent.kind} key={durationEventId} openedByPointer={durationOpenedByPointer} onChoose={(duration) => {
         if (selectedEvent.rhythm.status === "final" && selectedEvent.rhythm.duration === duration) { closeDuration(); return; }
         if (onAssignDuration(duration)) closeDuration();
-      }} onClose={closeDuration} onToggleEventType={() => {
+      }} onClose={closeDuration} onDelete={onDeleteEvent ? () => { if (onDeleteEvent()) closeDuration(); } : undefined} onToggleEventType={() => {
         const changed = selectedEvent.kind === "rest"
           ? onCaptureRestAsNote?.({ measureIndex, eventId: selectedEvent.id })
           : onConvertToRest?.(selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : "quarter");

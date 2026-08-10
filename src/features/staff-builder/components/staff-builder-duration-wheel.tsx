@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "../staff-builder-time";
 import { StaffBuilderMusicGlyph } from "./staff-builder-music-glyph";
@@ -9,13 +9,14 @@ const LABELS: Readonly<Record<StaffBuilderDuration, string>> = {
   whole: "Whole", "dotted-half": "Dotted half", half: "Half", "dotted-quarter": "Dotted quarter",
   quarter: "Quarter", "dotted-eighth": "Dotted eighth", eighth: "Eighth", sixteenth: "Sixteenth",
 };
-export function StaffBuilderDurationWheel({ anchor, bounds, eventKind, currentDuration, openedByPointer = false, onChoose, onToggleEventType = () => undefined, onClose }: Readonly<{
+export function StaffBuilderDurationWheel({ anchor, bounds, eventKind, currentDuration, openedByPointer = false, onChoose, onDelete, onToggleEventType = () => undefined, onClose }: Readonly<{
   anchor: StaffBuilderDisplayedAnchor;
   bounds: StaffBuilderOverlayBounds;
   eventKind: "notes" | "rest";
   currentDuration?: StaffBuilderDuration;
   openedByPointer?: boolean;
   onChoose: (duration: StaffBuilderDuration) => void;
+  onDelete?: () => void;
   onToggleEventType?: () => void;
   onClose: () => void;
 }>) {
@@ -48,5 +49,6 @@ export function StaffBuilderDurationWheel({ anchor, bounds, eventKind, currentDu
     </div>
     <button aria-label={eventKind === "rest" ? "Replace rest with notes" : "Convert note or chord to rest"} className="staff-builder-duration-center" onClick={(event) => activationGuard.activate(event, onToggleEventType)} title={eventKind === "rest" ? "Enter replacement pitches" : "Convert to rest"} type="button"><StaffBuilderMusicGlyph family={oppositeFamily} kind={duration} /></button>
     <button aria-label="Close duration choices" className="staff-builder-duration-close" onClick={(event) => activationGuard.activate(event, onClose)} title="Close" type="button"><X aria-hidden="true" /></button>
+    {onDelete && <button aria-label={`Delete selected ${eventKind === "rest" ? "rest" : "note or chord"}`} className="staff-builder-duration-delete" onClick={(event) => activationGuard.activate(event, onDelete)} title="Delete selected event" type="button"><Trash2 aria-hidden="true" /></button>}
   </div>;
 }

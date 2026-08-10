@@ -27,7 +27,7 @@ const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: u
     bassClef: { x: 20, y: 145, width: 35, height: 70 },
     keySignature: { x: 58, y: 45, width: 24, height: 170 },
     timeSignature: { x: 84, y: 45, width: 24, height: 170 },
-  }, positions: new Map([
+  }, timeline: { rhythmicStartX: 150, rhythmicEndX: 630, y: 40, height: 220, capacityTicks: 1920 }, positions: new Map([
   [0, { tick: 0, x: 150, y: 40, width: 30, height: 220 }],
   [120, { tick: 120, x: 180, y: 40, width: 30, height: 220 }],
   [240, { tick: 240, x: 210, y: 40, width: 30, height: 220 }],
@@ -125,7 +125,7 @@ describe("StaffBuilderScoreView", () => {
 
   it("composes original notation, actual events, expanded notation, then Capture positions", async () => {
     const select = vi.fn((selection: StaffBuilderEventSelection) => { void selection; return true; }); const route = vi.fn(); const position = vi.fn(() => true);
-    const { container } = render(<StaffBuilderScoreView inputMode="grand" measureIndex={0} onEventSelect={select} onInputModeChange={route} onKeyChange={vi.fn()} onPositionSelect={position} onTimeChange={vi.fn()} score={priorityScore()} />);
+    const { container } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} inputMode="grand" measureIndex={0} onEventSelect={select} onInputModeChange={route} onKeyChange={vi.fn()} onPositionSelect={position} onTimeChange={vi.fn()} score={priorityScore()} />);
     const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
     canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 760, bottom: 300, width: 760, height: 300, toJSON: () => ({}) });
     const keyControl = screen.getByRole("button", { name: /Key signature: C major/ });
@@ -168,7 +168,7 @@ describe("StaffBuilderScoreView", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
 
     tap(46, 225, 200);
-    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 240 });
+    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 0 });
   });
 
   it("renders a controlled measure with a semantic summary", () => {
@@ -216,14 +216,14 @@ describe("StaffBuilderScoreView", () => {
     expect((screen.getByText("Score details").parentElement as HTMLDetailsElement).open).toBe(true);
   });
 
-  it("uses formatted anchors for cursor position, duration width, and boundary clipping", () => {
+  it("uses the deterministic timeline for cursor position and duration width", () => {
     const { rerender } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} score={score()} />);
     const cursor = screen.getByTestId("staff-builder-capture-cursor");
     expect(cursor.style.left).toBe("150px");
     expect(cursor.style.width).toBe("120px");
     expect(cursor.style.height).toBe("220px");
     rerender(<StaffBuilderScoreView cursor={{ offsetTicks: 360, stepDuration: "quarter" }} measureIndex={0} score={score()} />);
-    expect(screen.getByTestId("staff-builder-capture-cursor").style.width).toBe("30px");
+    expect(screen.getByTestId("staff-builder-capture-cursor").style.width).toBe("120px");
   });
 
   it("places an interpolated playback highlight in the shared internal coordinate plane", () => {
@@ -430,8 +430,20 @@ describe("StaffBuilderScoreView", () => {
     fireEvent.pointerDown(canvas, { pointerId: 20, clientX: 225, clientY: 200 });
     fireEvent.pointerUp(canvas, { pointerId: 20, clientX: 226, clientY: 201 });
     expect(position).toHaveBeenCalledOnce();
-    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 240 });
+    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 0 });
     expect(screen.queryByRole("button", { name: /position at/i })).toBeNull();
+  });
+
+  it.each([
+    ["quarter", 0], ["eighth", 0], ["sixteenth", 120],
+  ] as const)("resolves direct taps through active %s Step regions", (stepDuration, expectedTick) => {
+    const position = vi.fn(() => true);
+    const { container } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration }} measureIndex={0} onPositionSelect={position} score={interactiveScore()} />);
+    const canvas = container.querySelector(".staff-builder-notation-canvas") as HTMLDivElement;
+    canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 760, bottom: 300, width: 760, height: 300, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { pointerId: 28, clientX: 195, clientY: 200 });
+    fireEvent.pointerUp(canvas, { pointerId: 28, clientX: 195, clientY: 200 });
+    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: expectedTick });
   });
 
   it("keeps empty-position taps aligned when the coordinate plane is scaled and scrolled", () => {
@@ -441,7 +453,7 @@ describe("StaffBuilderScoreView", () => {
     canvas.getBoundingClientRect = () => ({ x: -100, y: 20, left: -100, top: 20, right: 280, bottom: 170, width: 380, height: 150, toJSON: () => ({}) });
     fireEvent.pointerDown(canvas, { pointerId: 21, clientX: 12.5, clientY: 120 });
     fireEvent.pointerUp(canvas, { pointerId: 21, clientX: 12.5, clientY: 120 });
-    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 240 });
+    expect(position).toHaveBeenCalledWith({ measureIndex: 0, offsetTicks: 0 });
   });
 
   it("keeps event selection in the scaled plane while owning duration UI outside the notation canvas", () => {
@@ -454,6 +466,15 @@ describe("StaffBuilderScoreView", () => {
     expect(select).toHaveBeenCalledWith({ measureIndex: 0, eventId: "treble-note" });
     expect(container.querySelector(".staff-builder-duration-wheel")?.parentElement).toBe(container.querySelector(".staff-builder-score-view"));
     expect(container.querySelector(".staff-builder-selection-outline")?.parentElement).toBe(canvas);
+  });
+
+  it("routes contextual Delete through the selected-event mutation", () => {
+    const remove = vi.fn(() => true);
+    render(<StaffBuilderScoreView measureIndex={0} onAssignDuration={() => true} onDeleteEvent={remove} onEventSelect={() => true} score={interactiveScore()} selectedEventId="bass-rest" />);
+    fireEvent.click(screen.getByRole("button", { name: /quarter rest, bass staff/ }), { detail: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Delete selected rest" }), { detail: 0 });
+    expect(remove).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog", { name: "Duration choices" })).toBeNull();
   });
 
   it("compensates displayed event targets and hit testing at the minimum score scale", () => {

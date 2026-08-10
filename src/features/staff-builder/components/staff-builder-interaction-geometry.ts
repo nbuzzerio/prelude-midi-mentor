@@ -1,4 +1,4 @@
-import type { StaffBuilderPositionAnchor } from "../notation/render-staff-builder-measure";
+import type { StaffBuilderPositionAnchor, StaffBuilderTemporalGeometry } from "../notation/render-staff-builder-measure";
 
 export type StaffBuilderInternalPoint = Readonly<{ x: number; y: number }>;
 
@@ -31,6 +31,31 @@ export function resolveStaffBuilderPositionTick(
     const nearestDistance = Math.abs(point.x - (nearest.x + nearest.width / 2));
     return candidateDistance < nearestDistance ? candidate : nearest;
   })).tick;
+}
+
+export function resolveStaffBuilderStepPositionTick(
+  timeline: StaffBuilderTemporalGeometry,
+  point: StaffBuilderInternalPoint,
+  stepTicks: number,
+): number | null {
+  if (stepTicks <= 0 || point.y < timeline.y || point.y > timeline.y + timeline.height
+    || point.x < timeline.rhythmicStartX || point.x > timeline.rhythmicEndX) return null;
+  const width = timeline.rhythmicEndX - timeline.rhythmicStartX;
+  if (width <= 0) return null;
+  const rawTick = (point.x - timeline.rhythmicStartX) / width * timeline.capacityTicks;
+  const regionIndex = Math.min(Math.ceil(timeline.capacityTicks / stepTicks) - 1, Math.floor(rawTick / stepTicks));
+  return Math.max(0, regionIndex) * stepTicks;
+}
+
+export function staffBuilderTickToX(timeline: StaffBuilderTemporalGeometry, tick: number): number {
+  const progress = Math.max(0, Math.min(1, tick / Math.max(1, timeline.capacityTicks)));
+  return timeline.rhythmicStartX + progress * (timeline.rhythmicEndX - timeline.rhythmicStartX);
+}
+
+export function getStaffBuilderTemporalRegion(timeline: StaffBuilderTemporalGeometry, startTick: number, durationTicks: number) {
+  const x = staffBuilderTickToX(timeline, startTick);
+  const endX = staffBuilderTickToX(timeline, startTick + durationTicks);
+  return { x, y: timeline.y, width: Math.max(1, endX - x), height: timeline.height };
 }
 
 export function getStaffBuilderPresentationScale(availableWidth: number, internalWidth: number, minimumWidth = 480): number {

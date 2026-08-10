@@ -41,6 +41,14 @@ export type StaffBuilderPositionAnchor = Readonly<{
   height: number;
 }>;
 
+export type StaffBuilderTemporalGeometry = Readonly<{
+  rhythmicStartX: number;
+  rhythmicEndX: number;
+  y: number;
+  height: number;
+  capacityTicks: number;
+}>;
+
 export type StaffBuilderNotationControlAnchor = Readonly<{
   x: number;
   y: number;
@@ -60,6 +68,7 @@ export type StaffBuilderRenderAnchors = Readonly<{
   events: ReadonlyMap<string, StaffBuilderEventAnchor>;
   authoritativeEvents: ReadonlyMap<string, StaffBuilderEventAnchor>;
   positions: ReadonlyMap<number, StaffBuilderPositionAnchor>;
+  timeline: StaffBuilderTemporalGeometry;
   notationControls: StaffBuilderNotationControlAnchors;
 }>;
 
@@ -157,36 +166,17 @@ function createEventAnchors(rendered: readonly RenderedTickable[]): ReadonlyMap<
 
 function createPositionAnchors(
   projection: StaffBuilderMeasureProjection,
-  rendered: readonly RenderedTickable[],
   trebleStave: Stave,
   bassStave: Stave,
-): ReadonlyMap<number, StaffBuilderPositionAnchor> {
+): Readonly<{ positions: ReadonlyMap<number, StaffBuilderPositionAnchor>; timeline: StaffBuilderTemporalGeometry }> {
   const anchors = new Map<number, StaffBuilderPositionAnchor>();
   const top = trebleStave.getBoundingBox().getY();
   const bottomBounds = bassStave.getBoundingBox();
   const bottom = bottomBounds.getY() + bottomBounds.getH();
-  const formattedXs = new Map<number, Readonly<{ eventXs: number[]; spacerXs: number[] }>>();
-  rendered.forEach(({ note, projection: item }) => {
-    const values = formattedXs.get(item.startTick) ?? { eventXs: [], spacerXs: [] };
-    (item.kind === "spacer" ? values.spacerXs : values.eventXs).push(note.getAbsoluteX());
-    formattedXs.set(item.startTick, values);
-  });
-  formattedXs.set(projection.capacityTicks, { eventXs: [], spacerXs: [Math.min(trebleStave.getNoteEndX(), bassStave.getNoteEndX())] });
-  const knownPositions = [...formattedXs.entries()]
-    .map(([tick, values]) => {
-      const xs = values.eventXs.length > 0 ? values.eventXs : values.spacerXs;
-      return { tick, x: xs.reduce((sum, value) => sum + value, 0) / xs.length };
-    })
-    .sort((left, right) => left.tick - right.tick);
-  const xAtTick = (tick: number): number => {
-    const exact = knownPositions.find((position) => position.tick === tick);
-    if (exact) return exact.x;
-    const rightIndex = knownPositions.findIndex((position) => position.tick > tick);
-    const right = knownPositions[rightIndex] ?? knownPositions.at(-1);
-    const left = knownPositions[rightIndex - 1] ?? knownPositions[0];
-    if (!left || !right || right.tick === left.tick) return left?.x ?? 0;
-    return left.x + ((tick - left.tick) / (right.tick - left.tick)) * (right.x - left.x);
-  };
+  const rhythmicStartX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
+  const rhythmicEndX = Math.min(trebleStave.getNoteEndX(), bassStave.getNoteEndX());
+  const width = Math.max(1, rhythmicEndX - rhythmicStartX);
+  const xAtTick = (tick: number) => rhythmicStartX + Math.max(0, Math.min(projection.capacityTicks, tick)) / projection.capacityTicks * width;
   projection.positionTicks.forEach((tick, index) => {
     const nextTick = projection.positionTicks[index + 1] ?? projection.capacityTicks;
     const x = xAtTick(tick);
@@ -198,7 +188,7 @@ function createPositionAnchors(
       height: bottom - top,
     });
   });
-  return anchors;
+  return { positions: anchors, timeline: { rhythmicStartX, rhythmicEndX, y: top, height: bottom - top, capacityTicks: projection.capacityTicks } };
 }
 
 export function renderStaffBuilderMeasure(container: HTMLDivElement, score: StaffBuilderScoreV1, measureIndex: number, options?: StaffBuilderMeasureRenderOptions): StaffBuilderMeasureRenderResult {
@@ -260,11 +250,13 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const signatureBottom = bassBottom;
   const keyWidth = Math.max(12, keyEndX - clefEndX);
   const timeWidth = Math.max(12, sharedNoteStartX - keyEndX);
+  const temporal = createPositionAnchors(projection, trebleStave, bassStave);
   return {
     anchors: {
       events: eventAnchors,
       authoritativeEvents: new Map([...eventAnchors].filter(([eventId]) => !options?.excludedEventIds?.has(eventId))),
-      positions: createPositionAnchors(projection, [...trebleRendered, ...bassRendered], trebleStave, bassStave),
+      positions: temporal.positions,
+      timeline: temporal.timeline,
       notationControls: {
         trebleClef: { x: STAVE_X, y: trebleTop, width: Math.max(12, clefEndX - STAVE_X), height: trebleBottom - trebleTop },
         grandStaff: { x: Math.max(0, STAVE_X - 18), y: trebleBottom - 8, width: 18, height: Math.max(44, bassTop - trebleBottom + 16) },

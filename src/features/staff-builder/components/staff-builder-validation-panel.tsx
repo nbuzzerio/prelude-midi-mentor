@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { StaffBuilderIssue } from "../staff-builder-validation";
 
-export function StaffBuilderValidationPanel({ issues, activeIssue, activeIndex, status, onActivate, onClose, onPrevious, onNext, onCorrection, onFillAllGaps }: Readonly<{
+export function StaffBuilderValidationPanel({ issues, activeIssue, activeIndex, status, onActivate, onClose, onPrevious, onNext, onCorrection, onFillAllGaps, showClose = true }: Readonly<{
   issues: readonly StaffBuilderIssue[];
   activeIssue: StaffBuilderIssue | null;
   activeIndex: number;
@@ -12,13 +12,14 @@ export function StaffBuilderValidationPanel({ issues, activeIssue, activeIndex, 
   onNext: () => void;
   onCorrection: (correction: StaffBuilderIssue["corrections"][number]) => void;
   onFillAllGaps: () => void;
+  showClose?: boolean;
 }>) {
   const descriptionRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (activeIssue) descriptionRef.current?.focus(); }, [activeIssue]);
   if (!activeIssue) return <section aria-label="Save" className="staff-builder-validation-panel"><button className="staff-builder-primary-button" onClick={onActivate} type="button">Save</button>{status && <p aria-live="polite" role="status">{status}</p>}</section>;
   const safeGapCount = issues.filter((currentIssue) => currentIssue.code === "gap" && currentIssue.corrections.some(({ kind }) => kind === "fill-gap-with-rests")).length;
   return <section className="staff-builder-validation-panel" aria-labelledby="staff-builder-validation-title">
-    <div className="staff-builder-rhythm-heading"><div><h3 id="staff-builder-validation-title">Structural correction</h3><p>Issue {activeIndex + 1} of {issues.length}</p></div><button className="staff-builder-secondary-button" onClick={onClose} type="button">Close Correction Mode</button></div>
+    <div className="staff-builder-rhythm-heading"><div><h3 id="staff-builder-validation-title">Structural correction</h3><p>Issue {activeIndex + 1} of {issues.length}</p></div>{showClose && <button className="staff-builder-secondary-button" onClick={onClose} type="button">Close Correction Mode</button>}</div>
     <p className="staff-builder-issue-description" ref={descriptionRef} tabIndex={-1}>{activeIssue.message}</p>
     {activeIssue.corrections.map((correction) => correction.kind === "set-duration"
       ? <p key={`suggestion-${correction.eventId}`}>Change it to a {correction.duration.replace("-", " ")} note so it ends at the barline.</p>

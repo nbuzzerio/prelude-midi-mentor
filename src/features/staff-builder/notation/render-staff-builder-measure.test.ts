@@ -93,6 +93,27 @@ describe("renderStaffBuilderMeasure", () => {
     expect(timeSignatures.mock.calls.map(([time]) => time)).toEqual(["4/4", "4/4", "6/8", "6/8", "6/8", "6/8"]);
   });
 
+  it.each([
+    ["2/4", 8], ["3/4", 12], ["4/4", 16], ["6/8", 12],
+  ] as const)("creates a complete deterministic sixteenth grid for empty %s", (time, count) => {
+    const empty = { ...score(), initialTimeSignature: time, measures: [{ id: "empty", events: [] }], ties: [] };
+    const result = renderStaffBuilderMeasure(document.createElement("div"), empty, 0);
+    expect(result.anchors.positions).toHaveLength(count);
+    expect(result.anchors.positions.get(0)?.x).toBe(result.anchors.timeline.rhythmicStartX);
+    expect(result.anchors.timeline.capacityTicks).toBe(count * 120);
+  });
+
+  it("keeps temporal positions unchanged when event content and durations change", () => {
+    const empty = { ...score(), measures: [{ id: "measure", events: [] }], ties: [] };
+    const populated = score();
+    const changed = { ...populated, measures: [{ ...populated.measures[0]!, events: populated.measures[0]!.events.map((event) => ({ ...event, rhythm: { status: "final" as const, duration: "quarter" as const } })) }] };
+    const emptyRender = renderStaffBuilderMeasure(document.createElement("div"), empty, 0);
+    const populatedRender = renderStaffBuilderMeasure(document.createElement("div"), populated, 0);
+    const changedRender = renderStaffBuilderMeasure(document.createElement("div"), changed, 0);
+    expect([...populatedRender.anchors.positions.values()]).toEqual([...emptyRender.anchors.positions.values()]);
+    expect([...changedRender.anchors.positions.values()]).toEqual([...emptyRender.anchors.positions.values()]);
+  });
+
   it("returns plain event and cross-staff position anchors with useful invariants", () => {
     const result = renderStaffBuilderMeasure(document.createElement("div"), score(), 0);
     expect([...result.anchors.events.keys()]).toEqual(expect.arrayContaining(["chord", "note", "rest"]));
@@ -106,11 +127,7 @@ describe("renderStaffBuilderMeasure", () => {
     expect(positions.every(({ width }) => width > 0)).toBe(true);
     expect(positions.every(({ height }) => height > 100)).toBe(true);
     expect(positions.map(({ x }) => x)).toEqual([...positions.map(({ x }) => x)].sort((left, right) => left - right));
-    for (const event of result.anchors.events.values()) {
-      const position = result.anchors.positions.get(event.startTick);
-      expect(position).toBeDefined();
-      expect(Math.abs(event.onsetX - (position?.x ?? 0))).toBeLessThan(1);
-    }
+    for (const event of result.anchors.events.values()) expect(result.anchors.positions.get(event.startTick)).toBeDefined();
     const chord = result.anchors.events.get("chord");
     expect(chord?.x).toBeLessThanOrEqual(chord?.onsetX ?? 0);
     expect(result.coordinateSpace).toEqual({ width: result.width, height: result.height });
@@ -159,7 +176,6 @@ describe("renderStaffBuilderMeasure", () => {
       for (const eventId of ["before-treble", "before-bass", "after-treble", "after-bass"]) {
         const anchor = result.anchors.authoritativeEvents.get(eventId);
         expect(anchor).toBeDefined();
-        expect(anchor?.onsetX, eventId).toBeCloseTo(result.anchors.positions.get(anchor?.startTick ?? -1)?.x ?? -1, 5);
       }
       expect(result.anchors.events.get([...result.anchors.events.keys()].find((id) => id.includes("preview")) ?? "")).toBeDefined();
       expect([...result.anchors.authoritativeEvents.keys()].some((id) => id.includes("preview"))).toBe(false);
@@ -171,7 +187,8 @@ describe("renderStaffBuilderMeasure", () => {
       const bassPreview = result.anchors.events.get([...result.anchors.events.keys()].find((id) => id.includes(":bass:240:event")) ?? "");
       if (treblePreview && bassPreview) expect(treblePreview.onsetX).toBeCloseTo(bassPreview.onsetX, 5);
     }
-    expect(changedTreble.anchors.authoritativeEvents.get("after-bass")?.onsetX).toBeCloseTo(both.anchors.authoritativeEvents.get("after-bass")?.onsetX ?? -1, 5);
+    expect([...changedTreble.anchors.positions.values()]).toEqual([...both.anchors.positions.values()]);
+    expect(changedTreble.anchors.timeline).toEqual(both.anchors.timeline);
   });
 
   it.each([{ ticks: [0, 240] }, { ticks: [0, 120, 240] }])("renders unresolved quarter-note visuals at distinct increasing onsets $ticks", ({ ticks }) => {
@@ -179,9 +196,7 @@ describe("renderStaffBuilderMeasure", () => {
     const eventOnsets = ticks.map((_tick, index) => result.anchors.events.get(`event-${index}`)?.onsetX ?? 0);
     expect(eventOnsets).toEqual([...eventOnsets].sort((left, right) => left - right));
     expect(new Set(eventOnsets).size).toBe(ticks.length);
-    ticks.forEach((tick, index) => {
-      expect(Math.abs(eventOnsets[index] - (result.anchors.positions.get(tick)?.x ?? 0))).toBeLessThan(1);
-    });
+    ticks.forEach((tick) => expect(result.anchors.positions.get(tick)).toBeDefined());
   });
 
   it.each([1800, 1680])("aligns a boundary-capped unresolved event at formatted tick %i without score mutation", (tick) => {
@@ -192,7 +207,6 @@ describe("renderStaffBuilderMeasure", () => {
     const position = result.anchors.positions.get(tick);
     expect(event).toBeDefined();
     expect(position).toBeDefined();
-    expect(Math.abs((event?.onsetX ?? 0) - (position?.x ?? 0))).toBeLessThan(1);
     expect(result.projection.staves.treble.find((item) => item.kind !== "spacer")).toMatchObject({
       layoutDurationTicks: 1920 - tick,
       visualDuration: { duration: "quarter" },
