@@ -462,6 +462,8 @@ Staff Builder score data is independent of VexFlow. Measures contain authoritati
 
 The persistence schema validates stored data at the browser-storage boundary. Renderer geometry and transient UI state are never persisted as musical score data.
 
+Same-staff rhythmic voices are deterministic derived state, not persisted score identity. Validation partitions authoritative half-open event intervals into the minimum non-overlapping voice count while checking completeness through staff-wide union coverage. The notation projection renders those voices with invisible, noninteractive gap tickables; playback, ties, editing, persistence, and practice continue to address authoritative event and pitch IDs rather than voice numbers.
+
 ## Capture Notes and Rhythm Correction
 
 Capture Notes and Rhythm Correction are separate workflows over one score.
@@ -505,6 +507,29 @@ Staff Builder remains frontend-only. Draft autosave continuously preserves work 
 ## Responsive Presentation
 
 Responsive score scaling, compact controls, and the mobile virtual-keyboard bottom sheet are presentations over the same authoritative editor state. Exactly one virtual-keyboard presentation is active at a time. Safe-area and viewport handling belong to the presentation layer; they do not create a mobile-specific score or Capture state machine.
+
+## Blocking Piece Practice
+
+Blocking Piece Practice is a Sequence-adjacent feature with its own domain under `src/features/piece-practice`; it does not use `SequenceTarget` or Sequence session state. Its launch path is:
+
+```text
+saved StaffBuilderScoreV1
+  -> Staff Builder structural validation
+  -> transient Piece Practice projection
+  -> blocking session state
+  -> stable MIDI/VKB input owner
+  -> read-only StaffBuilderScoreView
+```
+
+Staff Builder remains the sole persisted score authority. A launch projects a stable in-memory snapshot containing source measure/event/pitch identity, staff, onset, duration, written spelling, rests, and ties. Nothing in the Piece Practice projection or session is written back to the Staff Builder library or converted into Sequence storage. Exiting unmounts the session and returns to the existing Staff Builder library; a later launch reads the latest saved score.
+
+Targets describe newly attacked pitches grouped by measure and onset across both staves. Sustained pitches are not repeated at later attacks, incoming tied pitches are retained as source metadata but excluded from required attacks, and simultaneous duplicate sounding pitches require one physical MIDI pitch while retaining all source identities. Rests remain visible source events but create no answer target.
+
+The Phase 1 state machine grades exact unique MIDI attack sets and blocks progression after an incorrect attempt. Normal completed measures advance immediately in domain state; measures without attacks require explicit acknowledgement because Phase 1 has no timing engine. Start-at-measure and restart operations remain transient session behavior.
+
+One mounted input hook owns Web MIDI and the shared 225 millisecond chord collector for the active session. Physical attacks and persistent virtual-keyboard selections never merge. Held pitches are supplied separately from attacks so only an immediately previous successful target or an incoming tie can receive the narrow approved held-note allowance. Responsive desktop/mobile keyboard presentations branch beneath this one owner and never duplicate session state or keyboard instances.
+
+The presentation reuses `StaffBuilderScoreView` in read-only mode and highlights authoritative source event IDs. It mounts no Capture, Rhythm Correction, history, persistence, or notation-edit controls. Phase 1 intentionally has no BPM grading, hold-duration grading, metronome, continuous performance capture, or post-performance accuracy overlay.
 
 ---
 

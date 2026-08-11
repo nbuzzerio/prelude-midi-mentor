@@ -223,7 +223,7 @@ Prelude should teach the concept behind the music, not only require correct note
 
 Students and teachers should be able to create targeted practice material without needing professional notation software.
 
-Staff Builder now provides the first practical transcription and practice-material creation workflow through MIDI and virtual-keyboard capture, direct score editing, validation, playback, and local projects.
+Staff Builder now provides the first practical transcription and practice-material creation workflow through MIDI and virtual-keyboard capture, direct score editing, validation, playback, and local projects. Structurally valid saved pieces can also be practiced measure by measure through Blocking Piece Practice, which grades pitch attacks without copying the authored score or claiming continuous timing accuracy.
 
 A user may:
 
@@ -242,7 +242,7 @@ This workflow should support:
 - song excerpts
 - original musical ideas
 
-Future Lesson Builder work should connect that score foundation to Guided Lesson consumption, teacher assignments, sharing, and structured import/export. A Staff Builder project is not yet a Guided Lesson.
+Future Lesson Builder work should connect that score foundation to Guided Lesson consumption, teacher assignments, sharing, and structured import/export. Blocking Piece Practice does not turn a Staff Builder project into a Guided Lesson, and future continuous Accuracy work remains separate from its Phase 1 blocking model.
 
 ---
 

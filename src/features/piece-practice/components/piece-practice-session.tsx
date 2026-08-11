@@ -85,8 +85,12 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   })) ?? [];
 
   useEffect(() => {
-    if (feedback.status === "correct") playSuccessChirp();
-    else if (feedback.status === "incorrect") playIncorrectFeedback();
+    try {
+      if (feedback.status === "correct") playSuccessChirp();
+      else if (feedback.status === "incorrect") playIncorrectFeedback();
+    } catch {
+      // Feedback audio is optional and must never interrupt practice progression.
+    }
   }, [feedback]);
 
   useEffect(() => {

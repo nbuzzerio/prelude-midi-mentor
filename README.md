@@ -71,6 +71,17 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Local project persistence with draft autosave and validated Save
 - Responsive desktop, Chromebook, and mobile interaction
 
+### Blocking Piece Practice (Post-v2.3 Development)
+
+- Launch structurally valid saved Staff Builder pieces directly from the local library
+- Practice one authored measure and attack onset at a time; incorrect attempts remain blocked for retry
+- Grade simultaneous notes and chords as pitch sets through physical MIDI or the virtual keyboard
+- Respect authored rests, pitch-specific ties, independent grand-staff rhythm, and automatic same-staff polyphony
+- Start at any measure, restart the current measure or selected practice range, and return to the Staff Builder library
+- Reuse the authored score as read-only notation without creating a copied Sequence score
+
+Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It does not grade BPM, note-hold duration, rhythmic timing, or continuous performance; those remain separate possible future Accuracy-mode work.
+
 ### Real-Time Input and Feedback
 
 - Physical MIDI keyboard support
@@ -152,7 +163,7 @@ Flashcards and Sequences generate musical targets, render them using standard no
 
 Free Play removes the target and grading layers. Physical MIDI and virtual-piano notes share the same live held-note state and key-aware spelling pipeline before appearing on a persistent grand staff. Players can use No Key or one of the supported major and minor keys, choose a chromatic spelling preference, and change notation settings without clearing or replaying held notes.
 
-Staff Builder is a separate learning-focused score editor. It combines beginner-oriented capture, direct score correction, validation, deterministic playback, and local projects without turning Prelude into a professional notation editor or a Guided Lesson engine.
+Staff Builder is a separate learning-focused score editor. It combines beginner-oriented capture, direct score correction, validation, deterministic playback, and local projects without turning Prelude into a professional notation editor or a Guided Lesson engine. Structurally valid saved pieces can launch Blocking Piece Practice, which reads a transient projection of that authoritative score and advances only after each expected pitch attack is played correctly.
 
 Shared MIDI, notation, keyboard, audio, interval-domain, and musical-event playback systems keep the experience consistent while each mode retains its own state machine.
 
@@ -254,6 +265,7 @@ Prelude's automated suite covers:
 - shared Mobile Play browser lifecycle, Focus Staff coordination, state preservation, and mode-specific presentation
 - Ear Training target generation, prompt scheduling, grading, and session statistics
 - Staff Builder score invariants, capture, correction, validation, persistence, playback, interaction geometry, radial controls, and responsive presentation
+- Blocking Piece Practice projection, ties/polyphony, blocking progression, MIDI/VKB input separation, read-only presentation, validation-gated launch, exit, and source/storage immutability
 
 Mobile Play preserves each mode's input contract: Flashcards and Sequences retain graded toggle input, while Free Play alone adds momentary multitouch press/release input. Mobile Play and Focus Staff are mutually exclusive. Fullscreen and landscape lock are enhancements rather than requirements; if fullscreen exits externally, the Mobile Play layout remains active until the user exits it.
 
@@ -332,7 +344,7 @@ src/
 - **lib/** — Reusable audio, music, practice, MIDI, and platform logic that is independent of React.
 - **types/** — Shared TypeScript models used throughout the application.
 
-Current top-level feature domains under `features/` are `ear-training`, `flashcards`, `freeplay`, `sequences`, and `staff-builder`. Staff Builder keeps its score domain, editor orchestration, rendering projection, playback projection, persistence, and focused UI components together within that feature boundary.
+Current feature domains under `features/` include `ear-training`, `flashcards`, `freeplay`, `sequences`, `staff-builder`, and the Sequence-adjacent `piece-practice` workflow. Piece Practice is launched from Staff Builder rather than exposed as a sixth permanent top-level mode.
 
 For a more detailed technical explanation, see
 [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
@@ -351,7 +363,7 @@ The application now supports five complementary top-level modes:
 - Ear Training for melodic interval identification by sound
 - Staff Builder for beginner-friendly score transcription and editing
 
-Staff Builder is complete at the current post-v2.3 development checkpoint but remains unreleased. Feature development is paused for combined Chromebook, phone, and physical-MIDI manual QA; release scope and version will be decided afterward.
+Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are complete at the current post-v2.3 development checkpoint but remain unreleased. Development is paused for combined Chromebook, phone, accessibility, and physical-MIDI manual QA and product review; release scope, version, and any next feature will be decided afterward. Melody Mode and Piece Practice Accuracy mode have not started.
 
 See [`ROADMAP.md`](./docs/ROADMAP.md) for completed milestones and future development areas.
 

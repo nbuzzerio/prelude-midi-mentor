@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
 > **Latest Release:** v2.3.0 — Melodic Interval Ear Training
-> **Last Updated:** August 9, 2026
-> **Current Milestone:** Post-v2.3 Staff Builder stabilization (unreleased)
+> **Last Updated:** August 10, 2026
+> **Current Milestone:** Post-v2.3 Blocking Piece Practice Phase 1 checkpoint (unreleased)
 
 ---
 
@@ -166,6 +166,17 @@ Completed features include:
 - Local project library, draft autosave, and distinct validated Save
 - Deterministic event, measure, position, and piece playback with playback-follow visualization
 - Direct notation interaction, radial controls, responsive score scaling, and a mobile keyboard bottom sheet
+- Automatic derived same-staff rhythmic voices with no persisted voice IDs or beginner-facing Voice controls
+
+## Blocking Piece Practice
+
+- Structurally valid saved Staff Builder pieces launch directly from the local library
+- Staff Builder remains authoritative; practice uses a transient attack-onset projection rather than `SequenceTarget`
+- Exact pitch-set blocking with unlimited retry, normal measure progression, and explicit targetless-measure acknowledgement
+- Chords, cross-staff attacks, independent/polyphonic rhythm, rests, and pitch-specific ties retain their authored musical meaning
+- One stable MIDI owner, shared rolled-chord collection, persistent VKB chord selection, and strict MIDI/VKB source separation
+- Start at Measure, Restart Measure, Restart Piece, completion statistics, read-only score reuse, and exit to the library
+- No persisted practice progress and no BPM, hold-duration, metronome, or continuous timing grading
 
 ## Quality
 
@@ -182,13 +193,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's latest release is v2.3.0. Staff Builder has since reached a completed implementation checkpoint at `92cf7e5` but remains post-v2.3, unreleased development.
+Prelude's latest release is v2.3.0. Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are implemented but remain post-v2.3, unreleased development.
 
-Feature development is paused for vacation. On return, perform combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, playback, and persistence QA; fix only confirmed stabilization defects; then decide release scope and version before selecting another feature milestone.
+The next step is review and combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, accessibility, playback, and persistence QA. Fix only confirmed defects, then decide release scope and version before selecting another milestone. Melody Mode is not underway; Piece Practice Accuracy remains a future Phase 2.
 
-Staff Builder owns its score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, local persistence/library, notation projection, and playback projection. Capture and Rhythm are separate workflows over one authoritative score. VexFlow remains decorative; React owns accessible interaction through public renderer geometry. Score playback reuses the shared musical-event scheduler, while playback-follow presentation never mutates editor cursor or selection.
+Staff Builder owns its score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Piece Practice owns transient projection, blocking session, input, and read-only presentation state without copying the score or coupling back into the editor.
 
-The August 9, 2026 verification checkpoint is 90 passing test files and 909 passing tests, with `pnpm verify` and the production build passing.
+The August 10, 2026 verification checkpoint is 98 passing test files and 1,116 passing tests, with `pnpm verify` and the production build passing. Real-device/manual QA remains pending.
 
 ---
 

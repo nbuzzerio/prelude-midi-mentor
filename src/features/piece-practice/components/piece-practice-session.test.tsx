@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { StaffBuilderScoreV1 } from "@/features/staff-builder/staff-builder-types";
+import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { submitPiecePracticeAttempt } from "../piece-practice-session";
 import type { PiecePracticeInputFeedback } from "../hooks/use-piece-practice-input";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
@@ -63,6 +65,32 @@ function piece(): PiecePracticePiece {
   };
 }
 
+function realisticPolyphonicScore(): StaffBuilderScoreV1 {
+  const note = (id: string, staff: "treble" | "bass", startTick: number, duration: "dotted-half" | "dotted-quarter" | "quarter" | "eighth", pitches: readonly { id: string; midiNumber: number; letter: "A" | "C" | "D" | "E" | "F" | "G"; octave: number }[]) => ({
+    id, kind: "notes" as const, staff, startTick, rhythm: { status: "final" as const, duration },
+    pitches: pitches.map((source) => ({ ...source, accidental: "natural" as const })),
+  });
+  return {
+    schemaVersion: 1, id: "realistic-6-8", title: "Six-Eight Practice Study", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    tempoBpm: 72, initialKeySignatureId: "c-major", initialTimeSignature: "6/8",
+    measures: [
+      { id: "measure-1", events: [
+        note("sustained-e", "treble", 0, "dotted-quarter", [{ id: "e4", midiNumber: 64, letter: "E", octave: 4 }]),
+        note("later-c", "treble", 480, "eighth", [{ id: "c4", midiNumber: 60, letter: "C", octave: 4 }]),
+        note("later-d", "treble", 720, "eighth", [{ id: "d4", midiNumber: 62, letter: "D", octave: 4 }]),
+        note("tie-source", "treble", 960, "quarter", [{ id: "source-f4", midiNumber: 65, letter: "F", octave: 4 }]),
+        note("bass-chord", "bass", 0, "dotted-quarter", [{ id: "c3", midiNumber: 48, letter: "C", octave: 3 }, { id: "g3", midiNumber: 55, letter: "G", octave: 3 }]),
+        { id: "bass-rest", kind: "rest", staff: "bass", startTick: 720, rhythm: { status: "final", duration: "dotted-quarter" } },
+      ] },
+      { id: "measure-2", events: [
+        note("tie-destination-chord", "treble", 0, "dotted-half", [{ id: "destination-f4", midiNumber: 65, letter: "F", octave: 4 }, { id: "new-a4", midiNumber: 69, letter: "A", octave: 4 }]),
+        note("bass-e", "bass", 0, "dotted-half", [{ id: "e3", midiNumber: 52, letter: "E", octave: 3 }]),
+      ] },
+    ],
+    ties: [{ id: "cross-measure-f", fromEventId: "tie-source", fromPitchId: "source-f4", toEventId: "tie-destination-chord", toPitchId: "destination-f4" }],
+  };
+}
+
 function submit(midiNumbers: readonly number[]) {
   const options = mocks.inputOptions;
   if (!options) throw new Error("Input hook is not mounted.");
@@ -112,6 +140,14 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("Target 1 of 2")).toBeTruthy();
     expect(within(screen.getByRole("status")).getByText(/Incorrect/)).toBeTruthy();
     expect(mocks.incorrect).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps visual grading and retry available if optional feedback audio fails", () => {
+    mocks.incorrect.mockImplementationOnce(() => { throw new Error("Audio unavailable"); });
+    start();
+    act(() => submit([60, 65]));
+    expect(screen.getByText(/Incorrect .* try the same target again\./)).toBeTruthy();
+    expect(screen.getByText("Target 1 of 2")).toBeTruthy();
   });
 
   it("advances targets and normal measures through Phase B without a Next button", () => {
@@ -185,5 +221,38 @@ describe("PiecePracticeSession", () => {
     start(source);
     act(() => submit([60, 64]));
     expect(source).toEqual(before);
+  });
+
+  it("runs a realistic validated 6/8 polyphonic and tied piece through retry, completion, and exit", () => {
+    const sourceScore = realisticPolyphonicScore();
+    const sourceBefore = structuredClone(sourceScore);
+    const projection = projectStaffBuilderPieceForPractice(sourceScore);
+    expect(projection.ok).toBe(true);
+    if (!projection.ok) throw new Error("Expected the realistic score to be eligible.");
+    const projectedBefore = structuredClone(projection.piece);
+    expect(projection.piece.measures.map(({ targets }) => targets.map(({ startTick, expectedMidiNumbers }) => [startTick, expectedMidiNumbers]))).toEqual([
+      [[0, [48, 55, 64]], [480, [60]], [720, [62]], [960, [65]]],
+      [[0, [52, 69]]],
+    ]);
+
+    const onExit = vi.fn();
+    render(<PiecePracticeSession now={() => 65_000} onExit={onExit} piece={projection.piece} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    expect(screen.getByTestId("score-view").dataset.highlights).toBe("bass-chord,sustained-e");
+    act(() => submit([48, 55]));
+    expect(screen.getByText("Target 1 of 4")).toBeTruthy();
+    act(() => submit([64, 55, 48]));
+    act(() => submit([60]));
+    act(() => submit([62]));
+    act(() => submit([65]));
+    expect(screen.getByText("Measure 2 of 2")).toBeTruthy();
+    expect(screen.getByText("Expected: E3, A4")).toBeTruthy();
+    act(() => submit([52, 69]));
+    expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
+    expect(screen.getByText("Mistakes").parentElement?.querySelector("dd")?.textContent).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Exit Piece Practice" }));
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(sourceScore).toEqual(sourceBefore);
+    expect(projection.piece).toEqual(projectedBefore);
   });
 });

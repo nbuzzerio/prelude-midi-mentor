@@ -128,3 +128,10 @@ A high-level record of significant milestones in Prelude's development.
 - Added deterministic score playback and playback-follow visualization through the shared musical-event player.
 - Added score-first notation controls, specialized radial controls, deterministic interaction geometry, and responsive mobile workflows.
 - Completed the August 9, 2026 implementation checkpoint at `92cf7e5`; physical-device and responsive manual QA remains before any release decision.
+
+### Blocking Piece Practice Phase 1
+
+- Added validation-gated direct practice for saved Staff Builder pieces without copying scores into Sequence or persistence.
+- Added blocking pitch-attack progression through authored measures with MIDI/VKB input, chords, rests, pitch-specific ties, and automatic same-staff polyphony.
+- Reused the authored score as read-only notation with target highlights, start/restart controls, completion feedback, and return to the Staff Builder library.
+- Completed automated projection, state-machine, input-lifecycle, rendering, accessibility, launch/exit, and immutability verification; real-device QA remains before any release decision.

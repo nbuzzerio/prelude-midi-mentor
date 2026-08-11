@@ -892,6 +892,60 @@ Learners should not lose incomplete work, but an incomplete draft should not be 
 
 ---
 
+# 2026-08 — Staff Builder Scores Remain Authoritative for Piece Practice
+
+## Decision
+
+Blocking Piece Practice reads a transient attack-onset projection of a structurally valid saved Staff Builder score. It does not persist a copied practice score or convert the piece into `SequenceTarget`.
+
+## Reason
+
+One musical source avoids synchronization bugs and ensures that the next practice launch naturally reflects the latest validated save. Piece Practice also needs measure, onset, staff, rest, duration, spelling, and tie identity that the older Sequence abstraction does not represent.
+
+## Consequences
+
+- Active practice uses a stable in-memory snapshot; edits appear on the next launch rather than live-syncing.
+- Practice progress and statistics remain session-only.
+- The Staff Builder library owns eligibility and launch/return context.
+
+---
+
+# 2026-08 — Blocking Piece Practice Phase 1 Grades Attacks, Not Performance Timing
+
+## Decision
+
+Phase 1 groups newly attacked pitches by musical onset and grades exact sounding MIDI pitch sets. Incorrect attempts remain on the current target. Sustained and incoming tied pitches are not re-required, and targetless measures require explicit acknowledgement.
+
+## Reason
+
+This produces musically correct beginner blocking practice without pretending to measure BPM, held duration, silence, or continuous rhythmic accuracy. Those concerns require a separate timestamped performance model.
+
+## Consequences
+
+- Simultaneous same-staff and cross-staff attacks form one target regardless of rendered voice count.
+- Written durations and rests remain visible/source metadata but do not create Phase 1 hold or silence timers.
+- Future continuous Accuracy work remains separate and has not started.
+
+---
+
+# 2026-08 — Same-Staff Rhythmic Voices Are Derived
+
+## Decision
+
+Staff Builder infers the minimum deterministic rhythmic voice allocation from authoritative staff, onset, and duration data. Voice IDs and voice-local gap rests are not persisted or exposed as beginner controls.
+
+## Reason
+
+Solo-piano notation commonly sustains one event beneath later attacks on the same staff. Requiring manual voice management or authored hidden rests would expose notation-software machinery that is unnecessary for the beginner workflow.
+
+## Consequences
+
+- Staff-wide union coverage determines structural completeness.
+- Render-only implicit gaps never become selectable events, history, persistence, playback, or practice targets.
+- Ties and interaction remain attached to authoritative event/pitch IDs rather than derived voice indexes.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:

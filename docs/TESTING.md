@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** Post-v2.3 Staff Builder checkpoint (unreleased)
+> **Status:** Post-v2.3 Blocking Piece Practice Phase 1 checkpoint (unreleased)
 > **Latest release:** v2.3.0 — Melodic Interval Ear Training
-> **Last updated:** August 9, 2026
+> **Last updated:** August 10, 2026
 
 ## Purpose
 
@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 90 passed
-- Tests: 909 passed
+- Test files: 98 passed
+- Tests: 1,116 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -340,6 +340,20 @@ Automated coverage includes:
 - mobile virtual-keyboard lifecycle, safe-area presentation, and responsive state preservation
 - accessible score semantics, direct notation controls, disclosures, and workspace integration
 
+### Block 13 — Blocking Piece Practice
+
+Automated coverage includes:
+
+- validation-gated projection from authoritative Staff Builder scores without copied persistence or `SequenceTarget`
+- attack-onset grouping across chords, both staves, same-staff polyphony, independent rhythms, rests, and ties
+- exact pitch-set grading, blocking retries, measure/piece completion, targetless measures, start-at-measure, and restarts
+- physical single-note and 225 millisecond chord input, stale-attempt cleanup, and stable MIDI ownership
+- held/lingering and incoming-tie allowances without allowing held notes to satisfy missing attacks
+- persistent virtual chord selection and strict MIDI/VKB attempt separation
+- read-only score presentation, authoritative multi-event highlighting, feedback, accessibility, and one responsive keyboard
+- Staff Builder library eligibility, launch/failure/exit flow, updated-save relaunch, and source/storage immutability
+- realistic multi-measure 6/8 integration with polyphony, grand-staff chord material, rests, a cross-measure tie, retry, completion, and exit
+
 ## Intentionally Not Deeply Tested
 
 The initial suite should not deeply test:
@@ -413,6 +427,16 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - audition, measure, from-here, and piece playback, Stop, and the sliding playback highlight
 - rests, ties, partial chords, trailing silence, key/time changes, Undo/Redo, and guided validation corrections
 - local project close/reopen, draft recovery, validated Save, and installed-PWA behavior
+- Blocking Piece Practice launch from a saved valid piece and disabled-reason behavior for invalid pieces
+- physical MIDI single notes, block chords, slightly rolled chords, rapid retries, held previous notes, and tied destinations
+- MIDI hotplug/disconnect during practice and clean Staff Builder ownership after exit
+- desktop VKB and Chromebook touch chord selection, toggle removal, restart, and source switching
+- Android portrait/landscape score readability, keyboard reach, target feedback, safe areas, and exactly one keyboard
+- same-staff polyphonic notation/stems with playback and practice attacks aligned; sustained notes must not be re-required
+- rest-only and consecutive targetless measure acknowledgement, Start at Measure, restart statistics, and completion focus
+- screen-reader verbosity, expected/missing/extra pitch feedback, disabled Practice explanation, and keyboard focus order
+- save, practice, exit, edit, save, and relaunch using the updated authoritative score without practice-progress persistence
+- sustain-pedal behavior is not graded in Phase 1 and should be observed as a known hardware/browser limitation
 
 This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issues found during normal use may be recorded through the project's bug-log workflow.
 

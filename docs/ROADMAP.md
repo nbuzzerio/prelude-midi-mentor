@@ -2,7 +2,7 @@
 
 > This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
 >
-> **Current checkpoint:** August 9, 2026 — Staff Builder foundation complete in post-v2.3 development; manual device QA and any release decision remain pending.
+> **Current checkpoint:** August 10, 2026 — Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are implemented in post-v2.3 development; final real-device QA and any release decision remain pending.
 
 ---
 
@@ -162,12 +162,12 @@ Future Free Play ideas such as chord analysis, phrase history, last-measure disp
 
 ## Current Direction
 
-Chord Progressions, key-aware Free Play, shared Mobile Play, melodic-interval Ear Training, and the post-v2.3 Staff Builder foundation are complete. Feature development is intentionally paused for vacation. On return:
+Chord Progressions, key-aware Free Play, shared Mobile Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are complete. Development now pauses for review and final manual QA:
 
 1. Perform combined physical-MIDI, Chromebook touch/mouse, Android portrait/landscape, responsive, playback, and persistence QA.
 2. Fix only defects confirmed by that stabilization pass.
 3. Decide release scope and version after QA; no post-v2.3 release number is selected yet.
-4. Select the next feature milestone only after the checkpoint is stable.
+4. Review the completed Phase 1 product before selecting the next feature milestone. Melody Mode is not underway, and Piece Practice Accuracy remains a separate future Phase 2.
 
 Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
 
@@ -203,6 +203,30 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 - [x] Responsive score scaling and touch-compensated interaction
 - [x] Safe-area-aware mobile virtual-keyboard bottom sheet with one active presentation
 - [x] Collapsed technical and advanced fallback controls
+
+## Automatic Same-Staff Polyphony
+
+- [x] Deterministic derived rhythmic voices without persisted voice IDs or manual Voice controls
+- [x] Staff-wide union validation with render-only implicit voice gaps
+- [x] Multi-voice VexFlow rendering with authoritative event anchors
+- [x] Capture, Rhythm Correction, playback, ties, and Piece Practice compatibility
+
+---
+
+# ✅ Post-v2.3 — Blocking Piece Practice Phase 1 (Implemented, Manual QA Pending)
+
+- [x] Validation-gated launch from saved Staff Builder pieces
+- [x] Transient attack-onset projection without `SequenceTarget` or copied score persistence
+- [x] Pitch-set blocking progression across measures, chords, both staves, polyphony, rests, and ties
+- [x] Physical MIDI single/chord input with the shared 225 millisecond collector
+- [x] Persistent virtual-keyboard chord input with strict MIDI/VKB source separation
+- [x] Start at Measure, Restart Measure, Restart Piece, targetless-measure acknowledgement, completion, and session statistics
+- [x] Read-only authored-score presentation and authoritative multi-event highlighting
+- [x] Exit to the retained Staff Builder library context
+- [x] Automated projection, state, input, rendering, accessibility, eligibility, launch/exit, and immutability coverage
+- [ ] Final physical-MIDI, Chromebook, Android, responsive, audio, and screen-reader QA
+
+Future Piece Practice Accuracy mode remains separate: it may add continuous BPM-driven capture and post-performance feedback, but no such engine is part of Phase 1. The next product step is a pause and assessment, not immediate Melody Mode implementation.
 
 ---
 
