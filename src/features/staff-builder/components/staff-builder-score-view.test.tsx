@@ -71,6 +71,19 @@ function priorityScore(): StaffBuilderScoreV1 {
 afterEach(() => { cleanup(); renderMeasure.mockClear(); vi.unstubAllGlobals(); });
 
 describe("StaffBuilderScoreView", () => {
+  it("renders generic read-only highlights from authoritative event anchors only", async () => {
+    render(<StaffBuilderScoreView eventHighlights={[
+      { eventId: "treble-note", status: "current" },
+      { eventId: "treble-chord", status: "incorrect" },
+      { eventId: "__staff-builder-preview", status: "correct" },
+    ]} measureIndex={0} score={interactiveScore()} />);
+    await waitFor(() => expect(screen.getAllByTestId("staff-builder-event-highlight")).toHaveLength(2));
+    const highlights = screen.getAllByTestId("staff-builder-event-highlight");
+    expect(highlights.map(({ dataset }) => [dataset.eventId, dataset.highlightStatus])).toEqual([
+      ["treble-note", "current"], ["treble-chord", "incorrect"],
+    ]);
+    expect(screen.queryByRole("button", { name: /chord/i })).toBeNull();
+  });
   it("owns five direct notation controls with routing state and opens effective Key/Time wheels", async () => {
     const route = vi.fn(); const key = vi.fn(); const time = vi.fn();
     render(<StaffBuilderScoreView inputMode="grand" measureIndex={0} onInputModeChange={route} onKeyChange={key} onTimeChange={time} score={score()} />);

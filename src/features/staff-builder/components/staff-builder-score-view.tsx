@@ -17,10 +17,12 @@ import { resolveStaffBuilderPlaybackGeometry } from "./staff-builder-playback-ge
 import { StaffBuilderTimeWheel, STAFF_BUILDER_TIME_WHEEL_SIZE } from "./staff-builder-time-wheel";
 
 type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: number }>;
+export type StaffBuilderEventHighlight = Readonly<{ eventId: string; status: "current" | "correct" | "incorrect" | "complete" }>;
 type PointerIntent = Readonly<{ kind: "event"; eventId: string }> | Readonly<{ kind: "position"; offsetTicks: number }> | Readonly<{ kind: "notation"; control: StaffBuilderNotationControlName }>;
 type PointerGesture = Readonly<{ pointerId: number; startX: number; startY: number; intent: PointerIntent }>;
 
 const EMPTY_PENDING_PREVIEW: StaffBuilderPendingCapture = { treble: [], bass: [] };
+const EMPTY_EVENT_HIGHLIGHTS: readonly StaffBuilderEventHighlight[] = [];
 const TAP_MOVEMENT_THRESHOLD_PX = 8;
 
 function durationName(event: StaffBuilderEvent): string {
@@ -36,13 +38,14 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, issue, inputMode = "grand", onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, issue, inputMode = "grand", onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
   pendingPreview?: StaffBuilderPendingCapture;
   playbackPosition?: Readonly<{ offsetTicks: number }>;
   selectedEventId?: string;
+  eventHighlights?: readonly StaffBuilderEventHighlight[];
   issue?: StaffBuilderIssue | null;
   inputMode?: StaffBuilderCaptureInputMode;
   onInputModeChange?: (mode: StaffBuilderCaptureInputMode) => void;
@@ -63,6 +66,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const ignoredSyntheticClick = useRef<symbol | null>(null);
   const [cursorGeometry, setCursorGeometry] = useState<CursorGeometry | null>(null);
   const [selectionGeometry, setSelectionGeometry] = useState<CursorGeometry | null>(null);
+  const [highlightGeometries, setHighlightGeometries] = useState<readonly Readonly<{ eventId: string; status: StaffBuilderEventHighlight["status"]; geometry: CursorGeometry }>[]>([]);
   const [issueGeometry, setIssueGeometry] = useState<CursorGeometry | null>(null);
   const [renderResult, setRenderResult] = useState<StaffBuilderMeasureRenderResult | null>(null);
   const [durationEventId, setDurationEventId] = useState<string | null>(null);
@@ -107,6 +111,10 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     }
     const selectedAnchor = selectedEventId ? result.anchors.authoritativeEvents.get(selectedEventId) : undefined;
     setSelectionGeometry(selectedAnchor ? { x: selectedAnchor.x - 5, y: selectedAnchor.y - 5, width: selectedAnchor.width + 10, height: selectedAnchor.height + 10 } : null);
+    setHighlightGeometries(eventHighlights.flatMap(({ eventId, status }) => {
+      const anchor = result.anchors.authoritativeEvents.get(eventId);
+      return anchor ? [{ eventId, status, geometry: { x: anchor.x - 6, y: anchor.y - 6, width: anchor.width + 12, height: anchor.height + 12 } }] : [];
+    }));
     const issueEvent = issue?.target.eventId ? result.anchors.events.get(issue.target.eventId) : undefined;
     const positions = [...result.anchors.positions.values()].sort((a, b) => a.tick - b.tick);
     const issuePosition = issue?.target.positionTicks === undefined ? undefined : result.anchors.positions.get(issue.target.positionTicks) ?? positions.at(-1);
@@ -116,7 +124,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       setIssueGeometry({ x: issuePosition.x, y: issuePosition.y, width: Math.max(issuePosition.width, end - issuePosition.x), height: issuePosition.height });
     } else setIssueGeometry(null);
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, issue, measureIndex, onRender, preview.renderScore, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId]);
+  }, [cursorOffsetTicks, cursorStepDuration, eventHighlights, issue, measureIndex, onRender, preview.renderScore, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId]);
 
   const authoritativeTargets = [...(renderResult?.anchors.authoritativeEvents.values() ?? [])]
     .map((anchor, order) => ({ anchor, order, event: score.measures[measureIndex]?.events.find(({ id }) => id === anchor.eventId) }))
@@ -338,6 +346,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           })}
           {cursorGeometry && <div aria-hidden="true" className="staff-builder-capture-cursor" data-testid="staff-builder-capture-cursor" style={{ left: cursorGeometry.x, top: cursorGeometry.y, width: cursorGeometry.width, height: cursorGeometry.height }} />}
           {selectionGeometry && <div aria-hidden="true" className="staff-builder-selection-outline" data-testid="staff-builder-selection-outline" style={{ left: selectionGeometry.x, top: selectionGeometry.y, width: selectionGeometry.width, height: selectionGeometry.height }} />}
+          {highlightGeometries.map(({ eventId, status, geometry }) => <div aria-hidden="true" className="staff-builder-event-highlight" data-event-id={eventId} data-highlight-status={status} data-testid="staff-builder-event-highlight" key={`${eventId}:${status}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height }} />)}
           {issueGeometry && <div aria-hidden="true" className="staff-builder-issue-outline" data-testid="staff-builder-issue-outline" style={{ left: issueGeometry.x, top: issueGeometry.y, width: issueGeometry.width, height: issueGeometry.height }}><span>!</span></div>}
           {(projection.boundaryTies ?? []).some(({ direction }) => direction === "incoming") && <div aria-hidden="true" className="staff-builder-boundary-tie staff-builder-boundary-tie-incoming">Tie in</div>}
           {(projection.boundaryTies ?? []).some(({ direction }) => direction === "outgoing") && <div aria-hidden="true" className="staff-builder-boundary-tie staff-builder-boundary-tie-outgoing">Tie out</div>}

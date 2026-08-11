@@ -139,6 +139,10 @@ button {
 .staff-builder-playback-highlight { position: absolute; z-index: 1; pointer-events: none; border-inline-start: 4px solid rgb(3 105 161 / 90%); border-radius: 0.2rem; background: rgb(14 165 233 / 22%); box-shadow: inset 0.2rem 0 0 rgb(255 255 255 / 75%); }
 .staff-builder-capture-cursor { position: absolute; z-index: 2; pointer-events: none; border: 2px solid rgb(2 132 199 / 75%); border-radius: 0.25rem; background: rgb(56 189 248 / 20%); }
 .staff-builder-selection-outline { position: absolute; z-index: 3; pointer-events: none; border: 3px solid rgb(217 70 239); border-radius: 0.35rem; box-shadow: 0 0 0 2px white; }
+.staff-builder-event-highlight { position: absolute; z-index: 3; pointer-events: none; border: 3px solid rgb(2 132 199); border-radius: 0.35rem; background: rgb(56 189 248 / 14%); box-shadow: 0 0 0 2px white; }
+.staff-builder-event-highlight[data-highlight-status="correct"],
+.staff-builder-event-highlight[data-highlight-status="complete"] { border-color: rgb(22 163 74); background: rgb(74 222 128 / 16%); }
+.staff-builder-event-highlight[data-highlight-status="incorrect"] { border-color: rgb(220 38 38); background: rgb(248 113 113 / 16%); }
 .staff-builder-issue-outline { position: absolute; z-index: 4; pointer-events: none; border: 3px dashed rgb(185 28 28); border-radius: 0.35rem; background: rgb(254 202 202 / 20%); }
 .staff-builder-issue-outline span { position: absolute; top: -1rem; right: -0.75rem; display: grid; width: 1.5rem; height: 1.5rem; place-items: center; border-radius: 9999px; background: rgb(185 28 28); color: white; font-weight: 800; }
 .staff-builder-boundary-tie { position: absolute; z-index: 4; top: 7.5rem; border: 2px solid rgb(30 64 175); border-radius: 9999px; background: white; padding: 0.15rem 0.35rem; color: rgb(30 64 175); font-size: 0.75rem; font-weight: 700; }
