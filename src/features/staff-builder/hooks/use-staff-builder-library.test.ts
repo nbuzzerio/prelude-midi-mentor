@@ -47,6 +47,35 @@ describe("useStaffBuilderLibrary", () => {
     expect(result.current.library.pieces).toEqual([]);
   });
 
+  it("imports a schema-valid incomplete piece without opening it or creating a draft", () => {
+    const storage = new MemoryStorage();
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    const imported = createStaffBuilderScore({ title: "Incomplete", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", factories: { createId: () => "imported-id", now: () => "2026-08-11T12:00:00.000Z" } });
+    let outcome: ReturnType<typeof result.current.importPiece> | undefined;
+    act(() => { outcome = result.current.importPiece(imported); });
+    expect(outcome).toEqual({ score: imported, persisted: true });
+    expect(result.current.library.pieces).toEqual([imported]);
+    expect(result.current.activeScore).toBeNull();
+    expect(result.current.activeSavedPieceId).toBeNull();
+    expect(storage.values.has(STAFF_BUILDER_STORAGE_KEYS.draft)).toBe(false);
+    expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null").pieces).toEqual([imported]);
+  });
+
+  it("copies a colliding imported project without overwriting it and preserves duplicate titles", () => {
+    const storage = new MemoryStorage();
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => result.current.createPiece({ title: "Same Title", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
+    const existing = result.current.library.pieces[0]!;
+    act(() => result.current.closePiece());
+    let outcome: ReturnType<typeof result.current.importPiece> | undefined;
+    act(() => { outcome = result.current.importPiece(existing, { createId: () => "copy-id", now: () => "2026-08-11T15:00:00.000Z" }); });
+    expect(result.current.library.pieces).toHaveLength(2);
+    expect(result.current.library.pieces[0]).toBe(existing);
+    expect(outcome?.score).toEqual({ ...existing, id: "copy-id", updatedAt: "2026-08-11T15:00:00.000Z" });
+    expect(result.current.library.pieces.map(({ title }) => title)).toEqual(["Same Title", "Same Title"]);
+    expect(result.current.activeScore).toBeNull();
+  });
+
   it("offers recovery for a newer draft and loads the saved piece when recovery is declined", () => {
     const storage = new MemoryStorage();
     seedDraft(storage, { draftUpdatedAt: "2026-08-06T13:00:00.000Z" });

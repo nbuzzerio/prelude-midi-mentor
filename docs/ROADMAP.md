@@ -331,12 +331,12 @@ Build lesson authoring, sharing, and consumption on top of the completed Staff B
 - [x] Edit existing local Staff Builder projects
 - [ ] Duplicate measures
 - [ ] Copy/Paste measures
-- [ ] JSON import/export
+- [x] Per-piece `.prelude.json` backup import/export
 - [x] Local Staff Builder project library
 - [ ] Guided Lesson data-model integration
 - [ ] Teacher assignment workflow
 - [ ] Lesson sharing and consumption
-- [ ] Structured external interchange and export
+- [ ] Broader structured external interchange beyond Prelude score backup files
 
 ---
 

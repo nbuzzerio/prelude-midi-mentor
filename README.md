@@ -69,6 +69,7 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Direct notation editing for rhythm, rests, ties, key, time, and staff routing
 - Deterministic event, measure, position, and piece playback
 - Local project persistence with draft autosave and validated Save
+- Per-piece `.prelude.json` download and schema-validated import for browser-storage backup and recovery
 - Responsive desktop, Chromebook, and mobile interaction
 
 ### Blocking Piece Practice (Post-v2.3 Development)

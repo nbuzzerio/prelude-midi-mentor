@@ -460,7 +460,7 @@ These boundaries live inside `src/features/staff-builder`; they do not turn Flas
 
 Staff Builder score data is independent of VexFlow. Measures contain authoritative note/chord/rest events with staff, onset, and rhythm. Notes retain explicitly spelled pitches, ties are explicit score relationships, and effective key/time context is resolved from initial settings and measure overrides. Tempo and variable measure capacities remain score-domain facts.
 
-The persistence schema validates stored data at the browser-storage boundary. Renderer geometry and transient UI state are never persisted as musical score data.
+The persistence schema validates stored data at the browser-storage boundary. The same schema boundary validates imported `.prelude.json` files, which contain one authoritative `StaffBuilderScoreV1` rather than a library envelope, draft, history, or practice state. On an imported top-level score-ID collision, the library creates a new score ID without rewriting score-local event, pitch, or tie identities. Renderer geometry and transient UI state are never persisted as musical score data.
 
 Same-staff rhythmic voices are deterministic derived state, not persisted score identity. Validation partitions authoritative half-open event intervals into the minimum non-overlapping voice count while checking completeness through staff-wide union coverage. The notation projection renders those voices with invisible, noninteractive gap tickables; playback, ties, editing, persistence, and practice continue to address authoritative event and pitch IDs rather than voice numbers.
 
@@ -503,6 +503,8 @@ The playback scheduler exposes its authoritative time origin. Staff Builder samp
 ## Persistence, Validation, and Save
 
 Staff Builder remains frontend-only. Draft autosave continuously preserves work and editor position in local browser storage. Validated Save has a distinct product meaning: the score has passed structural validation and is ready for later playback or use. Guided correction mode provides learner-facing fixes such as exact overflow durations and atomic gap filling without conflating validation with input collection.
+
+Saved library pieces can be downloaded individually as human-readable `.prelude.json` score files and imported later. Import requires schema validity but intentionally permits structurally incomplete musical content so it can be repaired through the normal editor; existing structural validation continues to control Piece Practice eligibility.
 
 ## Responsive Presentation
 

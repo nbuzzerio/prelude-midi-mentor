@@ -8,6 +8,7 @@ import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE, type StaffBuilderCaptureState } fr
 import type { StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 import type { StaffBuilderPersistedEditorState } from "./use-staff-builder-editor";
+import { normalizeImportedStaffBuilderPiece, type StaffBuilderImportFactories } from "../persistence/staff-builder-piece-file";
 import {
   readStaffBuilderDraft,
   readStaffBuilderIntroductionDismissed,
@@ -123,6 +124,13 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     persistDraft(score, score.id);
     reportWrite("preferences", writeStaffBuilderValue(storage, "lastPieceId", score.id));
   }, [library.pieces, persistDraft, persistLibrary, reportWrite, storage]);
+
+  const importPiece = useCallback((score: StaffBuilderScoreV1, factories?: StaffBuilderImportFactories) => {
+    const imported = normalizeImportedStaffBuilderPiece(score, new Set(library.pieces.map(({ id }) => id)), factories);
+    const next = { ...library, pieces: [...library.pieces, imported] };
+    setLibrary(next);
+    return { score: imported, persisted: persistLibrary(next) };
+  }, [library, persistLibrary]);
 
   const openPiece = useCallback((pieceId: string) => {
     const piece = library.pieces.find(({ id }) => id === pieceId);
@@ -260,7 +268,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
 
   return {
     library, activeScore, activeCaptureState, activeEditorPass, activeRhythmState, activeSavedPieceId, recoveryDraft, introductionOpen, issues,
-    createPiece, openPiece, renamePiece, deletePiece, closePiece, restoreDraft, declineDraft,
+    createPiece, importPiece, openPiece, renamePiece, deletePiece, closePiece, restoreDraft, declineDraft,
     closeIntroduction, reopenIntroduction: () => setIntroductionOpen(true), clearCorruptArea, updateActiveDraft, validateAndSave,
   };
 }

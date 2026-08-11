@@ -5,9 +5,14 @@ import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persist
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import StaffBuilderSession from "./staff-builder-session";
 
-const { midiBoundary, practiceBoundary } = vi.hoisted(() => ({
+const { fileBoundary, midiBoundary, practiceBoundary } = vi.hoisted(() => ({
+  fileBoundary: { download: vi.fn(), read: vi.fn() },
   midiBoundary: { onNote: null as ((midiNumber: number) => void) | null },
   practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, projectionScores: [] as import("../staff-builder-types").StaffBuilderScoreV1[], forceFailure: false },
+}));
+vi.mock("../persistence/staff-builder-piece-file-browser", () => ({
+  downloadStaffBuilderPiece: fileBoundary.download,
+  readStaffBuilderPieceFile: fileBoundary.read,
 }));
 vi.mock("../hooks/use-staff-builder-input", () => ({
   useStaffBuilderInput: (onNote: (midiNumber: number) => void) => {
@@ -35,6 +40,8 @@ class MemoryStorage implements StaffBuilderStorage {
 }
 
 beforeEach(() => {
+  fileBoundary.download.mockReset();
+  fileBoundary.read.mockReset();
   practiceBoundary.piece = null;
   practiceBoundary.projectionScores = [];
   practiceBoundary.forceFailure = false;
@@ -72,6 +79,54 @@ function seedLibrary(storage: MemoryStorage, pieces: readonly StaffBuilderScoreV
 }
 
 describe("Staff Builder session", () => {
+  it("downloads saved pieces and imports schema-valid incomplete pieces without opening an editor", async () => {
+    const storage = new MemoryStorage();
+    const saved = savedValidScore();
+    seedLibrary(storage, [saved]);
+    const imported = {
+      ...savedValidScore("Imported Sketch"),
+      id: "imported-sketch",
+      measures: [{ id: "imported-measure", events: [] }],
+    };
+    fileBoundary.read.mockResolvedValue({ ok: true, score: imported });
+
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Download Practice Study" }));
+    expect(fileBoundary.download).toHaveBeenCalledWith(saved);
+    expect(screen.getByRole("status").textContent).toBe('Downloaded "Practice Study".');
+
+    const input = screen.getByLabelText("Choose Prelude piece file") as HTMLInputElement;
+    const file = new File(["{}"], "imported-sketch.prelude.json", { type: "application/json" });
+    fireEvent.change(input, { target: { files: [file] } });
+    await screen.findByText('Imported "Imported Sketch".');
+
+    expect(fileBoundary.read).toHaveBeenCalledWith(file);
+    expect(input.value).toBe("");
+    expect(screen.getByText("Imported Sketch")).toBeTruthy();
+    expect(screen.getAllByText("Needs validation")).toHaveLength(1);
+    expect((screen.getByRole("button", { name: "Practice Imported Sketch" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    const persisted = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
+    expect(persisted.pieces).toEqual([saved, imported]);
+    expect(storage.values.has(STAFF_BUILDER_STORAGE_KEYS.draft)).toBe(false);
+  });
+
+  it("announces an import failure without changing the library", async () => {
+    const storage = new MemoryStorage();
+    const saved = savedValidScore();
+    seedLibrary(storage, [saved]);
+    fileBoundary.read.mockResolvedValue({ ok: false, reason: "invalid-json", message: "That file is not valid JSON." });
+
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.change(screen.getByLabelText("Choose Prelude piece file"), {
+      target: { files: [new File(["{"], "broken.prelude.json", { type: "application/json" })] },
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("That file is not valid JSON.");
+    const persisted = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
+    expect(persisted.pieces).toEqual([saved]);
+  });
+
   it("launches the exact validated saved score through Phase A and exits to the unchanged library", () => {
     const storage = new MemoryStorage();
     const saved = savedValidScore();

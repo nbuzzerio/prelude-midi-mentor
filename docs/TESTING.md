@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 98 passed
-- Tests: 1,116 passed
+- Test files: 100 passed
+- Tests: 1,134 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -332,6 +332,7 @@ Automated coverage includes:
 - Capture Notes routing, rhythmic cursor movement, pending input, replacement, and rest insertion
 - Rhythm Correction selection, duration, event type, staff, spelling, ties, deletion, and score history
 - validation, guided corrections, draft persistence, validated Save, and local project recovery
+- direct-score `.prelude.json` serialization, schema-validated import, round trips, collision-safe insertion, and accessible library file actions
 - deterministic event, measure, position, and piece playback, including silence and partial chords
 - playback-follow measure display and sliding highlight without editor-state mutation
 - renderer projection and public event, position, playback, and notation-control anchors

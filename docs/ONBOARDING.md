@@ -164,6 +164,7 @@ Completed features include:
 - Direct duration, rest, tie, spelling, staff, key, and time correction
 - Validation with guided corrections and learner-facing issue text
 - Local project library, draft autosave, and distinct validated Save
+- Per-piece `.prelude.json` download/import for backup and recovery without exporting draft or practice state
 - Deterministic event, measure, position, and piece playback with playback-follow visualization
 - Direct notation interaction, radial controls, responsive score scaling, and a mobile keyboard bottom sheet
 - Automatic derived same-staff rhythmic voices with no persisted voice IDs or beginner-facing Voice controls
