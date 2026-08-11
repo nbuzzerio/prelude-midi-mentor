@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE } from "../staff-builder-capture";
 import { appendStaffBuilderMeasure, createStaffBuilderScore, insertStaffBuilderRest, insertUnresolvedStaffBuilderNotes } from "../staff-builder-score";
 import { setStaffBuilderEventDuration } from "../staff-builder-rhythm";
+import { deriveStaffBuilderVoices } from "../staff-builder-voices";
 import { useStaffBuilderEditor } from "./use-staff-builder-editor";
 
 function score(keyId: "c-major" | "g-major" = "c-major") {
@@ -685,6 +686,30 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.canUndo).toBe(false);
     const event = result.current.score.measures[0]!.events.find(({ startTick, staff }) => startTick === 0 && staff === "treble");
     expect(event?.kind === "notes" ? event.pitches.map(({ midiNumber }) => midiNumber) : []).toEqual([67]);
+  });
+
+  it("rederives polyphony across duration and Delete Undo/Redo without storing voices", () => {
+    let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    current = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "treble", startTick: 480, midiNumbers: [62] });
+    const firstId = current.measures[0]!.events.find(({ startTick }) => startTick === 0)!.id;
+    const secondId = current.measures[0]!.events.find(({ startTick }) => startTick === 480)!.id;
+    const firstFinal = setStaffBuilderEventDuration(current, { measureIndex: 0, eventId: firstId }, "quarter");
+    const secondFinal = firstFinal.ok ? setStaffBuilderEventDuration(firstFinal.score, { measureIndex: 0, eventId: secondId }, "quarter") : firstFinal;
+    expect(secondFinal.ok).toBe(true);
+    if (!secondFinal.ok) return;
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: secondFinal.score, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId: firstId }, onDraftChange: vi.fn() }));
+    act(() => result.current.rhythm.assignDuration("dotted-quarter"));
+    expect(deriveStaffBuilderVoices(result.current.score.measures[0]!.events, "treble", 1920)).toHaveLength(2);
+    act(() => result.current.undo());
+    expect(deriveStaffBuilderVoices(result.current.score.measures[0]!.events, "treble", 1920)).toHaveLength(1);
+    act(() => result.current.redo());
+    expect(deriveStaffBuilderVoices(result.current.score.measures[0]!.events, "treble", 1920)).toHaveLength(2);
+    act(() => result.current.rhythm.deleteEvent());
+    expect(result.current.score.measures[0]!.events.some(({ id }) => id === firstId)).toBe(false);
+    act(() => result.current.undo());
+    expect(result.current.score.measures[0]!.events.some(({ id }) => id === firstId)).toBe(true);
+    act(() => result.current.redo());
+    expect(result.current.score.measures[0]!.events.some(({ id }) => id === firstId)).toBe(false);
   });
 
   it("clears Rhythm history when capture navigation appends a measure", () => {

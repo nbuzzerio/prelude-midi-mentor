@@ -4,6 +4,7 @@ import type { StaffBuilderDuration } from "./staff-builder-time";
 import { formatStaffBuilderCapturePosition } from "./staff-builder-capture";
 import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
 import type { StaffBuilderAccidental, StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff } from "./staff-builder-types";
+import { getStaffBuilderSamePositionConflicts } from "./staff-builder-voices";
 
 export type StaffBuilderEventSelection = Readonly<{ measureIndex: number; eventId: string }>;
 export type StaffBuilderRhythmState = Readonly<{ measureIndex: number; selectedEventId: string | null }>;
@@ -78,7 +79,12 @@ export function moveStaffBuilderEventToStaff(score: StaffBuilderScoreV1, selecti
   const selected = getSelectedStaffBuilderEvent(score, selection);
   if (!selected) return { ok: false, error: "event-missing", score };
   if (selected.staff === staff) return { ok: true, score };
-  const conflict = score.measures[selection.measureIndex]?.events.some((event) => event.id !== selected.id && event.staff === staff && event.startTick === selected.startTick);
+  if (staffBuilderEventParticipatesInTie(score, selected.id)) return { ok: false, error: "tied-event", score };
+  const destinationEvents = score.measures[selection.measureIndex]?.events.filter((event) => event.id !== selected.id && event.staff === staff) ?? [];
+  const samePosition = destinationEvents.filter((event) => event.startTick === selected.startTick);
+  const moved = { ...selected, staff };
+  const conflict = samePosition.some((event) => event.rhythm.status === "unresolved" || moved.rhythm.status === "unresolved")
+    || getStaffBuilderSamePositionConflicts([...destinationEvents, moved]).some(({ eventIds }) => eventIds.includes(selected.id));
   if (conflict) return { ok: false, error: "staff-conflict", score };
   return updateSelectedEvent(score, selection, (event) => ({ ...event, staff }), factories);
 }

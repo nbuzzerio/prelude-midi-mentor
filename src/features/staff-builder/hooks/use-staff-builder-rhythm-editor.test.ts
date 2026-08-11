@@ -30,14 +30,14 @@ describe("useStaffBuilderRhythmEditor", () => {
     expect(onMutation).toHaveBeenLastCalledWith(expect.anything(), { measureIndex: 0, eventId: "b" });
   });
 
-  it("surfaces tied-event and staff-conflict restrictions without mutation", () => {
+  it("surfaces tied-event restrictions for Delete and cross-staff movement without mutation", () => {
     const onMutation = vi.fn();
     const tied = score([note("a", 0), note("conflict", 0, "bass")], [{ id: "tie", fromEventId: "a", fromPitchId: "a-pitch", toEventId: "a", toPitchId: "a-pitch" }]);
     const { result } = renderHook(() => useStaffBuilderRhythmEditor({ score: tied, initialState: { measureIndex: 0, selectedEventId: "a" }, onMutation, onSelectionChange: vi.fn() }));
     act(() => result.current.deleteEvent());
-    expect(result.current.status).toMatch(/tie-editing phase/);
+    expect(result.current.status).toMatch(/until the tie is removed/);
     act(() => result.current.moveToStaff("bass"));
-    expect(result.current.status).toMatch(/destination staff/);
+    expect(result.current.status).toMatch(/until the tie is removed/);
     expect(onMutation).not.toHaveBeenCalled();
   });
 

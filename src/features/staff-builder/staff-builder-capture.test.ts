@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { appendStaffBuilderMeasure, createStaffBuilderScore, insertUnresolvedStaffBuilderNotes, setStaffBuilderMeasureKeySignature, type StaffBuilderFactories } from "./staff-builder-score";
 import { commitStaffBuilderCaptureRest, commitStaffBuilderPendingCapture, DEFAULT_STAFF_BUILDER_CAPTURE_STATE, formatStaffBuilderCapturePosition, moveStaffBuilderCaptureBackward, moveStaffBuilderCaptureForward, routeStaffBuilderCapturePitch } from "./staff-builder-capture";
+import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "./staff-builder-types";
+import { deriveStaffBuilderVoices } from "./staff-builder-voices";
 
 function factories(): StaffBuilderFactories {
   let id = 0;
@@ -13,6 +15,55 @@ function score(factory = factories()) {
 }
 
 describe("Staff Builder capture operations", () => {
+  it.each([
+    { midiNumbers: [60], label: "later note" },
+    { midiNumbers: [60, 64, 67], label: "later chord" },
+  ] as const)("keeps a sustained same-staff event when capturing a $label", ({ midiNumbers }) => {
+    const factory = factories();
+    const sustain: StaffBuilderEvent = { id: "sustain", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-quarter" }, pitches: [{ id: "e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] };
+    const current: StaffBuilderScoreV1 = { ...score(factory), measures: [{ id: "m", events: [sustain] }] };
+    const committed = commitStaffBuilderPendingCapture(current, { measureIndex: 0, offsetTicks: 480 }, { treble: midiNumbers, bass: [] }, factory);
+    expect(committed.measures[0]?.events).toContain(sustain);
+    expect(committed.measures[0]?.events.find(({ startTick }) => startTick === 480)).toMatchObject({ kind: "notes", pitches: midiNumbers.map((midiNumber) => ({ midiNumber })) });
+    expect(deriveStaffBuilderVoices(committed.measures[0]!.events, "treble", 1920)).toHaveLength(2);
+  });
+
+  it("keeps a sustaining chord when a later note is captured", () => {
+    const factory = factories();
+    const chord: StaffBuilderEvent = { id: "chord", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [
+      { id: "c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }, { id: "e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 },
+    ] };
+    const current: StaffBuilderScoreV1 = { ...score(factory), measures: [{ id: "m", events: [chord] }] };
+    const committed = commitStaffBuilderPendingCapture(current, { measureIndex: 0, offsetTicks: 480 }, { treble: [67], bass: [] }, factory);
+    expect(committed.measures[0]?.events[0]).toBe(chord);
+    expect(committed.measures[0]?.events).toHaveLength(2);
+  });
+
+  it("allows a later authored rest beside a sustaining note and replaces only at an exact onset", () => {
+    const factory = factories();
+    const sustain: StaffBuilderEvent = { id: "sustain", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [{ id: "p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] };
+    const current: StaffBuilderScoreV1 = { ...score(factory), measures: [{ id: "m", events: [sustain] }] };
+    const later = commitStaffBuilderCaptureRest(current, { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 0, offsetTicks: 480 }, inputMode: "treble", stepDuration: "eighth" }, factory);
+    expect(later.ok && later.score.measures[0]?.events).toHaveLength(2);
+    const replaced = commitStaffBuilderCaptureRest(current, { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, inputMode: "treble" }, factory);
+    expect(replaced.ok && replaced.score.measures[0]?.events).toHaveLength(1);
+    expect(replaced.ok && replaced.score.measures[0]?.events[0]).toMatchObject({ kind: "rest", startTick: 0 });
+  });
+
+  it("preserves every source event through a 6/8 Hallelujah-style grand-staff capture sequence", () => {
+    const factory = factories();
+    const sustain: StaffBuilderEvent = { id: "e", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-quarter" }, pitches: [{ id: "ep", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] };
+    const bass: StaffBuilderEvent = { id: "bass", kind: "notes", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "dotted-half" }, pitches: [{ id: "bp", midiNumber: 48, letter: "C", accidental: "natural", octave: 3 }] };
+    let current: StaffBuilderScoreV1 = { ...score(factory), initialTimeSignature: "6/8", measures: [{ id: "m", events: [sustain, bass] }] };
+    current = commitStaffBuilderPendingCapture(current, { measureIndex: 0, offsetTicks: 480 }, { treble: [60], bass: [] }, factory);
+    current = commitStaffBuilderPendingCapture(current, { measureIndex: 0, offsetTicks: 720 }, { treble: [62], bass: [50] }, factory);
+    expect(current.measures[0]?.events.map(({ id, staff, startTick }) => ({ id, staff, startTick }))).toEqual(expect.arrayContaining([
+      { id: "e", staff: "treble", startTick: 0 }, { id: "bass", staff: "bass", startTick: 0 },
+      expect.objectContaining({ staff: "treble", startTick: 480 }), expect.objectContaining({ staff: "treble", startTick: 720 }), expect.objectContaining({ staff: "bass", startTick: 720 }),
+    ]));
+    expect(deriveStaffBuilderVoices(current.measures[0]!.events, "treble", 1440).length).toBeGreaterThanOrEqual(2);
+    expect(deriveStaffBuilderVoices(current.measures[0]!.events, "bass", 1440)).toHaveLength(2);
+  });
   it("defines the approved initial capture state", () => {
     expect(DEFAULT_STAFF_BUILDER_CAPTURE_STATE).toEqual({ cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "grand" });
   });

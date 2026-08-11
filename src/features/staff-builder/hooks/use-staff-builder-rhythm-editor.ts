@@ -19,8 +19,8 @@ import {
 } from "../staff-builder-rhythm";
 
 const ERROR_MESSAGES: Readonly<Record<StaffBuilderRhythmEditError, string>> = {
-  "staff-conflict": "The destination staff already has an event at this position.",
-  "tied-event": "Tied events cannot be removed or converted until the tie-editing phase.",
+  "staff-conflict": "The destination staff has an incompatible event at this position.",
+  "tied-event": "Tied events cannot be removed, converted, or moved between staves until the tie is removed.",
   "event-missing": "The selected event is no longer available.",
   "pitch-missing": "The selected pitch is no longer available.",
   "invalid-spelling": "That spelling is not available without changing the pitch or using a double accidental.",

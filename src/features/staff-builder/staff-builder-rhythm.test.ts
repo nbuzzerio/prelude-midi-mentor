@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "./staff-builder-types";
 import { convertStaffBuilderEventToRest, deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, getStaffBuilderEventSelections, getStaffBuilderPitchSpellingCandidates, moveStaffBuilderEventSelection, moveStaffBuilderEventToStaff, respellStaffBuilderPitch, setStaffBuilderEventDuration } from "./staff-builder-rhythm";
+import { deriveStaffBuilderVoices } from "./staff-builder-voices";
+import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const pitch = (id: string, midiNumber = 61) => ({ id, midiNumber, letter: "C" as const, accidental: "sharp" as const, octave: 4 });
 const event = (id: string, staff: "treble" | "bass", startTick: number, rhythm: StaffBuilderEvent["rhythm"] = { status: "unresolved" }): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm, pitches: [pitch(`${id}-pitch`)] });
@@ -42,6 +44,53 @@ describe("Staff Builder rhythm operations", () => {
     expect(moveStaffBuilderEventToStaff(score([selected, event("conflict", "bass", 0)]), { measureIndex: 0, eventId: "selected" }, "bass", now)).toMatchObject({ ok: false, error: "staff-conflict" });
   });
 
+  it("extends and shortens duration without moving later events or reporting overlap", () => {
+    const first = event("first", "treble", 0, { status: "final", duration: "quarter" });
+    const later = event("second", "treble", 480, { status: "final", duration: "quarter" });
+    const current = score([first, later]);
+    const extended = setStaffBuilderEventDuration(current, { measureIndex: 0, eventId: "first" }, "dotted-quarter", now);
+    expect(extended.ok).toBe(true);
+    if (!extended.ok) return;
+    expect(extended.score.measures[0]?.events.find(({ id }) => id === "second")?.startTick).toBe(480);
+    expect(deriveStaffBuilderVoices(extended.score.measures[0]!.events, "treble", 1920)).toHaveLength(2);
+    expect(validateStaffBuilderScore(extended.score).some(({ code }) => code === "event-overflow")).toBe(false);
+    const shortened = setStaffBuilderEventDuration(extended.score, { measureIndex: 0, eventId: "first" }, "quarter", now);
+    expect(shortened.ok && deriveStaffBuilderVoices(shortened.score.measures[0]!.events, "treble", 1920)).toHaveLength(1);
+  });
+
+  it("allows destination overlap at different onsets", () => {
+    const selected = event("selected", "treble", 480, { status: "final", duration: "quarter" });
+    const sustain = event("sustain", "bass", 0, { status: "final", duration: "half" });
+    const moved = moveStaffBuilderEventToStaff(score([selected, sustain]), { measureIndex: 0, eventId: "selected" }, "bass", now);
+    expect(moved.ok).toBe(true);
+    if (moved.ok) expect(deriveStaffBuilderVoices(moved.score.measures[0]!.events, "bass", 1920)).toHaveLength(2);
+  });
+
+  it("applies centralized same-position rules to staff reassignment", () => {
+    const selected = { ...event("selected", "treble", 0, { status: "final", duration: "quarter" }), pitches: [pitch("selected-pitch", 65)] } as StaffBuilderEvent;
+    const longer = { ...event("longer", "bass", 0, { status: "final", duration: "half" }), pitches: [pitch("longer-pitch", 60)] } as StaffBuilderEvent;
+    expect(moveStaffBuilderEventToStaff(score([selected, longer]), { measureIndex: 0, eventId: "selected" }, "bass", now).ok).toBe(true);
+    const equal = { ...longer, rhythm: { status: "final" as const, duration: "quarter" as const } };
+    expect(moveStaffBuilderEventToStaff(score([selected, equal]), { measureIndex: 0, eventId: "selected" }, "bass", now)).toMatchObject({ ok: false, error: "staff-conflict" });
+    const duplicatePitch = { ...longer, pitches: [pitch("duplicate", 65)] };
+    expect(moveStaffBuilderEventToStaff(score([selected, duplicatePitch]), { measureIndex: 0, eventId: "selected" }, "bass", now)).toMatchObject({ ok: false, error: "staff-conflict" });
+    const selectedRest: StaffBuilderEvent = { id: "selected-rest", kind: "rest", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" } };
+    const destinationRest: StaffBuilderEvent = { id: "destination-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "half" } };
+    expect(moveStaffBuilderEventToStaff(score([selectedRest, destinationRest]), { measureIndex: 0, eventId: "selected-rest" }, "bass", now)).toMatchObject({ ok: false, error: "staff-conflict" });
+    expect(moveStaffBuilderEventToStaff(score([selectedRest, longer]), { measureIndex: 0, eventId: "selected-rest" }, "bass", now).ok).toBe(true);
+  });
+
+  it("deletes only the selected polyphonic event and leaves every survivor unchanged", () => {
+    const sustain = event("sustain", "treble", 0, { status: "final", duration: "whole" });
+    const line = [0, 480, 960, 1440].map((startTick, index) => event(`line-${index}`, "treble", startTick, { status: "final", duration: "quarter" }));
+    const current = score([sustain, ...line, event("bass", "bass", 0, { status: "final", duration: "whole" })]);
+    const beforeSurvivors = current.measures[0]!.events.filter(({ id }) => id !== "sustain");
+    const deleted = deleteStaffBuilderEvent(current, { measureIndex: 0, eventId: "sustain" }, now);
+    expect(deleted.result.ok && deleted.result.score.measures[0]?.events).toEqual(beforeSurvivors);
+    expect(deleted.selection?.eventId).not.toBe("sustain");
+    expect(deleted.result.ok && deleted.result.score.measures[deleted.selection?.measureIndex ?? 0]?.events.some(({ id }) => id === deleted.selection?.eventId)).toBe(true);
+  });
+
   it("respells one pitch without changing its ID or MIDI number", () => {
     const current = score([event("selected", "treble", 0)]);
     expect(getStaffBuilderPitchSpellingCandidates(pitch("p")).map(({ letter }) => letter)).toEqual(["C", "D"]);
@@ -58,13 +107,46 @@ describe("Staff Builder rhythm operations", () => {
     expect(later.result.score.measures).toHaveLength(2);
   });
 
-  it("rejects deletion and rest conversion for tied events while allowing duration, staff, and spelling edits", () => {
+  it("rejects deletion, rest conversion, and cross-staff movement for tied events while allowing duration and spelling edits", () => {
     const tied = score([event("selected", "treble", 0)], [{ id: "tie", fromEventId: "selected", fromPitchId: "selected-pitch", toEventId: "later", toPitchId: "later-pitch" }]);
     const selection = { measureIndex: 0, eventId: "selected" };
     expect(deleteStaffBuilderEvent(tied, selection, now).result).toMatchObject({ ok: false, error: "tied-event", score: tied });
     expect(convertStaffBuilderEventToRest(tied, selection, "quarter", now)).toMatchObject({ ok: false, error: "tied-event", score: tied });
-    expect(setStaffBuilderEventDuration(tied, selection, "half", now).ok).toBe(true);
-    expect(moveStaffBuilderEventToStaff(tied, selection, "bass", now).ok).toBe(true);
+    const durationChanged = setStaffBuilderEventDuration(tied, selection, "half", now);
+    expect(durationChanged.ok && durationChanged.score.ties).toEqual(tied.ties);
+    expect(moveStaffBuilderEventToStaff(tied, selection, "bass", now)).toEqual({ ok: false, error: "tied-event", score: tied });
     expect(respellStaffBuilderPitch(tied, selection, "selected-pitch", "D", now).ok).toBe(true);
+  });
+
+  it("keeps a valid cross-measure tie valid through derived-voice duration changes and rejects moving one endpoint", () => {
+    const tiedPitch = pitch("tied-pitch", 61);
+    const destinationPitch = { ...tiedPitch, id: "destination-pitch" };
+    const validTied: StaffBuilderScoreV1 = {
+      schemaVersion: 1, id: "tied", title: "Tie safety", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
+      initialKeySignatureId: "c-major", initialTimeSignature: "4/4",
+      measures: [
+        { id: "m1", events: [
+          { id: "leading-rest", kind: "rest", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-half" } },
+          { id: "source", kind: "notes", staff: "treble", startTick: 1440, rhythm: { status: "final", duration: "quarter" }, pitches: [tiedPitch] },
+          { id: "bass-1", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
+        ] },
+        { id: "m2", events: [
+          { id: "destination", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [destinationPitch] },
+          { id: "sustain", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "sustain-pitch", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] },
+          { id: "bass-2", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
+        ] },
+      ],
+      ties: [{ id: "tie", fromEventId: "source", fromPitchId: "tied-pitch", toEventId: "destination", toPitchId: "destination-pitch" }],
+    };
+    expect(validateStaffBuilderScore(validTied)).toEqual([]);
+    const durationChanged = setStaffBuilderEventDuration(validTied, { measureIndex: 1, eventId: "destination" }, "half", now);
+    expect(durationChanged.ok).toBe(true);
+    if (!durationChanged.ok) return;
+    expect(deriveStaffBuilderVoices(durationChanged.score.measures[1]!.events, "treble", 1920)).toHaveLength(2);
+    expect(durationChanged.score.ties).toEqual(validTied.ties);
+    expect(validateStaffBuilderScore(durationChanged.score)).toEqual([]);
+    const moved = moveStaffBuilderEventToStaff(validTied, { measureIndex: 0, eventId: "source" }, "bass", now);
+    expect(moved).toEqual({ ok: false, error: "tied-event", score: validTied });
+    expect(validateStaffBuilderScore(moved.score)).toEqual([]);
   });
 });
