@@ -40,18 +40,69 @@ describe("Staff Builder notation projection", () => {
   });
 
   it.each([
-    ["eighth-note", [0, 240], [240, 480]],
-    ["sixteenth-note", [0, 120, 240], [120, 120, 480]],
-  ] as const)("preserves overlapping unresolved %s onsets independently of quarter-note visuals", (_label, ticks, layoutTicks) => {
+    ["eighth-note", [0, 240]],
+    ["sixteenth-note", [0, 120, 240]],
+  ] as const)("preserves overlapping unresolved %s onsets and full quarter-note visuals", (_label, ticks) => {
     const events = ticks.map((startTick, index) => note(`event-${index}`, "treble", startTick, { status: "unresolved" }));
     const current = score({ measures: [{ id: "m1", events }] });
     const before = JSON.stringify(current);
     const projectedEvents = projectStaffBuilderMeasure(current, 0).staves.treble.filter((item) => item.kind !== "spacer");
     expect(projectedEvents.map(({ startTick }) => startTick)).toEqual(ticks);
-    expect(projectedEvents.map(({ layoutDurationTicks }) => layoutDurationTicks)).toEqual(layoutTicks);
+    expect(projectedEvents.map(({ layoutDurationTicks }) => layoutDurationTicks)).toEqual(ticks.map(() => 480));
     expect(projectedEvents.every(({ visualDuration }) => visualDuration.duration === "quarter")).toBe(true);
     expect(JSON.stringify(current)).toBe(before);
     expect(current.measures[0]?.events.every(({ rhythm }) => rhythm.status === "unresolved")).toBe(true);
+  });
+
+  it("projects Hallelujah-style overlap into two voices without truncating dotted duration", () => {
+    const events = [
+      note("sustain", "treble", 0, { status: "final", duration: "dotted-quarter" }, [pitch("e", "E", "natural", 4, 64)]),
+      note("c", "treble", 480, { status: "final", duration: "eighth" }),
+      note("d", "treble", 720, { status: "final", duration: "eighth" }),
+    ];
+    const projection = projectStaffBuilderMeasure(score({ time: "6/8", measures: [{ id: "m1", events }] }), 0);
+    expect(projection.voices.treble).toHaveLength(2);
+    expect(projection.voices.treble.map((voice) => voice.tickables.filter((item) => item.kind !== "spacer").map(({ eventId }) => eventId))).toEqual([["sustain", "d"], ["c"]]);
+    expect(projection.staves.treble.find((item) => item.kind !== "spacer" && item.eventId === "sustain")).toMatchObject({ layoutDurationTicks: 720, visualDuration: { duration: "dotted-quarter", dots: 1 } });
+  });
+
+  it("projects nested overlap into the minimum three stable voices", () => {
+    const events = [
+      note("low", "treble", 0, { status: "final", duration: "quarter" }, [pitch("low-p", "C", "natural", 4, 60)]),
+      note("whole", "treble", 0, { status: "final", duration: "whole" }, [pitch("whole-p", "C", "natural", 5, 72)]),
+      note("middle", "treble", 0, { status: "final", duration: "half" }, [pitch("middle-p", "G", "natural", 4, 67)]),
+      note("later", "treble", 480, { status: "final", duration: "quarter" }),
+    ];
+    const first = projectStaffBuilderMeasure(score({ measures: [{ id: "m1", events }] }), 0);
+    const reordered = projectStaffBuilderMeasure(score({ measures: [{ id: "m1", events: [...events].reverse() }] }), 0);
+    const ids = (projection: typeof first) => projection.voices.treble.map((voice) => voice.tickables.filter((item) => item.kind !== "spacer").map(({ eventId }) => eventId));
+    expect(ids(first)).toEqual([["whole"], ["middle"], ["low", "later"]]);
+    expect(ids(reordered)).toEqual(ids(first));
+  });
+
+  it("preserves same-onset different-duration notes and note/rest as separate source tickables", () => {
+    const events = [
+      note("half", "treble", 0, { status: "final", duration: "half" }, [pitch("high", "E", "natural", 5, 76)]),
+      note("quarter", "treble", 0, { status: "final", duration: "quarter" }, [pitch("low", "C", "natural", 5, 72)]),
+      rest("authored-rest", "treble", 480, "quarter"),
+    ];
+    const projection = projectStaffBuilderMeasure(score({ measures: [{ id: "m1", events }] }), 0);
+    expect(projection.voices.treble).toHaveLength(2);
+    expect(projection.staves.treble.filter((item) => item.kind !== "spacer").map(({ eventId }) => eventId).sort()).toEqual(["authored-rest", "half", "quarter"]);
+    expect(projection.staves.treble.filter((item) => item.kind === "spacer").every((item) => !("eventId" in item))).toBe(true);
+  });
+
+  it("derives treble and bass voices independently without mutating source", () => {
+    const events = [
+      note("t-long", "treble", 0, { status: "final", duration: "whole" }), note("t-short", "treble", 480, { status: "final", duration: "quarter" }),
+      note("b-long", "bass", 0, { status: "final", duration: "whole" }), note("b-short", "bass", 960, { status: "final", duration: "quarter" }),
+    ];
+    const current = score({ measures: [{ id: "m1", events }] });
+    const before = structuredClone(current);
+    const projection = projectStaffBuilderMeasure(current, 0);
+    expect(projection.voices.treble).toHaveLength(2);
+    expect(projection.voices.bass).toHaveLength(2);
+    expect(current).toEqual(before);
   });
 
   it("keeps final non-overlapping events on their actual rhythmic durations", () => {

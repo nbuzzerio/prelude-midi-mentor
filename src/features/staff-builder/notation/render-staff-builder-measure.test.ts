@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Accidental, Beam, Dot, Stave, StaveConnector, StaveTie } from "vexflow";
+import { Accidental, Beam, Dot, Formatter, Stave, StaveConnector, StaveNote, StaveTie, Stem, Voice } from "vexflow";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { renderStaffBuilderMeasure } from "./render-staff-builder-measure";
 import { projectStaffBuilderPendingPreview } from "./staff-builder-notation";
@@ -36,6 +36,15 @@ function unresolvedScore(ticks: readonly number[]): StaffBuilderScoreV1 {
   };
 }
 
+function polyphonicScore(): StaffBuilderScoreV1 {
+  return { ...score(), initialKeySignatureId: "c-major", measures: [{ id: "measure", events: [
+    { id: "upper", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-quarter" }, pitches: [{ id: "upper-p", midiNumber: 66, letter: "F", accidental: "sharp", octave: 4 }] },
+    { id: "lower", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "eighth" }, pitches: [{ id: "lower-p", midiNumber: 65, letter: "F", accidental: "natural", octave: 4 }] },
+    { id: "later", kind: "notes", staff: "treble", startTick: 720, rhythm: { status: "final", duration: "eighth" }, pitches: [{ id: "later-p", midiNumber: 67, letter: "G", accidental: "natural", octave: 4 }] },
+    { id: "bass-long", kind: "notes", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "bass-p", midiNumber: 48, letter: "C", accidental: "natural", octave: 3 }] },
+  ] }], ties: [{ id: "tie", fromEventId: "lower", fromPitchId: "lower-p", toEventId: "later", toPitchId: "later-p" }] };
+}
+
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
     measureText: (text: string) => ({
@@ -52,6 +61,55 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it("constructs, joins, and draws multiple public VexFlow voices per staff", () => {
+    const draws = vi.spyOn(Voice.prototype, "draw");
+    const joins = vi.spyOn(Formatter.prototype, "joinVoices");
+    const accidentals = vi.spyOn(Accidental, "applyAccidentals");
+    const beams = vi.spyOn(Beam, "generateBeams");
+    const result = renderStaffBuilderMeasure(document.createElement("div"), polyphonicScore(), 0);
+    expect(result.projection.voices.treble).toHaveLength(2);
+    expect(draws).toHaveBeenCalledTimes(3);
+    expect(joins.mock.calls.map(([voices]) => voices.length)).toEqual([2, 1]);
+    expect(accidentals.mock.calls.map(([voices]) => voices.length)).toEqual([2, 1]);
+    expect(beams).toHaveBeenCalledTimes(3);
+    expect(beams.mock.calls.slice(0, 2).every((call) => call[1]?.maintainStemDirections === true)).toBe(true);
+  });
+
+  it("alternates stems for three voices while preserving one-voice automatic behavior", () => {
+    const stems = vi.spyOn(StaveNote.prototype, "setStemDirection");
+    const threeVoices: StaffBuilderScoreV1 = { ...score(), measures: [{ id: "measure", events: [
+      { id: "high", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "h", midiNumber: 72, letter: "C", accidental: "natural", octave: 5 }] },
+      { id: "middle", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [{ id: "m", midiNumber: 67, letter: "G", accidental: "natural", octave: 4 }] },
+      { id: "low", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "l", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+    ] }], ties: [] };
+    renderStaffBuilderMeasure(document.createElement("div"), threeVoices, 0);
+    expect(stems.mock.calls.map(([direction]) => direction)).toEqual(expect.arrayContaining([Stem.UP, Stem.DOWN, Stem.UP]));
+    stems.mockClear();
+    renderStaffBuilderMeasure(document.createElement("div"), { ...score(), measures: [{ id: "measure", events: [{ id: "only", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "only-p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] }] }], ties: [] }, 0);
+    expect(stems.mock.calls.every(([direction]) => direction !== Stem.DOWN)).toBe(true);
+  });
+
+  it("retains every polyphonic source anchor, excludes ghosts, and preserves temporal geometry", () => {
+    const current = polyphonicScore();
+    const polyphonic = renderStaffBuilderMeasure(document.createElement("div"), current, 0);
+    const empty = renderStaffBuilderMeasure(document.createElement("div"), { ...current, measures: [{ id: "measure", events: [] }], ties: [] }, 0);
+    expect([...polyphonic.anchors.events.keys()].sort()).toEqual(["bass-long", "later", "lower", "upper"]);
+    expect([...polyphonic.anchors.authoritativeEvents.keys()].sort()).toEqual(["bass-long", "later", "lower", "upper"]);
+    expect(polyphonic.anchors.timeline).toEqual(empty.anchors.timeline);
+    expect([...polyphonic.anchors.positions.values()]).toEqual([...empty.anchors.positions.values()]);
+  });
+
+  it("renders same-onset different-duration events and authored note/rest polyphony", () => {
+    const current: StaffBuilderScoreV1 = { ...score(), measures: [{ id: "measure", events: [
+      { id: "half", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [{ id: "hp", midiNumber: 76, letter: "E", accidental: "natural", octave: 5 }] },
+      { id: "quarter", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "qp", midiNumber: 72, letter: "C", accidental: "natural", octave: 5 }] },
+      { id: "rest", kind: "rest", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" } },
+    ] }], ties: [] };
+    const result = renderStaffBuilderMeasure(document.createElement("div"), current, 0);
+    expect([...result.anchors.events.keys()].sort()).toEqual(["half", "quarter", "rest"]);
+    expect(result.projection.staves.treble.find((item) => item.kind !== "spacer" && item.eventId === "half")).toMatchObject({ layoutDurationTicks: 960 });
+    expect(result.projection.staves.treble.find((item) => item.kind !== "spacer" && item.eventId === "quarter")).toMatchObject({ layoutDurationTicks: 480 });
+  });
   it("uses public VexFlow contracts for dots, accidentals, beams, ties, and SVG output", () => {
     const dots = vi.spyOn(Dot, "buildAndAttach");
     const accidentals = vi.spyOn(Accidental, "applyAccidentals");

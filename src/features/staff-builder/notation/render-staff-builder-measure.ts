@@ -10,6 +10,7 @@ import {
   StaveConnector,
   StaveNote,
   StaveTie,
+  Stem,
   Voice,
   type StemmableNote,
 } from "vexflow";
@@ -20,6 +21,7 @@ import {
   type StaffBuilderMeasureProjectionOptions,
   type StaffBuilderProjectedEvent,
   type StaffBuilderProjectedTickable,
+  type StaffBuilderProjectedVoice,
 } from "./staff-builder-notation";
 
 export type StaffBuilderEventAnchor = Readonly<{
@@ -97,6 +99,12 @@ type RenderedTickable = Readonly<{
   note: StemmableNote;
 }>;
 
+type RenderedVoice = Readonly<{
+  projection: StaffBuilderProjectedVoice;
+  tickables: readonly RenderedTickable[];
+  voice: Voice;
+}>;
+
 function pitchKey(event: StaffBuilderProjectedEvent, pitchIndex: number): string {
   const pitch = event.pitches[pitchIndex];
   if (!pitch) throw new Error(`Missing projected pitch ${pitchIndex} for ${event.eventId}.`);
@@ -131,6 +139,20 @@ function beamGroups(groups: readonly string[]): Fraction[] {
   return groups.map((group) => {
     const [numerator, denominator] = group.split("/").map(Number);
     return new Fraction(numerator, denominator);
+  });
+}
+
+function renderVoices(projections: readonly StaffBuilderProjectedVoice[], timeSignature: StaffBuilderMeasureProjection["timeSignature"]): readonly RenderedVoice[] {
+  const polyphonic = projections.length > 1;
+  return projections.map((projection) => {
+    const tickables = projection.tickables.map(createTickable);
+    if (polyphonic) {
+      const direction = projection.voiceIndex % 2 === 0 ? Stem.UP : Stem.DOWN;
+      tickables.forEach(({ note, projection: item }) => {
+        if (item.kind !== "spacer") note.setStemDirection(direction);
+      });
+    }
+    return { projection, tickables, voice: voiceFor(timeSignature, tickables) };
   });
 }
 
@@ -214,20 +236,28 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.BRACE).setContext(context).draw();
   new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
 
-  const trebleRendered = projection.staves.treble.map(createTickable);
-  const bassRendered = projection.staves.bass.map(createTickable);
-  const trebleVoice = voiceFor(projection.timeSignature, trebleRendered);
-  const bassVoice = voiceFor(projection.timeSignature, bassRendered);
-  Accidental.applyAccidentals([trebleVoice], projection.vexflowKeySignature);
-  Accidental.applyAccidentals([bassVoice], projection.vexflowKeySignature);
-  const beamConfig = (staff: StaffBuilderStaff) => ({ groups: beamGroups(projection.beams[staff].beatGroups), beamRests: false, maintainStemDirections: false });
-  const trebleBeams = Beam.generateBeams(trebleRendered.map(({ note }) => note), beamConfig("treble"));
-  const bassBeams = Beam.generateBeams(bassRendered.map(({ note }) => note), beamConfig("bass"));
-  const formatter = new Formatter().joinVoices([trebleVoice, bassVoice]);
-  formatter.format([trebleVoice, bassVoice], RENDER_WIDTH - FORMAT_PADDING);
-  trebleVoice.draw(context, trebleStave);
-  bassVoice.draw(context, bassStave);
+  const trebleVoices = renderVoices(projection.voices.treble, projection.timeSignature);
+  const bassVoices = renderVoices(projection.voices.bass, projection.timeSignature);
+  Accidental.applyAccidentals(trebleVoices.map(({ voice }) => voice), projection.vexflowKeySignature);
+  Accidental.applyAccidentals(bassVoices.map(({ voice }) => voice), projection.vexflowKeySignature);
+  const beamsFor = (renderedVoice: RenderedVoice, polyphonic: boolean) => Beam.generateBeams(renderedVoice.tickables.map(({ note }) => note), {
+    groups: beamGroups(renderedVoice.projection.beam.beatGroups),
+    beamRests: false,
+    maintainStemDirections: polyphonic,
+  });
+  const trebleBeams = trebleVoices.flatMap((renderedVoice) => beamsFor(renderedVoice, trebleVoices.length > 1));
+  const bassBeams = bassVoices.flatMap((renderedVoice) => beamsFor(renderedVoice, bassVoices.length > 1));
+  const formatter = new Formatter();
+  formatter.joinVoices(trebleVoices.map(({ voice }) => voice));
+  formatter.joinVoices(bassVoices.map(({ voice }) => voice));
+  const allVoices = [...trebleVoices, ...bassVoices];
+  formatter.format(allVoices.map(({ voice }) => voice), RENDER_WIDTH - FORMAT_PADDING);
+  trebleVoices.forEach(({ voice }) => voice.draw(context, trebleStave));
+  bassVoices.forEach(({ voice }) => voice.draw(context, bassStave));
   [...trebleBeams, ...bassBeams].forEach((beam) => beam.setContext(context).draw());
+
+  const trebleRendered = trebleVoices.flatMap(({ tickables }) => tickables);
+  const bassRendered = bassVoices.flatMap(({ tickables }) => tickables);
 
   const noteByEventId = new Map<string, StemmableNote>();
   [...trebleRendered, ...bassRendered].forEach(({ note, projection: item }) => {
