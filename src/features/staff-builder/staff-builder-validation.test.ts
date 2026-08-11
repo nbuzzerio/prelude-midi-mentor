@@ -5,6 +5,7 @@ import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const pitch = (id: string, midiNumber = 60): StaffBuilderPitch => ({ id, midiNumber, letter: "C", accidental: "natural", octave: 4 });
 const note = (id: string, staff: "treble" | "bass", startTick: number, duration: StaffBuilderDuration = "whole", pitches = [pitch(`${id}-p`)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "final", duration }, pitches });
+const rest = (id: string, staff: "treble" | "bass", startTick: number, duration: StaffBuilderDuration): StaffBuilderEvent => ({ id, kind: "rest", staff, startTick, rhythm: { status: "final", duration } });
 const score = (measures: StaffBuilderScoreV1["measures"], time: StaffBuilderScoreV1["initialTimeSignature"] = "4/4", ties: StaffBuilderScoreV1["ties"] = []): StaffBuilderScoreV1 => ({ schemaVersion: 1, id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: time, measures, ties });
 
 describe("Staff Builder structural validation", () => {
@@ -44,17 +45,41 @@ describe("Staff Builder structural validation", () => {
     expect(validateStaffBuilderScore(structuredClone(current)).map(({ id }) => id)).toEqual(issues.map(({ id }) => id));
   });
 
-  it("reports same-staff conflicts and overlaps while permitting cross-staff simultaneity", () => {
-    const current = score([{ id: "m", events: [note("a", "treble", 0, "half"), note("b", "treble", 480, "quarter"), note("c", "bass", 0, "whole")] }]);
-    expect(validateStaffBuilderScore(current).map(({ code }) => code)).toContain("overlap");
-    const simultaneous = score([{ id: "m", events: [note("a", "treble", 0), note("c", "bass", 0)] }]);
-    expect(validateStaffBuilderScore(simultaneous)).toEqual([]);
+  it("accepts complete same-staff polyphony and cross-staff simultaneity", () => {
+    const current = score([{ id: "m", events: [note("sustain", "treble", 0, "whole", [pitch("e", 64)]), note("a", "treble", 0, "quarter", [pitch("c", 60)]), note("b", "treble", 480, "quarter", [pitch("d", 62)]), note("c", "treble", 960, "quarter", [pitch("f", 65)]), note("d", "treble", 1440, "quarter", [pitch("g", 67)]), note("bass", "bass", 0, "whole")] }]);
+    expect(validateStaffBuilderScore(current)).toEqual([]);
   });
 
-  it("targets the previously occupying event for overlap shortening", () => {
-    const current = score([{ id: "m", events: [note("a", "treble", 0, "half"), note("b", "treble", 480, "quarter"), note("bass", "bass", 0)] }]);
-    const overlap = validateStaffBuilderScore(current).find(({ code }) => code === "overlap");
-    expect(overlap).toMatchObject({ target: { eventId: "b", positionTicks: 480 }, corrections: [{ kind: "shorten-duration", eventId: "a" }, { kind: "delete-event", eventId: "b" }] });
+  it("accepts a complete Hallelujah-style 6/8 overlap without secondary-voice rests", () => {
+    const events = [
+      note("e", "treble", 0, "dotted-quarter", [pitch("ep", 64)]),
+      note("c", "treble", 480, "eighth", [pitch("cp", 60)]),
+      note("d", "treble", 720, "eighth", [pitch("dp", 62)]),
+      rest("tail", "treble", 960, "quarter"),
+      rest("bass", "bass", 0, "dotted-half"),
+    ];
+    expect(validateStaffBuilderScore(score([{ id: "m", events }], "6/8"))).toEqual([]);
+  });
+
+  it("reports only true staff-wide gaps, not voice-local gaps", () => {
+    const covered = score([{ id: "m", events: [note("whole", "treble", 0), note("local", "treble", 480, "quarter"), note("bass", "bass", 0)] }]);
+    expect(validateStaffBuilderScore(covered)).toEqual([]);
+    const uncovered = score([{ id: "m", events: [note("a", "treble", 0, "quarter"), note("b", "treble", 960, "quarter"), note("bass", "bass", 0)] }]);
+    expect(validateStaffBuilderScore(uncovered).filter(({ code }) => code === "gap").map(({ target }) => target)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ staff: "treble", positionTicks: 480, endTicks: 960 }),
+      expect.objectContaining({ staff: "treble", positionTicks: 1440, endTicks: 1920 }),
+    ]));
+  });
+
+  it("enforces the approved same-position rules", () => {
+    const valid = score([{ id: "m", events: [note("long", "treble", 0, "whole", [pitch("high", 72)]), note("short", "treble", 0, "quarter", [pitch("low", 60)]), rest("bass", "bass", 0, "whole")] }]);
+    expect(validateStaffBuilderScore(valid)).toEqual([]);
+    const sameDuration = score([{ id: "m", events: [note("a", "treble", 0, "whole", [pitch("a", 60)]), note("b", "treble", 0, "whole", [pitch("b", 64)]), rest("bass", "bass", 0, "whole")] }]);
+    expect(validateStaffBuilderScore(sameDuration).map(({ code }) => code)).toContain("same-position-conflict");
+    const duplicatePitch = score([{ id: "m", events: [note("a", "treble", 0, "whole", [pitch("a", 60)]), note("b", "treble", 0, "half", [pitch("b", 60)]), rest("bass", "bass", 0, "whole")] }]);
+    expect(validateStaffBuilderScore(duplicatePitch).map(({ code }) => code)).toContain("same-position-conflict");
+    const duplicateRests = score([{ id: "m", events: [rest("a", "treble", 0, "whole"), rest("b", "treble", 0, "half"), rest("bass", "bass", 0, "whole")] }]);
+    expect(validateStaffBuilderScore(duplicateRests).map(({ code }) => code)).toContain("same-position-conflict");
   });
 
   it("reports gaps and duration overflow", () => {

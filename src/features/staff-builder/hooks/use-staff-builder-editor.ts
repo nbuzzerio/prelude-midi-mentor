@@ -325,7 +325,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
       const selection = { measureIndex, eventId: correction.eventId };
       const nextRhythmState = selectionToState(selection);
       setValidationActive(false);
-      setValidationStatus(correction.kind === "assign-duration" ? "Assign a final duration to correct this issue." : "Shorten this event to correct the overlap or overflow.");
+      setValidationStatus(correction.kind === "assign-duration" ? "Assign a final duration to correct this issue." : "Shorten this event to correct the overflow.");
       rhythm.setSelection(selection);
       persist(score, captureState, "rhythm", nextRhythmState);
       return true;

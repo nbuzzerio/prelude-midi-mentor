@@ -96,27 +96,6 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.validation.issues.some(({ code }) => code === "unresolved-rhythm")).toBe(false);
   });
 
-  it("navigates overlap shortening to the preceding duration-causing event without history", () => {
-    const original = score();
-    const pitch = (id: string, midiNumber: number) => ({ id, midiNumber, letter: "C" as const, accidental: "natural" as const, octave: 4 });
-    const current = { ...original, measures: [{ ...original.measures[0]!, events: [
-      { id: "a", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "half" as const }, pitches: [pitch("ap", 60)] },
-      { id: "b", kind: "notes" as const, staff: "treble" as const, startTick: 480, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [pitch("bp", 62)] },
-      { id: "r", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
-    ] }] };
-    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
-    act(() => result.current.validation.activate());
-    expect(result.current.validation.activeIssue?.code).toBe("overlap");
-    const correction = result.current.validation.activeIssue!.corrections.find(({ kind }) => kind === "shorten-duration")!;
-    expect(correction).toEqual({ kind: "shorten-duration", eventId: "a" });
-    act(() => result.current.validation.applyCorrection(correction));
-    expect(result.current.editorPass).toBe("rhythm");
-    expect(result.current.rhythm.selection).toEqual({ measureIndex: 0, eventId: "a" });
-    expect(result.current.validation.status).toBe("Shorten this event to correct the overlap or overflow.");
-    expect(result.current.canUndo).toBe(false);
-    act(() => result.current.rhythm.assignDuration("quarter"));
-    expect(result.current.validation.issues.some(({ code }) => code === "overlap")).toBe(false);
-  });
   it("activates the earliest issue, advances after correction, and reconciles Undo", () => {
     const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
     expect(result.current.validation.issues.map(({ code }) => code)).toEqual(["gap", "gap"]);

@@ -1,6 +1,7 @@
 import { durationToTicks, STAFF_BUILDER_TICKS_PER_QUARTER } from "./staff-builder-time";
 import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
 import { getExactStaffBuilderFittingDuration } from "./staff-builder-corrections";
+import { deriveStaffBuilderVoices, getStaffBuilderSamePositionConflicts, getStaffBuilderStaffCoverageGaps } from "./staff-builder-voices";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff, StaffBuilderTie } from "./staff-builder-types";
 
 export type StaffBuilderIssueCode =
@@ -9,7 +10,6 @@ export type StaffBuilderIssueCode =
   | "start-outside-measure"
   | "event-overflow"
   | "same-position-conflict"
-  | "overlap"
   | "gap"
   | "tie-endpoint-missing"
   | "tie-not-cross-measure"
@@ -56,8 +56,7 @@ const ISSUE_RANK: Readonly<Record<StaffBuilderIssueCode, number>> = {
   "off-grid-start": 1,
   "start-outside-measure": 2,
   "same-position-conflict": 3,
-  overlap: 4,
-  "event-overflow": 5,
+  "event-overflow": 4,
   "tie-endpoint-missing": 6,
   "tie-not-cross-measure": 7,
   "tie-not-adjacent": 8,
@@ -116,7 +115,7 @@ export function validateStaffBuilderScore(score: StaffBuilderScoreV1): readonly 
       if (event.startTick % (STAFF_BUILDER_TICKS_PER_QUARTER / 4) !== 0) {
         issues.push(issue("off-grid-start", target, `e:${event.id}`, `Measure ${measureIndex + 1} ${event.staff} event starts off the supported sixteenth-note grid at tick ${event.startTick}.`, [deleteCorrection]));
       }
-      if (event.startTick >= capacity) {
+      if (event.startTick < 0 || event.startTick >= capacity) {
         issues.push(issue("start-outside-measure", target, `e:${event.id}`, `Measure ${measureIndex + 1} ${event.staff} event starts at tick ${event.startTick}, outside the ${capacity}-tick measure.`, [deleteCorrection]));
       } else if (event.rhythm.status === "final" && event.startTick + durationToTicks(event.rhythm.duration) > capacity) {
         const fittingDuration = getExactStaffBuilderFittingDuration(capacity, event.startTick);
@@ -133,34 +132,20 @@ export function validateStaffBuilderScore(score: StaffBuilderScoreV1): readonly 
     }
 
     for (const staff of ["treble", "bass"] as const) {
-      const staffEvents = measure.events.filter((event) => event.staff === staff).sort((a, b) => a.startTick - b.startTick || a.id.localeCompare(b.id));
-      const byStart = new Map<number, StaffBuilderEvent[]>();
-      staffEvents.forEach((event) => byStart.set(event.startTick, [...(byStart.get(event.startTick) ?? []), event]));
-      for (const [startTick, conflicting] of byStart) {
-        if (conflicting.length < 2) continue;
-        const ids = conflicting.map(({ id }) => id).sort();
-        issues.push(issue("same-position-conflict", { measureIndex, staff, positionTicks: startTick, eventId: ids[0] }, `events:${ids.join(",")}`, `Measure ${measureIndex + 1} ${staff} has ${conflicting.length} events at tick ${startTick}.`, ids.map((eventId) => ({ kind: "delete-event", eventId }))));
+      const staffEvents = measure.events.filter((event) => event.staff === staff);
+      const conflicts = getStaffBuilderSamePositionConflicts(staffEvents);
+      for (const conflict of conflicts) {
+        issues.push(issue("same-position-conflict", { measureIndex, staff, positionTicks: conflict.startTick, eventId: conflict.eventIds[0] }, `events:${conflict.eventIds.join(",")}`, `Measure ${measureIndex + 1} ${staff} has incompatible separate events at tick ${conflict.startTick}. Equal-duration notes belong in one chord, and duplicate pitches or rests are not supported.`, conflict.eventIds.map((eventId) => ({ kind: "delete-event", eventId }))));
       }
 
-      const timingReliable = staffEvents.every((event) => event.rhythm.status === "final" && event.startTick % 120 === 0 && event.startTick < capacity
+      const timingReliable = staffEvents.every((event) => event.rhythm.status === "final" && event.startTick % 120 === 0 && event.startTick >= 0 && event.startTick < capacity
         && event.startTick + durationToTicks(event.rhythm.duration) <= capacity)
-        && [...byStart.values()].every((group) => group.length === 1);
+        && conflicts.length === 0;
       if (!timingReliable) continue;
-      let occupiedUntil = 0;
-      let occupyingEvent: StaffBuilderEvent | null = null;
-      for (const event of staffEvents) {
-        if (event.rhythm.status !== "final") continue;
-        if (event.startTick < occupiedUntil) {
-          const crossingEventId = occupyingEvent?.id ?? event.id;
-          issues.push(issue("overlap", { measureIndex, staff, positionTicks: event.startTick, eventId: event.id }, `e:${event.id}|crossed-by:${crossingEventId}`, `Measure ${measureIndex + 1} ${staff} event ${crossingEventId} extends across the event at tick ${event.startTick}.`, [{ kind: "shorten-duration", eventId: crossingEventId }, { kind: "delete-event", eventId: event.id }]));
-        } else if (event.startTick > occupiedUntil) {
-          issues.push(issue("gap", { measureIndex, staff, positionTicks: occupiedUntil, endTicks: event.startTick }, `end:${event.startTick}`, `This ${staff} staff has empty beats in measure ${measureIndex + 1}.`, [{ kind: "fill-gap-with-rests", staff, startTick: occupiedUntil, endTick: event.startTick }]));
-        }
-        const eventEnd = event.startTick + durationToTicks(event.rhythm.duration);
-        if (eventEnd > occupiedUntil) { occupiedUntil = eventEnd; occupyingEvent = event; }
-      }
-      if (occupiedUntil < capacity) {
-        issues.push(issue("gap", { measureIndex, staff, positionTicks: occupiedUntil, endTicks: capacity }, `end:${capacity}`, `This ${staff} staff has empty beats in measure ${measureIndex + 1}.`, [{ kind: "fill-gap-with-rests", staff, startTick: occupiedUntil, endTick: capacity }]));
+      const voices = deriveStaffBuilderVoices(staffEvents, staff, capacity);
+      const intervals = voices.flatMap((voice) => voice.events);
+      for (const gap of getStaffBuilderStaffCoverageGaps(intervals, capacity)) {
+        issues.push(issue("gap", { measureIndex, staff, positionTicks: gap.startTick, endTicks: gap.endTick }, `end:${gap.endTick}`, `This ${staff} staff has empty beats in measure ${measureIndex + 1}.`, [{ kind: "fill-gap-with-rests", staff, startTick: gap.startTick, endTick: gap.endTick }]));
       }
     }
   });

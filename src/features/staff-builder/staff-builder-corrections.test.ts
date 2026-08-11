@@ -70,6 +70,30 @@ describe("Staff Builder corrections", () => {
     expect(created).toBe(0);
   });
 
+  it("fills only true staff-union gaps in polyphonic material", () => {
+    const source: StaffBuilderScoreV1 = { ...base(), measures: [{ id: "m1", events: [
+      { id: "long", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [{ id: "lp", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] },
+      { id: "later", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "sp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+    ] }] };
+    const result = fillAllStaffBuilderGapsWithRests(source, [{ measureIndex: 0, staff: "treble", startTick: 960, endTick: 1920 }], factories());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.score.measures[0]?.events.filter(({ kind }) => kind === "rest")).toHaveLength(2);
+  });
+
+  it("rejects a voice-local gap as stale when staff-wide coverage exists", () => {
+    const source: StaffBuilderScoreV1 = { ...base(), measures: [{ id: "m1", events: [
+      { id: "whole", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "wp", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] },
+      { id: "later", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "lp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+    ] }] };
+    expect(fillAllStaffBuilderGapsWithRests(source, [{ measureIndex: 0, staff: "treble", startTick: 0, endTick: 480 }], factories())).toEqual({ ok: false, error: "stale-correction", score: source });
+  });
+
+  it("never fills a requested gap that intersects an authored event", () => {
+    const source = base();
+    expect(fillStaffBuilderGapWithRests(source, { measureIndex: 0, staff: "treble", startTick: 1200, endTick: 1920, factories: factories() })).toEqual({ ok: false, error: "conflict", score: source });
+    expect(source.measures[0]?.events).toHaveLength(1);
+  });
+
   it("creates and removes explicit partial chord ties", () => {
     const original = base();
     const continuation = { id: "to", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "tp", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] };

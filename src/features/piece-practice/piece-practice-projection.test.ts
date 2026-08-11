@@ -237,13 +237,28 @@ describe("Staff Builder piece-practice projection", () => {
     if (!result.ok) expect(result.issues.map(({ code }) => code)).toContain("tie-not-cross-measure");
   });
 
-  it("rejects unresolved, gapped, overlapping, and overflowing source material through Staff Builder validation", () => {
+  it("rejects unresolved, same-position-conflicting, and overflowing source material through Staff Builder validation", () => {
     const invalid = score();
     const unresolved: StaffBuilderEvent = { id: "bad", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "unresolved" }, pitches: [pitch("bad-p", 60)] };
-    const source = { ...invalid, measures: [{ id: "m1", events: [unresolved, notes("overlap", "treble", 0, "whole", [pitch("overlap-p", 62, "D")]), notes("overflow", "bass", 1800, "quarter", [pitch("overflow-p", 48, "C", "natural", 3)])] }] };
+    const source = { ...invalid, measures: [{ id: "m1", events: [unresolved, notes("conflict-a", "treble", 480, "quarter", [pitch("conflict-a-p", 62, "D")]), notes("conflict-b", "treble", 480, "quarter", [pitch("conflict-b-p", 64, "E")]), notes("overflow", "bass", 1800, "quarter", [pitch("overflow-p", 48, "C", "natural", 3)])] }] };
     const result = projectStaffBuilderPieceForPractice(source);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.issues.map(({ code }) => code)).toEqual(expect.arrayContaining(["unresolved-rhythm", "same-position-conflict", "event-overflow"]));
+  });
+
+  it("projects same-staff polyphonic attacks without re-requiring a sustained pitch", () => {
+    const source = score({ timeSignature: "6/8", measures: [{ id: "m1", events: [
+      notes("sustain", "treble", 0, "dotted-quarter", [pitch("e", 64, "E")]),
+      notes("c", "treble", 480, "eighth", [pitch("c-p", 60)]),
+      notes("d", "treble", 720, "eighth", [pitch("d-p", 62, "D")]),
+      rest("tail", "treble", 960, "quarter"),
+      rest("bass", "bass", 0, "dotted-half"),
+    ] }] });
+    expect(projected(source).measures[0]?.targets.map(({ startTick, expectedMidiNumbers }) => ({ startTick, expectedMidiNumbers }))).toEqual([
+      { startTick: 0, expectedMidiNumbers: [64] },
+      { startTick: 480, expectedMidiNumbers: [60] },
+      { startTick: 720, expectedMidiNumbers: [62] },
+    ]);
   });
 
   it("uses deterministic measure, target, source-event, and absolute-tick ordering", () => {
