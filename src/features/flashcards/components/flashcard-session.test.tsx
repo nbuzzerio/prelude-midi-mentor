@@ -102,8 +102,8 @@ vi.mock("@/hooks/use-chord-attempt", () => ({
   },
 }));
 
-vi.mock("@/hooks/use-midi", () => ({
-  useMidi: (options: unknown) => {
+vi.mock("@/hooks/use-app-midi-input", () => ({
+  useAppMidiInput: (options: unknown) => {
     mocks.midiOptions(options);
 
     return {

@@ -126,6 +126,7 @@ Completed features include:
 - Persistent virtual progression-chord selection with toggle removal and chord playback
 - Exact chord validation
 - MIDI diagnostics
+- One user-initiated Web MIDI connection persists across top-level mode changes; active features retain their own input/grading semantics
 - Chromebook compatibility
 
 ## Feedback

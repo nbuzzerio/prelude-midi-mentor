@@ -72,6 +72,10 @@ function createMidiAccess(initialInputs: MIDIInput[] = []) {
     inputs.set(id, input);
   };
 
+  const removeInput = (id: string) => {
+    inputs.delete(id);
+  };
+
   const emitStateChange = () => {
     stateChangeListener?.();
   };
@@ -80,6 +84,7 @@ function createMidiAccess(initialInputs: MIDIInput[] = []) {
     access,
     addInput,
     emitStateChange,
+    removeInput,
   };
 }
 
@@ -407,7 +412,7 @@ describe("useMidi", () => {
     expect(updatedOnHeldNotesChanged).toHaveBeenCalledWith(new Set([60]));
     expect(updatedOnNotePlayed).toHaveBeenCalledWith(60);
     expect(input.addEventListener).toHaveBeenCalledTimes(1);
-    expect(input.removeEventListener).toHaveBeenCalledTimes(1);
+    expect(input.removeEventListener).not.toHaveBeenCalled();
     expect(access.addEventListener).toHaveBeenCalledTimes(1);
     expect(access.removeEventListener).not.toHaveBeenCalled();
   });
@@ -441,6 +446,67 @@ describe("useMidi", () => {
     expect(result.current.status).toBe("connected");
     expect(result.current.deviceName).toBe("Connected Later");
     expect(result.current.error).toBeNull();
+  });
+
+  it("makes repeated connect calls idempotent while access is active", async () => {
+    const { input } = createMidiInput();
+    const midiAccess = createMidiAccess([input]);
+    const requestMIDIAccess = installRequestMidiAccess(() => Promise.resolve(midiAccess.access));
+    const { result } = renderHook(() => useMidi({ onNotePlayed: vi.fn() }));
+
+    await act(async () => {
+      await result.current.connectMidi();
+      await result.current.connectMidi();
+    });
+
+    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
+    expect(input.addEventListener).toHaveBeenCalledTimes(1);
+    expect(midiAccess.access.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  it("detaches a removed input and attaches a hotplugged input exactly once", async () => {
+    const first = createMidiInput("First");
+    const second = createMidiInput("Second");
+    const midiAccess = createMidiAccess([first.input]);
+    installRequestMidiAccess(() => Promise.resolve(midiAccess.access));
+    const onNotePlayed = vi.fn();
+    const { result } = renderHook(() => useMidi({ onNotePlayed }));
+    await act(async () => { await result.current.connectMidi(); });
+
+    act(() => {
+      midiAccess.removeInput("input-0");
+      midiAccess.addInput("second", second.input);
+      midiAccess.emitStateChange();
+      midiAccess.emitStateChange();
+    });
+
+    expect(first.input.removeEventListener).toHaveBeenCalledTimes(1);
+    expect(second.input.addEventListener).toHaveBeenCalledTimes(1);
+    act(() => {
+      first.emitMidiMessage([0x90, 60, 100]);
+      second.emitMidiMessage([0x90, 64, 100]);
+    });
+    expect(onNotePlayed).toHaveBeenCalledTimes(1);
+    expect(onNotePlayed).toHaveBeenCalledWith(64);
+  });
+
+  it("treats a disconnected port retained by MIDIAccess as unavailable and clears held notes", async () => {
+    const midiInput = createMidiInput("Disconnecting Keys");
+    Object.defineProperty(midiInput.input, "state", { configurable: true, value: "connected" });
+    const midiAccess = createMidiAccess([midiInput.input]);
+    const onHeldNotesChanged = vi.fn();
+    installRequestMidiAccess(() => Promise.resolve(midiAccess.access));
+    const { result } = renderHook(() => useMidi({ onHeldNotesChanged, onNotePlayed: vi.fn() }));
+    await act(async () => { await result.current.connectMidi(); });
+    act(() => midiInput.emitMidiMessage([0x90, 60, 100]));
+
+    Object.defineProperty(midiInput.input, "state", { configurable: true, value: "disconnected" });
+    act(() => midiAccess.emitStateChange());
+
+    expect(result.current.status).toBe("disconnected");
+    expect(result.current.deviceName).toBeNull();
+    expect(onHeldNotesChanged).toHaveBeenLastCalledWith(new Set());
+    expect(midiInput.input.removeEventListener).toHaveBeenCalledTimes(1);
   });
 
   it("removes MIDI listeners when unmounted", async () => {

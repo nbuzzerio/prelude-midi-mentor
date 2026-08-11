@@ -89,6 +89,7 @@ Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It do
 - Interactive on-screen piano
 - Immediate correct and incorrect feedback
 - MIDI connection status and diagnostics
+- One user-initiated MIDI connection remains active while switching Prelude modes
 - Simultaneous MIDI note tracking
 - Rolled chord support
 - Grace-based transitions between sequence notes

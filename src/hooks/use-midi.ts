@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type MidiConnectionStatus =
+export type MidiConnectionStatus =
   | "disconnected"
   | "connecting"
   | "connected"
@@ -27,6 +27,8 @@ export function useMidi({
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [midiAccess, setMidiAccess] = useState<MIDIAccess | null>(null);
+  const midiAccessRef = useRef<MIDIAccess | null>(null);
+  const connectPromiseRef = useRef<Promise<void> | null>(null);
 
   const heldNotesRef = useRef<Set<number>>(new Set());
   const onHeldNotesChangedRef = useRef(onHeldNotesChanged);
@@ -88,13 +90,31 @@ export function useMidi({
       }
     };
 
+    const attachedInputs = new Set<MIDIInput>();
     const attachInputListeners = () => {
-      for (const input of midiAccess.inputs.values()) {
-        input.removeEventListener("midimessage", handleMidiMessage);
-        input.addEventListener("midimessage", handleMidiMessage);
+      const availableInputs = new Set(
+        Array.from(midiAccess.inputs.values()).filter((input) => input.state !== "disconnected"),
+      );
+      let detachedInput = false;
+      for (const input of attachedInputs) {
+        if (!availableInputs.has(input)) {
+          input.removeEventListener("midimessage", handleMidiMessage);
+          attachedInputs.delete(input);
+          detachedInput = true;
+        }
+      }
+      if (detachedInput && heldNotes.size > 0) {
+        heldNotes.clear();
+        publishHeldNotes();
+      }
+      for (const input of availableInputs) {
+        if (!attachedInputs.has(input)) {
+          input.addEventListener("midimessage", handleMidiMessage);
+          attachedInputs.add(input);
+        }
       }
 
-      const firstInput = Array.from(midiAccess.inputs.values())[0];
+      const firstInput = Array.from(availableInputs)[0];
 
       if (firstInput) {
         setDeviceName(firstInput.name ?? "Unknown MIDI device");
@@ -119,7 +139,7 @@ export function useMidi({
     return () => {
       midiAccess.removeEventListener("statechange", handleStateChange);
 
-      for (const input of midiAccess.inputs.values()) {
+      for (const input of attachedInputs) {
         input.removeEventListener("midimessage", handleMidiMessage);
       }
 
@@ -127,41 +147,52 @@ export function useMidi({
     };
   }, [midiAccess]);
 
-  const connectMidi = useCallback(async () => {
-    setError(null);
-    setStatus("connecting");
+  const connectMidi = useCallback(() => {
+    if (midiAccessRef.current) return Promise.resolve();
+    if (connectPromiseRef.current) return connectPromiseRef.current;
 
-    if (!("requestMIDIAccess" in navigator)) {
-      setStatus("unsupported");
-      setError("This browser does not support the Web MIDI API.");
-      return;
-    }
+    const operation = (async () => {
+      setError(null);
+      setStatus("connecting");
 
-    try {
-      const access = await navigator.requestMIDIAccess();
-      const inputs = Array.from(access.inputs.values());
-
-      setMidiAccess(access);
-
-      if (inputs.length === 0) {
-        setDeviceName(null);
-        setStatus("disconnected");
-        setError(
-          "No MIDI input was found. Check the keyboard connection and try again.",
-        );
+      if (!("requestMIDIAccess" in navigator)) {
+        setStatus("unsupported");
+        setError("This browser does not support the Web MIDI API.");
         return;
       }
 
-      setDeviceName(inputs[0]?.name ?? "Unknown MIDI device");
-      setStatus("connected");
-    } catch (caughtError: unknown) {
-      setStatus("error");
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "MIDI access could not be granted.",
-      );
-    }
+      try {
+        const access = await navigator.requestMIDIAccess();
+        const inputs = Array.from(access.inputs.values()).filter((input) => input.state !== "disconnected");
+
+        midiAccessRef.current = access;
+        setMidiAccess(access);
+
+        if (inputs.length === 0) {
+          setDeviceName(null);
+          setStatus("disconnected");
+          setError(
+            "No MIDI input was found. Check the keyboard connection and try again.",
+          );
+          return;
+        }
+
+        setDeviceName(inputs[0]?.name ?? "Unknown MIDI device");
+        setStatus("connected");
+      } catch (caughtError: unknown) {
+        setStatus("error");
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "MIDI access could not be granted.",
+        );
+      }
+    })();
+    connectPromiseRef.current = operation;
+    void operation.finally(() => {
+      if (connectPromiseRef.current === operation) connectPromiseRef.current = null;
+    });
+    return operation;
   }, []);
 
   return {

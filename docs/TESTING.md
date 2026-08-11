@@ -103,8 +103,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 100 passed
-- Tests: 1,134 passed
+- Test files: 101 passed
+- Tests: 1,144 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -353,6 +353,7 @@ Automated coverage includes:
 - persistent virtual chord selection and strict MIDI/VKB attempt separation
 - read-only score presentation, authoritative multi-event highlighting, feedback, accessibility, and one responsive keyboard
 - Staff Builder library eligibility, launch/failure/exit flow, updated-save relaunch, and source/storage immutability
+- app-level MIDI connection persistence, token-safe active-feature routing, held-note handoff, idempotent connect, hotplug cleanup, and cross-mode listener stability
 - realistic multi-measure 6/8 integration with polyphony, grand-staff chord material, rests, a cross-measure tie, retry, completion, and exit
 
 ## Intentionally Not Deeply Tested

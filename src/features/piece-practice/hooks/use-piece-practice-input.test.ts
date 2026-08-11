@@ -10,8 +10,8 @@ const midiMock = vi.hoisted(() => ({
   options: null as null | { onHeldNotesChanged?: (notes: ReadonlySet<number>) => void; onNotePlayed: (midiNumber: number) => void },
 }));
 
-vi.mock("@/hooks/use-midi", () => ({
-  useMidi: (options: typeof midiMock.options) => {
+vi.mock("@/hooks/use-app-midi-input", () => ({
+  useAppMidiInput: (options: typeof midiMock.options) => {
     midiMock.options = options;
     useEffect(() => {
       midiMock.mountCount += 1;

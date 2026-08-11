@@ -6,6 +6,7 @@ import FreeplaySession from "./features/freeplay/freeplay-session";
 import EarTrainingSession from "./features/ear-training/components/ear-training-session";
 import StaffBuilderSession from "./features/staff-builder/components/staff-builder-session";
 import { useFocusMode } from "./hooks/use-focus-mode";
+import { MidiProvider } from "./components/midi/midi-provider";
 
 type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder";
 
@@ -59,7 +60,7 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 p-2 sm:p-5 lg:p-10">
+    <MidiProvider><main className="min-h-screen bg-zinc-950 p-2 sm:p-5 lg:p-10">
       <nav
         aria-label="Prelude modes"
         className="mx-auto mb-4 flex w-full max-w-7xl flex-wrap gap-2"
@@ -138,6 +139,6 @@ export default function App() {
       </nav>
 
       {content}
-    </main>
+    </main></MidiProvider>
   );
 }

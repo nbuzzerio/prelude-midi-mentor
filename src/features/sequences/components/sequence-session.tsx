@@ -4,7 +4,7 @@ import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
-import { useMidi } from "@/hooks/use-midi";
+import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import { useMobilePlay } from "@/hooks/use-mobile-play";
 import {
   CHORD_ATTEMPT_GRACE_MS,
@@ -525,7 +525,7 @@ export default function SequenceSession({
     [updateTransitionMidiHeldNotes],
   );
 
-  const { connectMidi, deviceName, error, status } = useMidi({
+  const { connectMidi, deviceName, error, status } = useAppMidiInput({
     onHeldNotesChanged: handleMidiHeldNotesChanged,
     onNotePlayed: handleMidiNotePlayed,
   });

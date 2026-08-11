@@ -1,23 +1,32 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import { useAppMidiInput } from "./hooks/use-app-midi-input";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  Reflect.deleteProperty(navigator, "requestMIDIAccess");
+});
 
 type SessionProps = Readonly<{
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
 }>;
 
+const appMidiNotes: string[] = [];
+
 function TestSession({
   isFocusMode,
   label,
   onToggleFocusMode,
 }: SessionProps & Readonly<{ label: string }>) {
+  const midi = useAppMidiInput({ onNotePlayed: (midiNumber) => appMidiNotes.push(`${label}:${midiNumber}`) });
   return (
     <div>
       <span>{label}</span>
+      <span>{midi.status}:{midi.deviceName}</span>
+      <button onClick={() => void midi.connectMidi()} type="button">Connect test MIDI</button>
       <button onClick={onToggleFocusMode} type="button">
         {isFocusMode ? "Exit Focus Staff" : "Focus Staff"}
       </button>
@@ -46,6 +55,45 @@ vi.mock("./features/staff-builder/components/staff-builder-session", () => ({
 }));
 
 describe("App focus mode", () => {
+  it("keeps one connected MIDI lifecycle while routing attacks only to the active top-level mode", async () => {
+    appMidiNotes.length = 0;
+    let messageListener: ((event: MIDIMessageEvent) => void) | null = null;
+    const input = {
+      name: "Persistent Keys",
+      addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+        if (type === "midimessage") messageListener = listener as (event: MIDIMessageEvent) => void;
+      }),
+      removeEventListener: vi.fn(),
+    } as unknown as MIDIInput;
+    const access = {
+      inputs: new Map([["keys", input]]),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MIDIAccess;
+    const requestMIDIAccess = vi.fn(async () => access);
+    Object.defineProperty(navigator, "requestMIDIAccess", { configurable: true, value: requestMIDIAccess });
+
+    render(<App />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect test MIDI" })); });
+    expect(screen.getByText("connected:Persistent Keys")).toBeTruthy();
+    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sequences" }));
+    expect(screen.getByText("connected:Persistent Keys")).toBeTruthy();
+    act(() => messageListener?.({ data: Uint8Array.from([0x90, 60, 100]) } as MIDIMessageEvent));
+    expect(appMidiNotes).toEqual(["Sequence session:60"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ear Training" }));
+    act(() => messageListener?.({ data: Uint8Array.from([0x90, 62, 100]) } as MIDIMessageEvent));
+    expect(appMidiNotes).toEqual(["Sequence session:60"]);
+    fireEvent.click(screen.getByRole("button", { name: "Flashcards" }));
+    expect(screen.getByText("connected:Persistent Keys")).toBeTruthy();
+    act(() => messageListener?.({ data: Uint8Array.from([0x90, 64, 100]) } as MIDIMessageEvent));
+    expect(appMidiNotes).toEqual(["Sequence session:60", "Flashcard session:64"]);
+    expect(requestMIDIAccess).toHaveBeenCalledTimes(1);
+    expect(input.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
   it("orders and visually groups Prelude modes without changing tab order", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });

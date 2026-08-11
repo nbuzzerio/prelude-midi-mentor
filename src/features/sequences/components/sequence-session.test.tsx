@@ -138,8 +138,8 @@ vi.mock("../hooks/use-sequence-transition", () => ({
   },
 }));
 
-vi.mock("@/hooks/use-midi", () => ({
-  useMidi: (options: unknown) => {
+vi.mock("@/hooks/use-app-midi-input", () => ({
+  useAppMidiInput: (options: unknown) => {
     mocks.midiOptions(options);
 
     return {

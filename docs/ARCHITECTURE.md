@@ -199,7 +199,7 @@ Current hooks include:
 
 Reusable hooks shared outside a single feature.
 
-This contains browser-level MIDI integration (`useMidi`) and generic cross-feature chord-attempt collection (`useChordAttempt`).
+This contains the low-level browser MIDI lifecycle (`useMidi`), the app-level MIDI consumer adapter (`useAppMidiInput`), and generic cross-feature chord-attempt collection (`useChordAttempt`).
 
 ## lib/
 
@@ -611,7 +611,13 @@ Owns post-success timing.
 
 ## useMidi
 
-Owns browser MIDI integration.
+Owns browser MIDI access, physical input listeners, hotplug/disconnect state, and the physical held-note set. Exactly one `useMidi` instance is mounted by the app-level `MidiProvider`; feature sessions do not own Web MIDI access.
+
+## MidiProvider and useAppMidiInput
+
+`MidiProvider` remains mounted above top-level mode switching. It shares connection status, device identity, errors, and `connectMidi()` without requesting permission on page load. A token-safe active-consumer registration routes new note attacks and held-note snapshots only to the currently mounted MIDI-enabled feature. Switching through a feature with no MIDI consumer, such as Ear Training, leaves the physical connection and held state alive without grading attacks.
+
+Feature adapters retain all musical behavior. Flashcards, Sequences, and Piece Practice keep their own chord collectors and grading; Staff Builder keeps Capture semantics; Free Play consumes held-note snapshots. An already-held key is published as held environmental state after a mode switch but is never replayed as a new attack.
 
 ---
 

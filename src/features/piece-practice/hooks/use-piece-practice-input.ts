@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CHORD_ATTEMPT_GRACE_MS, useChordAttempt } from "@/hooks/use-chord-attempt";
-import { useMidi } from "@/hooks/use-midi";
+import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import {
   getCurrentPiecePracticeTarget,
   submitPiecePracticeAttempt,
@@ -129,7 +129,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     setMidiHeldNotes(next);
   }, []);
 
-  const midi = useMidi({ onHeldNotesChanged: handleMidiHeldNotesChanged, onNotePlayed: handleMidiNotePlayed });
+  const midi = useAppMidiInput({ onHeldNotesChanged: handleMidiHeldNotesChanged, onNotePlayed: handleMidiNotePlayed });
 
   const onVirtualNoteToggle = useCallback((midiNumber: number) => {
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);

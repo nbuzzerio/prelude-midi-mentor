@@ -11,8 +11,8 @@ const mocks = vi.hoisted(() => ({
   pianoProps: vi.fn(),
 }));
 
-vi.mock("@/hooks/use-midi", () => ({
-  useMidi: (options: unknown) => {
+vi.mock("@/hooks/use-app-midi-input", () => ({
+  useAppMidiInput: (options: unknown) => {
     mocks.midiOptions(options);
     return {
       connectMidi: vi.fn(),

@@ -14,7 +14,7 @@ import {
   type FreeplayChromaticPreference,
   type FreeplayNotationContext,
 } from "@/features/freeplay/freeplay-notation";
-import { useMidi } from "@/hooks/use-midi";
+import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import { useMobilePlay } from "@/hooks/use-mobile-play";
 import { playGrandPianoNote } from "@/lib/audio/grand-piano";
 
@@ -142,7 +142,7 @@ export default function FreeplaySession({
     });
   }, []);
 
-  const { connectMidi, deviceName, error, status } = useMidi({
+  const { connectMidi, deviceName, error, status } = useAppMidiInput({
     onHeldNotesChanged: handleMidiHeldNotesChanged,
     onNotePlayed: () => {
       // MIDI note state is handled through onHeldNotesChanged.

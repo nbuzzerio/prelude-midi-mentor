@@ -21,7 +21,7 @@ import {
   VIRTUAL_CHORD_SUCCESS_CHIRP_DELAY_MS,
 } from "@/features/flashcards/flashcard-timing";
 
-import { useMidi } from "@/hooks/use-midi";
+import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import { useMobilePlay } from "@/hooks/use-mobile-play";
 
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
@@ -447,7 +447,7 @@ export default function FlashcardSession({
     ],
   );
 
-  const { connectMidi, deviceName, error, status } = useMidi({
+  const { connectMidi, deviceName, error, status } = useAppMidiInput({
     onHeldNotesChanged: handleMidiHeldNotesChanged,
     onNotePlayed: handleMidiNotePlayed,
   });
