@@ -261,6 +261,69 @@ describe("Staff Builder piece-practice projection", () => {
     ]);
   });
 
+  it("omits a sustained chord from a later same-staff attack", () => {
+    const source = score({ measures: [{ id: "m1", events: [
+      notes("chord", "treble", 0, "half", [pitch("c", 60), pitch("e", 64, "E"), pitch("g", 67, "G")]),
+      notes("later", "treble", 480, "quarter", [pitch("a", 69, "A")]),
+      rest("tail", "treble", 960, "half"),
+      rest("bass", "bass", 0, "whole"),
+    ] }] });
+    expect(projected(source).measures[0]?.targets.map(({ startTick, expectedMidiNumbers }) => [startTick, expectedMidiNumbers])).toEqual([
+      [0, [60, 64, 67]], [480, [69]],
+    ]);
+  });
+
+  it("merges same-staff same-onset different-duration voices into one physical attack", () => {
+    const source = score({ measures: [{ id: "m1", events: [
+      notes("upper", "treble", 0, "half", [pitch("e", 76, "E", "natural", 5)]),
+      notes("lower", "treble", 0, "quarter", [pitch("c", 72, "C", "natural", 5)]),
+      rest("tail", "treble", 960, "half"), rest("bass", "bass", 0, "whole"),
+    ] }] });
+    const measure = projected(source).measures[0];
+    expect(measure?.targets).toHaveLength(1);
+    expect(measure?.targets[0]).toMatchObject({ startTick: 0, expectedMidiNumbers: [72, 76], sourceEventIds: ["lower", "upper"] });
+  });
+
+  it("groups only equal onsets while both staves contain independent polyphony", () => {
+    const source = score({ measures: [{ id: "m1", events: [
+      notes("treble-long", "treble", 0, "whole", [pitch("t0", 72, "C", "natural", 5)]),
+      notes("treble-later", "treble", 480, "quarter", [pitch("t1", 74, "D", "natural", 5)]),
+      notes("bass-long", "bass", 0, "whole", [pitch("b0", 48, "C", "natural", 3)]),
+      notes("bass-later", "bass", 960, "half", [pitch("b1", 50, "D", "natural", 3)]),
+    ] }] });
+    expect(projected(source).measures[0]?.targets.map(({ startTick, expectedMidiNumbers }) => [startTick, expectedMidiNumbers])).toEqual([
+      [0, [48, 72]], [480, [74]], [960, [50]],
+    ]);
+  });
+
+  it("excludes an incoming tied pitch from a polyphonic partial-chord attack", () => {
+    const tie: StaffBuilderTie = { id: "tie", fromEventId: "source", fromPitchId: "source-c", toEventId: "destination", toPitchId: "destination-c" };
+    const source = score({ measures: [
+      { id: "m1", events: [notes("cover-1", "treble", 0, "whole", [pitch("cover-1-p", 72, "C", "natural", 5)]), notes("source", "treble", 1440, "quarter", [pitch("source-c", 60)]), rest("bass-1", "bass", 0, "whole")] },
+      { id: "m2", events: [notes("cover-2", "treble", 0, "whole", [pitch("cover-2-p", 74, "D", "natural", 5)]), notes("destination", "treble", 0, "quarter", [pitch("destination-c", 60), pitch("new-e", 64, "E")]), rest("bass-2", "bass", 0, "whole")] },
+    ], ties: [tie] });
+    const target = projected(source).measures[1]?.targets[0];
+    expect(target?.expectedMidiNumbers).toEqual([64, 74]);
+    expect(target?.sourceEventIds).toEqual(["cover-2", "destination"]);
+  });
+
+  it("uses Staff Builder union-gap validation as the polyphonic eligibility gate", () => {
+    const valid = score({ timeSignature: "6/8", measures: [{ id: "m1", events: [
+      notes("sustain", "treble", 0, "dotted-quarter", [pitch("e", 64, "E")]), notes("c", "treble", 480, "eighth", [pitch("c-p", 60)]),
+      notes("d", "treble", 720, "eighth", [pitch("d-p", 62, "D")]), rest("tail", "treble", 960, "quarter"), rest("bass", "bass", 0, "dotted-half"),
+    ] }] });
+    expect(projectStaffBuilderPieceForPractice(valid).ok).toBe(true);
+    const gap: StaffBuilderScoreV1 = {
+      ...valid,
+      measures: valid.measures.map((measure, measureIndex) => measureIndex === 0
+        ? { ...measure, events: measure.events.filter(({ id }) => id !== "tail") }
+        : measure),
+    };
+    const result = projectStaffBuilderPieceForPractice(gap);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues.some(({ code }) => code === "gap")).toBe(true);
+  });
+
   it("uses deterministic measure, target, source-event, and absolute-tick ordering", () => {
     const source = score({ measures: [
       completeMeasure("m1", 1920, [notes("z", "bass", 480, "quarter", [pitch("zp", 48, "C", "natural", 3)]), notes("a", "treble", 0, "quarter", [pitch("ap", 60)])]),

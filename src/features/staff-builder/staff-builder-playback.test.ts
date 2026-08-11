@@ -40,6 +40,58 @@ function tiedScore(chain = false, partial = false): StaffBuilderScoreV1 {
 }
 
 describe("Staff Builder playback projection", () => {
+  it("schedules Hallelujah-style same-staff polyphony independently without truncation or retrigger", () => {
+    const score = baseScore([{ id: "m", events: [
+      note("sustain", "treble", 0, "dotted-quarter", [pitch(64)]),
+      note("later-c", "treble", 480, "eighth", [pitch(60)]),
+      note("later-d", "treble", 720, "eighth", [pitch(62)]),
+      rest("tail", "treble", 960, "quarter"),
+      fullRest("bass", "bass", "dotted-half"),
+    ] }], { initialTimeSignature: "6/8" });
+    const before = structuredClone(score);
+
+    expect(projectStaffBuilderPlayback(score, { kind: "entire-piece" })).toEqual({
+      events: [
+        { notes: [64], startTimeMs: 0, durationMs: 750 },
+        { notes: [60], startTimeMs: 500, durationMs: 250 },
+        { notes: [62], startTimeMs: 750, durationMs: 250 },
+      ],
+      scopeStartTick: 0,
+      scopeEndTick: 1440,
+      durationMs: 1500,
+    });
+    expect(score).toEqual(before);
+  });
+
+  it("preserves a long chord while later attacks and authored rests occupy other derived voices", () => {
+    const score = baseScore([{ id: "m", events: [
+      note("long-chord", "treble", 0, "half", [pitch(60), pitch(64), pitch(67)]),
+      rest("voice-rest", "treble", 0, "quarter"),
+      note("later", "treble", 480, "quarter", [pitch(69)]),
+      rest("tail", "treble", 960, "half"),
+      fullRest("bass", "bass"),
+    ] }]);
+    expect(projectStaffBuilderPlayback(score, { kind: "entire-piece" }).events).toEqual([
+      { notes: [60, 64, 67], startTimeMs: 0, durationMs: 1000 },
+      { notes: [69], startTimeMs: 500, durationMs: 500 },
+    ]);
+  });
+
+  it("projects same-onset different-duration events and independent polyphony on both staves", () => {
+    const score = baseScore([{ id: "m", events: [
+      note("treble-long", "treble", 0, "whole", [pitch(72)]),
+      note("treble-short", "treble", 0, "quarter", [pitch(67)]),
+      note("treble-later", "treble", 480, "quarter", [pitch(69)]),
+      note("bass-long", "bass", 0, "whole", [pitch(48)]),
+      note("bass-later", "bass", 960, "half", [pitch(50)]),
+    ] }]);
+    expect(projectStaffBuilderPlayback(score, { kind: "entire-piece" }).events).toEqual([
+      { notes: [67], startTimeMs: 0, durationMs: 500 },
+      { notes: [48, 72], startTimeMs: 0, durationMs: 2000 },
+      { notes: [69], startTimeMs: 500, durationMs: 500 },
+      { notes: [50], startTimeMs: 1000, durationMs: 1000 },
+    ]);
+  });
   it("samples the monotonic timeline at start, midpoint, endpoint, and reduced-motion boundaries", () => {
     const clock = { startedAtMs: 1000, durationMs: 2000, scopeStartTick: 480, scopeEndTick: 2400 };
     expect(sampleStaffBuilderPlaybackTick(clock, 1000)).toBe(480);
@@ -125,6 +177,28 @@ describe("Staff Builder playback projection", () => {
       { notes: [67], startTimeMs: 1500, durationMs: 500 },
       { notes: [60], startTimeMs: 1500, durationMs: 1000 },
       { notes: [64], startTimeMs: 2000, durationMs: 500 },
+    ]);
+  });
+
+  it("keeps tie identity event/pitch-based across polyphonic source and destination measures", () => {
+    const score = baseScore([
+      { id: "m1", events: [
+        note("cover-1", "treble", 0, "whole", [pitch(72)]),
+        note("from", "treble", 1440, "quarter", [pitch(60, "from-c"), pitch(67, "from-g")]),
+        fullRest("bass-1", "bass"),
+      ] },
+      { id: "m2", events: [
+        note("cover-2", "treble", 0, "whole", [pitch(74)]),
+        note("to", "treble", 0, "quarter", [pitch(60, "to-c"), pitch(64, "to-e")]),
+        fullRest("bass-2", "bass"),
+      ] },
+    ], { ties: [{ id: "tie", fromEventId: "from", fromPitchId: "from-c", toEventId: "to", toPitchId: "to-c" }] });
+    expect(projectStaffBuilderPlayback(score, { kind: "entire-piece" }).events).toEqual([
+      { notes: [72], startTimeMs: 0, durationMs: 2000 },
+      { notes: [67], startTimeMs: 1500, durationMs: 500 },
+      { notes: [60], startTimeMs: 1500, durationMs: 1000 },
+      { notes: [64], startTimeMs: 2000, durationMs: 500 },
+      { notes: [74], startTimeMs: 2000, durationMs: 2000 },
     ]);
   });
 

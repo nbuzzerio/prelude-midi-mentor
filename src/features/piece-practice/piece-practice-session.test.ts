@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { StaffBuilderScoreV1 } from "@/features/staff-builder/staff-builder-types";
+import { projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
 import type { PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 import {
   advancePiecePracticeNoAttackMeasure,
@@ -62,6 +64,24 @@ function piece(targetCounts: readonly number[] = [2, 1]): PiecePracticePiece {
   };
 }
 
+function projectedPolyphonicPiece(): PiecePracticePiece {
+  const source: StaffBuilderScoreV1 = {
+    schemaVersion: 1, id: "polyphonic-score", title: "Polyphonic study",
+    createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    tempoBpm: 96, initialKeySignatureId: "c-major", initialTimeSignature: "6/8", ties: [],
+    measures: [{ id: "m1", events: [
+      { id: "sustain", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-quarter" }, pitches: [{ id: "e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] },
+      { id: "later-c", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "eighth" }, pitches: [{ id: "c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+      { id: "later-d", kind: "notes", staff: "treble", startTick: 720, rhythm: { status: "final", duration: "eighth" }, pitches: [{ id: "d", midiNumber: 62, letter: "D", accidental: "natural", octave: 4 }] },
+      { id: "tail", kind: "rest", staff: "treble", startTick: 960, rhythm: { status: "final", duration: "quarter" } },
+      { id: "bass-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "dotted-half" } },
+    ] }],
+  };
+  const result = projectStaffBuilderPieceForPractice(source);
+  if (!result.ok) throw new Error(result.issues.map(({ code }) => code).join(", "));
+  return result.piece;
+}
+
 function initialized(source = piece(), startMeasureIndex = 0, startedAtMs = 1_000): PiecePracticeSessionState {
   const result = createPiecePracticeSession(source, { startMeasureIndex, startedAtMs });
   if (!result.ok) throw new Error(result.reason);
@@ -81,6 +101,26 @@ function accepted(source: PiecePracticePiece, state: PiecePracticeSessionState, 
 }
 
 describe("Piece Practice blocking session", () => {
+  it("grades and blocks a real polyphonic projection without voice-specific session state", () => {
+    const source = projectedPolyphonicPiece();
+    const before = structuredClone(source);
+    let state = initialized(source);
+    expect(getCurrentPiecePracticeTarget(source, state)?.expectedMidiNumbers).toEqual([64]);
+
+    state = accepted(source, state, [60]);
+    expect(state).toMatchObject({ currentTargetIndex: 0, incorrectAttemptCount: 1, completedTargetCount: 0 });
+    state = accepted(source, state, [64]);
+    expect(getCurrentPiecePracticeTarget(source, state)?.expectedMidiNumbers).toEqual([60]);
+    state = accepted(source, state, [60]);
+    expect(getCurrentPiecePracticeTarget(source, state)?.expectedMidiNumbers).toEqual([62]);
+    state = accepted(source, state, [62]);
+    expect(state).toMatchObject({ status: "piece-complete", completedTargetCount: 3, completedMeasureCount: 1 });
+
+    const restarted = restartCurrentPiecePracticeMeasure(source, state);
+    expect(restarted).toMatchObject({ status: "practicing", currentTargetIndex: 0, completedTargetCount: 0, incorrectAttemptCount: 1 });
+    expect(source).toEqual(before);
+    expect("voiceIndex" in state).toBe(false);
+  });
   it("initializes on the first target", () => {
     const state = initialized();
     expect(state).toMatchObject({ startMeasureIndex: 0, currentMeasureIndex: 0, currentTargetIndex: 0, status: "practicing" });
