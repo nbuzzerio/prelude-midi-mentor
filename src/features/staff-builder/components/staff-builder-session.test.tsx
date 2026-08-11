@@ -2,15 +2,30 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
+import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import StaffBuilderSession from "./staff-builder-session";
 
-const { midiBoundary } = vi.hoisted(() => ({ midiBoundary: { onNote: null as ((midiNumber: number) => void) | null } }));
+const { midiBoundary, practiceBoundary } = vi.hoisted(() => ({
+  midiBoundary: { onNote: null as ((midiNumber: number) => void) | null },
+  practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, projectionScores: [] as import("../staff-builder-types").StaffBuilderScoreV1[], forceFailure: false },
+}));
 vi.mock("../hooks/use-staff-builder-input", () => ({
   useStaffBuilderInput: (onNote: (midiNumber: number) => void) => {
     midiBoundary.onNote = onNote;
     return { connectMidi: vi.fn(), deviceName: "Test MIDI", error: null, status: "connected" as const };
   },
 }));
+vi.mock("@/features/piece-practice/components/piece-practice-session", () => ({ PiecePracticeSession: ({ piece, onExit }: { piece: import("@/features/piece-practice/piece-practice-types").PiecePracticePiece; onExit: () => void }) => {
+  practiceBoundary.piece = piece;
+  return <section><h1>Blocking Piece Practice: {piece.title}</h1><button onClick={onExit} type="button">Exit Piece Practice</button></section>;
+} }));
+vi.mock("@/features/piece-practice/piece-practice-projection", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/piece-practice/piece-practice-projection")>();
+  return { projectStaffBuilderPieceForPractice: (score: import("../staff-builder-types").StaffBuilderScoreV1) => {
+    practiceBoundary.projectionScores.push(score);
+    return practiceBoundary.forceFailure ? { ok: false as const, issues: [] } : actual.projectStaffBuilderPieceForPractice(score);
+  } };
+});
 
 class MemoryStorage implements StaffBuilderStorage {
   values = new Map<string, string>();
@@ -20,6 +35,9 @@ class MemoryStorage implements StaffBuilderStorage {
 }
 
 beforeEach(() => {
+  practiceBoundary.piece = null;
+  practiceBoundary.projectionScores = [];
+  practiceBoundary.forceFailure = false;
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
     measureText: (text: string) => ({ width: text.length * 8, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2, actualBoundingBoxLeft: 0, actualBoundingBoxRight: text.length * 8 }),
   } as CanvasRenderingContext2D);
@@ -38,7 +56,91 @@ function createPiece(title = "Minuet") {
   fireEvent.click(screen.getByRole("button", { name: "Create Piece" }));
 }
 
+function savedValidScore(title = "Practice Study"): StaffBuilderScoreV1 {
+  return {
+    schemaVersion: 1 as const, id: `saved-${title}`, title, createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    tempoBpm: 96, initialKeySignatureId: "c-major" as const, initialTimeSignature: "4/4" as const, ties: [], measures: [{ id: "m1", events: [
+      { id: "treble", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "tp", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] },
+      { id: "bass", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
+    ] }],
+  };
+}
+
+function seedLibrary(storage: MemoryStorage, pieces: readonly StaffBuilderScoreV1[]) {
+  storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 1, pieces }));
+  storage.values.set(STAFF_BUILDER_STORAGE_KEYS.introductionDismissed, "true");
+}
+
 describe("Staff Builder session", () => {
+  it("launches the exact validated saved score through Phase A and exits to the unchanged library", () => {
+    const storage = new MemoryStorage();
+    const saved = savedValidScore();
+    seedLibrary(storage, [saved]);
+    const before = new Map(storage.values);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Practice Study" }));
+    expect(screen.getByRole("heading", { name: "Blocking Piece Practice: Practice Study" })).toBeTruthy();
+    expect(practiceBoundary.projectionScores).toEqual([saved]);
+    expect(practiceBoundary.piece).toMatchObject({ sourceScoreId: saved.id, sourceScoreUpdatedAt: saved.updatedAt, title: saved.title });
+    expect(storage.values).toEqual(before);
+    fireEvent.click(screen.getByRole("button", { name: "Exit Piece Practice" }));
+    expect(screen.getByRole("heading", { name: "Piece library" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Measure 1 of 1" })).toBeNull();
+    expect(saved).toEqual(savedValidScore());
+  });
+
+  it("launches validated same-staff polyphony while invalid saved material remains disabled", () => {
+    const storage = new MemoryStorage();
+    const base = savedValidScore("Polyphony");
+    const polyphonic = { ...base, measures: [{ ...base.measures[0]!, events: [
+      ...base.measures[0]!.events,
+      { id: "later", kind: "notes" as const, staff: "treble" as const, startTick: 480, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "later-p", midiNumber: 64, letter: "E" as const, accidental: "natural" as const, octave: 4 }] },
+    ] }] };
+    const invalidGap = { ...savedValidScore("Invalid Gap"), id: "invalid-gap", measures: [{ id: "m1", events: [] }] };
+    const conflictBase = savedValidScore("Invalid Same Position");
+    const invalidSamePosition = { ...conflictBase, id: "invalid-same-position", measures: [{ ...conflictBase.measures[0]!, events: [
+      ...conflictBase.measures[0]!.events,
+      { id: "conflict", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "conflict-p", midiNumber: 64, letter: "E" as const, accidental: "natural" as const, octave: 4 }] },
+    ] }] };
+    const tieBase = savedValidScore("Invalid Tie");
+    const invalidTie = { ...tieBase, id: "invalid-tie", ties: [{ id: "bad-tie", fromEventId: "treble", fromPitchId: "tp", toEventId: "missing", toPitchId: "missing" }] };
+    seedLibrary(storage, [polyphonic, invalidGap, invalidSamePosition, invalidTie]);
+    render(<StaffBuilderSession storage={storage} />);
+    for (const title of ["Invalid Gap", "Invalid Same Position", "Invalid Tie"]) {
+      const invalidButton = screen.getByRole("button", { name: `Practice ${title}` }) as HTMLButtonElement;
+      expect(invalidButton.disabled).toBe(true);
+      expect(invalidButton.getAttribute("aria-describedby")).toBeTruthy();
+    }
+    expect(screen.getAllByText("Complete structural validation before practicing this piece.")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Polyphony" }));
+    expect(practiceBoundary.piece?.title).toBe("Polyphony");
+  });
+
+  it("fails safely when authoritative Phase A projection unexpectedly rejects a gated launch", () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, [savedValidScore()]);
+    practiceBoundary.forceFailure = true;
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Practice Study" }));
+    expect(screen.getByRole("alert").textContent).toContain("could not be opened for practice");
+    expect(screen.queryByText(/Blocking Piece Practice:/)).toBeNull();
+  });
+
+  it("uses the updated saved score on the next launch without changing Open or editor behavior", () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, [savedValidScore("Editable")]);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Editable" }));
+    const tempo = screen.getByRole("spinbutton", { name: "Tempo" });
+    fireEvent.change(tempo, { target: { value: "104" } });
+    fireEvent.keyDown(tempo, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Piece Library" }));
+    fireEvent.click(screen.getByRole("button", { name: "Practice Editable" }));
+    expect(practiceBoundary.projectionScores[0]?.tempoBpm).toBe(104);
+    expect(practiceBoundary.piece?.tempoBpm).toBe(104);
+  });
   it("shows, dismisses, persists, and reopens the introduction", () => {
     const storage = new MemoryStorage();
     render(<StaffBuilderSession storage={storage} />);

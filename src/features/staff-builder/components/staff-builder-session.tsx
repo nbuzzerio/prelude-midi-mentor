@@ -1,4 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { PiecePracticeSession } from "@/features/piece-practice/components/piece-practice-session";
+import { projectStaffBuilderPieceForPractice } from "@/features/piece-practice/piece-practice-projection";
+import type { PiecePracticePiece } from "@/features/piece-practice/piece-practice-types";
 import { StaffBuilderIntroduction } from "./staff-builder-introduction";
 import { StaffBuilderLibrary } from "./staff-builder-library";
 import { StaffBuilderPieceSetup } from "./staff-builder-piece-setup";
@@ -18,7 +21,12 @@ function browserStorage(): StaffBuilderStorage {
 
 export default function StaffBuilderSession({ storage = browserStorage() }: Readonly<{ storage?: StaffBuilderStorage }>) {
   const state = useStaffBuilderLibrary(storage);
+  const [practicePiece, setPracticePiece] = useState<PiecePracticePiece | null>(null);
+  const [practiceLaunchError, setPracticeLaunchError] = useState<string | null>(null);
   const introductionOpenerRef = useRef<HTMLButtonElement>(null);
+  if (practicePiece) {
+    return <PiecePracticeSession onExit={() => setPracticePiece(null)} piece={practicePiece} />;
+  }
   return (
     <div className="staff-builder-shell">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -31,6 +39,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
       </aside>
 
       <div aria-live="polite" className="space-y-2">
+        {practiceLaunchError && <div className="staff-builder-storage-error" role="alert">{practiceLaunchError}</div>}
         {state.issues.map((issue, index) => <div className="staff-builder-storage-error" key={`${issue.area}-${index}`}>
           <span>{issue.message} Changes remain available in memory, but may not be saved.</span>
           {issue.clearable && <button className="staff-builder-danger-button" onClick={() => {
@@ -57,7 +66,15 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
               score={state.activeScore}
             /></div>
         : <div className="staff-builder-columns">
-            <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onOpen={state.openPiece} onRename={state.renamePiece} pieces={state.library.pieces} />
+            <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onOpen={state.openPiece} onPractice={(score) => {
+              const projection = projectStaffBuilderPieceForPractice(score);
+              if (!projection.ok) {
+                setPracticeLaunchError("This piece could not be opened for practice because it is not structurally valid.");
+                return;
+              }
+              setPracticeLaunchError(null);
+              setPracticePiece(projection.piece);
+            }} onRename={state.renamePiece} pieces={state.library.pieces} />
             <StaffBuilderPieceSetup onCreate={state.createPiece} />
           </div>}
       {state.introductionOpen && <StaffBuilderIntroduction onClose={state.closeIntroduction} returnFocusRef={introductionOpenerRef} />}
