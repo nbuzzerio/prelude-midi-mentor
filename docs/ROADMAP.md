@@ -2,7 +2,7 @@
 
 > This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
 >
-> **Current checkpoint:** August 10, 2026 — Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are implemented in post-v2.3 development; final real-device QA and any release decision remain pending.
+> **Current checkpoint:** August 12, 2026 — the repository is ahead of the v2.4.0 Staff Builder tag in the current v2.4-era development line; Melody Phase 1, the coordinated mobile UX stream, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are implemented, while final real-device QA and any release decision remain pending.
 
 ---
 
@@ -148,13 +148,17 @@ Complete Prelude's foundational practice platform with expanded sequence exercis
 - [x] Key-aware diatonic and chromatic spelling preferences
 - [x] Immediate respelling of held notes after settings changes
 
-## Mobile Play
+## Mobile Play and coordinated mobile UX
 
-- [x] Shared Mobile Play lifecycle across Flashcards, Sequences, and Free Play
+- [x] Shared Mobile Play lifecycle across Flashcards, Sequences, Free Play, Ear Training, Melody, and active Piece Practice
 - [x] Best-effort fullscreen and landscape orientation lock with safe fallback
 - [x] Focus Staff mutual exclusion and state-preserving transitions
 - [x] Free Play momentary multitouch without changing graded input semantics
 - [x] Focused lifecycle, integration, and notation-scaling tests
+- [x] Compact mobile mode navigation, Flashcard task hierarchy/disclosures/stats, and Ear Training phone header
+- [x] Temporal Sequence current-measure presentation with optional Show Whole Sequence
+- [x] Explicit state-preserving Melody and Piece Practice Mobile Play
+- [x] Common responsive entry availability, portrait support, narrow action flow, and keyboard-focusable Melody score scrolling
 
 Container-driven responsive VexFlow sizing is deferred to the later UI/UX overhaul. This milestone does not include a settings drawer, onboarding, or a full mobile redesign.
 
@@ -162,12 +166,12 @@ Future Free Play ideas such as chord analysis, phrase history, last-measure disp
 
 ## Current Direction
 
-Chord Progressions, key-aware Free Play, shared Mobile Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are complete. Development now pauses for review and final manual QA:
+Chord Progressions, key-aware Free Play, shared Mobile Play, melodic-interval Ear Training, Melody Mode Phase 1, Staff Builder, automatic same-staff polyphony, Blocking Piece Practice Phase 1, and the coordinated mobile UX stream are complete in code. Development now pauses for final manual QA:
 
 1. Perform combined physical-MIDI, Chromebook touch/mouse, Android portrait/landscape, responsive, playback, and persistence QA.
 2. Fix only defects confirmed by that stabilization pass.
-3. Decide release scope and version after QA; no post-v2.3 release number is selected yet.
-4. Review the completed Phase 1 product before selecting the next feature milestone. Melody Mode is not underway, and Piece Practice Accuracy remains a separate future Phase 2.
+3. Decide release scope and version after QA; no release identifier for the checkpoint beyond the v2.4.0 tag is selected yet.
+4. Review the completed product checkpoint before selecting the next feature milestone. Melody duration/hold grading and Piece Practice Accuracy remain separate future work.
 
 Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
 
@@ -177,6 +181,7 @@ Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, a
 - Web Audio count-in/metronome and continuous MIDI/VKB capture
 - Timing-led alignment with independent Pitch/Movement/Timing scores
 - Read-only notation, playhead, mobile presentation, and Pitch-result staff
+- Explicit Mobile Play through setup, count-in, performance, and results without replacing audio/input ownership
 - Cached-PWA basic offline VKB workflow
 - Final device/accessibility/airplane-mode QA remains pending
 
@@ -184,9 +189,9 @@ Future work remains separate: rests, 6/8/richer meters, two-hand notes, dyads/ch
 
 ---
 
-# ✅ Post-v2.3 — Staff Builder Foundation (Completed, Unreleased)
+# ✅ v2.4.0 — Staff Builder Foundation (Completed)
 
-Staff Builder provides a beginner-focused transcription and practice-material workflow. It is current post-v2.3 development and is not part of the v2.3.0 release.
+Staff Builder provides a beginner-focused transcription and practice-material workflow and is represented by the v2.4.0 repository tag.
 
 ## Score and Editing Foundation
 
@@ -224,7 +229,7 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 
 ---
 
-# ✅ Post-v2.3 — Blocking Piece Practice Phase 1 (Implemented, Manual QA Pending)
+# ✅ v2.4-era — Blocking Piece Practice Phase 1 (Implemented, Manual QA Pending)
 
 - [x] Validation-gated launch from saved Staff Builder pieces
 - [x] Transient attack-onset projection without `SequenceTarget` or copied score persistence
@@ -237,7 +242,7 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 - [x] Automated projection, state, input, rendering, accessibility, eligibility, launch/exit, and immutability coverage
 - [ ] Final physical-MIDI, Chromebook, Android, responsive, audio, and screen-reader QA
 
-Future Piece Practice Accuracy mode remains separate: it may add continuous BPM-driven capture and post-performance feedback, but no such engine is part of Phase 1. The next product step is a pause and assessment, not immediate Melody Mode implementation.
+Piece Practice now has explicit Mobile Play during an active session; narrow/coarse responsive layout alone does not activate it. This presentation change preserves the blocking session, pending input, restart, targetless-measure, completion, and Staff Builder return semantics. Future Piece Practice Accuracy mode remains separate: it may add continuous BPM-driven capture and post-performance feedback, but no such engine is part of Phase 1. The next product step is final QA and assessment.
 
 ---
 

@@ -776,7 +776,7 @@ Feature ownership keeps spelling policy out of the renderer and allows held note
 
 ## Decision
 
-Flashcards, Sequences, and Free Play share `useMobilePlay` for fullscreen and landscape-orientation acquisition and cleanup. Layout activation does not depend on either browser API succeeding, and external fullscreen exit does not automatically exit the layout. Focus Staff and Mobile Play are mutually exclusive.
+Flashcards, Sequences, Free Play, Ear Training, Melody, and Piece Practice use `useMobilePlay` for fullscreen and landscape-orientation acquisition and cleanup. Mobile Play is app presentation state: layout activation does not depend on either browser API succeeding, and external fullscreen exit does not automatically exit the layout. Explicit `Exit Mobile Play` controls the app presentation state. Focus Staff and Mobile Play remain mutually exclusive where both are available.
 
 ## Reason
 
@@ -788,6 +788,46 @@ Fullscreen and orientation support varies across mobile browsers and installed-a
 - The user can use Exit Mobile Play after fullscreen refusal or external fullscreen exit.
 - Flashcards and Sequences retain graded toggle input; only Free Play uses momentary multitouch callbacks.
 - Current notation enlargement is mode-specific and transform-based. Container-driven responsive VexFlow sizing remains deferred to the later UI/UX overhaul.
+- Feature sessions remain authoritative. Melody retains its exercise, audio clock, recorder, source lock, and result lifecycle; Piece Practice retains its blocking session and input lifecycle. No generic Mobile Play practice state machine owns them.
+
+---
+
+# 2026-08 — Sequence Measures Are Temporal Presentation
+
+## Decision
+
+Sequence targets carry explicit meter and ticks-per-quarter metadata, and steps carry durations. Measure windows are derived from cumulative onset time, never from a fixed number of notes. Current generators use Prelude's explicit 4/4, 480-PPQ convention with one 480-tick duration per generated step. `Show whole sequence` is a presentation-only option that defaults off.
+
+## Reason
+
+Scales, intervals, arpeggios, and chord progressions do not intrinsically have quarter-note rhythm, and simultaneous chord pitches constitute one attack rather than several elapsed events. Explicit timing makes the displayed measure musically honest while preserving the existing ordered grading model.
+
+## Consequences
+
+- An onset on a barline belongs to the following measure; exact-barline endings and final partial measures are valid.
+- Cross-bar Sequence steps remain unsupported rather than being silently split into new graded events.
+- `SequenceTarget` and global `currentStepIndex` remain authoritative; the current measure and local highlight are derived only for presentation.
+- Whole view does not regenerate the target, reset progress or statistics, or change grading, and it may scroll horizontally to preserve readability.
+- Current generators do not yet generate mixed rhythms, rests, arbitrary onset gaps, or tied cross-bar events.
+
+---
+
+# 2026-08 — Piece Practice Mobile Play Is Explicit
+
+## Decision
+
+Narrow or coarse-pointer presentation no longer automatically means Mobile Play for Piece Practice. Ordinary responsive Piece Practice remains in document flow, and an active session enters focused presentation only through the learner's explicit `Mobile Play` action.
+
+## Reason
+
+Viewport characteristics describe available space, not learner intent. Separating responsive layout from focused presentation avoids surprising fixed overlays while allowing one mounted blocking session and input owner to survive entry and exit.
+
+## Consequences
+
+- Piece Practice preserves its current measure, target, mistakes, timing, pending chord input, virtual selection, and keyboard/MIDI ownership across presentation changes.
+- `Exit Mobile Play` changes presentation only; `Exit Piece Practice` returns to Staff Builder.
+- Restart, targetless-measure `Next Measure`, blocking progression, and completion semantics remain feature-owned and unchanged.
+- Staff Builder editor mobile presentation remains independently owned by its existing responsive hook.
 
 ---
 

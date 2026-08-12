@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Latest Release:** v2.3.0 — Melodic Interval Ear Training
-> **Last Updated:** August 10, 2026
-> **Current Milestone:** Post-v2.3 Melody Mode Phase 1 implementation complete (unreleased)
+> **Latest Repository Tag:** v2.4.0 — Staff Builder
+> **Last Updated:** August 12, 2026
+> **Current Milestone:** Coordinated mobile UX stream complete in the current v2.4-era development line, ahead of the latest tag
 >
 > Final device/manual QA and release assessment are next. Do not begin Piece Practice Accuracy Phase 2 or expand Melody scope without a new approved plan.
 
@@ -144,7 +144,8 @@ Completed features include:
 - Ledger lines
 - Accidentals
 - Breakpoint- and mode-specific transform scaling for current notation layouts
-- Mobile Play across Flashcards, Sequences, and Free Play, with best-effort fullscreen/orientation and Focus Staff mutual exclusion
+- Explicit Mobile Play across Flashcards, Sequences, Free Play, Ear Training, Melody, and active Piece Practice, with best-effort fullscreen/orientation
+- Temporal Sequence measure windows with optional presentation-only Whole Sequence view
 - Persistent grand staff for Free Play
 - Automatic treble- and bass-staff placement for held notes
 - Key signatures on both Free Play staves
@@ -180,7 +181,15 @@ Completed features include:
 - Chords, cross-staff attacks, independent/polyphonic rhythm, rests, and pitch-specific ties retain their authored musical meaning
 - One stable MIDI owner, shared rolled-chord collection, persistent VKB chord selection, and strict MIDI/VKB source separation
 - Start at Measure, Restart Measure, Restart Piece, completion statistics, read-only score reuse, and exit to the library
+- Ordinary narrow Piece Practice remains responsive document flow; explicit Mobile Play preserves the same blocking session and input owner
 - No persisted practice progress and no BPM, hold-duration, metronome, or continuous timing grading
+
+## Melody
+
+- Seeded monophonic one/two-measure 4/4 exercises with Web Audio count-in and continuous MIDI/VKB capture
+- Independent Pitch, Movement, and attack-Timing results with a read-only Pitch-result staff
+- Explicit Mobile Play preserves the generated exercise, AudioContext, clock, recorder, source lock, keyboard, and results
+- No duration/hold grading, richer meters, rests, chords, or persisted analytics in Phase 1
 
 ## Quality
 
@@ -197,13 +206,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's latest release is v2.3.0. Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are implemented but remain post-v2.3, unreleased development.
+Prelude's latest repository tag is v2.4.0. The current working repository is ahead of that tag in the v2.4-era development line and includes Staff Builder, automatic same-staff polyphony, Blocking Piece Practice Phase 1, Melody Mode Phase 1, and the coordinated mobile UX stream.
 
-The next step is review and combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, accessibility, playback, and persistence QA. Fix only confirmed defects, then decide release scope and version before selecting another milestone. Melody Mode is not underway; Piece Practice Accuracy remains a future Phase 2.
+The next step is combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, fullscreen/orientation, accessibility, playback, and persistence QA. Fix only confirmed defects, then decide release scope and version before selecting another milestone. Melody duration/hold grading, richer Melody work, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 
 Staff Builder owns its score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Piece Practice owns transient projection, blocking session, input, and read-only presentation state without copying the score or coupling back into the editor.
 
-The August 10, 2026 verification checkpoint is 98 passing test files and 1,116 passing tests, with `pnpm verify` and the production build passing. Real-device/manual QA remains pending.
+The August 12, 2026 verification checkpoint is 117 passing test files and 1,328 passing tests, with ESLint, TypeScript, `pnpm verify`, and the production build passing. Real-device/manual QA remains pending.
 
 ---
 
@@ -211,7 +220,7 @@ The August 10, 2026 verification checkpoint is 98 passing test files and 1,116 p
 
 Prelude is intentionally designed so today's isolated practice engine can evolve naturally into tomorrow's guided lesson system without requiring major architectural rewrites.
 
-Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, arpeggios, and chord progressions. Progressions store one chord per `SequenceStep` with optional Roman-numeral and concrete chord metadata. Free Play bypasses target generation and grading: raw held MIDI remains authoritative, Free Play-owned settings convert it to explicitly spelled `PracticeNote` values, and shared notation renders those notes with an optional key signature. No chord analysis is performed.
+Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, arpeggios, and chord progressions. Sequence targets carry explicit meter/PPQ timing and step durations; current generators apply Prelude's 4/4, 480-PPQ, quarter-duration practice convention. Temporal measure windows are derived from cumulative onset time while the target and global step remain authoritative for grading. Progressions store one simultaneous chord attack per `SequenceStep` with optional Roman-numeral and concrete chord metadata. Free Play bypasses target generation and grading: raw held MIDI remains authoritative, Free Play-owned settings convert it to explicitly spelled `PracticeNote` values, and shared notation renders those notes with an optional key signature. No chord analysis is performed.
 
 A `PracticeTarget` can represent one or more notes, allowing the same validation and rendering systems to support:
 

@@ -41,6 +41,8 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Focus Staff support across all practice modes
 - Step-by-step sequence validation
 - Musically correct note spelling for intervals, scales, arpeggios, and chord progressions
+- Current temporal measure view with `Measure n of m` and global step progress
+- Optional presentation-only Show Whole Sequence view with readable horizontal scrolling
 
 ### Free Play
 
@@ -62,7 +64,7 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Prompt-oriented feedback, streaks, accuracy, and response-time statistics
 - Focus Staff exclusion and a dedicated Mobile Play answer layout
 
-### Staff Builder (Post-v2.3 Development)
+### Staff Builder (v2.4-era Development)
 
 - Beginner-friendly sheet-music transcription and practice-material building
 - MIDI and virtual-keyboard capture on a multi-measure grand staff
@@ -72,7 +74,7 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Per-piece `.prelude.json` download and schema-validated import for browser-storage backup and recovery
 - Responsive desktop, Chromebook, and mobile interaction
 
-### Blocking Piece Practice (Post-v2.3 Development)
+### Blocking Piece Practice (v2.4-era Development)
 
 - Launch structurally valid saved Staff Builder pieces directly from the local library
 - Practice one authored measure and attack onset at a time; incorrect attempts remain blocked for retry
@@ -103,6 +105,7 @@ Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It do
 - Independent Pitch, Movement, and attack-Timing scores
 - Pitch-result staff: green correct, dashed light blue missed, red wrong pitch; timing is scored separately
 - Seeded Retry Same and Try Another exercises
+- Explicit Mobile Play that preserves setup, count-in, performance, and results state
 - Basic offline VKB workflow after the installed/loaded PWA has cached its assets
 
 Phase 1 is monophonic 4/4 without rests, chords, two-hand material, hold-duration grading, latency calibration, or persisted analytics.
@@ -118,7 +121,7 @@ Phase 1 is monophonic 4/4 without rests, chords, two-hand material, hold-duratio
 ### Cross-Platform Experience
 
 - Responsive desktop, tablet, and mobile layouts
-- Mobile Play in Flashcards, Sequences, and Free Play with a safe-area-aware landscape practice overlay
+- Explicit Mobile Play in Flashcards, Sequences, Free Play, Ear Training, Melody, and active Piece Practice
 - Best-effort fullscreen and landscape orientation requests with a usable fallback when browser APIs refuse or are unavailable
 - Chromebook MIDI support
 - Installable Progressive Web App
@@ -154,7 +157,7 @@ The goal is to connect three ideas:
 
 ## How It Works
 
-Prelude currently provides five complementary top-level modes:
+Prelude currently provides six complementary top-level modes:
 
 ```text
 Flashcards
@@ -168,6 +171,9 @@ Free Play
 
 Ear Training
     └── Identify ascending and descending melodic intervals by sound
+
+Melody
+    └── Perform continuous one- or two-measure sight-reading exercises
 
 Staff Builder
     |-- Transcribe and edit practice material directly on a score
@@ -281,7 +287,7 @@ Prelude's automated suite covers:
 - Staff Builder score invariants, capture, correction, validation, persistence, playback, interaction geometry, radial controls, and responsive presentation
 - Blocking Piece Practice projection, ties/polyphony, blocking progression, MIDI/VKB input separation, read-only presentation, validation-gated launch, exit, and source/storage immutability
 
-Mobile Play preserves each mode's input contract: Flashcards and Sequences retain graded toggle input, while Free Play alone adds momentary multitouch press/release input. Mobile Play and Focus Staff are mutually exclusive. Fullscreen and landscape lock are enhancements rather than requirements; if fullscreen exits externally, the Mobile Play layout remains active until the user exits it.
+Mobile Play preserves each mode's feature-owned session and input contract: Flashcards and Sequences retain graded toggle input, Free Play alone adds momentary multitouch press/release input, Melody retains its continuous recorder/clock/source lock, and Piece Practice retains blocking progression and pending chord input. Mobile Play and Focus Staff are mutually exclusive where both are available. Fullscreen and landscape lock are enhancements rather than requirements; if fullscreen exits externally, the Mobile Play layout remains active until the user explicitly exits it.
 
 Run the complete release verification workflow with:
 
@@ -358,7 +364,7 @@ src/
 - **lib/** — Reusable audio, music, practice, MIDI, and platform logic that is independent of React.
 - **types/** — Shared TypeScript models used throughout the application.
 
-Current feature domains under `features/` include `ear-training`, `flashcards`, `freeplay`, `sequences`, `staff-builder`, and the Sequence-adjacent `piece-practice` workflow. Piece Practice is launched from Staff Builder rather than exposed as a sixth permanent top-level mode.
+Current feature domains under `features/` include `ear-training`, `flashcards`, `freeplay`, `melody`, `sequences`, `staff-builder`, and the Sequence-adjacent `piece-practice` workflow. Piece Practice is launched from Staff Builder rather than exposed as a permanent top-level mode.
 
 For a more detailed technical explanation, see
 [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
@@ -367,17 +373,18 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Prelude's latest release is **v2.3.0 — Melodic Interval Ear Training**.
+Prelude's latest repository tag is **v2.4.0 — Staff Builder**. The current working repository is ahead of that tag in the v2.4-era development line.
 
-The application now supports five complementary top-level modes:
+The application now supports six complementary top-level modes:
 
 - Flashcards for isolated notes and triads
 - Sequences for intervals, scales, arpeggios, and chord progressions
 - Free Play for live grand-staff notation without grading
 - Ear Training for melodic interval identification by sound
+- Melody for continuous one- or two-measure sight-reading and independent Pitch, Movement, and Timing results
 - Staff Builder for beginner-friendly score transcription and editing
 
-Staff Builder, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are complete at the current post-v2.3 development checkpoint but remain unreleased. Development is paused for combined Chromebook, phone, accessibility, and physical-MIDI manual QA and product review; release scope, version, and any next feature will be decided afterward. Melody Mode and Piece Practice Accuracy mode have not started.
+Staff Builder, automatic same-staff polyphony, Blocking Piece Practice Phase 1, Melody Mode Phase 1, and the coordinated mobile UX stream are complete at the current v2.4-era development checkpoint, which is ahead of the latest repository tag. Development is paused for combined Chromebook, phone, accessibility, fullscreen/orientation, and physical-MIDI manual QA and product review; release scope, version, and any next feature will be decided afterward. Melody duration/hold grading and Piece Practice Accuracy remain future work.
 
 See [`ROADMAP.md`](./docs/ROADMAP.md) for completed milestones and future development areas.
 

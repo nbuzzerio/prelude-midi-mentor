@@ -1,10 +1,10 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** Post-v2.3 Melody Mode Phase 1 checkpoint (unreleased)
+> **Status:** Current v2.4-era mobile UX stream code checkpoint, ahead of the latest repository tag
 
-Melody automated coverage includes seeded generation, spelling/ranges, Web Audio timing/cleanup, continuous capture, source locking, dynamic-programming alignment, independent scoring/movement facts, display projection, Pitch-result highlights/details, accessibility, mobile ownership, visibility interruption, app/MIDI integration, and WAV precaching. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, screen readers/reduced motion, and installed-PWA airplane mode.
-> **Latest release:** v2.3.0 — Melodic Interval Ear Training
-> **Last updated:** August 10, 2026
+The latest verified checkpoint passes ESLint, TypeScript, the production build, and 1,328 tests across 117 test files. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, responsive presentation, fullscreen/orientation variations, screen readers/reduced motion, and installed-PWA airplane mode.
+> **Latest repository tag:** v2.4.0 — Staff Builder
+> **Last updated:** August 12, 2026
 
 ## Purpose
 
@@ -217,6 +217,10 @@ Avoid a broad `FlashcardSession` test that mocks most of the application.
 
 Test the ordered practice behavior introduced by Sequence Mode.
 
+Current temporal coverage includes 4/4 meter capacity at 480 PPQ, generated quarter-duration conventions, synthetic eighth-note and mixed-duration timelines, cumulative onsets, simultaneous chord steps, exact-barline membership and endings, rejected cross-bar events, and final partial measures. Pure measure-window tests cover first, middle, and final windows plus global-to-local active-index translation.
+
+Presentation and notation coverage verifies current-measure default rendering, `Measure n of m` with authoritative global step progress, presentation-only Whole Sequence toggling and state preservation, supported duration mappings, actual-meter voice configuration, temporal measure division, partial final measures, active styling, simultaneous chords, accidentals, horizontal whole-view behavior, and renderer geometry that keeps the final stave inside its SVG bounds.
+
 Sequence logic:
 
 - exact step validation
@@ -308,6 +312,11 @@ Focused automated coverage includes:
 - graded `onNoteToggle` semantics in Flashcards and Sequences
 - Free Play momentary press/release semantics and pointer-note cleanup without clearing physical MIDI
 - mode-specific staff scaling with no normal-mode leakage
+- common responsive Mobile Play entry markup across supported modes
+- removed portrait rotate overlays and singular Free Play/Sequence task-action wrappers
+- keyboard-focusable, descriptively labelled Melody practice and result score scroll regions
+
+Melody integration coverage preserves exercise identity, one lazy AudioContext, count-in and clock continuity, recorder/source locking, one keyboard and MIDI owner, results-heading focus, and Retry Same, Try Another, and Settings while Mobile Play remains active.
 
 ### Block 11 — Ear Training and Musical-Event Playback
 
@@ -357,6 +366,10 @@ Automated coverage includes:
 - Staff Builder library eligibility, launch/failure/exit flow, updated-save relaunch, and source/storage immutability
 - app-level MIDI connection persistence, token-safe active-feature routing, held-note handoff, idempotent connect, hotplug cleanup, and cross-mode listener stability
 - realistic multi-measure 6/8 integration with polyphony, grand-staff chord material, rests, a cross-measure tie, retry, completion, and exit
+- ordinary narrow/coarse layouts requiring explicit Mobile Play rather than automatic focus
+- Mobile Play preservation of blocking mistakes, current target/measure, original timing, pending physical chord collection, and partial virtual chord selection
+- unchanged Restart Measure, Restart Piece, explicit targetless-measure advancement, completion, and distinct Mobile Play/Piece Practice exits
+- exactly one mounted keyboard and input owner before, during, and after focused presentation
 
 ## Intentionally Not Deeply Tested
 
@@ -443,6 +456,21 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - sustain-pedal behavior is not graded in Phase 1 and should be observed as a known hardware/browser limitation
 
 This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issues found during normal use may be recorded through the project's bug-log workflow.
+
+### Mobile UX real-device matrix still required
+
+| Device class | Highest-risk checks |
+| --- | --- |
+| 360px portrait | Compact navigation/header, Free Play and Sequence action flow, keyboard adjacency, safe-area Exit controls |
+| 390–412px portrait | Mobile Play entry policy, Ear Training header, Flashcard disclosures/stats, Piece Practice actions/completion |
+| Phone landscape | Score/keyboard proportions, horizontal overflow, safe areas, explicit exit without session reset |
+| Chromebook laptop | Whole Sequence scrolling, narrow/wide breakpoint behavior, keyboard and mouse focus visibility |
+| Chromebook tablet/touch | Coarse-pointer Mobile Play entry, touch controls, one keyboard/input owner, physical MIDI handoff |
+| Android Chrome | Fullscreen/orientation accepted, rejected, and unavailable paths; Escape leaves Prelude Mobile Play active |
+| Narrow desktop | Entry visibility below 1024px, document-flow layouts, keyboard scrolling of Melody score regions |
+| Wide desktop | Mobile Play entry hidden for mouse input, desktop navigation/grouping and headers unchanged |
+
+Across the matrix, verify real MIDI attacks and chords, no duplicate input, Sequence Whole Sequence active-step discoverability, Melody two-measure scrolling/focus, and Piece Practice blocking/restart/targetless/completion controls. This QA has not yet been performed.
 
 ## Future Opportunities
 

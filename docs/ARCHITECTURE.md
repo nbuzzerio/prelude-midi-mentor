@@ -8,13 +8,15 @@ Melody owns a transient seeded exercise and projects it through a pure adapter i
 
 Results reuse the exact exercise display score. A pure adapter maps expected event IDs to generic `correct`, `missed`, or `wrong-pitch` highlights. These encode Pitch only. App-level MidiProvider ownership remains separate from Melody attempt/source locking. Shared piano WAVs are PWA-precached; metronome clicks are oscillator-generated. No Melody exercise, attempt, result, or analytics is persisted.
 
+Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering or exiting the focused presentation may occur during setup, audio startup, count-in, performance, or results without replacing the generated exercise, AudioContext, performance clock, recorder, first-input-source lock, MIDI consumer, PianoKeyboard, score/count guide, or result state. Results remain in Mobile Play until explicit exit. The existing visibility-interruption policy still cancels an active starting, count-in, or performing attempt when the document becomes hidden; Mobile Play does not weaken that safety boundary. Duration and hold grading are not part of Melody Phase 1.
+
 ---
 
 # Overview
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides five top-level modes: Flashcards, Sequences, Free Play, Ear Training, and Staff Builder. Together they support:
+The current application provides six top-level modes: Flashcards, Sequences, Free Play, Ear Training, Melody, and Staff Builder. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals
@@ -260,6 +262,20 @@ Most implementation details live in hooks and reusable utilities rather than ins
 
 `SequenceSession` coordinates ordered interval, scale, arpeggio, and chord-progression practice while delegating configuration, attempt state, target lifecycle, and timed transitions to focused hooks.
 
+### Authoritative timing and temporal measures
+
+`SequenceTarget` carries required meter and ticks-per-quarter metadata, and every `SequenceStep` carries `durationTicks`. Current generators emit 4/4 targets at 480 ticks per quarter with 480 ticks per generated step. This is an explicit Prelude practice and presentation convention, not an intrinsic rhythmic property of intervals, scales, arpeggios, or chord progressions. A chord step containing simultaneous pitches is one graded attack with one onset and one duration.
+
+Step onsets are derived cumulatively rather than stored. Measure membership follows onset time: an attack beginning exactly on a barline belongs to the following measure, while a step ending exactly at a barline is valid. Final partial measures are supported. Steps crossing a barline are deliberately rejected; the current Sequence domain does not add rests, arbitrary onset offsets, or ties to work around that limitation.
+
+The authoritative `SequenceTarget` and global `currentStepIndex` continue to own grading and progression. Pure timing helpers derive the temporal timeline, and a presentation helper derives the current measure window from the global step. There is no independent current-measure progression state.
+
+### Timed notation presentation
+
+Sequence notation consumes the target's explicit meter and durations rather than treating the number of steps as a beat count. By default, the task displays only the current temporal measure alongside `Measure n of m` and the existing global `Step n of m`. Global-to-local active-step translation occurs only at the notation boundary.
+
+`Show whole sequence` defaults off and is presentation-only. Toggling it neither regenerates the target nor resets the global step, input, transitions, or statistics. Whole view renders the complete authoritative target, highlights the same global current step, separates temporal measures, and may scroll horizontally instead of compressing long material until it is unreadable. Current generators still use the quarter-duration convention; mixed durations are supported by the timing and renderer contracts but are not currently generated exercises.
+
 ## Free Play Session
 
 `FreeplaySession` combines shared MIDI input, piano playback, the virtual keyboard, key-aware spelling, and grand-staff notation without target generation, validation, feedback, or statistics. Physical and virtual held notes remain raw MIDI state; notation settings recompute their written spelling without clearing the state or replaying audio.
@@ -433,9 +449,9 @@ Virtual progression input deliberately does not use that timer. `SequenceSession
 
 ## Shared Mobile Play Lifecycle
 
-`src/hooks/use-mobile-play.ts` owns the cross-feature browser lifecycle. Entering Mobile Play activates layout state synchronously, then requests fullscreen and landscape orientation on a best-effort basis. Missing, rejected, or externally exited fullscreen and unsupported orientation locking do not disable the layout. Cleanup releases only fullscreen and orientation state acquired by Prelude, and stale asynchronous requests are prevented from reacquiring state after exit or unmount.
+`src/hooks/use-mobile-play.ts` owns the shared browser-enhancement lifecycle used by Flashcards, Sequences, Free Play, Ear Training, Melody, and Piece Practice. Mobile Play itself is app presentation state. Entering it activates the focused layout synchronously, then requests fullscreen and landscape orientation on a best-effort basis. Missing, rejected, unavailable, or externally exited fullscreen and unsupported or rejected orientation locking do not disable the layout. External Escape exits browser fullscreen only; explicit `Exit Mobile Play` controls Prelude's presentation state. Cleanup releases only fullscreen and orientation state acquired by Prelude, and stale asynchronous requests are prevented from reacquiring state after exit or unmount.
 
-Each session derives the effective layout state as `isMobilePlayMode && !isFocusMode`. Entering either Mobile Play or Focus Staff deactivates the other, including global Focus Staff activation. This coordination changes presentation only: target generation, statistics, feedback, sequence position, settings, and graded input state remain feature-owned.
+Practice and session state remain feature-owned; there is no generic Mobile Play or cross-mode practice state machine. Modes with Focus Staff derive their effective layout state from Mobile Play and focus state, preserving their established mutual exclusion. Each feature keeps one mounted practice lifecycle and one relevant input owner and keyboard while presentation changes.
 
 Flashcards and Sequences continue to supply only `onNoteToggle` to `PianoKeyboard`. Free Play supplies toggle input plus momentary `onNotePress` and `onNoteRelease` callbacks for multitouch and clears momentary pointer notes on Mobile Play exit without affecting physical MIDI notes.
 
@@ -535,7 +551,11 @@ Targets describe newly attacked pitches grouped by measure and onset across both
 
 The Phase 1 state machine grades exact unique MIDI attack sets and blocks progression after an incorrect attempt. Normal completed measures advance immediately in domain state; measures without attacks require explicit acknowledgement because Phase 1 has no timing engine. Start-at-measure and restart operations remain transient session behavior.
 
-One mounted input hook owns Web MIDI and the shared 225 millisecond chord collector for the active session. Physical attacks and persistent virtual-keyboard selections never merge. Held pitches are supplied separately from attacks so only an immediately previous successful target or an incoming tie can receive the narrow approved held-note allowance. Responsive desktop/mobile keyboard presentations branch beneath this one owner and never duplicate session state or keyboard instances.
+One mounted input hook owns Web MIDI and the shared 225 millisecond chord collector for the active session. Physical attacks and persistent virtual-keyboard selections never merge. Held pitches are supplied separately from attacks so only an immediately previous successful target or an incoming tie can receive the narrow approved held-note allowance. Responsive and explicit Mobile Play presentations reuse this one owner and never duplicate session state or keyboard instances.
+
+Narrow or coarse-pointer detection remains Staff Builder editor presentation state; it no longer automatically places Piece Practice into a fixed Mobile Play layout. After `Start Practice`, the active Piece Practice session calls `useMobilePlay` once and exposes an explicit entry action. Ordinary narrow Piece Practice remains in normal document flow.
+
+Entering or exiting Mobile Play preserves the current piece, measure, target, blocking attempt and mistake state, original session timing, pending physical chord collector, persistent virtual chord selection, MIDI owner, and PianoKeyboard. `Exit Mobile Play` leaves only the focused presentation; `Exit Piece Practice` retains its separate behavior of returning to Staff Builder. Restart Measure and Restart Piece retain their domain semantics, targetless measures still require explicit `Next Measure`, and completion may remain in Mobile Play until explicit exit. Staff Builder editor responsive ownership is unchanged.
 
 The presentation reuses `StaffBuilderScoreView` in read-only mode and highlights authoritative source event IDs. It mounts no Capture, Rhythm Correction, history, persistence, or notation-edit controls. Phase 1 intentionally has no BPM grading, hold-duration grading, metronome, continuous performance capture, or post-performance accuracy overlay.
 
