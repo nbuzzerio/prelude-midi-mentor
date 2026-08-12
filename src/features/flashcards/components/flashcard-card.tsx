@@ -4,6 +4,7 @@ import PracticeSimulationControls from "@/components/practice-simulation-control
 import type { FeedbackState, PracticeTarget } from "@/types/practice";
 
 type FlashcardCardProps = Readonly<{
+  completedCount: number;
   feedback: FeedbackState;
   isFocusMode: boolean;
   isMobilePlayMode?: boolean;
@@ -22,6 +23,7 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
 };
 
 export default function FlashcardCard({
+  completedCount,
   feedback,
   isFocusMode,
   isMobilePlayMode = false,
@@ -34,6 +36,10 @@ export default function FlashcardCard({
 }: FlashcardCardProps) {
   return (
     <section className="relative flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5">
+      <p className="text-xs font-semibold uppercase tracking-wider text-white/60">
+        Completed: {completedCount}
+      </p>
+
       <div hidden={isFocusMode || isMobilePlayMode}>
         <PracticeSimulationControls
           onCorrect={onCorrect}

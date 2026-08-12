@@ -210,6 +210,7 @@ vi.mock("@/components/notation/piano-keyboard", () => ({
 
 vi.mock("./sequence-card", () => ({
   default: ({
+    completedCount,
     feedback,
     isFocusMode,
     isMobilePlayMode,
@@ -219,6 +220,7 @@ vi.mock("./sequence-card", () => ({
     onToggleFocusMode,
     showWholeSequence,
   }: {
+    completedCount: number;
     feedback: string;
     isFocusMode: boolean;
     isMobilePlayMode: boolean;
@@ -230,6 +232,7 @@ vi.mock("./sequence-card", () => ({
   }) => (
     <div>
       <span>Feedback: {feedback}</span>
+      <span>Completed: {completedCount}</span>
       <span>Mobile active: {String(isMobilePlayMode)}</span>
       <label>
         <input
@@ -434,6 +437,7 @@ describe("SequenceSession settings regeneration", () => {
     expect((toggle as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText("Active: 67,60")).toBeTruthy();
     expect(screen.getByText("Stats: 0 completed, 0 incorrect")).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(screen.getAllByText("Piano keyboard")).toHaveLength(1);
     expect(mocks.generateTarget).not.toHaveBeenCalled();
     expect(mocks.resetAttempt).not.toHaveBeenCalled();
@@ -462,6 +466,7 @@ describe("SequenceSession settings regeneration", () => {
     expect(screen.queryByText(/Rotate your device/i)).toBeNull();
     expect(screen.getByText("Feedback: incorrect")).toBeTruthy();
     expect(screen.getByText("Stats: 0 completed, 1 incorrect")).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(screen.getByText("Piano keyboard")).toBeTruthy();
     expect(mocks.generateTarget).not.toHaveBeenCalled();
     expect(mocks.resetAttempt).not.toHaveBeenCalled();
@@ -485,6 +490,7 @@ describe("SequenceSession settings regeneration", () => {
     expect(
       screen.getByRole("button", { name: "Exit Focus Staff" }),
     ).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
 
@@ -610,6 +616,7 @@ describe("SequenceSession settings regeneration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset session" }));
 
     expect(screen.getByText("Stats: 0 completed, 0 incorrect")).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(mocks.clearTransition).toHaveBeenCalledTimes(1);
     expect(mocks.resetAttempt).toHaveBeenCalledTimes(1);
     expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
@@ -895,6 +902,7 @@ describe("SequenceSession settings regeneration", () => {
     expect(mocks.lockSequenceTarget).toHaveBeenCalledTimes(1);
     expect(mocks.startSequenceCompletionTransition).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Stats: 1 completed, 0 incorrect")).toBeTruthy();
+    expect(screen.getByText("Completed: 1")).toBeTruthy();
     expect(screen.getByTestId("active-notes").textContent).toBe("Active: ");
     cleanup();
     vi.useRealTimers();
@@ -911,6 +919,7 @@ describe("SequenceSession settings regeneration", () => {
     expect(mocks.playGrandPianoChord).not.toHaveBeenCalled();
     expect(mocks.showCorrectFeedback).toHaveBeenCalledTimes(1);
     expect(mocks.completeCurrentStep).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
   });
 
   it("continues grading MIDI note-on input for existing exercises", () => {

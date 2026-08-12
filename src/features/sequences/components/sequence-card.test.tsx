@@ -66,6 +66,7 @@ const MULTI_MEASURE_TARGET: SequenceTarget = {
 
 function renderCard(overrides: Partial<Parameters<typeof SequenceCard>[0]> = {}) {
   const props: Parameters<typeof SequenceCard>[0] = {
+    completedCount: 3,
     currentStepIndex: 0,
     exerciseType: "chord-progressions",
     feedback: "idle",
@@ -89,6 +90,7 @@ describe("SequenceCard", () => {
 
     expect(screen.getByText("Measure 1 of 1")).toBeTruthy();
     expect(screen.getByText("Step 1 of 2")).toBeTruthy();
+    expect(screen.getByText("Completed: 3")).toBeTruthy();
     expect(
       (screen.getByRole("checkbox", {
         name: "Show whole sequence",
@@ -114,6 +116,7 @@ describe("SequenceCard", () => {
     });
 
     expect(screen.getByText("Measure 2 of 2")).toBeTruthy();
+    expect(screen.getByText("Completed: 3")).toBeTruthy();
     const toggle = screen.getByRole("checkbox", {
       name: "Show whole sequence",
     });
@@ -212,6 +215,7 @@ describe("SequenceCard", () => {
       screen.queryByRole("button", { name: "Simulate correct" }),
     ).toBeNull();
     expect(screen.getByText("Music staff")).toBeTruthy();
+    expect(screen.getByText("Completed: 3")).toBeTruthy();
     expect(screen.getByText("I–IV–V–I")).toBeTruthy();
   });
 
@@ -228,6 +232,7 @@ describe("SequenceCard", () => {
   it("keeps progress, feedback, and revealed labels while hiding simulation controls", () => {
     renderCard({ feedback: "incorrect", isMobilePlayMode: true });
     expect(screen.getByText("Step 1 of 2")).toBeTruthy();
+    expect(screen.getByText("Completed: 3")).toBeTruthy();
     expect(screen.getByText("Try again.")).toBeTruthy();
     expect(screen.getByText("I–IV–V–I")).toBeTruthy();
     expect(screen.getByText("I")).toBeTruthy();

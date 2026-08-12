@@ -728,6 +728,7 @@ export default function SequenceSession({
 
       <div className="practice-stage">
         <SequenceCard
+          completedCount={stats.completed}
           currentStepIndex={currentStepIndex}
           exerciseType={exerciseType}
           feedback={feedback}

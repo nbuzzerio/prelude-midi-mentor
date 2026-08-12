@@ -588,6 +588,7 @@ export default function FlashcardSession({
 
       <div className="practice-stage flashcard-practice-stage">
         <FlashcardCard
+          completedCount={stats.correct}
           feedback={feedback}
           isFocusMode={isFocusMode}
           isMobilePlayMode={isMobilePlayActive}

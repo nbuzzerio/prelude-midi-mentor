@@ -9,6 +9,7 @@ import type {
 import { getSequenceMeasureWindow } from "../sequence-measure-window";
 
 type SequenceCardProps = Readonly<{
+  completedCount: number;
   currentStepIndex: number;
   exerciseType: SequenceExerciseType;
   feedback: FeedbackState;
@@ -31,6 +32,7 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
 };
 
 export default function SequenceCard({
+  completedCount,
   currentStepIndex,
   exerciseType,
   feedback,
@@ -69,6 +71,9 @@ export default function SequenceCard({
           </span>
           <span className="rounded-full bg-zinc-900 px-2.5 py-1">
             Step {currentStepIndex + 1} of {sequenceTarget.steps.length}
+          </span>
+          <span className="rounded-full bg-zinc-900 px-2.5 py-1">
+            Completed: {completedCount}
           </span>
         </div>
 

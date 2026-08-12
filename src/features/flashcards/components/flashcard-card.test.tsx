@@ -24,6 +24,7 @@ const TARGET = {
 function renderCard(overrides: Partial<Parameters<typeof FlashcardCard>[0]> = {}) {
   return render(
     <FlashcardCard
+      completedCount={7}
       feedback="incorrect"
       isFocusMode={false}
       onCorrect={vi.fn()}
@@ -37,6 +38,15 @@ function renderCard(overrides: Partial<Parameters<typeof FlashcardCard>[0]> = {}
 }
 
 describe("FlashcardCard Mobile Play", () => {
+  it("shows the authoritative completed count in every presentation", () => {
+    const view = renderCard();
+    expect(screen.getByText("Completed: 7")).toBeTruthy();
+    view.rerender(<FlashcardCard completedCount={8} feedback="idle" isFocusMode isMobilePlayMode={false} onCorrect={vi.fn()} onIncorrect={vi.fn()} onToggleFocusMode={vi.fn()} practiceTarget={TARGET} showTargetName />);
+    expect(screen.getByText("Completed: 8")).toBeTruthy();
+    view.rerender(<FlashcardCard completedCount={9} feedback="idle" isFocusMode={false} isMobilePlayMode onCorrect={vi.fn()} onIncorrect={vi.fn()} onToggleFocusMode={vi.fn()} practiceTarget={TARGET} showTargetName />);
+    expect(screen.getByText("Completed: 9")).toBeTruthy();
+  });
+
   it("offers Mobile Play outside Focus Staff", () => {
     const onEnterMobilePlay = vi.fn();
     renderCard({ onEnterMobilePlay });

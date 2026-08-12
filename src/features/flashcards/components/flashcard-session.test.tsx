@@ -132,7 +132,11 @@ vi.mock("@/lib/practice/answer-validation", () => ({
 
 vi.mock("@/lib/practice/session-stats", () => ({
   INITIAL_PRACTICE_STATS: {
+    correct: 0,
+    incorrect: 0,
     state: "initial",
+    streak: 0,
+    totalResponseTimeMs: 0,
   },
   applyCorrectAttempt: mocks.applyCorrectAttempt,
   applyIncorrectAttempt: mocks.applyIncorrectAttempt,
@@ -185,6 +189,7 @@ vi.mock("@/components/midi/midi-status", () => ({
 
 vi.mock("@/features/flashcards/components/flashcard-card", () => ({
   default: ({
+    completedCount,
     feedback,
     isFocusMode,
     isMobilePlayMode,
@@ -193,6 +198,7 @@ vi.mock("@/features/flashcards/components/flashcard-card", () => ({
     onIncorrect,
     onToggleFocusMode,
   }: {
+    completedCount: number;
     feedback: string;
     isFocusMode: boolean;
     isMobilePlayMode: boolean;
@@ -203,6 +209,7 @@ vi.mock("@/features/flashcards/components/flashcard-card", () => ({
   }) => (
     <div>
       <span>Feedback: {feedback}</span>
+      <span>Completed: {completedCount}</span>
       <span>Mobile active: {String(isMobilePlayMode)}</span>
 
       {!isFocusMode ? <button onClick={onEnterMobilePlay} type="button">Mobile Play</button> : null}
@@ -333,11 +340,19 @@ describe("FlashcardSession", () => {
     mocks.lockFlashcardTarget.mockReturnValue(true);
 
     mocks.applyCorrectAttempt.mockReturnValue({
+      correct: 1,
+      incorrect: 0,
       state: "correct",
+      streak: 1,
+      totalResponseTimeMs: 0,
     });
 
     mocks.applyIncorrectAttempt.mockReturnValue({
+      correct: 0,
+      incorrect: 1,
       state: "incorrect",
+      streak: 0,
+      totalResponseTimeMs: 0,
     });
   });
 
@@ -350,6 +365,7 @@ describe("FlashcardSession", () => {
 
     expect(screen.getByText("Feedback: idle")).toBeTruthy();
     expect(screen.getByText("Stats: initial")).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(screen.getByText("Piano keyboard")).toBeTruthy();
     expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
@@ -364,6 +380,7 @@ describe("FlashcardSession", () => {
     );
 
     expect(screen.getByText("Stats: incorrect")).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -377,7 +394,17 @@ describe("FlashcardSession", () => {
     expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
 
     expect(screen.getByText("Stats: initial")).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(screen.getByText("Feedback: idle")).toBeTruthy();
+  });
+
+  it("exposes successful targets from the existing stats exactly once", () => {
+    renderFlashcardSession();
+    fireEvent.click(screen.getByRole("button", { name: "Simulate correct" }));
+    expect(screen.getByText("Completed: 1")).toBeTruthy();
+    expect(screen.getByText("Stats: correct")).toBeTruthy();
+    expect(mocks.applyCorrectAttempt).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText("Piano keyboard")).toHaveLength(1);
   });
 
   it("preserves target, feedback, statistics, and graded keyboard semantics in Mobile Play", () => {
@@ -389,6 +416,7 @@ describe("FlashcardSession", () => {
     expect(screen.queryByText(/Rotate your device/i)).toBeNull();
     expect(screen.getByText("Feedback: incorrect")).toBeTruthy();
     expect(screen.getByText("Stats: incorrect")).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(screen.getByText("Piano keyboard")).toBeTruthy();
     expect(mocks.generateTarget).not.toHaveBeenCalled();
     const props = mocks.pianoProps.mock.calls.at(-1)?.[0] as Record<string, unknown>;
@@ -438,6 +466,7 @@ describe("FlashcardSession", () => {
 
     expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
     expect(screen.getByRole("button", { name: "Exit Focus Staff" })).toBeTruthy();
+    expect(screen.getByText("Completed: 0")).toBeTruthy();
     expect(mocks.generateTarget).not.toHaveBeenCalled();
   });
 
@@ -577,9 +606,7 @@ describe("FlashcardSession", () => {
     expect(mocks.lockFlashcardTarget).toHaveBeenCalledTimes(1);
 
     expect(mocks.applyCorrectAttempt).toHaveBeenCalledWith(
-      {
-        state: "incorrect",
-      },
+      expect.objectContaining({ state: "incorrect" }),
       0,
     );
 
