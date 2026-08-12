@@ -35,4 +35,17 @@ describe("StaffBuilderScoreToolbar", () => {
     expect(volume.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByLabelText("Instrument volume")).toBeTruthy();
   });
+
+  it("offers accessible measure-relative insertion actions and applies the shared lock", () => {
+    const before = vi.fn();
+    const after = vi.fn();
+    const { rerender } = render(<StaffBuilderScoreToolbar measureIndex={1} onInsertMeasureAfter={after} onInsertMeasureBefore={before} onNavigate={vi.fn()} score={score} />);
+    fireEvent.click(screen.getByRole("button", { name: "Insert Measure Before Measure 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Insert Measure After Measure 2" }));
+    expect(before).toHaveBeenCalledOnce();
+    expect(after).toHaveBeenCalledOnce();
+    rerender(<StaffBuilderScoreToolbar measureIndex={1} navigationDisabled navigationDisabledReason="Playback owns the score." onInsertMeasureAfter={after} onInsertMeasureBefore={before} onNavigate={vi.fn()} score={score} />);
+    expect((screen.getByRole("button", { name: "Insert Measure Before Measure 2" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Insert Measure After Measure 2" }).getAttribute("title")).toBe("Playback owns the score.");
+  });
 });

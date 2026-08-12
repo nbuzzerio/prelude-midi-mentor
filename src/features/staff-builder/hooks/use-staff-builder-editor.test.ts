@@ -17,6 +17,67 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("inserts before or after the visible measure as one atomic Capture history edit", () => {
+    const original = appendStaffBuilderMeasure(appendStaffBuilderMeasure(score()));
+    const originalIds = original.measures.map(({ id }) => id);
+    const onDraftChange = vi.fn();
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 1, offsetTicks: 480 } };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState, onDraftChange }));
+    act(() => expect(result.current.insertMeasureBefore(1)).toBe(true));
+    const inserted = result.current.score;
+    expect(inserted.measures.filter(({ id }) => !originalIds.includes(id))).toHaveLength(1);
+    expect(inserted.measures[1]?.events).toEqual([]);
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 1, offsetTicks: 0 });
+    expect(result.current.editorPass).toBe("capture");
+    expect(result.current.canUndo).toBe(true);
+    expect(onDraftChange).toHaveBeenCalledOnce();
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score).toEqual(original);
+    expect(result.current.canUndo).toBe(false);
+    act(() => expect(result.current.redo()).toBe(true));
+    expect(result.current.score).toEqual(inserted);
+
+    act(() => expect(result.current.insertMeasureAfter(1)).toBe(true));
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 2, offsetTicks: 0 });
+  });
+
+  it("preserves Rhythm mode and clears its selection when inserting an empty measure", () => {
+    const current = insertUnresolvedStaffBuilderNotes(appendStaffBuilderMeasure(score()), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const selectedEventId = current.measures[0]!.events[0]!.id;
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId }, onDraftChange: vi.fn() }));
+    act(() => expect(result.current.insertMeasureAfter(0)).toBe(true));
+    expect(result.current.editorPass).toBe("rhythm");
+    expect(result.current.rhythm.measureIndex).toBe(1);
+    expect(result.current.rhythm.selection).toBeNull();
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 1, offsetTicks: 0 });
+  });
+
+  it("respects pending-discard confirmation and preserves pending input when insertion is canceled", () => {
+    const original = score();
+    const confirmDiscardPending = vi.fn(() => false);
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, confirmDiscardPending }));
+    act(() => result.current.addMidiPitch(60));
+    act(() => expect(result.current.insertMeasureAfter(0)).toBe(false));
+    expect(confirmDiscardPending).toHaveBeenCalledOnce();
+    expect(result.current.score).toBe(original);
+    expect(result.current.pending.treble).toEqual([60]);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  it("rejects an exact tied boundary with learner feedback and no mutation or history", () => {
+    const note = (id: string, pitchId: string) => ({ id, kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: pitchId, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] });
+    const original = { ...score(), measures: [{ id: "m1", events: [note("from", "p1")] }, { id: "m2", events: [note("to", "p2")] }], ties: [{ id: "tie", fromEventId: "from", fromPitchId: "p1", toEventId: "to", toPitchId: "p2" }] };
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange }));
+    act(() => expect(result.current.insertMeasureAfter(0)).toBe(false));
+    expect(result.current.score).toBe(original);
+    expect(result.current.captureStatus).toMatch(/tie crosses this measure boundary/i);
+    expect(result.current.canUndo).toBe(false);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
   it("persists tempo as one history mutation and supports Undo and Redo", () => {
     const original = score();
     const onDraftChange = vi.fn();

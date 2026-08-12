@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { StaffBuilderTimeSignature } from "./staff-builder-time";
 import {
   appendStaffBuilderMeasure,
   createStaffBuilderScore,
   getStaffBuilderEventsInScoreOrder,
+  insertStaffBuilderMeasure,
   insertStaffBuilderRest,
   insertStaffBuilderNotes,
   insertUnresolvedStaffBuilderNotes,
@@ -16,6 +17,7 @@ import {
   updateStaffBuilderTempo,
   type StaffBuilderFactories,
 } from "./staff-builder-score";
+import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 function factories(): StaffBuilderFactories {
   let id = 0;
@@ -28,6 +30,72 @@ function score(factory = factories()) {
 }
 
 describe("Staff Builder score", () => {
+  it.each([[0, ["new", "m1", "m2", "m3"]], [1, ["m1", "new", "m2", "m3"]], [2, ["m1", "m2", "new", "m3"]], [3, ["m1", "m2", "m3", "new"]]] as const)("inserts one empty measure at boundary %i", (insertionIndex, expectedIds) => {
+    const original = { ...score(), measures: ["m1", "m2", "m3"].map((id) => ({ id, events: [] })) };
+    const result = insertStaffBuilderMeasure(original, insertionIndex, { createId: () => "new", now: () => "updated" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.score.measures.map(({ id }) => id)).toEqual(expectedIds);
+    expect(result.score.measures[insertionIndex]).toEqual({ id: "new", events: [] });
+    expect(result.score.updatedAt).toBe("updated");
+    original.measures.forEach((measure) => expect(result.score.measures).toContain(measure));
+  });
+
+  it("rejects invalid insertion indexes without allocating or mutating", () => {
+    const original = score();
+    const createId = vi.fn(() => "new");
+    for (const index of [-1, 0.5, original.measures.length + 1]) {
+      expect(insertStaffBuilderMeasure(original, index, { createId, now: () => "updated" })).toEqual({ ok: false, score: original, error: "invalid-index" });
+    }
+    expect(createId).not.toHaveBeenCalled();
+  });
+
+  it("preserves authored identities, content, and downstream context overrides", () => {
+    const event = { id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] };
+    const downstream = { id: "m3", keySignatureChange: "g-major" as const, timeSignatureChange: "3/4" as const, events: [event] };
+    const original = { ...score(), measures: [{ id: "m1", events: [] }, { id: "m2", events: [] }, downstream] };
+    const before = JSON.stringify(original);
+    const result = insertStaffBuilderMeasure(original, 2, { createId: () => "new", now: () => "updated" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.score.measures[3]).toBe(downstream);
+    expect(result.score.measures[3]?.events[0]).toBe(event);
+    expect(resolveStaffBuilderMeasureContext(result.score, 2)).toMatchObject({ keySignatureId: "c-major", timeSignature: "4/4" });
+    expect(resolveStaffBuilderMeasureContext(result.score, 3)).toMatchObject({ keySignatureId: "g-major", timeSignature: "3/4" });
+    expect(JSON.stringify(original)).toBe(before);
+  });
+
+  it("rejects only the exact boundary crossed by a tie and preserves ties elsewhere", () => {
+    const note = (id: string, pitchId: string) => ({ id, kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: pitchId, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] });
+    const from = note("from", "from-pitch");
+    const to = note("to", "to-pitch");
+    const original = { ...score(), measures: [{ id: "m1", events: [from] }, { id: "m2", events: [to] }, { id: "m3", events: [] }], ties: [{ id: "tie", fromEventId: "from", fromPitchId: "from-pitch", toEventId: "to", toPitchId: "to-pitch" }] };
+    expect(insertStaffBuilderMeasure(original, 1)).toEqual({ ok: false, score: original, error: "tie-crosses-boundary" });
+    for (const index of [0, 2, 3]) {
+      const result = insertStaffBuilderMeasure(original, index, { createId: () => `new-${index}`, now: () => "updated" });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.score.ties).toBe(original.ties);
+    }
+  });
+
+  it("keeps an existing valid tie valid when inserting at an unrelated boundary", () => {
+    const note = (id: string, pitchId: string) => ({ id, kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: pitchId, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] });
+    const original = { ...score(), measures: [
+      { id: "m1", events: [{ id: "b1", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } }, { id: "t1", kind: "rest" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } }] },
+      { id: "m2", events: [{ id: "b2", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } }, note("from", "p1")] },
+      { id: "m3", events: [{ id: "b3", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } }, note("to", "p2")] },
+    ], ties: [{ id: "tie", fromEventId: "from", fromPitchId: "p1", toEventId: "to", toPitchId: "p2" }] };
+    expect(validateStaffBuilderScore(original)).toEqual([]);
+    const result = insertStaffBuilderMeasure(original, 1, { createId: () => "new", now: () => "updated" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const authored = { ...result.score, measures: result.score.measures.map((measure) => measure.id !== "new" ? measure : { ...measure, events: [
+      { id: "new-t", kind: "rest" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
+      { id: "new-b", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
+    ] }) };
+    expect(authored.ties).toBe(original.ties);
+    expect(validateStaffBuilderScore(authored)).toEqual([]);
+  });
   it("creates versioned metadata and an empty first measure with stable injected values", () => {
     expect(score()).toEqual({
       schemaVersion: 1, id: "id-1", title: "Prelude", createdAt: "2026-01-01T00:00:00.000Z",

@@ -10,7 +10,7 @@ import {
   type StaffBuilderPendingCapture,
   routeStaffBuilderCapturePitch,
 } from "../staff-builder-capture";
-import { resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
+import { insertStaffBuilderMeasure, resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
 import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, setStaffBuilderEventDuration, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScoreV1 } from "../staff-builder-types";
 import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
@@ -24,6 +24,7 @@ export type StaffBuilderEditorPass = "capture" | "rhythm";
 export type StaffBuilderPersistedEditorState = Readonly<{ editorPass: StaffBuilderEditorPass; captureState: StaffBuilderCaptureState; rhythmState: StaffBuilderRhythmState }>;
 
 const EMPTY_PENDING: StaffBuilderPendingCapture = { treble: [], bass: [] };
+export const STAFF_BUILDER_TIED_BOUNDARY_INSERT_MESSAGE = "A tie crosses this measure boundary. Remove or resolve the tie before inserting a measure here.";
 
 function hasPending(pending: StaffBuilderPendingCapture): boolean {
   return pending.treble.length > 0 || pending.bass.length > 0;
@@ -221,6 +222,24 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     return true;
   }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, validationActive]);
 
+  const insertMeasure = useCallback((insertionIndex: number) => {
+    if (validationActive) return false;
+    if (hasPending(pending) && !confirmDiscardPending()) return false;
+    const inserted = insertStaffBuilderMeasure(score, insertionIndex);
+    if (!inserted.ok) {
+      if (inserted.error === "tie-crosses-boundary") setCaptureStatus(STAFF_BUILDER_TIED_BOUNDARY_INSERT_MESSAGE);
+      return false;
+    }
+    const nextCaptureState = { ...captureState, cursor: { measureIndex: inserted.measureIndex, offsetTicks: 0 } };
+    const nextRhythmState = { measureIndex: inserted.measureIndex, selectedEventId: null };
+    history.record(score);
+    setPending(EMPTY_PENDING);
+    setCaptureStatus(`Inserted empty Measure ${inserted.measureIndex + 1}.`);
+    rhythm.goToMeasure(inserted.measureIndex);
+    persist(inserted.score, nextCaptureState, editorPass, nextRhythmState);
+    return true;
+  }, [captureState, confirmDiscardPending, editorPass, history, pending, persist, rhythm, score, validationActive]);
+
   const switchToRhythm = useCallback(() => {
     if (!getInitialStaffBuilderRhythmSelection(score)) return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
@@ -403,6 +422,8 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     captureRestAsNote,
     clearCurrentEntry: () => setPending(EMPTY_PENDING),
     goToMeasure,
+    insertMeasureBefore: (measureIndex: number) => insertMeasure(measureIndex),
+    insertMeasureAfter: (measureIndex: number) => insertMeasure(measureIndex + 1),
     validation: {
       active: validationActive,
       issues,

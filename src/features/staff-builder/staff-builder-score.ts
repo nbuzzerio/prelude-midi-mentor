@@ -79,6 +79,25 @@ export function appendStaffBuilderMeasure(score: StaffBuilderScoreV1, factories:
   return updated(score, factories, { measures: [...score.measures, { id: factories.createId(), events: [] }] });
 }
 
+export type InsertStaffBuilderMeasureResult =
+  | Readonly<{ ok: true; score: StaffBuilderScoreV1; measureIndex: number }>
+  | Readonly<{ ok: false; score: StaffBuilderScoreV1; error: "invalid-index" | "tie-crosses-boundary" }>;
+
+export function insertStaffBuilderMeasure(score: StaffBuilderScoreV1, insertionIndex: number, factories: StaffBuilderFactories = defaultFactories): InsertStaffBuilderMeasureResult {
+  if (!Number.isInteger(insertionIndex) || insertionIndex < 0 || insertionIndex > score.measures.length) {
+    return { ok: false, score, error: "invalid-index" };
+  }
+  if (insertionIndex > 0 && insertionIndex < score.measures.length) {
+    const eventMeasureIndexes = new Map<string, number>();
+    score.measures.forEach((measure, measureIndex) => measure.events.forEach(({ id }) => eventMeasureIndexes.set(id, measureIndex)));
+    if (score.ties.some(({ fromEventId, toEventId }) => eventMeasureIndexes.get(fromEventId) === insertionIndex - 1 && eventMeasureIndexes.get(toEventId) === insertionIndex)) {
+      return { ok: false, score, error: "tie-crosses-boundary" };
+    }
+  }
+  const measure: StaffBuilderMeasure = { id: factories.createId(), events: [] };
+  return { ok: true, measureIndex: insertionIndex, score: updated(score, factories, { measures: [...score.measures.slice(0, insertionIndex), measure, ...score.measures.slice(insertionIndex)] }) };
+}
+
 export function renameStaffBuilderScore(score: StaffBuilderScoreV1, title: string, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScoreV1 {
   return updated(score, factories, { title });
 }

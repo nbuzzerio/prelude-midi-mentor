@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { durationToTicks, getMeasureCapacityTicks, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "@/features/staff-builder/staff-builder-time";
+import { insertStaffBuilderMeasure } from "@/features/staff-builder/staff-builder-score";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
 import type { NoteLetter } from "@/lib/music/note-utils";
 import { projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
@@ -322,6 +323,16 @@ describe("Staff Builder piece-practice projection", () => {
     const result = projectStaffBuilderPieceForPractice(gap);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.issues.some(({ code }) => code === "gap")).toBe(true);
+  });
+
+  it("rejects a newly inserted empty measure through the existing validation gate", () => {
+    const valid = score({ measures: [completeMeasure("m1", 1920, [notes("attack", "treble", 0, "quarter", [pitch("attack-p", 60)])])] });
+    const inserted = insertStaffBuilderMeasure(valid, 1, { createId: () => "empty", now: () => NOW });
+    expect(inserted.ok).toBe(true);
+    if (!inserted.ok) return;
+    const result = projectStaffBuilderPieceForPractice(inserted.score);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues.filter(({ code, target }) => code === "gap" && target.measureIndex === 1)).toHaveLength(2);
   });
 
   it("uses deterministic measure, target, source-event, and absolute-tick ordering", () => {
