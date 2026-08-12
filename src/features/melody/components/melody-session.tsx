@@ -29,6 +29,7 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const [result, setResult] = useState<MelodyAttemptResult | null>(null);
   const [statusMessage, setStatusMessage] = useState("Ready to start.");
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [interruptionNotice, setInterruptionNotice] = useState<string | null>(null);
   const [activeTick, setActiveTick] = useState<number | undefined>();
   const [countInBeat, setCountInBeat] = useState(1);
   const [activeVirtual, setActiveVirtual] = useState<ReadonlySet<number>>(EMPTY);
@@ -38,6 +39,7 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const recorderRef = useRef<MelodyPerformanceRecorder | null>(null);
   const animationRef = useRef<number | null>(null);
   const generationRef = useRef(0);
+  const presentationRef = useRef<MelodyPresentationState>(presentation);
   const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
   const score = useMemo(() => projectMelodyExerciseToDisplayScore(exercise), [exercise]);
   const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -54,6 +56,8 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     setLockedSource(null);
   }, []);
 
+  presentationRef.current = presentation;
+
   useEffect(() => () => {
     cancelAttempt();
     const context = audioContextRef.current;
@@ -62,6 +66,17 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     try { void context.close().catch(() => undefined); } catch { /* Browser audio teardown is best-effort. */ }
   }, [cancelAttempt]);
   useEffect(() => { if (presentation === "results") resultsHeadingRef.current?.focus(); }, [presentation]);
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "hidden" || !(["starting", "count-in", "performing"] as MelodyPresentationState[]).includes(presentationRef.current)) return;
+      cancelAttempt();
+      setResult(null);
+      setPresentation("setup");
+      setInterruptionNotice("Exercise stopped because Prelude was no longer active.");
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [cancelAttempt]);
 
   function sampleClock(generation: number) {
     const clock = clockRef.current;
@@ -100,6 +115,7 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     cancelAttempt();
     const generation = generationRef.current;
     setAudioError(null);
+    setInterruptionNotice(null);
     setResult(null);
     setPresentation("starting");
     try {
@@ -138,6 +154,7 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     setResult(null);
     setPresentation("setup");
     setStatusMessage("Ready to start.");
+    setInterruptionNotice(null);
   };
   const changeSetting = <K extends keyof MelodySettings>(key: K, value: MelodySettings[K]) => replaceExercise({ ...settings, [key]: value }, seedFactory());
   const retrySame = () => { cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Ready to retry the same melody."); };
@@ -148,22 +165,23 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const measureTick = activeTick === undefined ? undefined : activeTick - currentMeasureIndex * MELODY_PHASE_ONE_METER.capacityTicks;
   const range = settings.staff === "treble" ? { min: 60, max: 72 } : { min: 48, max: 60 };
 
-  return <section className="mx-auto max-w-6xl space-y-5 text-zinc-100" data-testid="melody-session">
-    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></header>
+  return <section className={`melody-session melody-session-${presentation} mx-auto max-w-6xl space-y-5 text-zinc-100`} data-testid="melody-session">
+    <header className="melody-header flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></header>
     <p aria-live="polite" className="sr-only">{statusMessage}</p>
-    {presentation === "setup" && <fieldset className="grid gap-3 rounded-xl bg-zinc-900 p-4 sm:grid-cols-4"><legend>Exercise settings</legend>
+    {presentation === "setup" && <fieldset className="melody-settings grid gap-3 rounded-xl bg-zinc-900 p-4 sm:grid-cols-4"><legend>Exercise settings</legend>
       <label>Staff<select aria-label="Staff" onChange={(event) => changeSetting("staff", event.target.value as MelodySettings["staff"])} value={settings.staff}><option value="treble">Treble</option><option value="bass">Bass</option></select></label>
       <label>Key<select aria-label="Key" onChange={(event) => changeSetting("keyId", event.target.value as MelodySettings["keyId"])} value={settings.keyId}><option value="c-major">C major</option><option value="g-major">G major</option><option value="f-major">F major</option><option value="a-minor">A minor</option><option value="d-minor">D minor</option></select></label>
       <label>Tempo<select aria-label="Tempo" onChange={(event) => changeSetting("tempoBpm", Number(event.target.value) as MelodySettings["tempoBpm"])} value={settings.tempoBpm}>{[50, 60, 70, 80].map((bpm) => <option key={bpm} value={bpm}>{bpm} BPM</option>)}</select></label>
       <label>Length<select aria-label="Length" onChange={(event) => changeSetting("measureCount", Number(event.target.value) as 1 | 2)} value={settings.measureCount}><option value={1}>1 measure</option><option value={2}>2 measures</option></select></label>
     </fieldset>}
-    {presentation !== "results" && <><div className="overflow-x-auto"><div className="grid min-w-[42rem] gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div>
+    {presentation !== "results" && <><div className="melody-score-scroll" data-measure-count={exercise.measures.length}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div></div>
       {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => void start()} type="button">Start Exercise</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
       {presentation === "count-in" && <p className="text-xl"><strong>Count in</strong> {countInBeat}</p>}
       {presentation === "performing" && <p className="text-xl"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
-      <PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></>}
+      {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
+      <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></>}
     {presentation === "results" && result && <MelodyResults onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} />}
   </section>;
 }

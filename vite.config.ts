@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
+import { PRELUDE_PWA_GLOB_PATTERNS } from "./src/pwa-assets";
 
 export default defineConfig({
   base: "/prelude/",
@@ -59,7 +60,7 @@ export default defineConfig({
 
       workbox: {
         navigateFallback: "/prelude/index.html",
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        globPatterns: PRELUDE_PWA_GLOB_PATTERNS,
       },
 
       devOptions: {

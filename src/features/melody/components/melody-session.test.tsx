@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MelodySession from "./melody-session";
 
@@ -25,6 +25,7 @@ function fakeAudio() {
 
 describe("MelodySession", () => {
   afterEach(() => {
+    cleanup();
     document.body.replaceChildren();
     vi.unstubAllGlobals();
   });
@@ -35,6 +36,7 @@ describe("MelodySession", () => {
     vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => { frame = callback; return 1; }));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     Object.assign(globalThis, { runMelodyFrame: () => frame?.(0) });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   });
 
   it("shows defaults, generated notation, one keyboard, and changes settings", () => {
@@ -47,6 +49,92 @@ describe("MelodySession", () => {
     expect(screen.getByText("Keyboard 48-60")).toBeTruthy();
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "2" } });
     expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
+  });
+
+  it("keeps one responsive keyboard and one shared score/count scroll track for both measures", () => {
+    const { container } = render(<MelodySession seedFactory={() => "seed"} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "2" } });
+    expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
+    const scroll = container.querySelector(".melody-score-scroll");
+    expect(scroll?.getAttribute("data-measure-count")).toBe("2");
+    expect(scroll?.querySelectorAll(".melody-score-track")).toHaveLength(1);
+    expect(scroll?.querySelectorAll('[aria-label="Count guide"]')).toHaveLength(1);
+  });
+
+  it("preserves exercise and lazy AudioContext ownership across resize", async () => {
+    const audio = fakeAudio();
+    const createAudioContext = vi.fn(() => audio.context);
+    render(<MelodySession createAudioContext={createAudioContext} seedFactory={() => "stable"} />);
+    const scoreBefore = screen.getByText("Score measure 1");
+    fireEvent(window, new Event("resize"));
+    expect(screen.getByText("Score measure 1")).toBe(scoreBefore);
+    expect(createAudioContext).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    fireEvent(window, new Event("resize"));
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Count in")).toBeTruthy();
+  });
+
+  it.each(["count-in", "performing"] as const)("aborts without scoring when hidden during %s", async (phase) => {
+    const audio = fakeAudio();
+    render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    if (phase === "performing") {
+      audio.setNow(4.1);
+      act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    }
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(screen.getByRole("status").textContent).toContain("no longer active");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getAllByText(/Exercise stopped because Prelude was no longer active/)).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Melody results" })).toBeNull();
+    expect(audio.close).not.toHaveBeenCalled();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+  });
+
+  it("aborts safely while audio startup is pending", async () => {
+    const audio = fakeAudio();
+    let resolveResume: (() => void) | undefined;
+    audio.context.state = "suspended";
+    audio.context.resume.mockImplementation(() => new Promise<undefined>((resolve) => { resolveResume = () => resolve(undefined); }));
+    render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
+    act(() => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    expect(screen.getByText("Starting audio…")).toBeTruthy();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(screen.getByRole("status").textContent).toContain("no longer active");
+    expect(screen.queryByRole("alert")).toBeNull();
+    resolveResume?.();
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(audio.nodes.every(({ stop }) => stop.mock.calls.length >= 2)).toBe(true);
+  });
+
+  it("ignores visibility changes during setup and results and removes its listener on unmount", async () => {
+    const add = vi.spyOn(document, "addEventListener");
+    const remove = vi.spyOn(document, "removeEventListener");
+    const audio = fakeAudio();
+    const view = render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(8.6);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
+    view.unmount();
+    expect(add.mock.calls.some(([type]) => type === "visibilitychange")).toBe(true);
+    expect(remove.mock.calls.some(([type]) => type === "visibilitychange")).toBe(true);
+    add.mockRestore();
+    remove.mockRestore();
   });
 
   it("starts explicitly, samples authoritative clock, records continuously, and presents results", async () => {

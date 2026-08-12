@@ -18,6 +18,44 @@ button {
   font: inherit;
 }
 
+.melody-session { min-width: 0; padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+.melody-settings label { display: grid; gap: 0.25rem; min-width: 0; }
+.melody-settings select { width: 100%; min-width: 0; }
+.melody-score-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+.melody-score-track { min-width: 0; }
+.melody-score-measures,
+.melody-count-guide { width: 100%; }
+.melody-count-guide span { white-space: nowrap; }
+.melody-keyboard { min-width: 0; padding-bottom: max(0rem, env(safe-area-inset-bottom)); }
+.melody-keyboard .piano-keyboard { touch-action: none; user-select: none; -webkit-user-select: none; }
+.melody-keyboard .piano-keyboard button { touch-action: none; }
+.melody-results-grid article { min-width: 0; border: 1px solid rgb(63 63 70); border-radius: 0.75rem; padding: 0.75rem; }
+.melody-result-actions { padding-bottom: max(0rem, env(safe-area-inset-bottom)); }
+
+@media (max-width: 639px) {
+  .melody-session { gap: 0.75rem; }
+  .melody-header { gap: 0.5rem; }
+  .melody-header h1 { font-size: 1.25rem; }
+  .melody-header p { font-size: 0.875rem; }
+  .melody-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0.75rem; }
+  .melody-score-scroll[data-measure-count="2"] .melody-score-track { width: 42rem; }
+  .melody-keyboard .piano-keyboard { min-height: 10rem; padding: 0.375rem; }
+  .melody-keyboard .piano-keyboard > div { min-height: 9rem; }
+  .melody-result-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .melody-result-actions button { min-width: 0; }
+}
+
+@media (max-height: 540px) and (orientation: landscape) {
+  .melody-session-count-in,
+  .melody-session-performing { gap: 0.4rem; }
+  .melody-session-count-in .melody-header p,
+  .melody-session-performing .melody-header p { display: none; }
+  .melody-session-count-in .melody-keyboard .piano-keyboard,
+  .melody-session-performing .melody-keyboard .piano-keyboard { min-height: 8rem; }
+  .melody-session-count-in .melody-keyboard .piano-keyboard > div,
+  .melody-session-performing .melody-keyboard .piano-keyboard > div { min-height: 7rem; }
+}
+
 .prelude-mode-group-start { margin-inline-start: 1rem; }
 
 .staff-builder-shell {
