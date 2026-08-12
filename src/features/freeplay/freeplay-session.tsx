@@ -206,16 +206,13 @@ export default function FreeplaySession({
             Exit Mobile Play
           </button>
 
-          <p className="mobile-play-rotate-message">
-            Rotate your device for the best layout.
-          </p>
         </>
       ) : null}
 
       <div className="practice-stage">
         <section className="relative flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5">
           <div
-            className="absolute bottom-3 right-3 z-20"
+            className="freeplay-task-actions flex flex-wrap justify-end gap-2"
             hidden={isMobilePlayActive}
           >
             <FocusStaffControl
@@ -225,7 +222,7 @@ export default function FreeplaySession({
 
             {!isFocusMode ? (
               <button
-                className="ml-2 rounded-lg md:hidden border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
+                className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
                 onClick={handleEnterMobilePlay}
                 type="button"
               >

@@ -40,7 +40,9 @@ describe("FlashcardCard Mobile Play", () => {
   it("offers Mobile Play outside Focus Staff", () => {
     const onEnterMobilePlay = vi.fn();
     renderCard({ onEnterMobilePlay });
-    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    const entry = screen.getByRole("button", { name: "Mobile Play" });
+    expect(entry.classList.contains("practice-mobile-play-entry")).toBe(true);
+    fireEvent.click(entry);
     expect(onEnterMobilePlay).toHaveBeenCalledTimes(1);
   });
 

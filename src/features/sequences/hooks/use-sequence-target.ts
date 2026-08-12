@@ -1,6 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
+import {
+  SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
+  SEQUENCE_DEFAULT_TIMING,
+} from "@/lib/music/sequence-timing";
 import { getClefForMode } from "@/lib/music/note-utils";
 import type {
   ChordProgressionKeyId,
@@ -27,6 +31,7 @@ const INITIAL_SEQUENCE_TARGET: SequenceTarget = {
   },
   steps: [
     {
+      durationTicks: SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
       notes: [
         {
           midiNumber: 60,
@@ -36,6 +41,7 @@ const INITIAL_SEQUENCE_TARGET: SequenceTarget = {
       ],
     },
     {
+      durationTicks: SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
       notes: [
         {
           midiNumber: 64,
@@ -45,6 +51,7 @@ const INITIAL_SEQUENCE_TARGET: SequenceTarget = {
       ],
     },
   ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 };
 
 type UseSequenceTargetOptions = Readonly<{

@@ -309,12 +309,16 @@ describe("FreeplaySession notation settings", () => {
   });
 
   it("preserves held notes and notation settings across Mobile Play entry and exit", () => {
-    renderInteractiveSession();
+    const { container } = renderInteractiveSession();
     fireEvent.change(screen.getByRole("combobox", { name: "Key" }), {
       target: { value: "f-major" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Toggle MIDI 70" }));
-    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    const entry = screen.getByRole("button", { name: "Mobile Play" });
+    expect(entry.classList.contains("practice-mobile-play-entry")).toBe(true);
+    expect(container.querySelectorAll(".freeplay-task-actions")).toHaveLength(1);
+    fireEvent.click(entry);
+    expect(screen.queryByText(/Rotate your device/i)).toBeNull();
     expect(screen.getByTestId("staff-notes").textContent).toBe("B♭4:70");
 
     fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));

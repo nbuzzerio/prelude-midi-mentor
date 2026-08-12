@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScoreV1 } from "@/features/staff-builder/staff-builder-types";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
@@ -9,8 +10,9 @@ import { PiecePracticeSession } from "./piece-practice-session";
 
 const mocks = vi.hoisted(() => ({
   feedback: { status: "idle", source: null, grade: null } as PiecePracticeInputFeedback,
-  mobile: false,
   resetInput: vi.fn(),
+  inputMounts: 0,
+  inputUnmounts: 0,
   useInputCalls: 0,
   inputOptions: null as null | { piece: PiecePracticePiece; sessionState: import("../piece-practice-session").PiecePracticeSessionState; onSessionStateChange: (state: import("../piece-practice-session").PiecePracticeSessionState) => void },
   scoreProps: null as null | Record<string, unknown>,
@@ -24,12 +26,21 @@ vi.mock("@/features/staff-builder/components/staff-builder-score-view", () => ({
     return <div aria-label="Read-only authored score" data-highlights={highlights.map(({ eventId }) => eventId).join(",")} data-testid="score-view" />;
   },
 }));
-vi.mock("@/features/staff-builder/hooks/use-staff-builder-mobile-presentation", () => ({ useStaffBuilderMobilePresentation: () => mocks.mobile }));
+vi.mock("@/hooks/use-mobile-play", () => ({
+  useMobilePlay: () => {
+    const [isMobilePlayMode, setIsMobilePlayMode] = useState(false);
+    return { enterMobilePlay: () => setIsMobilePlayMode(true), exitMobilePlay: () => setIsMobilePlayMode(false), isMobilePlayMode };
+  },
+}));
 vi.mock("@/lib/audio/feedback", () => ({ playSuccessChirp: mocks.success, playIncorrectFeedback: mocks.incorrect }));
 vi.mock("../hooks/use-piece-practice-input", () => ({
   usePiecePracticeInput: (options: NonNullable<typeof mocks.inputOptions>) => {
     mocks.useInputCalls += 1;
     mocks.inputOptions = options;
+    useEffect(() => {
+      mocks.inputMounts += 1;
+      return () => { mocks.inputUnmounts += 1; };
+    }, []);
     return {
       connectMidi: vi.fn(), deviceName: "Test Piano", error: null, status: "connected",
       feedback: mocks.feedback, midiChordAttemptMidiNumbers: new Set<number>(), midiHeldNotes: new Set<number>(),
@@ -111,9 +122,12 @@ function start(source = piece(), measure = 1) {
 
 beforeEach(() => {
   mocks.feedback = { status: "idle", source: null, grade: null };
-  mocks.mobile = false; mocks.resetInput.mockClear(); mocks.useInputCalls = 0; mocks.inputOptions = null; mocks.scoreProps = null; mocks.success.mockClear(); mocks.incorrect.mockClear();
+  mocks.resetInput.mockClear(); mocks.useInputCalls = 0; mocks.inputMounts = 0; mocks.inputUnmounts = 0; mocks.inputOptions = null; mocks.scoreProps = null; mocks.success.mockClear(); mocks.incorrect.mockClear();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("PiecePracticeSession", () => {
   it("offers an accessible Start at Measure setup and initializes the selected range", () => {
@@ -195,17 +209,100 @@ describe("PiecePracticeSession", () => {
     expect(mocks.resetInput).toHaveBeenCalledTimes(1);
   });
 
-  it("shows MIDI status and exactly one desktop or mobile keyboard without resetting progress", () => {
-    const rendered = start();
+  it("requires explicit Mobile Play on narrow/coarse layouts and preserves one input tree", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    start();
     expect(screen.getByRole("button", { name: "Test Piano" })).toBeTruthy();
     expect(screen.getAllByTestId("piano-keyboard")).toHaveLength(1);
-    expect(screen.getByLabelText("Practice keyboard").dataset.presentation).toBe("desktop");
+    expect(screen.getByLabelText("Practice keyboard").dataset.presentation).toBe("standard");
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+    expect(mocks.inputMounts).toBe(1);
+
     act(() => submit([60, 64]));
-    mocks.mobile = true;
-    rendered.rerender(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} />);
+    const entry = screen.getByRole("button", { name: "Mobile Play" });
+    expect(entry.classList.contains("practice-mobile-play-entry")).toBe(true);
+    fireEvent.click(entry);
     expect(screen.getAllByTestId("piano-keyboard")).toHaveLength(1);
-    expect(screen.getByLabelText("Practice keyboard").dataset.presentation).toBe("mobile");
+    expect(screen.getByLabelText("Practice keyboard").dataset.presentation).toBe("mobile-play");
     expect(screen.getByText("Target 2 of 2")).toBeTruthy();
+    expect(mocks.inputMounts).toBe(1);
+    expect(mocks.inputUnmounts).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    expect(screen.getByLabelText("Practice keyboard").dataset.presentation).toBe("standard");
+    expect(screen.getByText("Target 2 of 2")).toBeTruthy();
+    expect(mocks.inputMounts).toBe(1);
+  });
+
+  it("keeps blocking mistakes and session timing state through Mobile Play", () => {
+    start();
+    act(() => submit([60, 65]));
+    expect(mocks.inputOptions?.sessionState).toMatchObject({
+      currentMeasureIndex: 0,
+      currentTargetIndex: 0,
+      currentTargetIncorrectAttemptCount: 1,
+      incorrectAttemptCount: 1,
+      startedAtMs: 65_000,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+
+    expect(screen.getByText("Target 1 of 2")).toBeTruthy();
+    expect(screen.getByText(/Incorrect .* try the same target again\./)).toBeTruthy();
+    expect(mocks.inputOptions?.sessionState).toMatchObject({
+      currentTargetIncorrectAttemptCount: 1,
+      incorrectAttemptCount: 1,
+      startedAtMs: 65_000,
+    });
+  });
+
+  it("keeps restart and explicit no-attack progression controls working in Mobile Play", () => {
+    start();
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restart Measure" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restart Piece" }));
+    expect(mocks.resetInput).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+
+    act(() => submit([60, 64]));
+    act(() => submit([67]));
+    expect(screen.getByText("Measure 2 of 3")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Next Measure" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+    expect(screen.getByText("Measure 3 of 3")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+  });
+
+  it("distinguishes Mobile Play exit from Piece Practice exit and restores focus", async () => {
+    const onExit = vi.fn();
+    render(<PiecePracticeSession now={() => 65_000} onExit={onExit} piece={piece()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
+    expect(onExit).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Piece Practice" }));
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it("remains in Mobile Play through completion and Practice Again", () => {
+    start(piece(), 3);
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    act(() => submit([69]));
+    expect(screen.getByRole("heading", { name: "Piece complete" })).toBe(document.activeElement);
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(screen.getByText("Completed targets")).toBeTruthy();
+    expect(screen.getByText("Mistakes")).toBeTruthy();
+    expect(screen.getByText("Elapsed")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(screen.getByText(/Measure 3 of 3 .* Practicing from Measure 3/)).toBeTruthy();
   });
 
   it("routes virtual keyboard presses through the single input owner", () => {

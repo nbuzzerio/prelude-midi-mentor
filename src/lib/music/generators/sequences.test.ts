@@ -12,6 +12,10 @@ import type {
 
 import { isNaturalMidiNumber } from "../note-utils";
 import {
+  SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
+  SEQUENCE_DEFAULT_TIMING,
+} from "../sequence-timing";
+import {
   generateSequenceTarget,
   getIntervalSemitones,
   type GenerateSequenceTargetOptions,
@@ -74,6 +78,36 @@ describe("getIntervalSemitones", () => {
 });
 
 describe("generateSequenceTarget", () => {
+  it.each([
+    ["intervals", "ascending"],
+    ["scales", "ascending"],
+    ["scales", "descending"],
+    ["scales", "ascending-descending"],
+    ["arpeggios", "ascending"],
+  ] as const)(
+    "assigns the default timing convention to %s (%s)",
+    (exerciseType, direction) => {
+      const target = generateExistingSequenceTarget({
+        exerciseType,
+        clef: "treble",
+        enabledArpeggios: ENABLED_ARPEGGIOS,
+        enabledDirections: new Set([direction === "ascending-descending" ? "ascending" : direction]),
+        enabledIntervals: new Set(["major-third"]),
+        enabledNoteCategories: new Set(["naturals", "accidentals"]),
+        enabledScaleDirections: new Set([direction]),
+        enabledScales: ENABLED_SCALES,
+      });
+
+      expect(target.timing).toEqual(SEQUENCE_DEFAULT_TIMING);
+      expect(
+        target.steps.every(
+          ({ durationTicks }) =>
+            durationTicks === SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
+        ),
+      ).toBe(true);
+    },
+  );
+
   it("generates an ascending interval with the correct distance", () => {
     const target = generateExistingSequenceTarget({
       exerciseType: "intervals",
@@ -224,6 +258,24 @@ function generateProgressionTarget({
 }
 
 describe("chord progression sequence targets", () => {
+  it("assigns one default duration to each simultaneous chord attack", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const target = generateProgressionTarget({
+      clef: "treble",
+      keyIds: new Set(["c-major"]),
+      templateIds: new Set(["major-1451"]),
+    });
+
+    expect(target.timing).toEqual(SEQUENCE_DEFAULT_TIMING);
+    expect(target.steps.some(({ notes }) => notes.length > 1)).toBe(true);
+    expect(
+      target.steps.every(
+        ({ durationTicks }) =>
+          durationTicks === SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
+      ),
+    ).toBe(true);
+  });
+
   it("maps a realized progression to target and step metadata", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
@@ -239,6 +291,7 @@ describe("chord progression sequence targets", () => {
     });
     expect(target.steps).toEqual([
       {
+        durationTicks: 480,
         name: { primary: "I", secondary: "C major" },
         notes: [
           { midiNumber: 60, name: "C", octave: 4 },
@@ -247,6 +300,7 @@ describe("chord progression sequence targets", () => {
         ],
       },
       {
+        durationTicks: 480,
         name: { primary: "IV", secondary: "F major" },
         notes: [
           { midiNumber: 65, name: "F", octave: 4 },
@@ -255,6 +309,7 @@ describe("chord progression sequence targets", () => {
         ],
       },
       {
+        durationTicks: 480,
         name: { primary: "V", secondary: "G major" },
         notes: [
           { midiNumber: 67, name: "G", octave: 4 },
@@ -263,6 +318,7 @@ describe("chord progression sequence targets", () => {
         ],
       },
       {
+        durationTicks: 480,
         name: { primary: "I", secondary: "C major" },
         notes: [
           { midiNumber: 60, name: "C", octave: 4 },

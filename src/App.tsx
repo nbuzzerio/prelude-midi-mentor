@@ -68,15 +68,19 @@ export default function App() {
     <MidiProvider><main className="min-h-screen bg-zinc-950 p-2 sm:p-5 lg:p-10">
       <nav
         aria-label="Prelude modes"
-        className="mx-auto mb-4 flex w-full max-w-7xl flex-wrap gap-2"
+        className="prelude-mode-nav mx-auto mb-4 flex w-full max-w-7xl flex-nowrap gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible"
         hidden={isFocusMode}
+        onFocus={(event) => {
+          const focusedButton = (event.target as HTMLElement).closest("button");
+          focusedButton?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        }}
       >
         <button
           aria-pressed={practiceSection === "freeplay"}
-          className={`rounded px-4 py-2 transition ${
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${
             practiceSection === "freeplay"
-              ? "bg-sky-500 text-white"
-              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              ? "border-white bg-sky-500 font-bold text-white"
+              : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
           onClick={() => setPracticeSection("freeplay")}
           type="button"
@@ -86,10 +90,11 @@ export default function App() {
 
         <button
           aria-pressed={practiceSection === "staff-builder"}
-          className={`rounded px-4 py-2 transition ${
+          aria-label="Staff Builder"
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${
             practiceSection === "staff-builder"
-              ? "bg-sky-500 text-white"
-              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              ? "border-white bg-sky-500 font-bold text-white"
+              : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
           onClick={() => {
             exitFocusMode();
@@ -97,15 +102,16 @@ export default function App() {
           }}
           type="button"
         >
-          Staff Builder
+          <span className="sm:hidden">Staff</span>
+          <span className="hidden sm:inline">Staff Builder</span>
         </button>
 
         <button
           aria-pressed={practiceSection === "flashcards"}
-          className={`prelude-mode-group-start rounded px-4 py-2 transition ${
+          className={`prelude-mode-button prelude-mode-group-start shrink-0 rounded border px-3 py-2 transition sm:px-4 ${
             practiceSection === "flashcards"
-              ? "bg-sky-500 text-white"
-              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              ? "border-white bg-sky-500 font-bold text-white"
+              : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
           onClick={() => setPracticeSection("flashcards")}
           type="button"
@@ -115,10 +121,10 @@ export default function App() {
 
         <button
           aria-pressed={practiceSection === "sequence"}
-          className={`rounded px-4 py-2 transition ${
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${
             practiceSection === "sequence"
-              ? "bg-sky-500 text-white"
-              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              ? "border-white bg-sky-500 font-bold text-white"
+              : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
           onClick={() => setPracticeSection("sequence")}
           type="button"
@@ -128,10 +134,11 @@ export default function App() {
 
         <button
           aria-pressed={practiceSection === "ear-training"}
-          className={`rounded px-4 py-2 transition ${
+          aria-label="Ear Training"
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${
             practiceSection === "ear-training"
-              ? "bg-sky-500 text-white"
-              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              ? "border-white bg-sky-500 font-bold text-white"
+              : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
           onClick={() => {
             exitFocusMode();
@@ -139,12 +146,13 @@ export default function App() {
           }}
           type="button"
         >
-          Ear Training
+          <span className="sm:hidden">Ear</span>
+          <span className="hidden sm:inline">Ear Training</span>
         </button>
 
         <button
           aria-pressed={practiceSection === "melody"}
-          className={`rounded px-4 py-2 transition ${practiceSection === "melody" ? "bg-sky-500 text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "melody" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
           onClick={() => { exitFocusMode(); setPracticeSection("melody"); }}
           type="button"
         >

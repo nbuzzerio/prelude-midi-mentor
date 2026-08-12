@@ -114,6 +114,21 @@ describe("usePiecePracticeInput", () => {
     expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
   });
 
+  it("preserves one pending physical chord collector through a same-target presentation rerender", () => {
+    const view = setup(piece([[[60, 64, 67]]]));
+    midiHeld(60, 64, 67);
+    midiNote(60);
+    view.sync();
+    midiNote(64);
+    midiNote(67);
+    act(() => vi.advanceTimersByTime(225));
+
+    expect(view.onSessionStateChange).toHaveBeenCalledTimes(1);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+    expect(midiMock.mountCount).toBe(1);
+    expect(midiMock.unmountCount).toBe(0);
+  });
+
   it.each([
     { name: "missing", played: [60, 64], held: [60, 64] },
     { name: "extra", played: [60, 64, 67, 69], held: [60, 64, 67, 69] },
@@ -214,6 +229,18 @@ describe("usePiecePracticeInput", () => {
     act(() => view.result.current.onVirtualNoteToggle(67));
     expect(view.getState().status).toBe("piece-complete");
     expect(view.result.current.virtualSelectedMidiNumbers.size).toBe(0);
+  });
+
+  it("preserves a partial virtual chord through a same-target presentation rerender", () => {
+    const view = setup(piece([[[60, 64, 67]]]));
+    act(() => view.result.current.onVirtualNoteToggle(60));
+    view.sync();
+
+    expect([...view.result.current.virtualSelectedMidiNumbers]).toEqual([60]);
+    act(() => view.result.current.onVirtualNoteToggle(64));
+    expect([...view.result.current.virtualSelectedMidiNumbers].sort()).toEqual([60, 64]);
+    expect(midiMock.mountCount).toBe(1);
+    expect(midiMock.unmountCount).toBe(0);
   });
 
   it("clears a wrong virtual chord for retry and never merges MIDI and virtual attacks", () => {

@@ -119,10 +119,15 @@ describe("EarTrainingSession", () => {
 
   it("preserves target-local and session state through Mobile Play", () => {
     render(<EarTrainingSession />);
+    expect(screen.getByText("Prelude · Ear Training")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Ear Training/ })).toBeTruthy();
     playPrompt();
     fireEvent.click(screen.getByRole("button", { name: "Minor second" }));
-    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    const entry = screen.getByRole("button", { name: "Mobile Play" });
+    expect(entry.classList.contains("practice-mobile-play-entry")).toBe(true);
+    fireEvent.click(entry);
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(screen.queryByText(/Rotate your device/i)).toBeNull();
     expect((screen.getByRole("button", { name: "Minor second" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Try again.")).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Ear Training settings" })).toBeNull();

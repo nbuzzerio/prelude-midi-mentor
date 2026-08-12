@@ -4,6 +4,7 @@ import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { StaffBuilderScoreView } from "@/features/staff-builder/components/staff-builder-score-view";
 import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-builder-time";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
 import { createMelodyBrowserAudioContext, type MelodyOwnedAudioContext } from "../melody-browser-audio";
 import { createMelodyPerformanceClock, type MelodyPerformanceClock } from "../melody-clock";
 import { projectMelodyExerciseToDisplayScore } from "../melody-display-score";
@@ -41,6 +42,8 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const generationRef = useRef(0);
   const presentationRef = useRef<MelodyPresentationState>(presentation);
   const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
+  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
   const score = useMemo(() => projectMelodyExerciseToDisplayScore(exercise), [exercise]);
   const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -161,12 +164,18 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const tryAnother = () => replaceExercise(settings, seedFactory());
   const returnSettings = () => { cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Settings ready."); };
 
+  const handleExitMobilePlay = () => {
+    exitMobilePlay();
+    window.setTimeout(() => mobilePlayEntryRef.current?.focus(), 0);
+  };
+
   const currentMeasureIndex = activeTick === undefined ? 0 : Math.min(exercise.measures.length - 1, Math.floor(activeTick / MELODY_PHASE_ONE_METER.capacityTicks));
   const measureTick = activeTick === undefined ? undefined : activeTick - currentMeasureIndex * MELODY_PHASE_ONE_METER.capacityTicks;
   const range = settings.staff === "treble" ? { min: 60, max: 72 } : { min: 48, max: 60 };
 
-  return <section className={`melody-session melody-session-${presentation} mx-auto max-w-6xl space-y-5 text-zinc-100`} data-testid="melody-session">
-    <header className="melody-header flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></header>
+  return <section className={isMobilePlayMode ? `melody-session melody-session-${presentation} melody-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} mx-auto max-w-6xl space-y-5 text-zinc-100`} data-testid="melody-session">
+    <header className="melody-header flex flex-wrap items-center justify-between gap-3" hidden={isMobilePlayMode}><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><div className="flex items-center gap-2"><button className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15" onClick={enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div></header>
+    {isMobilePlayMode ? <><p className="melody-mobile-play-context">Melody · {settings.tempoBpm} BPM · {settings.measureCount} {settings.measureCount === 1 ? "measure" : "measures"}</p><button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg" onClick={handleExitMobilePlay} type="button">Exit Mobile Play</button></> : null}
     <p aria-live="polite" className="sr-only">{statusMessage}</p>
     {presentation === "setup" && <fieldset className="melody-settings grid gap-3 rounded-xl bg-zinc-900 p-4 sm:grid-cols-4"><legend>Exercise settings</legend>
       <label>Staff<select aria-label="Staff" onChange={(event) => changeSetting("staff", event.target.value as MelodySettings["staff"])} value={settings.staff}><option value="treble">Treble</option><option value="bass">Bass</option></select></label>
@@ -174,14 +183,14 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       <label>Tempo<select aria-label="Tempo" onChange={(event) => changeSetting("tempoBpm", Number(event.target.value) as MelodySettings["tempoBpm"])} value={settings.tempoBpm}>{[50, 60, 70, 80].map((bpm) => <option key={bpm} value={bpm}>{bpm} BPM</option>)}</select></label>
       <label>Length<select aria-label="Length" onChange={(event) => changeSetting("measureCount", Number(event.target.value) as 1 | 2)} value={settings.measureCount}><option value={1}>1 measure</option><option value={2}>2 measures</option></select></label>
     </fieldset>}
-    {presentation !== "results" && <><div className="melody-score-scroll" data-measure-count={exercise.measures.length}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div></div>
+    {presentation !== "results" && <div className="melody-practice"><div aria-label="Melody exercise score and count guide" className="melody-score-scroll" data-measure-count={exercise.measures.length} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div></div>
       {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => void start()} type="button">Start Exercise</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
       {presentation === "count-in" && <p className="text-xl"><strong>Count in</strong> {countInBeat}</p>}
       {presentation === "performing" && <p className="text-xl"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
-      <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></>}
+      <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></div>}
     {presentation === "results" && result && <MelodyResults exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} />}
   </section>;
 }

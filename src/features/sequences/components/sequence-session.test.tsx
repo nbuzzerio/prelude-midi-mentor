@@ -9,6 +9,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import SequenceSession from "./sequence-session";
+import { SEQUENCE_DEFAULT_TIMING } from "@/lib/music/sequence-timing";
 
 const mocks = vi.hoisted(() => ({
   beginNextStep: vi.fn(),
@@ -43,12 +44,15 @@ const SEQUENCE_TARGET = {
   },
   steps: [
     {
+      durationTicks: 480,
       notes: [{ midiNumber: 60, name: "C", octave: 4 }],
     },
     {
+      durationTicks: 480,
       notes: [{ midiNumber: 64, name: "E", octave: 4 }],
     },
   ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 } as const;
 
 const PROGRESSION_TARGET = {
@@ -56,6 +60,7 @@ const PROGRESSION_TARGET = {
   name: { primary: "I–IV–V–I", secondary: "C major" },
   steps: [
     {
+      durationTicks: 480,
       name: { primary: "I", secondary: "C major" },
       notes: [
         { midiNumber: 60, name: "C", octave: 4 },
@@ -64,6 +69,7 @@ const PROGRESSION_TARGET = {
       ],
     },
     {
+      durationTicks: 480,
       name: { primary: "IV", secondary: "F major" },
       notes: [
         { midiNumber: 60, name: "C", octave: 4 },
@@ -72,12 +78,14 @@ const PROGRESSION_TARGET = {
       ],
     },
   ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 } as const;
 
 const FOUR_NOTE_TARGET = {
   ...PROGRESSION_TARGET,
   steps: [
     {
+      durationTicks: 480,
       name: { primary: "I7", secondary: "C major seventh" },
       notes: [
         { midiNumber: 60, name: "C", octave: 4 },
@@ -87,6 +95,7 @@ const FOUR_NOTE_TARGET = {
       ],
     },
   ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 } as const;
 
 vi.mock("../hooks/use-sequence-target", () => ({
@@ -206,18 +215,32 @@ vi.mock("./sequence-card", () => ({
     isMobilePlayMode,
     onEnterMobilePlay,
     onIncorrect,
+    onShowWholeSequenceChange,
     onToggleFocusMode,
+    showWholeSequence,
   }: {
     feedback: string;
     isFocusMode: boolean;
     isMobilePlayMode: boolean;
     onEnterMobilePlay: () => void;
     onIncorrect: () => void;
+    onShowWholeSequenceChange: (show: boolean) => void;
     onToggleFocusMode: () => void;
+    showWholeSequence: boolean;
   }) => (
     <div>
       <span>Feedback: {feedback}</span>
       <span>Mobile active: {String(isMobilePlayMode)}</span>
+      <label>
+        <input
+          checked={showWholeSequence}
+          onChange={(event) =>
+            onShowWholeSequenceChange(event.target.checked)
+          }
+          type="checkbox"
+        />
+        Show whole sequence
+      </label>
       {!isFocusMode ? (
         <button onClick={onEnterMobilePlay} type="button">
           Mobile Play
@@ -386,6 +409,48 @@ describe("SequenceSession settings regeneration", () => {
     renderSequenceSession();
 
     expect(mocks.generateTarget).not.toHaveBeenCalled();
+    expect(
+      (screen.getByRole("checkbox", {
+        name: "Show whole sequence",
+      }) as HTMLInputElement).checked,
+    ).toBe(false);
+  });
+
+  it("preserves target, transitions, statistics, and virtual chord input while toggling presentation", () => {
+    renderSequenceSession();
+    fireEvent.click(screen.getByRole("button", { name: "Use progressions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 67" }));
+    fireEvent.click(screen.getByRole("button", { name: "Virtual 60" }));
+    expect(screen.getByText("Active: 67,60")).toBeTruthy();
+
+    mocks.generateTarget.mockClear();
+    mocks.resetAttempt.mockClear();
+    mocks.clearTransition.mockClear();
+    const toggle = screen.getByRole("checkbox", {
+      name: "Show whole sequence",
+    });
+    fireEvent.click(toggle);
+
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText("Active: 67,60")).toBeTruthy();
+    expect(screen.getByText("Stats: 0 completed, 0 incorrect")).toBeTruthy();
+    expect(screen.getAllByText("Piano keyboard")).toHaveLength(1);
+    expect(mocks.generateTarget).not.toHaveBeenCalled();
+    expect(mocks.resetAttempt).not.toHaveBeenCalled();
+    expect(mocks.clearTransition).not.toHaveBeenCalled();
+  });
+
+  it("retains the presentation selection across Reset Session", () => {
+    renderSequenceSession();
+    const toggle = screen.getByRole("checkbox", {
+      name: "Show whole sequence",
+    });
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Reset session" }));
+
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText("Piano keyboard")).toHaveLength(1);
   });
 
   it("preserves step, feedback, statistics, and graded keyboard semantics in Mobile Play", () => {
@@ -394,6 +459,7 @@ describe("SequenceSession settings regeneration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
 
     expect(screen.getByText("Mobile active: true")).toBeTruthy();
+    expect(screen.queryByText(/Rotate your device/i)).toBeNull();
     expect(screen.getByText("Feedback: incorrect")).toBeTruthy();
     expect(screen.getByText("Stats: 0 completed, 1 incorrect")).toBeTruthy();
     expect(screen.getByText("Piano keyboard")).toBeTruthy();

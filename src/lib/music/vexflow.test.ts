@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PracticeNote, PracticeTarget, SequenceTarget } from "@/types/practice";
+import { SEQUENCE_DEFAULT_TIMING } from "./sequence-timing";
 
 const mocks = vi.hoisted(() => ({
   accidentalApplyCalls: [] as Array<ReadonlyArray<unknown>>,
   accidentalInstances: [] as Array<{ type: string }>,
   connectorInstances: [] as Array<{ connectorType?: string }>,
   formatterInstances: [] as object[],
+  rendererInstances: [] as object[],
   staveInstances: [] as object[],
   staveNoteInstances: [] as Array<{
     addModifier: ReturnType<typeof vi.fn>;
     options: Record<string, unknown>;
+    setAttribute: ReturnType<typeof vi.fn>;
   }>,
   voiceInstances: [] as object[],
 }));
@@ -37,6 +40,7 @@ vi.mock("vexflow", () => {
 
     constructor(container: HTMLDivElement) {
       this.container = container;
+      mocks.rendererInstances.push(this);
       container.appendChild(
         document.createElementNS("http://www.w3.org/2000/svg", "svg"),
       );
@@ -46,12 +50,13 @@ vi.mock("vexflow", () => {
       return this.context;
     }
 
-    resize() {}
+    resize = vi.fn();
   }
 
   class Stave {
     addClef = vi.fn(() => this);
     addKeySignature = vi.fn(() => this);
+    addTimeSignature = vi.fn(() => this);
     draw = vi.fn(() => this);
     setContext = vi.fn(() => this);
 
@@ -85,6 +90,7 @@ vi.mock("vexflow", () => {
 
   class StaveNote {
     addModifier = vi.fn(() => this);
+    setAttribute = vi.fn(() => this);
     setStyle = vi.fn(() => this);
 
     constructor(public options: Record<string, unknown>) {
@@ -93,6 +99,7 @@ vi.mock("vexflow", () => {
   }
 
   class Voice {
+    static Mode = { SOFT: "soft" };
     addTickable = vi.fn((tickable: unknown) => {
       this.tickables.push(tickable);
       return this;
@@ -102,6 +109,7 @@ vi.mock("vexflow", () => {
       return this;
     });
     draw = vi.fn();
+    setMode = vi.fn(() => this);
     tickables: unknown[] = [];
 
     constructor(public options: Record<string, unknown>) {
@@ -146,6 +154,7 @@ beforeEach(() => {
   mocks.accidentalInstances.length = 0;
   mocks.connectorInstances.length = 0;
   mocks.formatterInstances.length = 0;
+  mocks.rendererInstances.length = 0;
   mocks.staveInstances.length = 0;
   mocks.staveNoteInstances.length = 0;
   mocks.voiceInstances.length = 0;
@@ -301,10 +310,15 @@ describe("graded notation accidental regression", () => {
     const target: SequenceTarget = {
       clef: "treble",
       name: { primary: "Sequence" },
-      steps: [{ notes: [note(70, "B♭", 4)] }],
+      steps: [{ durationTicks: 480, notes: [note(70, "B♭", 4)] }],
+      timing: SEQUENCE_DEFAULT_TIMING,
     };
 
-    renderSequenceTarget(container, target, 0);
+    renderSequenceTarget(container, target, 0, {
+      firstVisibleStepIndex: 0,
+      lastVisibleStepIndex: 0,
+      showWholeSequence: false,
+    });
 
     expect(mocks.accidentalInstances.map((accidental) => accidental.type)).toEqual(["b"]);
     expect(
@@ -312,5 +326,133 @@ describe("graded notation accidental regression", () => {
         .addModifier,
     ).toHaveBeenCalledTimes(1);
     expect(mocks.accidentalApplyCalls).toHaveLength(0);
+  });
+});
+
+describe("timed Sequence notation", () => {
+  function timedTarget(
+    durations: readonly number[],
+    chordAt = -1,
+  ): SequenceTarget {
+    return {
+      clef: "treble",
+      name: { primary: "Timed sequence" },
+      steps: durations.map((durationTicks, index) => ({
+        durationTicks,
+        notes:
+          index === chordAt
+            ? [note(60, "C", 4), note(64, "E", 4), note(67, "G", 4)]
+            : [note(60 + index, "C", 4)],
+      })),
+      timing: SEQUENCE_DEFAULT_TIMING,
+    };
+  }
+
+  it("maps supported tick durations and uses the target meter", () => {
+    const container = document.createElement("div");
+    const target = timedTarget([120, 240, 480, 960, 120]);
+
+    renderSequenceTarget(container, target, 2, {
+      firstVisibleStepIndex: 0,
+      lastVisibleStepIndex: 4,
+      showWholeSequence: true,
+    });
+
+    expect(
+      mocks.staveNoteInstances.map(({ options }) => options.duration),
+    ).toEqual(["16", "8", "q", "h", "16"]);
+    expect(
+      mocks.voiceInstances.map(
+        (voice) => (voice as { options: Record<string, unknown> }).options,
+      ),
+    ).toEqual([{ beatValue: 4, numBeats: 4 }]);
+  });
+
+  it("rejects unsupported notation durations without rounding", () => {
+    expect(() =>
+      renderSequenceTarget(document.createElement("div"), timedTarget([300]), 0, {
+        firstVisibleStepIndex: 0,
+        lastVisibleStepIndex: 0,
+        showWholeSequence: false,
+      }),
+    ).toThrow("300 ticks is not supported by notation");
+  });
+
+  it("renders a current-measure window with the correct active attack", () => {
+    const target = timedTarget([480, 480, 480, 480, 480, 480]);
+    renderSequenceTarget(document.createElement("div"), target, 0, {
+      firstVisibleStepIndex: 4,
+      lastVisibleStepIndex: 5,
+      showWholeSequence: false,
+    });
+
+    expect(mocks.staveNoteInstances).toHaveLength(2);
+    expect(mocks.staveNoteInstances[0]?.setAttribute).toHaveBeenCalledWith(
+      "data-sequence-active",
+      "true",
+    );
+    expect(mocks.staveNoteInstances[1]?.setAttribute).not.toHaveBeenCalled();
+  });
+
+  it("renders whole temporal measures and a soft final partial measure", () => {
+    const target = timedTarget([480, 480, 480, 480, 480]);
+    renderSequenceTarget(document.createElement("div"), target, 4, {
+      firstVisibleStepIndex: 0,
+      lastVisibleStepIndex: 4,
+      showWholeSequence: true,
+    });
+
+    expect(mocks.staveInstances).toHaveLength(2);
+    expect(mocks.voiceInstances).toHaveLength(2);
+    const rendererWidth = (
+      mocks.rendererInstances[0] as {
+        resize: ReturnType<typeof vi.fn>;
+      }
+    ).resize.mock.calls[0]?.[0] as number;
+    const [firstStave, finalStave] = mocks.staveInstances as Array<{
+      width: number;
+      x: number;
+    }>;
+    expect(firstStave.x + firstStave.width).toBe(finalStave.x);
+    expect(finalStave.x + finalStave.width).toBeLessThanOrEqual(rendererWidth);
+    expect(
+      (
+        mocks.staveInstances[0] as {
+          addTimeSignature: ReturnType<typeof vi.fn>;
+        }
+      ).addTimeSignature,
+    ).toHaveBeenCalledWith("4/4");
+    expect(
+      (
+        mocks.staveInstances[1] as {
+          addTimeSignature: ReturnType<typeof vi.fn>;
+        }
+      ).addTimeSignature,
+    ).not.toHaveBeenCalled();
+    for (const voice of mocks.voiceInstances as Array<{
+      setMode: ReturnType<typeof vi.fn>;
+    }>) {
+      expect(voice.setMode).toHaveBeenCalledWith("soft");
+    }
+  });
+
+  it("keeps a simultaneous chord in one timed StaveNote", () => {
+    renderSequenceTarget(
+      document.createElement("div"),
+      timedTarget([480], 0),
+      0,
+      {
+        firstVisibleStepIndex: 0,
+        lastVisibleStepIndex: 0,
+        showWholeSequence: false,
+      },
+    );
+
+    expect(mocks.staveNoteInstances).toHaveLength(1);
+    expect(mocks.staveNoteInstances[0]?.options.keys).toEqual([
+      "c/4",
+      "e/4",
+      "g/4",
+    ]);
   });
 });

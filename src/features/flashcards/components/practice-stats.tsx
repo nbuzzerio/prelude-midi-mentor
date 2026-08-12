@@ -34,18 +34,18 @@ export default function PracticeStats({ stats }: PracticeStatsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <section aria-label="Flashcard session statistics" className="flashcard-stats grid grid-cols-2 gap-2 min-[390px]:grid-cols-3 sm:grid-cols-5 sm:gap-3">
       {items.map((item) => (
         <div
           key={item.label}
-          className="rounded-2xl border border-zinc-200 bg-white p-4 text-center"
+          className="rounded-xl border border-zinc-200 bg-white p-2 text-center sm:rounded-2xl sm:p-4"
         >
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
             {item.label}
           </p>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{item.value}</p>
+          <p className="mt-1 text-xl font-bold text-zinc-900 sm:text-2xl">{item.value}</p>
         </div>
       ))}
-    </div>
+    </section>
   );
 }

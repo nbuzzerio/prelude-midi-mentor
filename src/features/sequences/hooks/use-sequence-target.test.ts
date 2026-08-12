@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
+import { SEQUENCE_DEFAULT_TIMING } from "@/lib/music/sequence-timing";
 import { getClefForMode } from "@/lib/music/note-utils";
 import {
   CHORD_PROGRESSION_TEMPLATES,
@@ -66,6 +67,7 @@ const GENERATED_TARGET: SequenceTarget = {
   },
   steps: [
     {
+      durationTicks: 480,
       notes: [
         {
           midiNumber: 48,
@@ -75,6 +77,7 @@ const GENERATED_TARGET: SequenceTarget = {
       ],
     },
     {
+      durationTicks: 480,
       notes: [
         {
           midiNumber: 41,
@@ -84,6 +87,7 @@ const GENERATED_TARGET: SequenceTarget = {
       ],
     },
   ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 };
 
 describe("useSequenceTarget", () => {
@@ -118,6 +122,7 @@ describe("useSequenceTarget", () => {
       },
       steps: [
         {
+          durationTicks: 480,
           notes: [
             {
               midiNumber: 60,
@@ -127,6 +132,7 @@ describe("useSequenceTarget", () => {
           ],
         },
         {
+          durationTicks: 480,
           notes: [
             {
               midiNumber: 64,
@@ -136,6 +142,7 @@ describe("useSequenceTarget", () => {
           ],
         },
       ],
+      timing: SEQUENCE_DEFAULT_TIMING,
     });
 
     expect(result.current.startedAt).toBe(0);

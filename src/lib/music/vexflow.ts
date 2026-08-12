@@ -9,6 +9,7 @@ import {
 } from "vexflow";
 
 import { getMusicKeyDefinition, type MusicKeyId } from "@/lib/music/keys";
+import { deriveSequenceTimeline } from "@/lib/music/sequence-timing";
 import type {
   Clef,
   PracticeNote,
@@ -88,6 +89,58 @@ function createStaveNote(
     fillStyle: isActive ? "#000000" : "#a1a1aa",
     strokeStyle: isActive ? "#000000" : "#a1a1aa",
   });
+
+  return staveNote;
+}
+
+function getSequenceVexFlowDuration(
+  durationTicks: number,
+  ticksPerQuarter: number,
+): "16" | "8" | "q" | "h" {
+  const durationByTicks = new Map<number, "16" | "8" | "q" | "h">([
+    [ticksPerQuarter / 4, "16"],
+    [ticksPerQuarter / 2, "8"],
+    [ticksPerQuarter, "q"],
+    [ticksPerQuarter * 2, "h"],
+  ]);
+  const duration = durationByTicks.get(durationTicks);
+
+  if (!duration) {
+    throw new Error(
+      `Sequence duration ${durationTicks} ticks is not supported by notation.`,
+    );
+  }
+
+  return duration;
+}
+
+function createSequenceStaveNote(
+  clef: Clef,
+  notes: StaffNoteGroup,
+  duration: "16" | "8" | "q" | "h",
+  isActive: boolean,
+): StaveNote {
+  const pitches = notes.map(toVexFlowPitch);
+  const staveNote = new StaveNote({
+    clef,
+    duration,
+    keys: pitches.map((pitch) => pitch.key),
+  });
+
+  pitches.forEach((pitch, index) => {
+    if (pitch.accidental) {
+      staveNote.addModifier(new Accidental(pitch.accidental), index);
+    }
+  });
+
+  staveNote.setStyle({
+    fillStyle: isActive ? "#000000" : "#a1a1aa",
+    strokeStyle: isActive ? "#000000" : "#a1a1aa",
+  });
+
+  if (isActive) {
+    staveNote.setAttribute("data-sequence-active", "true");
+  }
 
   return staveNote;
 }
@@ -213,13 +266,93 @@ export function renderPracticeTarget(
 export function renderSequenceTarget(
   container: HTMLDivElement,
   sequenceTarget: SequenceTarget,
-  currentStepIndex: number,
+  currentVisibleStepIndex: number,
+  options: Readonly<{
+    firstVisibleStepIndex: number;
+    lastVisibleStepIndex: number;
+    showWholeSequence: boolean;
+  }>,
 ): void {
-  renderStaffNotation(container, {
-    activeGroupIndex: currentStepIndex,
-    clef: sequenceTarget.clef,
-    noteGroups: sequenceTarget.steps.map((step) => step.notes),
+  container.replaceChildren();
+  const timeline = deriveSequenceTimeline(sequenceTarget);
+  const visibleTemporalSteps = timeline.steps.filter(
+    ({ globalStepIndex }) =>
+      globalStepIndex >= options.firstVisibleStepIndex &&
+      globalStepIndex <= options.lastVisibleStepIndex,
+  );
+
+  if (visibleTemporalSteps.length === 0) {
+    throw new Error("Sequence notation window contains no steps.");
+  }
+  const activeGlobalStepIndex =
+    options.firstVisibleStepIndex + currentVisibleStepIndex;
+
+  if (
+    currentVisibleStepIndex < 0 ||
+    activeGlobalStepIndex > options.lastVisibleStepIndex
+  ) {
+    throw new Error("Sequence notation highlight is outside the visible window.");
+  }
+
+  const visibleMeasureIndexes = [
+    ...new Set(visibleTemporalSteps.map(({ measureIndex }) => measureIndex)),
+  ];
+  const measureWidth = 360;
+  const rendererWidth = Math.max(
+    MIN_RENDERER_WIDTH,
+    STAVE_X + visibleMeasureIndexes.length * measureWidth,
+  );
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(rendererWidth, RENDERER_HEIGHT);
+  const context = renderer.getContext();
+
+  visibleMeasureIndexes.forEach((measureIndex, visibleMeasureIndex) => {
+    const x = visibleMeasureIndex * measureWidth + STAVE_X;
+    const stave = new Stave(x, STAVE_Y, measureWidth);
+    const measureSteps = visibleTemporalSteps.filter(
+      (step) => step.measureIndex === measureIndex,
+    );
+
+    if (visibleMeasureIndex === 0) {
+      stave.addClef(sequenceTarget.clef);
+      stave.addTimeSignature(
+        `${sequenceTarget.timing.meter.numerator}/${sequenceTarget.timing.meter.denominator}`,
+      );
+    }
+
+    stave.setContext(context).draw();
+
+    const staveNotes = measureSteps.map((temporalStep) => {
+      const step = sequenceTarget.steps[temporalStep.globalStepIndex];
+
+      if (!step) {
+        throw new Error("Sequence notation step is missing from its target.");
+      }
+
+      return createSequenceStaveNote(
+        sequenceTarget.clef,
+        step.notes,
+        getSequenceVexFlowDuration(
+          step.durationTicks,
+          sequenceTarget.timing.ticksPerQuarter,
+        ),
+        temporalStep.globalStepIndex === activeGlobalStepIndex,
+      );
+    });
+    const voice = new Voice({
+      beatValue: sequenceTarget.timing.meter.denominator,
+      numBeats: sequenceTarget.timing.meter.numerator,
+    });
+
+    voice.setMode(Voice.Mode.SOFT);
+    voice.addTickables(staveNotes);
+    new Formatter()
+      .joinVoices([voice])
+      .format([voice], measureWidth - CLEF_AND_NOTE_PADDING);
+    voice.draw(context, stave);
   });
+
+  configureResponsiveSvg(container, rendererWidth, RENDERER_HEIGHT);
 }
 
 export function renderGrandStaffHeldNotes(

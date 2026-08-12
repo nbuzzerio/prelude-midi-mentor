@@ -160,6 +160,7 @@ export default function SequenceSession({
     useState<ReadonlySet<number>>(new Set());
 
   const [stats, setStats] = useState(INITIAL_SEQUENCE_STATS);
+  const [showWholeSequence, setShowWholeSequence] = useState(false);
 
   const midiHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
   const virtualHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
@@ -722,9 +723,6 @@ export default function SequenceSession({
             Exit Mobile Play
           </button>
 
-          <p className="mobile-play-rotate-message">
-            Rotate your device for the best layout.
-          </p>
         </>
       ) : null}
 
@@ -739,7 +737,9 @@ export default function SequenceSession({
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
           onToggleFocusMode={handleToggleFocusMode}
+          onShowWholeSequenceChange={setShowWholeSequence}
           sequenceTarget={sequenceTarget}
+          showWholeSequence={showWholeSequence}
           showTargetName={showTargetName}
         />
 
@@ -755,7 +755,7 @@ export default function SequenceSession({
       </div>
 
       <section
-        className="relative -my-20 flex flex-col gap-6"
+        className="flex flex-col gap-6"
         hidden={isFocusMode || isMobilePlayActive}
       >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">

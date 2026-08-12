@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PracticeNote, SequenceTarget } from "@/types/practice";
+import { SEQUENCE_DEFAULT_TIMING } from "@/lib/music/sequence-timing";
 
 import {
   getCurrentSequenceStepMidiNumbers,
@@ -36,12 +37,15 @@ const SEQUENCE_TARGET: SequenceTarget = {
   },
   steps: [
     {
+      durationTicks: 480,
       notes: [C4],
     },
     {
+      durationTicks: 480,
       notes: [E4],
     },
   ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 };
 
 describe("getSequenceStepMidiNumbers", () => {
@@ -98,12 +102,15 @@ describe("getSequenceTargetMidiNumbers", () => {
       ...SEQUENCE_TARGET,
       steps: [
         {
+          durationTicks: 480,
           notes: [C4],
         },
         {
+          durationTicks: 480,
           notes: [E4],
         },
         {
+          durationTicks: 480,
           notes: [C4],
         },
       ],
@@ -131,6 +138,7 @@ describe("sequenceStepMatchesInput", () => {
       ...SEQUENCE_TARGET,
       steps: [
         {
+          durationTicks: 480,
           notes: [C4, E4, G4],
         },
       ],
@@ -150,6 +158,7 @@ describe("sequenceStepMatchesInput", () => {
       ...SEQUENCE_TARGET,
       steps: [
         {
+          durationTicks: 480,
           notes: [C4, E4],
         },
       ],

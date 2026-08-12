@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PracticeNote, PracticeTarget, SequenceTarget } from "@/types/practice";
+import { SEQUENCE_DEFAULT_TIMING } from "@/lib/music/sequence-timing";
 
 import MusicStaff from "./music-staff";
 
@@ -35,7 +36,11 @@ const PRACTICE_TARGET: PracticeTarget = {
 const SEQUENCE_TARGET: SequenceTarget = {
   clef: "treble",
   name: { primary: "Ascending fifth" },
-  steps: [{ notes: [C] }, { notes: [{ midiNumber: 67, name: "G", octave: 4 }] }],
+  steps: [
+    { durationTicks: 480, notes: [C] },
+    { durationTicks: 480, notes: [{ midiNumber: 67, name: "G", octave: 4 }] },
+  ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 };
 
 describe("MusicStaff Free Play rendering", () => {
@@ -137,13 +142,24 @@ describe("MusicStaff graded rendering", () => {
 
   it("keeps Sequence rendering unchanged", () => {
     render(
-      <MusicStaff currentStepIndex={1} sequenceTarget={SEQUENCE_TARGET} />,
+      <MusicStaff
+        currentStepIndex={1}
+        firstVisibleStepIndex={0}
+        lastVisibleStepIndex={1}
+        sequenceTarget={SEQUENCE_TARGET}
+        showWholeSequence={false}
+      />,
     );
 
     expect(mocks.renderSequenceTarget).toHaveBeenCalledWith(
       expect.any(HTMLDivElement),
       SEQUENCE_TARGET,
       1,
+      {
+        firstVisibleStepIndex: 0,
+        lastVisibleStepIndex: 1,
+        showWholeSequence: false,
+      },
     );
     expect(mocks.renderGrandStaffHeldNotes).not.toHaveBeenCalled();
   });
@@ -160,8 +176,11 @@ describe("MusicStaff graded rendering", () => {
     render(
       <MusicStaff
         currentStepIndex={0}
+        firstVisibleStepIndex={0}
         isMobilePlayMode
+        lastVisibleStepIndex={1}
         sequenceTarget={SEQUENCE_TARGET}
+        showWholeSequence={false}
       />,
     );
     expect(screen.getByLabelText(/Musical staff showing/).className).toContain(

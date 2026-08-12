@@ -1,6 +1,20 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MelodySession from "./melody-session";
+
+vi.mock("@/hooks/use-mobile-play", async () => {
+  const { useState } = await import("react");
+  return {
+    useMobilePlay: () => {
+      const [isMobilePlayMode, setIsMobilePlayMode] = useState(false);
+      return {
+        enterMobilePlay: () => setIsMobilePlayMode(true),
+        exitMobilePlay: () => setIsMobilePlayMode(false),
+        isMobilePlayMode,
+      };
+    },
+  };
+});
 
 const midi = vi.hoisted(() => ({ options: null as null | { onNotePlayed?: (midi: number) => void } }));
 vi.mock("@/hooks/use-app-midi-input", () => ({ useAppMidiInput: (options: typeof midi.options) => {
@@ -58,8 +72,118 @@ describe("MelodySession", () => {
     expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
     const scroll = container.querySelector(".melody-score-scroll");
     expect(scroll?.getAttribute("data-measure-count")).toBe("2");
+    expect(screen.getByLabelText("Melody exercise score and count guide").tabIndex).toBe(0);
     expect(scroll?.querySelectorAll(".melody-score-track")).toHaveLength(1);
     expect(scroll?.querySelectorAll('[aria-label="Count guide"]')).toHaveLength(1);
+  });
+
+  it("enters and exits Mobile Play in setup without regenerating or duplicating practice UI", async () => {
+    const seedFactory = vi.fn(() => "stable-seed");
+    render(<MelodySession seedFactory={seedFactory} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
+    expect(screen.getAllByText("Score measure 1")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Count guide")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
+    expect(seedFactory).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Mobile Play" })));
+    expect(seedFactory).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
+  });
+
+  it("preserves count-in, one AudioContext, and the active clock across Mobile Play", async () => {
+    const audio = fakeAudio();
+    const createAudioContext = vi.fn(() => audio.context);
+    render(<MelodySession createAudioContext={createAudioContext} seedFactory={() => "seed"} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    expect(screen.getByText("Count in")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    expect(screen.getByText("Count in")).toBeTruthy();
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
+
+    audio.setNow(4.1);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.getByText(/^Play/)).toBeTruthy();
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the performing recorder and MIDI source lock across entry and exit", async () => {
+    const audio = fakeAudio();
+    render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(4.1);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    act(() => midi.options?.onNotePlayed?.(60));
+    expect(screen.getByText(/Input: MIDI/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
+    expect(screen.getByText(/Input: MIDI/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    act(() => midi.options?.onNotePlayed?.(60));
+
+    audio.setNow(8.6);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
+  });
+
+  it("preserves a virtual source lock across Mobile Play", async () => {
+    const audio = fakeAudio();
+    render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(4.1);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
+    expect(screen.getByText(/Input: On-screen keyboard/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    act(() => midi.options?.onNotePlayed?.(60));
+    expect(screen.getByText(/Input: On-screen keyboard/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
+    expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
+  });
+
+  it("keeps Mobile Play active through results and result actions", async () => {
+    const seeds = ["first", "second"];
+    const seedFactory = vi.fn(() => seeds.shift() ?? "later");
+    const audio = fakeAudio();
+    render(<MelodySession createAudioContext={() => audio.context} seedFactory={seedFactory} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(8.6);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(screen.getAllByRole("heading", { name: "Pitch results on the staff" })).toHaveLength(1);
+    expect(screen.getByLabelText("Melody pitch result score").tabIndex).toBe(0);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Melody results" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry Same" }));
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(seedFactory).toHaveBeenCalledTimes(1);
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(17.2);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(seedFactory).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(25.8);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
   });
 
   it("preserves exercise and lazy AudioContext ownership across resize", async () => {

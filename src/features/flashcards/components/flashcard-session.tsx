@@ -4,6 +4,7 @@ import InstrumentVolumeControl from "@/components/audio/instrument-volume-contro
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
+import { MobileDisclosure } from "@/components/layout/mobile-disclosure";
 
 import { useCorrectAnswerSequence } from "@/features/flashcards/hooks/use-correct-answer-sequence";
 import { useFlashcardSettings } from "@/features/flashcards/hooks/use-flashcard-settings";
@@ -544,20 +545,21 @@ export default function FlashcardSession({
           ? "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
           : isFocusMode
           ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
-          : "mx-auto flex w-full max-w-7xl flex-col gap-6"
+          : "flashcard-session mx-auto flex w-full max-w-7xl flex-col gap-3 sm:gap-6"
       }
     >
       <header
-        className="flex items-center justify-between gap-4"
+        className="flashcard-header flex items-center justify-between gap-2 sm:gap-4"
         hidden={isMobilePlayActive}
       >
-        <div>
+        <div className="min-w-0">
           <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
             Sight-reading trainer
           </p>
 
-          <h1 className="text-xl font-bold text-white sm:mt-1 sm:text-3xl">
-            Prelude: MIDI Mentor
+          <h1 className="truncate text-lg font-bold text-white sm:mt-1 sm:text-3xl">
+            <span className="sm:hidden">Prelude · Flashcards</span>
+            <span className="hidden sm:inline">Prelude: MIDI Mentor</span>
           </h1>
         </div>
 
@@ -581,13 +583,10 @@ export default function FlashcardSession({
             Exit Mobile Play
           </button>
 
-          <p className="mobile-play-rotate-message">
-            Rotate your device for the best layout.
-          </p>
         </>
       ) : null}
 
-      <div className="practice-stage">
+      <div className="practice-stage flashcard-practice-stage">
         <FlashcardCard
           feedback={feedback}
           isFocusMode={isFocusMode}
@@ -611,36 +610,39 @@ export default function FlashcardSession({
         </div>
       </div>
 
-      {/* TODO(v1): Remove temporary negative margin after final page layout pass. */}
       <section
-        className="relative -my-72 flex flex-col gap-6"
+        className="flashcard-secondary flex flex-col gap-3 sm:gap-6"
         hidden={isFocusMode || isMobilePlayActive}
       >
-        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
-          <div className="flex flex-col gap-4">
+        <div className="grid items-start gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
+          <MobileDisclosure className="flashcard-sound-disclosure" title="Sound & Feedback">
+            <div className="flex flex-col gap-3 sm:gap-4">
             <FeedbackVolumeControl />
 
             <InstrumentVolumeControl
               replayCorrectVirtualChords={replayCorrectVirtualChords}
               onReplayCorrectVirtualChordsChange={setReplayCorrectVirtualChords}
             />
-          </div>
+            </div>
+          </MobileDisclosure>
 
-          <PracticeControls
-            enabledExerciseTypes={enabledExerciseTypes}
-            enabledNoteCategories={enabledNoteCategories}
-            enabledTriadPositions={enabledTriadPositions}
-            enabledTriadQualities={enabledTriadQualities}
-            mode={mode}
-            showTargetName={showTargetName}
-            onModeChange={handleModeChange}
-            onReset={handleReset}
-            onShowTargetNameChange={setShowTargetName}
-            onExerciseTypeToggle={toggleExerciseType}
-            onNoteCategoryToggle={toggleNoteCategory}
-            onTriadPositionToggle={toggleTriadPosition}
-            onTriadQualityToggle={toggleTriadQuality}
-          />
+          <MobileDisclosure title="Practice Settings">
+            <PracticeControls
+              enabledExerciseTypes={enabledExerciseTypes}
+              enabledNoteCategories={enabledNoteCategories}
+              enabledTriadPositions={enabledTriadPositions}
+              enabledTriadQualities={enabledTriadQualities}
+              mode={mode}
+              showTargetName={showTargetName}
+              onModeChange={handleModeChange}
+              onReset={handleReset}
+              onShowTargetNameChange={setShowTargetName}
+              onExerciseTypeToggle={toggleExerciseType}
+              onNoteCategoryToggle={toggleNoteCategory}
+              onTriadPositionToggle={toggleTriadPosition}
+              onTriadQualityToggle={toggleTriadQuality}
+            />
+          </MobileDisclosure>
         </div>
 
         <PracticeStats stats={stats} />

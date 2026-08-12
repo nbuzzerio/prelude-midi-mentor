@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { SequenceTarget } from "@/types/practice";
+import { SEQUENCE_DEFAULT_TIMING } from "@/lib/music/sequence-timing";
 
 import { useSequenceAttempt } from "./use-sequence-attempt";
 
@@ -13,6 +14,7 @@ const TARGET: SequenceTarget = {
   },
   steps: [
     {
+      durationTicks: 480,
       notes: [
         {
           midiNumber: 60,
@@ -22,6 +24,7 @@ const TARGET: SequenceTarget = {
       ],
     },
     {
+      durationTicks: 480,
       notes: [
         {
           midiNumber: 64,
@@ -31,6 +34,7 @@ const TARGET: SequenceTarget = {
       ],
     },
   ],
+  timing: SEQUENCE_DEFAULT_TIMING,
 };
 
 describe("useSequenceAttempt", () => {

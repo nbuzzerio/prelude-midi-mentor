@@ -46,14 +46,26 @@ export type PracticeStats = Readonly<{
 }>;
 
 export type SequenceStep = Readonly<{
+  durationTicks: number;
   name?: PracticeTargetName;
   notes: ReadonlyArray<PracticeNote>;
+}>;
+
+export type SequenceMeter = Readonly<{
+  denominator: number;
+  numerator: number;
+}>;
+
+export type SequenceTiming = Readonly<{
+  meter: SequenceMeter;
+  ticksPerQuarter: number;
 }>;
 
 export type SequenceTarget = Readonly<{
   clef: Clef;
   name: PracticeTargetName;
   steps: ReadonlyArray<SequenceStep>;
+  timing: SequenceTiming;
 }>;
 
 export type SequenceStats = Readonly<{

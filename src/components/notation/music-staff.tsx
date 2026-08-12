@@ -8,6 +8,7 @@ import {
   renderSequenceTarget,
   type StaffKeySignature,
 } from "@/lib/music/vexflow";
+import { deriveSequenceTimeline } from "@/lib/music/sequence-timing";
 import type {
   PracticeNote,
   PracticeTarget,
@@ -25,11 +26,14 @@ type PracticeMusicStaffProps = Readonly<{
 
 type SequenceMusicStaffProps = Readonly<{
   currentStepIndex: number;
+  firstVisibleStepIndex: number;
   heldNotes?: never;
   keySignatureId?: never;
   mode?: never;
   practiceTarget?: never;
   sequenceTarget: SequenceTarget;
+  showWholeSequence: boolean;
+  lastVisibleStepIndex: number;
 }>;
 
 type KeyAwareFreePlayMusicStaffProps = Readonly<{
@@ -85,9 +89,22 @@ export default function MusicStaff(props: MusicStaffProps) {
   let ariaLabel: string;
 
   if (isSequenceStaff) {
-    const noteNames = getSequenceTargetNoteNames(props.sequenceTarget);
+    const visibleTarget: SequenceTarget = {
+      ...props.sequenceTarget,
+      steps: props.sequenceTarget.steps.slice(
+        props.firstVisibleStepIndex,
+        props.lastVisibleStepIndex + 1,
+      ),
+    };
+    const noteNames = getSequenceTargetNoteNames(visibleTarget);
+    const timeline = deriveSequenceTimeline(props.sequenceTarget);
+    const currentMeasureIndex =
+      timeline.steps[props.currentStepIndex]?.measureIndex ?? 0;
+    const presentationLabel = props.showWholeSequence
+      ? `whole sequence, current measure ${currentMeasureIndex + 1} of ${timeline.measureCount}`
+      : `measure ${currentMeasureIndex + 1} of ${timeline.measureCount}`;
 
-    ariaLabel = `Musical staff showing ${noteNames} in ${props.sequenceTarget.clef} clef`;
+    ariaLabel = `Musical staff showing ${presentationLabel}: ${noteNames} in ${props.sequenceTarget.clef} clef`;
   } else if (isKeyAwareFreePlayStaff) {
     ariaLabel = `Grand staff showing ${getHeldNoteLabel(props.heldNotes)}`;
   } else {
@@ -107,8 +124,19 @@ export default function MusicStaff(props: MusicStaffProps) {
       renderSequenceTarget(
         container,
         props.sequenceTarget,
-        props.currentStepIndex,
+        props.currentStepIndex - props.firstVisibleStepIndex,
+        {
+          firstVisibleStepIndex: props.firstVisibleStepIndex,
+          lastVisibleStepIndex: props.lastVisibleStepIndex,
+          showWholeSequence: props.showWholeSequence,
+        },
       );
+
+      if (props.showWholeSequence) {
+        container
+          .querySelector('[data-sequence-active="true"]')
+          ?.scrollIntoView?.({ block: "nearest", inline: "center" });
+      }
 
       return;
     }
@@ -144,6 +172,18 @@ export default function MusicStaff(props: MusicStaffProps) {
       ].join(" ");
 
   return (
-    <div ref={containerRef} aria-label={ariaLabel} className={className} />
+    <div
+      ref={containerRef}
+      aria-label={ariaLabel}
+      className={`${className}${isSequenceStaff ? " sequence-notation" : ""}`}
+      data-sequence-presentation={
+        isSequenceStaff
+          ? props.showWholeSequence
+            ? "whole"
+            : "measure"
+          : undefined
+      }
+      tabIndex={isSequenceStaff && props.showWholeSequence ? 0 : undefined}
+    />
   );
 }

@@ -6,6 +6,7 @@ import type {
   SequenceExerciseType,
   SequenceTarget,
 } from "@/types/practice";
+import { getSequenceMeasureWindow } from "../sequence-measure-window";
 
 type SequenceCardProps = Readonly<{
   currentStepIndex: number;
@@ -13,12 +14,14 @@ type SequenceCardProps = Readonly<{
   feedback: FeedbackState;
   isFocusMode: boolean;
   isMobilePlayMode?: boolean;
+  showWholeSequence: boolean;
   sequenceTarget: SequenceTarget;
   showTargetName: boolean;
   onCorrect: () => void;
   onIncorrect: () => void;
   onEnterMobilePlay?: () => void;
   onToggleFocusMode: () => void;
+  onShowWholeSequenceChange: (showWholeSequence: boolean) => void;
 }>;
 
 const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
@@ -37,18 +40,49 @@ export default function SequenceCard({
   onIncorrect,
   onEnterMobilePlay,
   onToggleFocusMode,
+  onShowWholeSequenceChange,
   sequenceTarget,
+  showWholeSequence,
   showTargetName,
 }: SequenceCardProps) {
   const currentStepName = sequenceTarget.steps[currentStepIndex]?.name;
+  const measureWindow = getSequenceMeasureWindow(
+    sequenceTarget,
+    currentStepIndex,
+  );
+  const firstVisibleStepIndex = showWholeSequence
+    ? 0
+    : measureWindow.firstGlobalStepIndex;
+  const lastVisibleStepIndex = showWholeSequence
+    ? sequenceTarget.steps.length - 1
+    : measureWindow.lastGlobalStepIndex;
 
   return (
     <section
       aria-label="Current sequence exercise"
       className="relative flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5"
     >
-      <div className="absolute left-3 top-3 rounded-full bg-zinc-900 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-white/60">
-        Step {currentStepIndex + 1} of {sequenceTarget.steps.length}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-white/60">
+        <div className="flex flex-wrap gap-2 uppercase tracking-wider">
+          <span className="rounded-full bg-zinc-900 px-2.5 py-1">
+            Measure {measureWindow.currentMeasureIndex + 1} of {measureWindow.measureCount}
+          </span>
+          <span className="rounded-full bg-zinc-900 px-2.5 py-1">
+            Step {currentStepIndex + 1} of {sequenceTarget.steps.length}
+          </span>
+        </div>
+
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm normal-case tracking-normal text-white">
+          <input
+            checked={showWholeSequence}
+            className="size-4 accent-sky-400"
+            onChange={(event) =>
+              onShowWholeSequenceChange(event.target.checked)
+            }
+            type="checkbox"
+          />
+          Show whole sequence
+        </label>
       </div>
 
       <div hidden={isFocusMode || isMobilePlayMode}>
@@ -58,7 +92,7 @@ export default function SequenceCard({
         />
       </div>
 
-      <div className="absolute bottom-3 right-3 z-20" hidden={isMobilePlayMode}>
+      <div className="sequence-task-actions flex flex-wrap justify-end gap-2" hidden={isMobilePlayMode}>
         <FocusStaffControl
           isFocusMode={isFocusMode}
           onToggle={onToggleFocusMode}
@@ -66,7 +100,7 @@ export default function SequenceCard({
 
         {!isFocusMode && onEnterMobilePlay ? (
           <button
-            className="ml-2 rounded-lg md:hidden border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
+            className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15"
             onClick={onEnterMobilePlay}
             type="button"
           >
@@ -75,7 +109,7 @@ export default function SequenceCard({
         ) : null}
       </div>
 
-      <div className="px-20 text-center">
+      <div className="px-2 text-center sm:px-20">
         <p
           aria-live="polite"
           className={`text-sm font-semibold ${
@@ -122,9 +156,12 @@ export default function SequenceCard({
 
       <MusicStaff
         currentStepIndex={currentStepIndex}
+        firstVisibleStepIndex={firstVisibleStepIndex}
         isFocusMode={isFocusMode}
         isMobilePlayMode={isMobilePlayMode}
+        lastVisibleStepIndex={lastVisibleStepIndex}
         sequenceTarget={sequenceTarget}
+        showWholeSequence={showWholeSequence}
       />
     </section>
   );

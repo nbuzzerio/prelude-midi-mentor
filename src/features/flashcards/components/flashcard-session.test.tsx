@@ -301,6 +301,7 @@ vi.mock("@/components/notation/piano-keyboard", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 function renderFlashcardSession() {
@@ -385,6 +386,7 @@ describe("FlashcardSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
 
     expect(screen.getByText("Mobile active: true")).toBeTruthy();
+    expect(screen.queryByText(/Rotate your device/i)).toBeNull();
     expect(screen.getByText("Feedback: incorrect")).toBeTruthy();
     expect(screen.getByText("Stats: incorrect")).toBeTruthy();
     expect(screen.getByText("Piano keyboard")).toBeTruthy();
@@ -397,6 +399,36 @@ describe("FlashcardSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
     expect(screen.getByText("Stats: incorrect")).toBeTruthy();
     expect(mocks.generateTarget).not.toHaveBeenCalled();
+  });
+
+  it("keeps one task and keyboard while mobile secondary sections disclose mounted controls", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      media: "(max-width: 639px)",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+
+    renderFlashcardSession();
+
+    expect(screen.getAllByText("Piano keyboard")).toHaveLength(1);
+    const settings = screen.getByRole("button", { name: "Practice Settings" });
+    const sound = screen.getByRole("button", { name: "Sound & Feedback" });
+    expect(settings.getAttribute("aria-expanded")).toBe("false");
+    expect(sound.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(settings);
+    expect(settings.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Reset session" }));
+    expect(mocks.generateTarget).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(sound);
+    expect(sound.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Feedback volume")).toBeTruthy();
+    expect(screen.getByText("Instrument volume")).toBeTruthy();
+    expect(screen.getAllByText("Piano keyboard")).toHaveLength(1);
   });
 
   it("keeps Focus Staff and Mobile Play mutually exclusive without regeneration", () => {

@@ -20,6 +20,10 @@ import type {
   SequenceScaleDirection,
   SequenceTarget,
 } from "@/types/practice";
+import {
+  SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
+  SEQUENCE_DEFAULT_TIMING,
+} from "../sequence-timing";
 
 import {
   createTheoryPracticeNote,
@@ -417,8 +421,10 @@ function generateIntervalTarget({
           : "Descending melodic interval",
     },
     steps: notes.map((note) => ({
+      durationTicks: SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
       notes: [note],
     })),
+    timing: SEQUENCE_DEFAULT_TIMING,
   };
 }
 
@@ -511,6 +517,7 @@ function generateScaleTarget({
   }
 
   const steps = notes.map((note) => ({
+    durationTicks: SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
     notes: [note],
   }));
 
@@ -526,6 +533,7 @@ function generateScaleTarget({
             : "Ascending and descending one-octave scale",
     },
     steps,
+    timing: SEQUENCE_DEFAULT_TIMING,
   };
 }
 
@@ -572,6 +580,7 @@ function generateArpeggioTarget({
   });
 
   const steps = notes.map((note) => ({
+    durationTicks: SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
     notes: [note],
   }));
 
@@ -585,6 +594,7 @@ function generateArpeggioTarget({
           : "Descending one-octave arpeggio",
     },
     steps,
+    timing: SEQUENCE_DEFAULT_TIMING,
   };
 }
 
@@ -658,12 +668,14 @@ function generateChordProgressionTarget({
           secondary: progression.key.name,
         },
         steps: progression.chords.map((chord) => ({
+          durationTicks: SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
           name: {
             primary: chord.romanNumeral,
             secondary: chord.chordName,
           },
           notes: chord.notes,
         })),
+        timing: SEQUENCE_DEFAULT_TIMING,
       });
     }
   }

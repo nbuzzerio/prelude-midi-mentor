@@ -98,12 +98,14 @@ describe("App focus mode", () => {
     expect(input.addEventListener).toHaveBeenCalledTimes(1);
   });
 
-  it("orders and visually groups Prelude modes without changing tab order", () => {
+  it("orders modes with compact visual labels and full accessible names", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
-    expect(within(navigation).getAllByRole("button").map(({ textContent }) => textContent?.trim())).toEqual([
+    expect(within(navigation).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
       "Free Play", "Staff Builder", "Flashcards", "Sequences", "Ear Training", "Melody",
     ]);
+    expect(within(screen.getByRole("button", { name: "Staff Builder" })).getByText("Staff")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: "Ear Training" })).getByText("Ear")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Flashcards" }).classList.contains("prelude-mode-group-start")).toBe(true);
     expect(screen.getByRole("button", { name: "Free Play" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Sequences" }));
