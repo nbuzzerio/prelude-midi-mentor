@@ -7,14 +7,15 @@ import EarTrainingSession from "./features/ear-training/components/ear-training-
 import StaffBuilderSession from "./features/staff-builder/components/staff-builder-session";
 import { useFocusMode } from "./hooks/use-focus-mode";
 import { MidiProvider } from "./components/midi/midi-provider";
+import MelodySession from "./features/melody/components/melody-session";
 
-type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder";
+type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody";
 
 export default function App() {
   const [practiceSection, setPracticeSection] =
     useState<PracticeSection>("freeplay");
   const { exitFocusMode, isFocusMode, toggleFocusMode } = useFocusMode(
-    practiceSection !== "ear-training" && practiceSection !== "staff-builder",
+    practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody",
   );
 
   let content;
@@ -53,6 +54,10 @@ export default function App() {
 
     case "staff-builder":
       content = <StaffBuilderSession />;
+      break;
+
+    case "melody":
+      content = <MelodySession />;
       break;
 
     default:
@@ -135,6 +140,15 @@ export default function App() {
           type="button"
         >
           Ear Training
+        </button>
+
+        <button
+          aria-pressed={practiceSection === "melody"}
+          className={`rounded px-4 py-2 transition ${practiceSection === "melody" ? "bg-sky-500 text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+          onClick={() => { exitFocusMode(); setPracticeSection("melody"); }}
+          type="button"
+        >
+          Melody
         </button>
       </nav>
 

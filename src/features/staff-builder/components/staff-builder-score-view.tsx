@@ -38,7 +38,7 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, issue, inputMode = "grand", onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, issue, inputMode = "grand", visibleStaff = "grand", onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
   score: StaffBuilderScoreV1;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
@@ -48,6 +48,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   eventHighlights?: readonly StaffBuilderEventHighlight[];
   issue?: StaffBuilderIssue | null;
   inputMode?: StaffBuilderCaptureInputMode;
+  visibleStaff?: "grand" | "treble" | "bass";
   onInputModeChange?: (mode: StaffBuilderCaptureInputMode) => void;
   onKeyChange?: (measureIndex: number, key: MusicKeyId) => void;
   onTimeChange?: (measureIndex: number, time: StaffBuilderTimeSignature) => void;
@@ -101,6 +102,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     const result = renderStaffBuilderMeasure(notationRef.current, preview.renderScore, measureIndex, {
       excludedEventIds: previewEventIds,
       layoutDurationTicksByEventId: previewLayoutDurationTicksByEventId,
+      visibleStaff,
     });
     setRenderResult(result);
     if (cursorOffsetTicks !== undefined && cursorStepDuration !== undefined) {
@@ -124,7 +126,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       setIssueGeometry({ x: issuePosition.x, y: issuePosition.y, width: Math.max(issuePosition.width, end - issuePosition.x), height: issuePosition.height });
     } else setIssueGeometry(null);
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, eventHighlights, issue, measureIndex, onRender, preview.renderScore, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId]);
+  }, [cursorOffsetTicks, cursorStepDuration, eventHighlights, issue, measureIndex, onRender, preview.renderScore, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId, visibleStaff]);
 
   const authoritativeTargets = [...(renderResult?.anchors.authoritativeEvents.values() ?? [])]
     .map((anchor, order) => ({ anchor, order, event: score.measures[measureIndex]?.events.find(({ id }) => id === anchor.eventId) }))

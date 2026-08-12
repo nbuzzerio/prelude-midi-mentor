@@ -61,6 +61,22 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it("renders a selected single staff without changing the grand-staff default", () => {
+    const draws = vi.spyOn(Stave.prototype, "draw");
+    const connectors = vi.spyOn(StaveConnector.prototype, "draw");
+    const treble = renderStaffBuilderMeasure(document.createElement("div"), score(), 0, { visibleStaff: "treble" });
+    expect(draws).toHaveBeenCalledTimes(1);
+    expect(connectors).not.toHaveBeenCalled();
+    expect([...treble.anchors.events.keys()]).not.toContain("rest");
+    draws.mockClear();
+    const bass = renderStaffBuilderMeasure(document.createElement("div"), score(), 0, { visibleStaff: "bass" });
+    expect(draws).toHaveBeenCalledTimes(1);
+    expect([...bass.anchors.events.keys()]).toEqual(["rest"]);
+    draws.mockClear();
+    renderStaffBuilderMeasure(document.createElement("div"), score(), 0);
+    expect(draws).toHaveBeenCalledTimes(2);
+  });
+
   it("constructs, joins, and draws multiple public VexFlow voices per staff", () => {
     const draws = vi.spyOn(Voice.prototype, "draw");
     const joins = vi.spyOn(Formatter.prototype, "joinVoices");

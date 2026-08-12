@@ -54,6 +54,10 @@ vi.mock("./features/staff-builder/components/staff-builder-session", () => ({
   default: () => <div>Staff Builder session</div>,
 }));
 
+vi.mock("./features/melody/components/melody-session", () => ({
+  default: () => <TestSession isFocusMode={false} label="Melody session" onToggleFocusMode={() => undefined} />,
+}));
+
 describe("App focus mode", () => {
   it("keeps one connected MIDI lifecycle while routing attacks only to the active top-level mode", async () => {
     appMidiNotes.length = 0;
@@ -98,7 +102,7 @@ describe("App focus mode", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
     expect(within(navigation).getAllByRole("button").map(({ textContent }) => textContent?.trim())).toEqual([
-      "Free Play", "Staff Builder", "Flashcards", "Sequences", "Ear Training",
+      "Free Play", "Staff Builder", "Flashcards", "Sequences", "Ear Training", "Melody",
     ]);
     expect(screen.getByRole("button", { name: "Flashcards" }).classList.contains("prelude-mode-group-start")).toBe(true);
     expect(screen.getByRole("button", { name: "Free Play" }).getAttribute("aria-pressed")).toBe("true");
@@ -166,5 +170,13 @@ describe("App focus mode", () => {
     expect(screen.queryByRole("button", { name: "Exit Focus Staff" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
     expect(screen.getByText("Free Play session")).toBeTruthy();
+  });
+
+  it("mounts Melody as a sixth mode without changing adjacent modes", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Melody" }));
+    expect(screen.getByText("Melody session")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sequences" }));
+    expect(screen.getByText("Sequence session")).toBeTruthy();
   });
 });
