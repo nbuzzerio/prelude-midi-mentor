@@ -2,6 +2,15 @@
 
 > This document records important product and architectural decisions made during the development of Prelude.
 
+## Melody Mode Phase 1
+
+- Melody is top-level continuous practice; mistakes never block.
+- Phase 1 is seeded, monophonic 4/4; approved minor keys use natural minor.
+- A one-measure count-in and performance use the Web Audio clock as timing authority.
+- Timing-led alignment yields independent Pitch, Movement, and attack-Timing results. Movement preserves signed semitone facts, so transposed interval-correct motion can earn full Movement credit.
+- The result staff encodes Pitch only and continues to show expected written notes.
+- Exercises/results are transient. Basic offline VKB support begins only after PWA assets are cached.
+
 Each entry explains:
 
 - what was decided

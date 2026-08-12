@@ -95,6 +95,18 @@ Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It do
 - Grace-based transitions between sequence notes
 - Sample-based piano playback
 
+### Melody Mode
+
+- Continuous, non-blocking one- or two-measure sight-reading in treble or bass
+- C/G/F major and A/D natural minor at 50, 60, 70, or 80 BPM
+- Physical MIDI and momentary on-screen-keyboard input
+- Independent Pitch, Movement, and attack-Timing scores
+- Pitch-result staff: green correct, dashed light blue missed, red wrong pitch; timing is scored separately
+- Seeded Retry Same and Try Another exercises
+- Basic offline VKB workflow after the installed/loaded PWA has cached its assets
+
+Phase 1 is monophonic 4/4 without rests, chords, two-hand material, hold-duration grading, latency calibration, or persisted analytics.
+
 ### Practice Statistics
 
 - Accuracy

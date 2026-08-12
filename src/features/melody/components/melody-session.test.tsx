@@ -156,6 +156,10 @@ describe("MelodySession", () => {
     expect(screen.getByRole("heading", { name: "Pitch" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Movement" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Timing" })).toBeTruthy();
+    expect(screen.getByLabelText("Pitch result legend").textContent).toBe("CorrectMissedWrong pitch");
+    expect(screen.getByText("The staff below shows pitch results. Timing is scored separately.")).toBeTruthy();
+    expect(screen.getByLabelText("Pitch result details").querySelectorAll("li").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Keyboard 60-72/)).toBeNull();
   });
 
   it("keeps Retry Same notation and gives Try Another a fresh seed", async () => {

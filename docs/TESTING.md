@@ -1,6 +1,8 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** Post-v2.3 Blocking Piece Practice Phase 1 checkpoint (unreleased)
+> **Status:** Post-v2.3 Melody Mode Phase 1 checkpoint (unreleased)
+
+Melody automated coverage includes seeded generation, spelling/ranges, Web Audio timing/cleanup, continuous capture, source locking, dynamic-programming alignment, independent scoring/movement facts, display projection, Pitch-result highlights/details, accessibility, mobile ownership, visibility interruption, app/MIDI integration, and WAV precaching. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, screen readers/reduced motion, and installed-PWA airplane mode.
 > **Latest release:** v2.3.0 — Melodic Interval Ear Training
 > **Last updated:** August 10, 2026
 

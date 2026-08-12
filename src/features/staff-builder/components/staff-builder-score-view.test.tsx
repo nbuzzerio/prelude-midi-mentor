@@ -84,6 +84,11 @@ describe("StaffBuilderScoreView", () => {
     ]);
     expect(screen.queryByRole("button", { name: /chord/i })).toBeNull();
   });
+  it("supports generic missed and wrong-pitch read-only highlight semantics", async () => {
+    render(<StaffBuilderScoreView eventHighlights={[{ eventId: "treble-note", status: "missed" }, { eventId: "treble-chord", status: "wrong-pitch" }]} measureIndex={0} score={interactiveScore()} />);
+    await waitFor(() => expect(screen.getAllByTestId("staff-builder-event-highlight")).toHaveLength(2));
+    expect(screen.getAllByTestId("staff-builder-event-highlight").map(({ dataset }) => dataset.highlightStatus)).toEqual(["missed", "wrong-pitch"]);
+  });
   it("owns five direct notation controls with routing state and opens effective Key/Time wheels", async () => {
     const route = vi.fn(); const key = vi.fn(); const time = vi.fn();
     render(<StaffBuilderScoreView inputMode="grand" measureIndex={0} onInputModeChange={route} onKeyChange={key} onTimeChange={time} score={score()} />);

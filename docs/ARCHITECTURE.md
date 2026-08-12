@@ -2,6 +2,12 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
+## Melody Mode Phase 1
+
+Melody owns a transient seeded exercise and projects it through a pure adapter into read-only Staff Builder notation. Expected attacks feed a feature-local Web Audio clock, continuous MIDI/VKB recorder, timing-led dynamic-programming alignment, and independent Pitch, Movement, and Timing scoring. Web Audio time is authoritative; React/RAF samples it only for presentation.
+
+Results reuse the exact exercise display score. A pure adapter maps expected event IDs to generic `correct`, `missed`, or `wrong-pitch` highlights. These encode Pitch only. App-level MidiProvider ownership remains separate from Melody attempt/source locking. Shared piano WAVs are PWA-precached; metronome clicks are oscillator-generated. No Melody exercise, attempt, result, or analytics is persisted.
+
 ---
 
 # Overview

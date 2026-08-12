@@ -2,6 +2,10 @@
 
 A high-level record of significant milestones in Prelude's development.
 
+## Unreleased — Melody Mode Phase 1
+
+Completed generated continuous sight-reading with Web Audio count-in/metronome, MIDI/VKB capture, timing-led alignment, independent Pitch/Movement/Timing results, a Pitch-only colored result staff, mobile/visibility hardening, and cached-PWA support for the basic offline VKB workflow.
+
 ---
 
 ## v0.1.0

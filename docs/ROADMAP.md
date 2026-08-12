@@ -171,6 +171,17 @@ Chord Progressions, key-aware Free Play, shared Mobile Play, melodic-interval Ea
 
 Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
 
+## Melody Mode Phase 1 — Implementation complete
+
+- Seeded one/two-measure beginner generation
+- Web Audio count-in/metronome and continuous MIDI/VKB capture
+- Timing-led alignment with independent Pitch/Movement/Timing scores
+- Read-only notation, playhead, mobile presentation, and Pitch-result staff
+- Cached-PWA basic offline VKB workflow
+- Final device/accessibility/airplane-mode QA remains pending
+
+Future work remains separate: rests, 6/8/richer meters, two-hand notes, dyads/chords, adaptive difficulty, latency calibration, and detailed timing/extra-note overlays. Piece Practice Accuracy Phase 2 has not started.
+
 ---
 
 # ✅ Post-v2.3 — Staff Builder Foundation (Completed, Unreleased)

@@ -182,6 +182,6 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
       <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></>}
-    {presentation === "results" && result && <MelodyResults onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} />}
+    {presentation === "results" && result && <MelodyResults exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} />}
   </section>;
 }

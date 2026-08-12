@@ -17,7 +17,7 @@ import { resolveStaffBuilderPlaybackGeometry } from "./staff-builder-playback-ge
 import { StaffBuilderTimeWheel, STAFF_BUILDER_TIME_WHEEL_SIZE } from "./staff-builder-time-wheel";
 
 type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: number }>;
-export type StaffBuilderEventHighlight = Readonly<{ eventId: string; status: "current" | "correct" | "incorrect" | "complete" }>;
+export type StaffBuilderEventHighlight = Readonly<{ eventId: string; status: "current" | "correct" | "incorrect" | "complete" | "missed" | "wrong-pitch" }>;
 type PointerIntent = Readonly<{ kind: "event"; eventId: string }> | Readonly<{ kind: "position"; offsetTicks: number }> | Readonly<{ kind: "notation"; control: StaffBuilderNotationControlName }>;
 type PointerGesture = Readonly<{ pointerId: number; startX: number; startY: number; intent: PointerIntent }>;
 

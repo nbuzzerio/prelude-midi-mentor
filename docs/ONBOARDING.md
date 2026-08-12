@@ -2,7 +2,9 @@
 
 > **Latest Release:** v2.3.0 — Melodic Interval Ear Training
 > **Last Updated:** August 10, 2026
-> **Current Milestone:** Post-v2.3 Blocking Piece Practice Phase 1 checkpoint (unreleased)
+> **Current Milestone:** Post-v2.3 Melody Mode Phase 1 implementation complete (unreleased)
+>
+> Final device/manual QA and release assessment are next. Do not begin Piece Practice Accuracy Phase 2 or expand Melody scope without a new approved plan.
 
 ---
 
