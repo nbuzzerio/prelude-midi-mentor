@@ -7,6 +7,12 @@ import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import { useMobilePlay } from "@/hooks/use-mobile-play";
 import { createMelodyBrowserAudioContext, type MelodyOwnedAudioContext } from "../melody-browser-audio";
 import { createMelodyPerformanceClock, type MelodyPerformanceClock } from "../melody-clock";
+import {
+  createMelodyContinuousAttemptSummary,
+  MELODY_CONTINUOUS_ATTEMPT_TARGETS,
+  type MelodyContinuousAttemptSummary,
+  type MelodyContinuousAttemptTarget,
+} from "../melody-continuous-practice";
 import { projectMelodyExerciseToDisplayScore } from "../melody-display-score";
 import { generateMelodyExercise } from "../melody-generator";
 import { MELODY_PHASE_ONE_METER } from "../melody-meter";
@@ -17,8 +23,9 @@ import { getMelodyPerformancePhase } from "../melody-timing";
 import { DEFAULT_MELODY_SETTINGS, type MelodyExercise, type MelodySeed, type MelodySettings } from "../melody-types";
 import { MelodyCountGuide } from "./melody-count-guide";
 import { MelodyResults } from "./melody-results";
+import { MelodySessionSummary } from "./melody-session-summary";
 
-type MelodyPresentationState = "setup" | "starting" | "count-in" | "performing" | "results";
+type MelodyPresentationState = "setup" | "starting" | "count-in" | "performing" | "results" | "summary";
 type MelodyAudioFactory = typeof createMelodyBrowserAudioContext;
 let runtimeSeedCounter = 0;
 const defaultSeedFactory = (): MelodySeed => `melody-runtime-${Date.now()}-${runtimeSeedCounter++}`;
@@ -36,6 +43,13 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const [countInBeat, setCountInBeat] = useState(1);
   const [activeVirtual, setActiveVirtual] = useState<ReadonlySet<number>>(EMPTY);
   const [lockedSource, setLockedSource] = useState<"midi" | "virtual" | null>(null);
+  const [continuousPractice, setContinuousPractice] = useState(false);
+  const [continuousAttemptTarget, setContinuousAttemptTarget] =
+    useState<MelodyContinuousAttemptTarget>(10);
+  const [continuousSessionActive, setContinuousSessionActive] = useState(false);
+  const [continuousHistory, setContinuousHistory] = useState<
+    readonly MelodyContinuousAttemptSummary[]
+  >([]);
   const clockRef = useRef<MelodyPerformanceClock | null>(null);
   const audioContextRef = useRef<MelodyOwnedAudioContext | null>(null);
   const recorderRef = useRef<MelodyPerformanceRecorder | null>(null);
@@ -45,7 +59,10 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const resultRef = useRef<MelodyAttemptResult | null>(result);
   const sustainPedalDownRef = useRef(false);
   const pedalReadyInResultsRef = useRef(false);
+  const continuousSessionActiveRef = useRef(false);
+  const continuousHistoryRef = useRef<readonly MelodyContinuousAttemptSummary[]>([]);
   const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const summaryHeadingRef = useRef<HTMLHeadingElement>(null);
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
   const score = useMemo(() => projectMelodyExerciseToDisplayScore(exercise), [exercise]);
@@ -65,6 +82,8 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
 
   presentationRef.current = presentation;
   resultRef.current = result;
+  continuousSessionActiveRef.current = continuousSessionActive;
+  continuousHistoryRef.current = continuousHistory;
 
   useEffect(() => () => {
     cancelAttempt();
@@ -74,19 +93,24 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     try { void context.close().catch(() => undefined); } catch { /* Browser audio teardown is best-effort. */ }
   }, [cancelAttempt]);
   useEffect(() => { if (presentation === "results") resultsHeadingRef.current?.focus(); }, [presentation]);
+  useEffect(() => { if (presentation === "summary") summaryHeadingRef.current?.focus(); }, [presentation]);
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden" || !(["starting", "count-in", "performing"] as MelodyPresentationState[]).includes(presentationRef.current)) return;
       cancelAttempt();
       setResult(null);
       setPresentation("setup");
+      continuousSessionActiveRef.current = false;
+      continuousHistoryRef.current = [];
+      setContinuousSessionActive(false);
+      setContinuousHistory([]);
       setInterruptionNotice("Exercise stopped because Prelude was no longer active.");
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [cancelAttempt]);
 
-  function sampleClock(generation: number) {
+  function sampleClock(generation: number, exerciseToPerform: MelodyExercise) {
     const clock = clockRef.current;
     if (!clock || generation !== generationRef.current) return;
     const now = clock.nowSeconds();
@@ -94,13 +118,30 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     if (phase === "complete") {
       const recorder = recorderRef.current;
       if (!recorder) return;
-      const nextResult = evaluateMelodyAttempt(exercise, recorder.getAttacks());
+      const nextResult = evaluateMelodyAttempt(exerciseToPerform, recorder.getAttacks());
       clock.cancel();
       clockRef.current = null;
       recorderRef.current = null;
       setActiveTick(undefined);
       setResult(nextResult);
       resultRef.current = nextResult;
+      if (continuousSessionActiveRef.current) {
+        const previousHistory = continuousHistoryRef.current;
+        const entry = createMelodyContinuousAttemptSummary(
+          previousHistory.length + 1,
+          exerciseToPerform,
+          nextResult,
+          previousHistory.at(-1),
+        );
+        const nextHistory = [...previousHistory, entry];
+        continuousHistoryRef.current = nextHistory;
+        setContinuousHistory(nextHistory);
+        if (nextHistory.length >= continuousAttemptTarget) {
+          setPresentation("summary");
+          setStatusMessage("Continuous Practice session complete.");
+          return;
+        }
+      }
       pedalReadyInResultsRef.current = !sustainPedalDownRef.current;
       setPresentation("results");
       setStatusMessage("Exercise complete. Results are ready.");
@@ -115,13 +156,13 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       setPresentation("performing");
       setStatusMessage("Performance started.");
       const rawTick = ((now - clock.performanceStartedAtSeconds) / clock.quarterBeatSeconds) * STAFF_BUILDER_TICKS_PER_QUARTER;
-      const clamped = Math.max(0, Math.min(exercise.measures.length * MELODY_PHASE_ONE_METER.capacityTicks, rawTick));
+      const clamped = Math.max(0, Math.min(exerciseToPerform.measures.length * MELODY_PHASE_ONE_METER.capacityTicks, rawTick));
       setActiveTick(reducedMotion ? Math.floor(clamped / MELODY_PHASE_ONE_METER.subdivisionTicks) * MELODY_PHASE_ONE_METER.subdivisionTicks : clamped);
     }
-    animationRef.current = requestAnimationFrame(() => sampleClock(generation));
+    animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform));
   }
 
-  const start = async () => {
+  const beginAttempt = async (exerciseToPerform: MelodyExercise) => {
     cancelAttempt();
     const generation = generationRef.current;
     setAudioError(null);
@@ -134,20 +175,26 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
         audioContext = createAudioContext();
         audioContextRef.current = audioContext;
       }
-      const clock = await createMelodyPerformanceClock(exercise, audioContext);
+      const clock = await createMelodyPerformanceClock(exerciseToPerform, audioContext);
       if (generation !== generationRef.current) { clock.cancel(); return; }
       clockRef.current = clock;
-      recorderRef.current = createMelodyPerformanceRecorder(exercise, clock);
+      recorderRef.current = createMelodyPerformanceRecorder(exerciseToPerform, clock);
       setPresentation("count-in");
       setStatusMessage("Count in started.");
-      animationRef.current = requestAnimationFrame(() => sampleClock(generation));
+      animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform));
     } catch {
       if (generation !== generationRef.current) return;
       setPresentation("setup");
       setAudioError("Prelude couldn't start the Melody audio clock. Try again.");
       setStatusMessage("Melody audio could not start.");
+      continuousSessionActiveRef.current = false;
+      continuousHistoryRef.current = [];
+      setContinuousSessionActive(false);
+      setContinuousHistory([]);
     }
   };
+
+  const start = () => beginAttempt(exercise);
 
   const record = useCallback((midiNumber: number, source: "midi" | "virtual") => {
     const recorder = recorderRef.current;
@@ -181,11 +228,47 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     setPresentation("setup");
     setStatusMessage("Ready to start.");
     setInterruptionNotice(null);
+    continuousSessionActiveRef.current = false;
+    continuousHistoryRef.current = [];
+    setContinuousSessionActive(false);
+    setContinuousHistory([]);
   };
   const changeSetting = <K extends keyof MelodySettings>(key: K, value: MelodySettings[K]) => replaceExercise({ ...settings, [key]: value }, seedFactory());
-  const retrySame = () => { cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Ready to retry the same melody."); };
-  const tryAnother = () => replaceExercise(settings, seedFactory());
-  const returnSettings = () => { cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Settings ready."); };
+  const retrySame = () => {
+    if (continuousSessionActiveRef.current) {
+      void beginAttempt(exercise);
+      return;
+    }
+    cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Ready to retry the same melody.");
+  };
+  const tryAnother = () => {
+    if (continuousSessionActiveRef.current) {
+      const nextExercise = generateMelodyExercise(settings, seedFactory());
+      setExercise(nextExercise);
+      void beginAttempt(nextExercise);
+      return;
+    }
+    replaceExercise(settings, seedFactory());
+  };
+  const returnSettings = () => {
+    cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Settings ready.");
+    continuousSessionActiveRef.current = false;
+    continuousHistoryRef.current = [];
+    setContinuousSessionActive(false);
+    setContinuousHistory([]);
+  };
+
+  const startContinuousSession = (useNewExercise = false) => {
+    const exerciseToPerform = useNewExercise
+      ? generateMelodyExercise(settings, seedFactory())
+      : exercise;
+    if (useNewExercise) setExercise(exerciseToPerform);
+    continuousSessionActiveRef.current = true;
+    continuousHistoryRef.current = [];
+    setContinuousSessionActive(true);
+    setContinuousHistory([]);
+    void beginAttempt(exerciseToPerform);
+  };
 
   const handleExitMobilePlay = () => {
     exitMobilePlay();
@@ -205,15 +288,20 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       <label>Key<select aria-label="Key" onChange={(event) => changeSetting("keyId", event.target.value as MelodySettings["keyId"])} value={settings.keyId}><option value="c-major">C major</option><option value="g-major">G major</option><option value="f-major">F major</option><option value="a-minor">A minor</option><option value="d-minor">D minor</option></select></label>
       <label>Tempo<select aria-label="Tempo" onChange={(event) => changeSetting("tempoBpm", Number(event.target.value) as MelodySettings["tempoBpm"])} value={settings.tempoBpm}>{[50, 60, 70, 80].map((bpm) => <option key={bpm} value={bpm}>{bpm} BPM</option>)}</select></label>
       <label>Length<select aria-label="Length" onChange={(event) => changeSetting("measureCount", Number(event.target.value) as 1 | 2)} value={settings.measureCount}><option value={1}>1 measure</option><option value={2}>2 measures</option></select></label>
+      <label className="flex items-center gap-2"><input checked={continuousPractice} onChange={(event) => setContinuousPractice(event.target.checked)} type="checkbox" />Continuous Practice</label>
+      {continuousPractice && <label>Session length<select aria-label="Session length" onChange={(event) => setContinuousAttemptTarget(Number(event.target.value) as MelodyContinuousAttemptTarget)} value={continuousAttemptTarget}>{MELODY_CONTINUOUS_ATTEMPT_TARGETS.map((count) => <option key={count} value={count}>{count} attempts</option>)}</select></label>}
     </fieldset>}
-    {presentation !== "results" && <div className="melody-practice"><div aria-label="Melody exercise score and count guide" className="melody-score-scroll" data-measure-count={exercise.measures.length} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div></div>
-      {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => void start()} type="button">Start Exercise</button>}
+    {presentation !== "results" && presentation !== "summary" && <div className="melody-practice">
+      {continuousSessionActive && presentation !== "setup" && <p>Attempt {continuousHistory.length + 1} of {continuousAttemptTarget}</p>}
+      <div aria-label="Melody exercise score and count guide" className="melody-score-scroll" data-measure-count={exercise.measures.length} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div></div>
+      {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => continuousPractice ? startContinuousSession() : void start()} type="button">{continuousPractice ? "Start Session" : "Start Exercise"}</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
       {presentation === "count-in" && <p className="text-xl"><strong>Count in</strong> {countInBeat}</p>}
       {presentation === "performing" && <p className="text-xl"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
       <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></div>}
-    {presentation === "results" && result && <MelodyResults exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} />}
+    {presentation === "results" && result && <MelodyResults continuousProgress={continuousSessionActive ? `Attempt ${continuousHistory.length} of ${continuousAttemptTarget} complete` : undefined} exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} />}
+    {presentation === "summary" && <MelodySessionSummary history={continuousHistory} onPracticeAgain={() => startContinuousSession(true)} onSettings={returnSettings} ref={summaryHeadingRef} />}
   </section>;
 }

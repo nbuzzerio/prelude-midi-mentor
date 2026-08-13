@@ -13,6 +13,7 @@ import type { MelodyExercise } from "../melody-types";
 type MelodyResultsProps = Readonly<{
   exercise: MelodyExercise;
   result: MelodyAttemptResult;
+  continuousProgress?: string;
   onRetrySame: () => void;
   onTryAnother: () => void;
   onSettings: () => void;
@@ -20,7 +21,7 @@ type MelodyResultsProps = Readonly<{
 
 export const MelodyResults = forwardRef<HTMLHeadingElement, MelodyResultsProps>(
   function MelodyResults(
-    { exercise, result, onRetrySame, onTryAnother, onSettings },
+    { exercise, result, continuousProgress, onRetrySame, onTryAnother, onSettings },
     ref,
   ) {
     const score = projectMelodyExerciseToDisplayScore(exercise);
@@ -30,9 +31,12 @@ export const MelodyResults = forwardRef<HTMLHeadingElement, MelodyResultsProps>(
     return (
       <section className="melody-results space-y-5">
         <header className="melody-result-header flex items-center justify-between gap-3">
-          <h2 ref={ref} tabIndex={-1}>
-            Melody results
-          </h2>
+          <div>
+            <h2 ref={ref} tabIndex={-1}>
+              Melody results
+            </h2>
+            {continuousProgress && <p>{continuousProgress}</p>}
+          </div>
 
           <button
             className="melody-result-settings min-h-11 rounded-lg border border-zinc-600 px-3 py-2 font-medium text-zinc-200 hover:bg-zinc-800 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-zinc-300"
