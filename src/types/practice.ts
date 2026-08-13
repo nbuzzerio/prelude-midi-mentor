@@ -87,6 +87,10 @@ export type SequenceScaleDirection =
   | SequenceDirection
   | "ascending-descending";
 
+export type SequenceArpeggioDirection =
+  | SequenceDirection
+  | "ascending-descending";
+
 export type SequenceInterval = MusicalInterval;
 
 export type SequenceScale =

@@ -13,6 +13,7 @@ import type {
 import type {
   PracticeClefMode,
   SequenceArpeggio,
+  SequenceArpeggioDirection,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -41,6 +42,9 @@ const DEFAULT_ENABLED_SCALE_DIRECTIONS = new Set<SequenceScaleDirection>([
 ]);
 
 const DEFAULT_ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
+const DEFAULT_ENABLED_ARPEGGIO_DIRECTIONS = new Set<SequenceArpeggioDirection>([
+  "ascending-descending",
+]);
 
 const DEFAULT_ENABLED_CHORD_PROGRESSION_KEY_IDS =
   new Set<ChordProgressionKeyId>(["c-major"]);
@@ -95,6 +99,9 @@ export function useSequenceSettings() {
   const [enabledArpeggios, setEnabledArpeggios] = useState<
     ReadonlySet<SequenceArpeggio>
   >(DEFAULT_ENABLED_ARPEGGIOS);
+  const [enabledArpeggioDirections, setEnabledArpeggioDirections] = useState<
+    ReadonlySet<SequenceArpeggioDirection>
+  >(DEFAULT_ENABLED_ARPEGGIO_DIRECTIONS);
 
   const [enabledChordProgressionKeyIds, setEnabledChordProgressionKeyIds] =
     useState<ReadonlySet<ChordProgressionKeyId>>(
@@ -146,6 +153,15 @@ export function useSequenceSettings() {
       toggleRequiredSetValue(currentArpeggios, arpeggio),
     );
   }, []);
+
+  const toggleArpeggioDirection = useCallback(
+    (direction: SequenceArpeggioDirection) => {
+      setEnabledArpeggioDirections((currentDirections) =>
+        toggleRequiredSetValue(currentDirections, direction),
+      );
+    },
+    [],
+  );
 
   const toggleChordProgressionKey = useCallback(
     (keyId: ChordProgressionKeyId) => {
@@ -203,6 +219,7 @@ export function useSequenceSettings() {
 
   return {
     enabledArpeggios,
+    enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
     enabledChordProgressionTemplateIds,
     enabledDirections,
@@ -217,6 +234,7 @@ export function useSequenceSettings() {
     setShowTargetName,
     showTargetName,
     toggleArpeggio,
+    toggleArpeggioDirection,
     toggleChordProgressionKey,
     toggleChordProgressionTemplate,
     toggleDirection,

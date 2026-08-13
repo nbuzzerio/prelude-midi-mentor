@@ -12,6 +12,7 @@ import type {
   Clef,
   PracticeNote,
   SequenceArpeggio,
+  SequenceArpeggioDirection,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -90,11 +91,11 @@ const ARPEGGIO_SEMITONE_PATTERNS: Readonly<
 
   augmented: [0, 4, 8, 12],
 
-  "dominant-seventh": [0, 4, 7, 10],
+  "dominant-seventh": [0, 4, 7, 10, 12],
 
-  "major-seventh": [0, 4, 7, 11],
+  "major-seventh": [0, 4, 7, 11, 12],
 
-  "minor-seventh": [0, 3, 7, 10],
+  "minor-seventh": [0, 3, 7, 10, 12],
 };
 
 const ARPEGGIO_DIATONIC_PATTERNS: Readonly<
@@ -104,9 +105,9 @@ const ARPEGGIO_DIATONIC_PATTERNS: Readonly<
   minor: [0, 2, 4, 7],
   diminished: [0, 2, 4, 7],
   augmented: [0, 2, 4, 7],
-  "dominant-seventh": [0, 2, 4, 6],
-  "major-seventh": [0, 2, 4, 6],
-  "minor-seventh": [0, 2, 4, 6],
+  "dominant-seventh": [0, 2, 4, 6, 7],
+  "major-seventh": [0, 2, 4, 6, 7],
+  "minor-seventh": [0, 2, 4, 6, 7],
 };
 
 const ARPEGGIO_LABELS: Readonly<Record<SequenceArpeggio, string>> = {
@@ -142,7 +143,7 @@ type GenerateScaleTargetOptions = Readonly<{
 type GenerateArpeggioTargetOptions = Readonly<{
   clef: Clef;
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
-  enabledDirections: ReadonlySet<SequenceDirection>;
+  enabledArpeggioDirections: ReadonlySet<SequenceArpeggioDirection>;
   enabledNoteCategories: ReadonlySet<SequenceNoteCategory>;
 }>;
 
@@ -156,6 +157,7 @@ export type GenerateSequenceTargetOptions = Readonly<{
   exerciseType: SequenceExerciseType;
   clef: Clef;
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
+  enabledArpeggioDirections: ReadonlySet<SequenceArpeggioDirection>;
   enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
   enabledChordProgressionTemplateIds: ReadonlySet<ChordProgressionTemplateId>;
   enabledDirections: ReadonlySet<SequenceDirection>;
@@ -540,11 +542,11 @@ function generateScaleTarget({
 function generateArpeggioTarget({
   clef,
   enabledArpeggios,
-  enabledDirections,
+  enabledArpeggioDirections,
   enabledNoteCategories,
 }: GenerateArpeggioTargetOptions): SequenceTarget {
-  if (enabledDirections.size === 0) {
-    throw new Error("At least one sequence direction must be enabled.");
+  if (enabledArpeggioDirections.size === 0) {
+    throw new Error("At least one sequence arpeggio direction must be enabled.");
   }
 
   if (enabledArpeggios.size === 0) {
@@ -555,12 +557,12 @@ function generateArpeggioTarget({
     throw new Error("At least one sequence note category must be enabled.");
   }
 
-  const direction = getRandomItem(Array.from(enabledDirections));
+  const direction = getRandomItem(Array.from(enabledArpeggioDirections));
   const arpeggio = getRandomItem(Array.from(enabledArpeggios));
 
   const eligibleStartingMidiNumbers = getEligibleOneOctaveStartingMidiNumbers({
     clef,
-    direction,
+    direction: "ascending",
     enabledNoteCategories,
   });
 
@@ -572,12 +574,19 @@ function generateArpeggioTarget({
   
   const startingMidiNumber = getRandomItem(eligibleStartingMidiNumbers);
 
-  const notes = createTheoryPatternNotes({
+  const ascendingNotes = createTheoryPatternNotes({
     startingMidiNumber,
     semitonePattern: ARPEGGIO_SEMITONE_PATTERNS[arpeggio],
     diatonicPattern: ARPEGGIO_DIATONIC_PATTERNS[arpeggio],
-    direction,
+    direction: "ascending",
   });
+
+  const notes =
+    direction === "ascending"
+      ? ascendingNotes
+      : direction === "descending"
+        ? [...ascendingNotes].reverse()
+        : [...ascendingNotes, ...[...ascendingNotes].reverse().slice(1)];
 
   const steps = notes.map((note) => ({
     durationTicks: SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
@@ -591,7 +600,9 @@ function generateArpeggioTarget({
       secondary:
         direction === "ascending"
           ? "Ascending one-octave arpeggio"
-          : "Descending one-octave arpeggio",
+          : direction === "descending"
+            ? "Descending one-octave arpeggio"
+            : "Ascending and descending one-octave arpeggio",
     },
     steps,
     timing: SEQUENCE_DEFAULT_TIMING,

@@ -260,6 +260,7 @@ describe("useSequenceTarget", () => {
     expect(generateSequenceTarget).toHaveBeenCalledWith({
       exerciseType: "intervals",
       clef: "bass",
+      enabledArpeggioDirections: new Set(["ascending-descending"]),
       enabledArpeggios: ENABLED_ARPEGGIOS,
       enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
       enabledChordProgressionTemplateIds:
@@ -497,6 +498,7 @@ describe("useSequenceTarget", () => {
     expect(generateSequenceTarget).toHaveBeenCalledWith({
       exerciseType: updatedExerciseType,
       clef: "bass",
+      enabledArpeggioDirections: new Set(["ascending-descending"]),
       enabledArpeggios: updatedArpeggios,
       enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
       enabledChordProgressionTemplateIds:

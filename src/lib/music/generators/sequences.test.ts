@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SequenceArpeggio } from "@/types/practice";
+import type {
+  SequenceArpeggio,
+  SequenceArpeggioDirection,
+} from "@/types/practice";
 import {
   CHORD_PROGRESSION_TEMPLATES,
   SUPPORTED_CHORD_PROGRESSION_KEYS,
@@ -38,11 +41,17 @@ const ALL_CHORD_PROGRESSION_TEMPLATE_IDS =
 
 type ExistingSequenceTargetOptions = Omit<
   GenerateSequenceTargetOptions,
-  "enabledChordProgressionKeyIds" | "enabledChordProgressionTemplateIds"
->;
+  | "enabledArpeggioDirections"
+  | "enabledChordProgressionKeyIds"
+  | "enabledChordProgressionTemplateIds"
+> &
+  Readonly<{
+    enabledArpeggioDirections?: ReadonlySet<SequenceArpeggioDirection>;
+  }>;
 
 function generateExistingSequenceTarget(options: ExistingSequenceTargetOptions) {
   return generateSequenceTarget({
+    enabledArpeggioDirections: new Set(["ascending-descending"]),
     ...options,
     enabledChordProgressionKeyIds: ALL_CHORD_PROGRESSION_KEY_IDS,
     enabledChordProgressionTemplateIds: ALL_CHORD_PROGRESSION_TEMPLATE_IDS,
@@ -247,6 +256,7 @@ function generateProgressionTarget({
     exerciseType: "chord-progressions",
     clef,
     enabledArpeggios: ENABLED_ARPEGGIOS,
+    enabledArpeggioDirections: new Set(["ascending-descending"]),
     enabledChordProgressionKeyIds: keyIds,
     enabledChordProgressionTemplateIds: templateIds,
     enabledDirections: new Set(["ascending"]),
@@ -494,6 +504,80 @@ describe("chord progression sequence targets", () => {
 });
 
 describe("theory spelling", () => {
+  function generateCArpeggio(
+    arpeggio: SequenceArpeggio,
+    direction: SequenceArpeggioDirection,
+  ) {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    return generateExistingSequenceTarget({
+      exerciseType: "arpeggios",
+      clef: "treble",
+      enabledArpeggios: new Set([arpeggio]),
+      enabledArpeggioDirections: new Set([direction]),
+      enabledDirections: new Set(["descending"]),
+      enabledIntervals: new Set(["major-second"]),
+      enabledNoteCategories: new Set(["naturals"]),
+      enabledScaleDirections: new Set(["ascending"]),
+      enabledScales: ENABLED_SCALES,
+    });
+  }
+
+  it.each([
+    ["ascending", [60, 64, 67, 72]],
+    ["descending", [72, 67, 64, 60]],
+    ["ascending-descending", [60, 64, 67, 72, 67, 64, 60]],
+  ] as const)("generates a conventional major arpeggio traversal for %s", (direction, midiNumbers) => {
+    const target = generateCArpeggio("major", direction);
+
+    expect(getTargetNotes(target).map(({ midiNumber }) => midiNumber)).toEqual(
+      midiNumbers,
+    );
+    expect(target.steps.every(({ durationTicks }) => durationTicks === 480)).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    ["minor", ["C", "E♭", "G", "C", "G", "E♭", "C"]],
+    ["diminished", ["C", "E♭", "G♭", "C", "G♭", "E♭", "C"]],
+    ["augmented", ["C", "E", "G♯", "C", "G♯", "E", "C"]],
+  ] as const)("preserves theoretical spelling for a %s round trip", (arpeggio, names) => {
+    expect(
+      getTargetNotes(generateCArpeggio(arpeggio, "ascending-descending")).map(
+        ({ name }) => name,
+      ),
+    ).toEqual(names);
+  });
+
+  it.each([
+    ["dominant-seventh", ["C", "E", "G", "B♭", "C"]],
+    ["major-seventh", ["C", "E", "G", "B", "C"]],
+    ["minor-seventh", ["C", "E♭", "G", "B♭", "C"]],
+  ] as const)("includes the upper root in an ascending %s", (arpeggio, names) => {
+    expect(
+      getTargetNotes(generateCArpeggio(arpeggio, "ascending")).map(
+        ({ name }) => name,
+      ),
+    ).toEqual(names);
+  });
+
+  it("reverses the complete dominant seventh ascent and omits a duplicate apex", () => {
+    expect(
+      getTargetNotes(
+        generateCArpeggio("dominant-seventh", "descending"),
+      ).map(({ name }) => name),
+    ).toEqual(["C", "B♭", "G", "E", "C"]);
+    const roundTrip = generateCArpeggio(
+      "dominant-seventh",
+      "ascending-descending",
+    );
+    expect(
+      getTargetNotes(roundTrip).map(({ midiNumber }) => midiNumber),
+    ).toEqual([60, 64, 67, 70, 72, 70, 67, 64, 60]);
+    expect(roundTrip.steps).toHaveLength(9);
+  });
+
   it("generates an ascending major scale", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 

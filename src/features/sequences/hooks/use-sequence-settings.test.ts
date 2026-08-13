@@ -26,6 +26,10 @@ describe("useSequenceSettings", () => {
       new Set(["ascending"]),
     );
 
+    expect(result.current.enabledArpeggioDirections).toEqual(
+      new Set(["ascending-descending"]),
+    );
+
     expect(result.current.enabledDirections).toEqual(new Set(["ascending"]));
 
     expect(result.current.enabledIntervals).toEqual(
@@ -297,6 +301,25 @@ describe("useSequenceSettings", () => {
       });
 
       expect(result.current.enabledScales).toEqual(new Set(["major"]));
+    });
+  });
+
+  describe("arpeggio directions", () => {
+    it("changes independently from interval and scale directions", () => {
+      const { result } = renderHook(() => useSequenceSettings());
+
+      act(() => {
+        result.current.toggleArpeggioDirection("descending");
+        result.current.toggleArpeggioDirection("ascending-descending");
+      });
+
+      expect(result.current.enabledArpeggioDirections).toEqual(
+        new Set(["descending"]),
+      );
+      expect(result.current.enabledDirections).toEqual(new Set(["ascending"]));
+      expect(result.current.enabledScaleDirections).toEqual(
+        new Set(["ascending"]),
+      );
     });
   });
 

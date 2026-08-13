@@ -7,6 +7,7 @@ afterEach(cleanup);
 
 const BASE_PROPS = {
   enabledArpeggios: new Set(["major"] as const),
+  enabledArpeggioDirections: new Set(["ascending-descending"] as const),
   enabledChordProgressionKeyIds: new Set(["c-major"] as const),
   enabledChordProgressionTemplateIds: new Set(["major-1451"] as const),
   enabledDirections: new Set(["ascending"] as const),
@@ -16,6 +17,7 @@ const BASE_PROPS = {
   enabledScales: new Set(["major"] as const),
   mode: "treble" as const,
   onArpeggioToggle: vi.fn(),
+  onArpeggioDirectionToggle: vi.fn(),
   onChordProgressionKeyToggle: vi.fn(),
   onChordProgressionTemplateToggle: vi.fn(),
   onDirectionToggle: vi.fn(),
@@ -45,7 +47,7 @@ describe("SequenceControls", () => {
     ]);
   });
 
-  it("shows ascending and descending practice only for scales", () => {
+  it("keeps interval direction separate and exposes round trips for scales and arpeggios", () => {
     const { rerender } = render(
       <SequenceControls {...BASE_PROPS} exerciseType="intervals" />,
     );
@@ -56,9 +58,13 @@ describe("SequenceControls", () => {
 
     rerender(<SequenceControls {...BASE_PROPS} exerciseType="arpeggios" />);
 
-    expect(
-      screen.queryByRole("button", { name: "Ascending + Descending" }),
-    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ascending + Descending" }),
+    );
+    expect(BASE_PROPS.onArpeggioDirectionToggle).toHaveBeenCalledWith(
+      "ascending-descending",
+    );
+    expect(BASE_PROPS.onDirectionToggle).not.toHaveBeenCalled();
 
     rerender(<SequenceControls {...BASE_PROPS} exerciseType="scales" />);
 

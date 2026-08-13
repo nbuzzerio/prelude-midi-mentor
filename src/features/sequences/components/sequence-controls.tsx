@@ -9,6 +9,7 @@ import type {
 import type {
   PracticeClefMode,
   SequenceArpeggio,
+  SequenceArpeggioDirection,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -19,6 +20,7 @@ import type {
 
 type SequenceControlsProps = Readonly<{
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
+  enabledArpeggioDirections: ReadonlySet<SequenceArpeggioDirection>;
   enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
   enabledChordProgressionTemplateIds: ReadonlySet<ChordProgressionTemplateId>;
   enabledDirections: ReadonlySet<SequenceDirection>;
@@ -30,6 +32,7 @@ type SequenceControlsProps = Readonly<{
   mode: PracticeClefMode;
   showTargetName: boolean;
   onArpeggioToggle: (arpeggio: SequenceArpeggio) => void;
+  onArpeggioDirectionToggle: (direction: SequenceArpeggioDirection) => void;
   onChordProgressionKeyToggle: (keyId: ChordProgressionKeyId) => void;
   onChordProgressionTemplateToggle: (
     templateId: ChordProgressionTemplateId,
@@ -124,6 +127,10 @@ const SCALE_DIRECTION_OPTIONS: ReadonlyArray<
     value: "ascending-descending",
   },
 ];
+
+const ARPEGGIO_DIRECTION_OPTIONS: ReadonlyArray<
+  Readonly<{ label: string; value: SequenceArpeggioDirection }>
+> = SCALE_DIRECTION_OPTIONS;
 
 const NOTE_CATEGORY_OPTIONS: ReadonlyArray<
   Readonly<{
@@ -289,6 +296,7 @@ function ToggleButton({
 
 export default function SequenceControls({
   enabledArpeggios,
+  enabledArpeggioDirections,
   enabledChordProgressionKeyIds,
   enabledChordProgressionTemplateIds,
   enabledDirections,
@@ -299,6 +307,7 @@ export default function SequenceControls({
   exerciseType,
   mode,
   onArpeggioToggle,
+  onArpeggioDirectionToggle,
   onChordProgressionKeyToggle,
   onChordProgressionTemplateToggle,
   onDirectionToggle,
@@ -400,19 +409,25 @@ export default function SequenceControls({
         <div className="mt-2 flex flex-wrap gap-2">
           {(exerciseType === "scales"
             ? SCALE_DIRECTION_OPTIONS
-            : DIRECTION_OPTIONS
+            : exerciseType === "arpeggios"
+              ? ARPEGGIO_DIRECTION_OPTIONS
+              : DIRECTION_OPTIONS
           ).map((option) => (
             <ToggleButton
               enabled={
                 exerciseType === "scales"
                   ? enabledScaleDirections.has(option.value)
-                  : enabledDirections.has(option.value as SequenceDirection)
+                  : exerciseType === "arpeggios"
+                    ? enabledArpeggioDirections.has(option.value)
+                    : enabledDirections.has(option.value as SequenceDirection)
               }
               key={option.value}
               label={option.label}
               onClick={() => {
                 if (exerciseType === "scales") {
                   onScaleDirectionToggle(option.value);
+                } else if (exerciseType === "arpeggios") {
+                  onArpeggioDirectionToggle(option.value);
                 } else {
                   onDirectionToggle(option.value as SequenceDirection);
                 }

@@ -65,6 +65,7 @@ export default function SequenceSession({
   // Sequence configuration
   const {
     enabledArpeggios,
+    enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
     enabledChordProgressionTemplateIds,
     enabledDirections,
@@ -79,6 +80,7 @@ export default function SequenceSession({
     setShowTargetName,
     showTargetName,
     toggleArpeggio,
+    toggleArpeggioDirection,
     toggleChordProgressionKey,
     toggleChordProgressionTemplate,
     toggleDirection,
@@ -90,6 +92,7 @@ export default function SequenceSession({
 
   const generationSettingsRef = useRef({
     enabledArpeggios,
+    enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
     enabledChordProgressionTemplateIds,
     enabledDirections,
@@ -111,6 +114,7 @@ export default function SequenceSession({
     startedAt,
   } = useSequenceTarget({
     enabledArpeggios,
+    enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
     enabledChordProgressionTemplateIds,
     enabledDirections,
@@ -246,6 +250,7 @@ export default function SequenceSession({
       previousSettings.enabledScales !== enabledScales ||
       previousSettings.enabledScaleDirections !== enabledScaleDirections ||
       previousSettings.enabledArpeggios !== enabledArpeggios ||
+      previousSettings.enabledArpeggioDirections !== enabledArpeggioDirections ||
       previousSettings.enabledChordProgressionKeyIds !==
         enabledChordProgressionKeyIds ||
       previousSettings.enabledChordProgressionTemplateIds !==
@@ -253,6 +258,7 @@ export default function SequenceSession({
 
     generationSettingsRef.current = {
       enabledArpeggios,
+      enabledArpeggioDirections,
       enabledChordProgressionKeyIds,
       enabledChordProgressionTemplateIds,
       enabledDirections,
@@ -273,6 +279,7 @@ export default function SequenceSession({
   }, [
     clearTransition,
     enabledArpeggios,
+    enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
     enabledChordProgressionTemplateIds,
     enabledDirections,
@@ -773,6 +780,7 @@ export default function SequenceSession({
 
           <SequenceControls
             enabledArpeggios={enabledArpeggios}
+            enabledArpeggioDirections={enabledArpeggioDirections}
             enabledChordProgressionKeyIds={enabledChordProgressionKeyIds}
             enabledChordProgressionTemplateIds={
               enabledChordProgressionTemplateIds
@@ -785,6 +793,7 @@ export default function SequenceSession({
             exerciseType={exerciseType}
             mode={mode}
             onArpeggioToggle={toggleArpeggio}
+            onArpeggioDirectionToggle={toggleArpeggioDirection}
             onChordProgressionKeyToggle={toggleChordProgressionKey}
             onChordProgressionTemplateToggle={
               toggleChordProgressionTemplate

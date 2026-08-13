@@ -14,6 +14,7 @@ import type {
 import type {
   PracticeClefMode,
   SequenceArpeggio,
+  SequenceArpeggioDirection,
   SequenceDirection,
   SequenceExerciseType,
   SequenceInterval,
@@ -54,8 +55,13 @@ const INITIAL_SEQUENCE_TARGET: SequenceTarget = {
   timing: SEQUENCE_DEFAULT_TIMING,
 };
 
+const DEFAULT_ARPEGGIO_DIRECTIONS = new Set<SequenceArpeggioDirection>([
+  "ascending-descending",
+]);
+
 type UseSequenceTargetOptions = Readonly<{
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
+  enabledArpeggioDirections?: ReadonlySet<SequenceArpeggioDirection>;
   enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
   enabledChordProgressionTemplateIds: ReadonlySet<ChordProgressionTemplateId>;
   enabledDirections: ReadonlySet<SequenceDirection>;
@@ -69,6 +75,7 @@ type UseSequenceTargetOptions = Readonly<{
 
 export function useSequenceTarget({
   enabledArpeggios,
+  enabledArpeggioDirections = DEFAULT_ARPEGGIO_DIRECTIONS,
   enabledChordProgressionKeyIds,
   enabledChordProgressionTemplateIds,
   enabledDirections,
@@ -96,6 +103,7 @@ export function useSequenceTarget({
         exerciseType,
         clef,
         enabledArpeggios,
+        enabledArpeggioDirections,
         enabledChordProgressionKeyIds,
         enabledChordProgressionTemplateIds,
         enabledDirections,
@@ -113,6 +121,7 @@ export function useSequenceTarget({
     },
     [
       enabledArpeggios,
+      enabledArpeggioDirections,
       enabledChordProgressionKeyIds,
       enabledChordProgressionTemplateIds,
       enabledDirections,
