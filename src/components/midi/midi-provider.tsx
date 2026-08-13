@@ -16,7 +16,11 @@ export function MidiProvider({ children }: Readonly<{ children: ReactNode }>) {
     activeConsumerRef.current?.consumer.onNotePlayed?.(midiNumber);
   }, []);
 
-  const midi = useMidi({ onHeldNotesChanged: handleHeldNotesChanged, onNotePlayed: handleNotePlayed });
+  const handleSustainPedalChanged = useCallback((isDown: boolean) => {
+    activeConsumerRef.current?.consumer.onSustainPedalChanged?.(isDown);
+  }, []);
+
+  const midi = useMidi({ onHeldNotesChanged: handleHeldNotesChanged, onNotePlayed: handleNotePlayed, onSustainPedalChanged: handleSustainPedalChanged });
 
   const registerConsumer = useCallback((consumer: AppMidiConsumer) => {
     const token = Symbol("app-midi-consumer");

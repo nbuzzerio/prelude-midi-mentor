@@ -16,7 +16,7 @@ vi.mock("@/hooks/use-mobile-play", async () => {
   };
 });
 
-const midi = vi.hoisted(() => ({ options: null as null | { onNotePlayed?: (midi: number) => void } }));
+const midi = vi.hoisted(() => ({ options: null as null | { onNotePlayed?: (midi: number) => void; onSustainPedalChanged?: (isDown: boolean) => void } }));
 vi.mock("@/hooks/use-app-midi-input", () => ({ useAppMidiInput: (options: typeof midi.options) => {
   midi.options = options;
   return { status: "connected", deviceName: "Test Keys", error: null, connectMidi: vi.fn() };
@@ -194,6 +194,22 @@ describe("MelodySession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
+  });
+
+  it("requires a release after carrying sustain into results, then routes one fresh down", async () => {
+    const audio = fakeAudio();
+    render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
+    act(() => midi.options?.onSustainPedalChanged?.(true));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(8.6);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
+
+    act(() => midi.options?.onSustainPedalChanged?.(true));
+    expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
+    act(() => midi.options?.onSustainPedalChanged?.(false));
+    act(() => midi.options?.onSustainPedalChanged?.(true));
+    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
   });
 
   it("preserves exercise and lazy AudioContext ownership across resize", async () => {

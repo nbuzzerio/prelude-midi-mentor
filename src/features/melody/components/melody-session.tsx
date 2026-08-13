@@ -11,6 +11,7 @@ import { projectMelodyExerciseToDisplayScore } from "../melody-display-score";
 import { generateMelodyExercise } from "../melody-generator";
 import { MELODY_PHASE_ONE_METER } from "../melody-meter";
 import { createMelodyPerformanceRecorder, type MelodyPerformanceRecorder } from "../melody-performance";
+import { shouldTryAnotherFromPedal } from "../melody-pedal-result-action";
 import { evaluateMelodyAttempt, type MelodyAttemptResult } from "../melody-scoring";
 import { getMelodyPerformancePhase } from "../melody-timing";
 import { DEFAULT_MELODY_SETTINGS, type MelodyExercise, type MelodySeed, type MelodySettings } from "../melody-types";
@@ -41,6 +42,9 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const animationRef = useRef<number | null>(null);
   const generationRef = useRef(0);
   const presentationRef = useRef<MelodyPresentationState>(presentation);
+  const resultRef = useRef<MelodyAttemptResult | null>(result);
+  const sustainPedalDownRef = useRef(false);
+  const pedalReadyInResultsRef = useRef(false);
   const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
@@ -60,6 +64,7 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   }, []);
 
   presentationRef.current = presentation;
+  resultRef.current = result;
 
   useEffect(() => () => {
     cancelAttempt();
@@ -95,6 +100,8 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       recorderRef.current = null;
       setActiveTick(undefined);
       setResult(nextResult);
+      resultRef.current = nextResult;
+      pedalReadyInResultsRef.current = !sustainPedalDownRef.current;
       setPresentation("results");
       setStatusMessage("Exercise complete. Results are ready.");
       return;
@@ -148,7 +155,23 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     recorder.recordAttack(midiNumber, source);
     setLockedSource(recorder.getLockedSource());
   }, []);
-  const midi = useAppMidiInput({ onNotePlayed: (midiNumber) => record(midiNumber, "midi") });
+  const midi = useAppMidiInput({
+    onNotePlayed: (midiNumber) => record(midiNumber, "midi"),
+    onSustainPedalChanged: (isDown) => {
+      sustainPedalDownRef.current = isDown;
+      if (presentationRef.current !== "results") return;
+      if (!isDown) {
+        pedalReadyInResultsRef.current = true;
+        return;
+      }
+      if (!pedalReadyInResultsRef.current) return;
+      pedalReadyInResultsRef.current = false;
+      const completedResult = resultRef.current;
+      if (!completedResult) return;
+      if (shouldTryAnotherFromPedal(completedResult)) tryAnother();
+      else retrySame();
+    },
+  });
 
   const replaceExercise = (nextSettings: MelodySettings, seed: MelodySeed) => {
     cancelAttempt();

@@ -417,6 +417,53 @@ describe("useMidi", () => {
     expect(access.removeEventListener).not.toHaveBeenCalled();
   });
 
+  it("parses CC64 on every channel and emits only sustain state edges", async () => {
+    const onNotePlayed = vi.fn();
+    const onSustainPedalChanged = vi.fn();
+    const { emitMidiMessage, input } = createMidiInput();
+    const { access } = createMidiAccess([input]);
+    installRequestMidiAccess(() => Promise.resolve(access));
+    const { result } = renderHook(() =>
+      useMidi({ onNotePlayed, onSustainPedalChanged }),
+    );
+
+    await act(async () => result.current.connectMidi());
+    act(() => {
+      emitMidiMessage([0xb0, 63, 127]);
+      emitMidiMessage([0xb0, 64, 63]);
+      emitMidiMessage([0xb0, 64, 64]);
+      emitMidiMessage([0xbf, 64, 127]);
+      emitMidiMessage([0xbf, 64, 0]);
+      emitMidiMessage([0xb0, 64, 64]);
+    });
+
+    expect(onSustainPedalChanged.mock.calls).toEqual([
+      [true],
+      [false],
+      [true],
+    ]);
+    expect(onNotePlayed).not.toHaveBeenCalled();
+  });
+
+  it("releases tracked sustain state when the active input disconnects", async () => {
+    const onSustainPedalChanged = vi.fn();
+    const midiInput = createMidiInput();
+    const midiAccess = createMidiAccess([midiInput.input]);
+    installRequestMidiAccess(() => Promise.resolve(midiAccess.access));
+    const { result } = renderHook(() =>
+      useMidi({ onNotePlayed: vi.fn(), onSustainPedalChanged }),
+    );
+
+    await act(async () => result.current.connectMidi());
+    act(() => midiInput.emitMidiMessage([0xb0, 64, 127]));
+    act(() => {
+      midiAccess.removeInput("input-0");
+      midiAccess.emitStateChange();
+    });
+
+    expect(onSustainPedalChanged.mock.calls).toEqual([[true], [false]]);
+  });
+
   it("connects when a MIDI input appears after access was granted", async () => {
     const onHeldNotesChanged = vi.fn();
     const midiAccess = createMidiAccess();

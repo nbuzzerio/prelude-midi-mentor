@@ -10,6 +10,7 @@ export type MidiConnectionStatus =
 type UseMidiOptions = Readonly<{
   onHeldNotesChanged?: (heldNotes: ReadonlySet<number>) => void;
   onNotePlayed: (midiNumber: number) => void;
+  onSustainPedalChanged?: (isDown: boolean) => void;
 }>;
 
 type UseMidiResult = Readonly<{
@@ -22,6 +23,7 @@ type UseMidiResult = Readonly<{
 export function useMidi({
   onHeldNotesChanged,
   onNotePlayed,
+  onSustainPedalChanged,
 }: UseMidiOptions): UseMidiResult {
   const [status, setStatus] = useState<MidiConnectionStatus>("disconnected");
   const [deviceName, setDeviceName] = useState<string | null>(null);
@@ -31,8 +33,10 @@ export function useMidi({
   const connectPromiseRef = useRef<Promise<void> | null>(null);
 
   const heldNotesRef = useRef<Set<number>>(new Set());
+  const sustainPedalDownRef = useRef(false);
   const onHeldNotesChangedRef = useRef(onHeldNotesChanged);
   const onNotePlayedRef = useRef(onNotePlayed);
+  const onSustainPedalChangedRef = useRef(onSustainPedalChanged);
 
   useEffect(() => {
     onHeldNotesChangedRef.current = onHeldNotesChanged;
@@ -43,6 +47,10 @@ export function useMidi({
   }, [onNotePlayed]);
 
   useEffect(() => {
+    onSustainPedalChangedRef.current = onSustainPedalChanged;
+  }, [onSustainPedalChanged]);
+
+  useEffect(() => {
     if (!midiAccess) {
       return;
     }
@@ -51,6 +59,12 @@ export function useMidi({
 
     const publishHeldNotes = () => {
       onHeldNotesChangedRef.current?.(new Set(heldNotes));
+    };
+
+    const resetSustainPedal = () => {
+      if (!sustainPedalDownRef.current) return;
+      sustainPedalDownRef.current = false;
+      onSustainPedalChangedRef.current?.(false);
     };
 
     const handleMidiMessage = (event: MIDIMessageEvent) => {
@@ -73,6 +87,14 @@ export function useMidi({
       }
 
       const command = statusByte & 0xf0;
+      if (command === 0xb0 && noteNumber === 64) {
+        const isDown = velocity >= 64;
+        if (isDown !== sustainPedalDownRef.current) {
+          sustainPedalDownRef.current = isDown;
+          onSustainPedalChangedRef.current?.(isDown);
+        }
+        return;
+      }
       const isNoteOn = command === 0x90 && velocity > 0;
       const isNoteOff =
         command === 0x80 || (command === 0x90 && velocity === 0);
@@ -107,6 +129,7 @@ export function useMidi({
         heldNotes.clear();
         publishHeldNotes();
       }
+      if (detachedInput) resetSustainPedal();
       for (const input of availableInputs) {
         if (!attachedInputs.has(input)) {
           input.addEventListener("midimessage", handleMidiMessage);
@@ -123,6 +146,7 @@ export function useMidi({
       } else {
         heldNotes.clear();
         publishHeldNotes();
+        resetSustainPedal();
 
         setDeviceName(null);
         setStatus("disconnected");
@@ -144,6 +168,7 @@ export function useMidi({
       }
 
       heldNotes.clear();
+      resetSustainPedal();
     };
   }, [midiAccess]);
 

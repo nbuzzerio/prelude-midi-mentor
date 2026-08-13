@@ -11,6 +11,7 @@ const lowLevel = vi.hoisted(() => ({
   options: null as null | Readonly<{
     onHeldNotesChanged?: (notes: ReadonlySet<number>) => void;
     onNotePlayed: (midiNumber: number) => void;
+    onSustainPedalChanged?: (isDown: boolean) => void;
   }>,
   ownerCount: 0,
 }));
@@ -26,12 +27,13 @@ vi.mock("@/hooks/use-midi", () => ({
   },
 }));
 
-function Consumer({ label, onHeld, onNote }: Readonly<{
+function Consumer({ label, onHeld, onNote, onSustain = vi.fn() }: Readonly<{
   label: string;
   onHeld: (notes: ReadonlySet<number>) => void;
   onNote: (midiNumber: number) => void;
+  onSustain?: (isDown: boolean) => void;
 }>) {
-  const midi = useAppMidiInput({ onHeldNotesChanged: onHeld, onNotePlayed: onNote });
+  const midi = useAppMidiInput({ onHeldNotesChanged: onHeld, onNotePlayed: onNote, onSustainPedalChanged: onSustain });
   return <button onClick={() => void midi.connectMidi()} type="button">{label}: {midi.status} {midi.deviceName}</button>;
 }
 
@@ -68,6 +70,24 @@ describe("MidiProvider", () => {
     act(() => lowLevel.options?.onNotePlayed(62));
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenLastCalledWith(62);
+  });
+
+  it("routes sustain changes only to the active consumer", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(
+      <MidiProvider>
+        <Consumer label="First" onHeld={vi.fn()} onNote={vi.fn()} onSustain={first} />
+        <Consumer label="Second" onHeld={vi.fn()} onNote={vi.fn()} onSustain={second} />
+      </MidiProvider>,
+    );
+    act(() => lowLevel.options?.onSustainPedalChanged?.(true));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(true);
+
+    rerender(<MidiProvider><div>No consumer</div></MidiProvider>);
+    act(() => lowLevel.options?.onSustainPedalChanged?.(false));
+    expect(second).toHaveBeenCalledTimes(1);
   });
 
   it("preserves held notes across consumer switches without replaying an attack", () => {
