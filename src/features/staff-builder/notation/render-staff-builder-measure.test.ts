@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Accidental, Beam, Dot, Formatter, Stave, StaveConnector, StaveNote, StaveTie, Stem, Voice } from "vexflow";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { renderStaffBuilderMeasure } from "./render-staff-builder-measure";
 import { projectStaffBuilderPendingPreview } from "./staff-builder-notation";
 
-function score(): StaffBuilderScoreV1 {
+function score(): StaffBuilderScore {
   return {
-    schemaVersion: 1, id: "score", title: "Renderer", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 2, annotations: [], id: "score", title: "Renderer", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "g-major", initialTimeSignature: "4/4",
     measures: [{ id: "measure", events: [
       { id: "chord", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-eighth" }, pitches: [
@@ -20,7 +20,7 @@ function score(): StaffBuilderScoreV1 {
   };
 }
 
-function unresolvedScore(ticks: readonly number[]): StaffBuilderScoreV1 {
+function unresolvedScore(ticks: readonly number[]): StaffBuilderScore {
   return {
     ...score(),
     initialKeySignatureId: "c-major",
@@ -36,7 +36,7 @@ function unresolvedScore(ticks: readonly number[]): StaffBuilderScoreV1 {
   };
 }
 
-function polyphonicScore(): StaffBuilderScoreV1 {
+function polyphonicScore(): StaffBuilderScore {
   return { ...score(), initialKeySignatureId: "c-major", measures: [{ id: "measure", events: [
     { id: "upper", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-quarter" }, pitches: [{ id: "upper-p", midiNumber: 66, letter: "F", accidental: "sharp", octave: 4 }] },
     { id: "lower", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "eighth" }, pitches: [{ id: "lower-p", midiNumber: 65, letter: "F", accidental: "natural", octave: 4 }] },
@@ -93,7 +93,7 @@ describe("renderStaffBuilderMeasure", () => {
 
   it("alternates stems for three voices while preserving one-voice automatic behavior", () => {
     const stems = vi.spyOn(StaveNote.prototype, "setStemDirection");
-    const threeVoices: StaffBuilderScoreV1 = { ...score(), measures: [{ id: "measure", events: [
+    const threeVoices: StaffBuilderScore = { ...score(), measures: [{ id: "measure", events: [
       { id: "high", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "h", midiNumber: 72, letter: "C", accidental: "natural", octave: 5 }] },
       { id: "middle", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [{ id: "m", midiNumber: 67, letter: "G", accidental: "natural", octave: 4 }] },
       { id: "low", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "l", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
@@ -116,7 +116,7 @@ describe("renderStaffBuilderMeasure", () => {
   });
 
   it("renders same-onset different-duration events and authored note/rest polyphony", () => {
-    const current: StaffBuilderScoreV1 = { ...score(), measures: [{ id: "measure", events: [
+    const current: StaffBuilderScore = { ...score(), measures: [{ id: "measure", events: [
       { id: "half", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [{ id: "hp", midiNumber: 76, letter: "E", accidental: "natural", octave: 5 }] },
       { id: "quarter", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "qp", midiNumber: 72, letter: "C", accidental: "natural", octave: 5 }] },
       { id: "rest", kind: "rest", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" } },
@@ -152,7 +152,7 @@ describe("renderStaffBuilderMeasure", () => {
   it("renders effective signatures for initial, explicit-change, and inherited isolated measures", () => {
     const keySignatures = vi.spyOn(Stave.prototype, "addKeySignature");
     const timeSignatures = vi.spyOn(Stave.prototype, "addTimeSignature");
-    const current: StaffBuilderScoreV1 = { ...score(), initialKeySignatureId: "c-major", measures: [
+    const current: StaffBuilderScore = { ...score(), initialKeySignatureId: "c-major", measures: [
       { id: "m1", events: [] },
       { id: "m2", keySignatureChange: "g-major", timeSignatureChange: "6/8", events: [] },
       { id: "m3", events: [] },
@@ -225,7 +225,7 @@ describe("renderStaffBuilderMeasure", () => {
   });
 
   it("keeps cross-staff committed and grid onsets aligned while pending chords change", () => {
-    const current: StaffBuilderScoreV1 = {
+    const current: StaffBuilderScore = {
       ...score(),
       initialKeySignatureId: "c-major",
       measures: [{ id: "measure", events: [

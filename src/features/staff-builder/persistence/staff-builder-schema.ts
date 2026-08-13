@@ -11,10 +11,13 @@ import type { StaffBuilderCaptureState } from "../staff-builder-capture";
 import type { StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type {
   StaffBuilderAccidental,
+  StaffBuilderAnnotation,
+  StaffBuilderAnnotationAnchor,
   StaffBuilderEvent,
   StaffBuilderEventRhythm,
   StaffBuilderMeasure,
   StaffBuilderPitch,
+  StaffBuilderScore,
   StaffBuilderScoreV1,
   StaffBuilderTie,
 } from "../staff-builder-types";
@@ -23,6 +26,13 @@ export type StaffBuilderLibraryV1 = Readonly<{
   schemaVersion: 1;
   pieces: readonly StaffBuilderScoreV1[];
 }>;
+
+export type StaffBuilderLibraryV2 = Readonly<{
+  schemaVersion: 2;
+  pieces: readonly StaffBuilderScore[];
+}>;
+
+export type StaffBuilderLibrary = StaffBuilderLibraryV2;
 
 export type StaffBuilderDraftV1 = Readonly<{
   schemaVersion: 1;
@@ -33,6 +43,13 @@ export type StaffBuilderDraftV1 = Readonly<{
   captureState?: StaffBuilderCaptureState;
   rhythmState?: StaffBuilderRhythmState;
 }>;
+
+export type StaffBuilderDraftV2 = Readonly<Omit<StaffBuilderDraftV1, "schemaVersion" | "score"> & {
+  schemaVersion: 2;
+  score: StaffBuilderScore;
+}>;
+
+export type StaffBuilderDraft = StaffBuilderDraftV2;
 
 export type StaffBuilderParseResult<T> =
   | Readonly<{ ok: true; value: T }>
@@ -45,6 +62,8 @@ const LETTERS = new Set(["A", "B", "C", "D", "E", "F", "G"]);
 const ACCIDENTALS = new Set<StaffBuilderAccidental>(["flat", "natural", "sharp"]);
 const STEP_DURATIONS = new Set<string>(STAFF_BUILDER_STEP_DURATIONS);
 const INPUT_MODES = new Set(["grand", "treble", "bass"]);
+const PRACTICE_MARK_CATEGORIES = new Set(["needs-work", "rhythm", "hands-separate", "check-fingering", "other"]);
+const BOOKMARK_CATEGORIES = new Set(["interesting", "needs-work", "question", "revisit"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -140,18 +159,50 @@ function parseTie(value: unknown): StaffBuilderTie | null {
   };
 }
 
-function unsupportedVersion(value: unknown): boolean {
-  return isRecord(value) && "schemaVersion" in value && value.schemaVersion !== 1;
+function parseAnnotationAnchor(value: unknown): StaffBuilderAnnotationAnchor | null {
+  if (!isRecord(value)) return null;
+  if (value.kind === "event" && isId(value.eventId)) return { kind: "event", eventId: value.eventId };
+  if (value.kind === "measure" && isId(value.measureId)) return { kind: "measure", measureId: value.measureId };
+  return null;
 }
 
-export function parseStaffBuilderScore(value: unknown): StaffBuilderParseResult<StaffBuilderScoreV1> {
+function parseAnnotation(value: unknown): StaffBuilderAnnotation | null {
+  if (!isRecord(value) || !isId(value.id)) return null;
+  const anchor = parseAnnotationAnchor(value.anchor);
+  if (!anchor) return null;
+  if (value.kind === "study-note" && typeof value.text === "string" && value.text.trim().length > 0) {
+    return { id: value.id, kind: "study-note", anchor, text: value.text };
+  }
+  if (value.kind === "practice-mark" && typeof value.category === "string" && PRACTICE_MARK_CATEGORIES.has(value.category)
+    && (value.text === undefined || typeof value.text === "string")
+    && (value.category !== "other" || (typeof value.text === "string" && value.text.trim().length > 0))) {
+    return {
+      id: value.id,
+      kind: "practice-mark",
+      anchor,
+      category: value.category as Extract<StaffBuilderAnnotation, { kind: "practice-mark" }>["category"],
+      ...(value.text === undefined ? {} : { text: value.text }),
+    };
+  }
+  if (value.kind === "bookmark" && typeof value.category === "string" && BOOKMARK_CATEGORIES.has(value.category)) {
+    return { id: value.id, kind: "bookmark", anchor, category: value.category as Extract<StaffBuilderAnnotation, { kind: "bookmark" }>["category"] };
+  }
+  return null;
+}
+
+function unsupportedVersion(value: unknown): boolean {
+  return isRecord(value) && "schemaVersion" in value && value.schemaVersion !== 1 && value.schemaVersion !== 2;
+}
+
+export function parseStaffBuilderScore(value: unknown): StaffBuilderParseResult<StaffBuilderScore> {
   if (unsupportedVersion(value)) return { ok: false, reason: "unsupported", message: "This Staff Builder score uses an unsupported version." };
-  if (!isRecord(value) || value.schemaVersion !== 1 || !isId(value.id)
+  if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) || !isId(value.id)
     || typeof value.title !== "string" || value.title.trim().length === 0
     || !isTimestamp(value.createdAt) || !isTimestamp(value.updatedAt)
     || !Number.isInteger(value.tempoBpm) || (value.tempoBpm as number) < 40 || (value.tempoBpm as number) > 240
     || !isKeyId(value.initialKeySignatureId) || !isTimeSignature(value.initialTimeSignature)
-    || !Array.isArray(value.measures) || value.measures.length === 0 || !Array.isArray(value.ties)) {
+    || !Array.isArray(value.measures) || value.measures.length === 0 || !Array.isArray(value.ties)
+    || (value.schemaVersion === 2 && !Array.isArray(value.annotations))) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder score is invalid." };
   }
   const measures = value.measures.map(parseMeasure);
@@ -161,25 +212,36 @@ export function parseStaffBuilderScore(value: unknown): StaffBuilderParseResult<
   }
   const parsedMeasures = measures as StaffBuilderMeasure[];
   const parsedTies = ties as StaffBuilderTie[];
+  const annotations = value.schemaVersion === 1 ? [] : (value.annotations as unknown[]).map(parseAnnotation);
+  if (annotations.some((annotation) => annotation === null)) {
+    return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains invalid annotation data." };
+  }
+  const parsedAnnotations = annotations as StaffBuilderAnnotation[];
   if (new Set(parsedMeasures.map(({ id }) => id)).size !== parsedMeasures.length
     || new Set(parsedMeasures.flatMap(({ events }) => events.map(({ id }) => id))).size !== parsedMeasures.reduce((count, measure) => count + measure.events.length, 0)
-    || new Set(parsedTies.map(({ id }) => id)).size !== parsedTies.length) {
+    || new Set(parsedTies.map(({ id }) => id)).size !== parsedTies.length
+    || new Set(parsedAnnotations.map(({ id }) => id)).size !== parsedAnnotations.length) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains duplicate notation IDs." };
   }
+  const measureIds = new Set(parsedMeasures.map(({ id }) => id));
+  const eventIds = new Set(parsedMeasures.flatMap(({ events }) => events.map(({ id }) => id)));
+  if (parsedAnnotations.some(({ anchor }) => anchor.kind === "measure" ? !measureIds.has(anchor.measureId) : !eventIds.has(anchor.eventId))) {
+    return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains an annotation with a missing anchor." };
+  }
   return { ok: true, value: {
-    schemaVersion: 1, id: value.id, title: value.title, createdAt: value.createdAt,
+    schemaVersion: 2, id: value.id, title: value.title, createdAt: value.createdAt,
     updatedAt: value.updatedAt, tempoBpm: value.tempoBpm as number,
     initialKeySignatureId: value.initialKeySignatureId, initialTimeSignature: value.initialTimeSignature,
-    measures: parsedMeasures, ties: parsedTies,
+    measures: parsedMeasures, ties: parsedTies, annotations: parsedAnnotations,
   } };
 }
 
-export function parseStaffBuilderLibrary(value: unknown): StaffBuilderParseResult<StaffBuilderLibraryV1> {
+export function parseStaffBuilderLibrary(value: unknown): StaffBuilderParseResult<StaffBuilderLibrary> {
   if (unsupportedVersion(value)) return { ok: false, reason: "unsupported", message: "The Staff Builder library uses a newer unsupported version." };
-  if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.pieces)) {
+  if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) || !Array.isArray(value.pieces)) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder library is invalid." };
   }
-  const pieces: StaffBuilderScoreV1[] = [];
+  const pieces: StaffBuilderScore[] = [];
   for (const candidate of value.pieces) {
     const result = parseStaffBuilderScore(candidate);
     if (!result.ok) return result;
@@ -188,12 +250,12 @@ export function parseStaffBuilderLibrary(value: unknown): StaffBuilderParseResul
   if (new Set(pieces.map(({ id }) => id)).size !== pieces.length) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder library contains duplicate piece IDs." };
   }
-  return { ok: true, value: { schemaVersion: 1, pieces } };
+  return { ok: true, value: { schemaVersion: 2, pieces } };
 }
 
-export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<StaffBuilderDraftV1> {
+export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<StaffBuilderDraft> {
   if (unsupportedVersion(value)) return { ok: false, reason: "unsupported", message: "The Staff Builder draft uses a newer unsupported version." };
-  if (!isRecord(value) || value.schemaVersion !== 1
+  if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)
     || (value.savedPieceId !== null && !isId(value.savedPieceId))
     || !isTimestamp(value.updatedAt) || (value.editorPass !== "capture" && value.editorPass !== "rhythm")) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder draft is invalid." };
@@ -244,7 +306,7 @@ export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<
       : { measureIndex: safeMeasureIndex, selectedEventId: null };
   }
   return { ok: true, value: {
-    schemaVersion: 1, savedPieceId: value.savedPieceId as string | null,
+    schemaVersion: 2, savedPieceId: value.savedPieceId as string | null,
     updatedAt: value.updatedAt, score: score.value, editorPass: value.editorPass,
     ...(captureState ? { captureState } : {}),
     ...(rhythmState ? { rhythmState } : {}),

@@ -2,7 +2,7 @@ import { durationToTicks, STAFF_BUILDER_TICKS_PER_QUARTER } from "./staff-builde
 import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
 import { getExactStaffBuilderFittingDuration } from "./staff-builder-corrections";
 import { deriveStaffBuilderVoices, getStaffBuilderSamePositionConflicts, getStaffBuilderStaffCoverageGaps } from "./staff-builder-voices";
-import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff, StaffBuilderTie } from "./staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff, StaffBuilderTie } from "./staff-builder-types";
 
 export type StaffBuilderIssueCode =
   | "unresolved-rhythm"
@@ -95,7 +95,7 @@ export function compareStaffBuilderIssues(left: StaffBuilderIssue, right: StaffB
   return compareIssues(left, right);
 }
 
-export function validateStaffBuilderScore(score: StaffBuilderScoreV1): readonly StaffBuilderIssue[] {
+export function validateStaffBuilderScore(score: StaffBuilderScore): readonly StaffBuilderIssue[] {
   const issues: StaffBuilderIssue[] = [];
   const events = new Map<string, LocatedEvent>();
   const pitches = new Map<string, LocatedPitch>();

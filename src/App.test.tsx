@@ -1,8 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { useAppMidiInput } from "./hooks/use-app-midi-input";
+
+const appStyles = readFileSync(resolve(process.cwd(), "src/index.css"), "utf8");
 
 afterEach(() => {
   cleanup();
@@ -51,7 +55,7 @@ vi.mock("./features/ear-training/components/ear-training-session", () => ({
 }));
 
 vi.mock("./features/staff-builder/components/staff-builder-session", () => ({
-  default: () => <div>Staff Builder session</div>,
+  default: () => <div className="staff-builder-study-view">Staff Builder Study View</div>,
 }));
 
 vi.mock("./features/melody/components/melody-session", () => ({
@@ -165,8 +169,9 @@ describe("App focus mode", () => {
     const modeNavigation = screen.getByRole("button", { name: "Free Play" }).parentElement;
     fireEvent.click(screen.getByRole("button", { name: "Focus Staff" }));
     fireEvent.click(screen.getByRole("button", { name: "Staff Builder", hidden: true }));
-    expect(screen.getByText("Staff Builder session")).toBeTruthy();
+    expect(screen.getByText("Staff Builder Study View")).toBeTruthy();
     expect(modeNavigation?.hidden).toBe(false);
+    expect(appStyles).toMatch(/body:has\(\.staff-builder-study-view\) \.prelude-mode-nav\s*\{\s*visibility: hidden;/);
     fireEvent.keyDown(window, { key: "f" });
     expect(modeNavigation?.hidden).toBe(false);
     expect(screen.queryByRole("button", { name: "Exit Focus Staff" })).toBeNull();

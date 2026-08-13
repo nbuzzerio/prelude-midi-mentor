@@ -1,8 +1,8 @@
 import {
   parseStaffBuilderDraft,
   parseStaffBuilderLibrary,
-  type StaffBuilderDraftV1,
-  type StaffBuilderLibraryV1,
+  type StaffBuilderDraft,
+  type StaffBuilderLibrary,
   type StaffBuilderParseResult,
 } from "./staff-builder-schema";
 
@@ -31,11 +31,11 @@ function readParsed<T>(storage: StaffBuilderStorage, key: string, empty: T, pars
   return parser(value);
 }
 
-export function readStaffBuilderLibrary(storage: StaffBuilderStorage): StaffBuilderStorageResult<StaffBuilderLibraryV1> {
-  return readParsed(storage, STAFF_BUILDER_STORAGE_KEYS.library, { schemaVersion: 1, pieces: [] }, parseStaffBuilderLibrary);
+export function readStaffBuilderLibrary(storage: StaffBuilderStorage): StaffBuilderStorageResult<StaffBuilderLibrary> {
+  return readParsed(storage, STAFF_BUILDER_STORAGE_KEYS.library, { schemaVersion: 2, pieces: [] }, parseStaffBuilderLibrary);
 }
 
-export function readStaffBuilderDraft(storage: StaffBuilderStorage): StaffBuilderStorageResult<StaffBuilderDraftV1 | null> {
+export function readStaffBuilderDraft(storage: StaffBuilderStorage): StaffBuilderStorageResult<StaffBuilderDraft | null> {
   return readParsed(storage, STAFF_BUILDER_STORAGE_KEYS.draft, null, (value) => parseStaffBuilderDraft(value));
 }
 

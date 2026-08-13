@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { preloadGrandPianoSamples } from "@/lib/audio/grand-piano";
 import { createMusicalEventPlayer, type PlayableMusicalEvent } from "@/lib/audio/musical-event-player";
 import { projectStaffBuilderEventAudition, projectStaffBuilderPlayback, resolveStaffBuilderPlaybackPosition, sampleStaffBuilderPlaybackTick, type StaffBuilderPlaybackClock, type StaffBuilderPlaybackPosition } from "../staff-builder-playback";
-import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderScore } from "../staff-builder-types";
 
 export type StaffBuilderPlaybackScopeName = "selected-event" | "current-measure" | "from-position" | "entire-piece";
 export type StaffBuilderPlaybackState = Readonly<{
@@ -14,7 +14,7 @@ type ActivePlaybackVisualization = Readonly<StaffBuilderPlaybackClock & { genera
 
 const INITIAL_STATE: StaffBuilderPlaybackState = { status: "idle", scope: null, message: "Playback ready." };
 
-export function useStaffBuilderPlayback(score: StaffBuilderScoreV1) {
+export function useStaffBuilderPlayback(score: StaffBuilderScore) {
   const player = useMemo(() => createMusicalEventPlayer(), []);
   const requestGeneration = useRef(0);
   const scoreFingerprint = JSON.stringify(score);

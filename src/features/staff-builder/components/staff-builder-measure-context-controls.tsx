@@ -1,10 +1,10 @@
 import { MUSIC_KEYS, type MusicKeyId } from "@/lib/music/keys";
 import { resolveStaffBuilderMeasureContext } from "../staff-builder-score";
 import { STAFF_BUILDER_TIME_SIGNATURES, type StaffBuilderTimeSignature } from "../staff-builder-time";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 
 export function StaffBuilderMeasureContextControls({ score, measureIndex, onKeyChange, onTimeChange, control }: Readonly<{
-  score: StaffBuilderScoreV1;
+  score: StaffBuilderScore;
   measureIndex: number;
   onKeyChange: (measureIndex: number, key: MusicKeyId | null) => void;
   onTimeChange: (measureIndex: number, time: StaffBuilderTimeSignature | null) => void;

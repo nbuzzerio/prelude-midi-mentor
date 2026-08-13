@@ -3,10 +3,12 @@ import { renderStaffBuilderMeasure, type StaffBuilderMeasureRenderResult } from 
 import { projectStaffBuilderMeasure, projectStaffBuilderPendingPreview } from "../notation/staff-builder-notation";
 import type { StaffBuilderCaptureInputMode, StaffBuilderPendingCapture } from "../staff-builder-capture";
 import type { StaffBuilderEventSelection } from "../staff-builder-rhythm";
-import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderScore } from "../staff-builder-types";
 import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { StaffBuilderIssue } from "../staff-builder-validation";
 import type { MusicKeyId } from "@/lib/music/keys";
+import { ALL_STAFF_BUILDER_ANNOTATION_LAYERS, filterStaffBuilderAnnotationsByLayers, getStaffBuilderAnnotationLayer, type StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
+import type { StaffBuilderAnnotation } from "../staff-builder-types";
 import { StaffBuilderDurationWheel } from "./staff-builder-duration-wheel";
 import { STAFF_BUILDER_DURATION_WHEEL_SIZE, type StaffBuilderDisplayedAnchor, type StaffBuilderOverlayBounds } from "./staff-builder-duration-wheel-geometry";
 import { getStaffBuilderInternalTouchSize, getStaffBuilderPresentationScale, getStaffBuilderTemporalRegion, resolveStaffBuilderStepPositionTick, staffBuilderClientPointToInternal, type StaffBuilderInternalPoint } from "./staff-builder-interaction-geometry";
@@ -38,8 +40,8 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, issue, inputMode = "grand", visibleStaff = "grand", onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
-  score: StaffBuilderScoreV1;
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, issue, inputMode = "grand", visibleStaff = "grand", visibleAnnotationLayers = ALL_STAFF_BUILDER_ANNOTATION_LAYERS, onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
+  score: StaffBuilderScore;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
   pendingPreview?: StaffBuilderPendingCapture;
@@ -49,6 +51,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   issue?: StaffBuilderIssue | null;
   inputMode?: StaffBuilderCaptureInputMode;
   visibleStaff?: "grand" | "treble" | "bass";
+  visibleAnnotationLayers?: ReadonlySet<StaffBuilderAnnotationLayer>;
   onInputModeChange?: (mode: StaffBuilderCaptureInputMode) => void;
   onKeyChange?: (measureIndex: number, key: MusicKeyId) => void;
   onTimeChange?: (measureIndex: number, time: StaffBuilderTimeSignature) => void;
@@ -134,6 +137,23 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const selectedEvent = score.measures[measureIndex]?.events.find(({ id }) => id === selectedEventId);
   const durationAnchor = durationEventId && durationEventId === selectedEventId ? renderResult?.anchors.authoritativeEvents.get(durationEventId) : undefined;
   const playbackGeometry = playbackPosition && renderResult ? resolveStaffBuilderPlaybackGeometry(renderResult.anchors.timeline, playbackPosition.offsetTicks) : null;
+  const measure = score.measures[measureIndex];
+  const measureEventIds = new Set(measure?.events.map(({ id }) => id) ?? []);
+  const visibleAnnotations = filterStaffBuilderAnnotationsByLayers(score.annotations.filter(({ anchor }) => anchor.kind === "measure"
+    ? anchor.measureId === measure?.id
+    : measureEventIds.has(anchor.eventId)), visibleAnnotationLayers);
+  const annotationTypeLabel = (annotation: StaffBuilderAnnotation) => annotation.kind === "study-note" ? "Study Note" : annotation.kind === "practice-mark" ? "Practice Mark" : "Bookmark";
+  const aggregateAnnotations = (annotations: readonly StaffBuilderAnnotation[]) => [...annotations.reduce((groups, annotation) => {
+    const layer = getStaffBuilderAnnotationLayer(annotation);
+    groups.set(layer, [...(groups.get(layer) ?? []), annotation]);
+    return groups;
+  }, new Map<StaffBuilderAnnotationLayer, StaffBuilderAnnotation[]>())].map(([layer, items]) => ({ layer, items, label: annotationTypeLabel(items[0]!) }));
+  const measureAnnotationGroups = aggregateAnnotations(visibleAnnotations.filter(({ anchor }) => anchor.kind === "measure"));
+  const eventAnnotationGroups = [...new Set(visibleAnnotations.flatMap(({ anchor }) => anchor.kind === "event" ? [anchor.eventId] : []))].flatMap((eventId) => {
+    const anchor = renderResult?.anchors.authoritativeEvents.get(eventId);
+    if (!anchor) return [];
+    return aggregateAnnotations(visibleAnnotations.filter((annotation) => annotation.anchor.kind === "event" && annotation.anchor.eventId === eventId)).map((group, index) => ({ ...group, eventId, anchor, index }));
+  });
 
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
@@ -325,6 +345,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   return (
     <section aria-describedby="staff-builder-score-semantics" aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
       <h3 className="sr-only" id="staff-builder-score-view-title">Measure {projection.measureNumber} of {score.measures.length}</h3>
+      {measureAnnotationGroups.length > 0 && <div aria-label={`Measure ${projection.measureNumber} annotations`} className="staff-builder-measure-annotation-indicators">{measureAnnotationGroups.map(({ layer, items, label }) => <span aria-label={`${label}, ${items.length} ${items.length === 1 ? "annotation" : "annotations"}`} data-annotation-layer={layer} key={layer}>{label} ×{items.length}</span>)}</div>}
       <div className="staff-builder-score-interaction-plane">
         <div className="staff-builder-notation-scroll" ref={scrollRef}>
         <div className="staff-builder-notation-presentation" style={{ width: (renderResult?.coordinateSpace.width ?? 760) * presentationScale, height: (renderResult?.coordinateSpace.height ?? 300) * presentationScale }}>
@@ -350,6 +371,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           {selectionGeometry && <div aria-hidden="true" className="staff-builder-selection-outline" data-testid="staff-builder-selection-outline" style={{ left: selectionGeometry.x, top: selectionGeometry.y, width: selectionGeometry.width, height: selectionGeometry.height }} />}
           {highlightGeometries.map(({ eventId, status, geometry }) => <div aria-hidden="true" className="staff-builder-event-highlight" data-event-id={eventId} data-highlight-status={status} data-testid="staff-builder-event-highlight" key={`${eventId}:${status}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height }} />)}
           {issueGeometry && <div aria-hidden="true" className="staff-builder-issue-outline" data-testid="staff-builder-issue-outline" style={{ left: issueGeometry.x, top: issueGeometry.y, width: issueGeometry.width, height: issueGeometry.height }}><span>!</span></div>}
+          {eventAnnotationGroups.map(({ layer, items, label, eventId, anchor, index }) => <span aria-label={`${label}, ${items.length} ${items.length === 1 ? "annotation" : "annotations"}, event in measure ${projection.measureNumber}`} className="staff-builder-event-annotation-indicator" data-annotation-layer={layer} data-event-id={eventId} key={`${eventId}:${layer}`} style={{ left: anchor.x + anchor.width - 4 + index * 18, top: Math.max(2, anchor.y - 18) }}>{label === "Study Note" ? "N" : label === "Practice Mark" ? "P" : "B"}<small>{items.length}</small></span>)}
           {(projection.boundaryTies ?? []).some(({ direction }) => direction === "incoming") && <div aria-hidden="true" className="staff-builder-boundary-tie staff-builder-boundary-tie-incoming">Tie in</div>}
           {(projection.boundaryTies ?? []).some(({ direction }) => direction === "outgoing") && <div aria-hidden="true" className="staff-builder-boundary-tie staff-builder-boundary-tie-outgoing">Tie out</div>}
         </div>
@@ -373,7 +395,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   );
 }
 
-export function StaffBuilderScoreDetails({ score, measureIndex }: Readonly<{ score: StaffBuilderScoreV1; measureIndex: number }>) {
+export function StaffBuilderScoreDetails({ score, measureIndex }: Readonly<{ score: StaffBuilderScore; measureIndex: number }>) {
   const projection = projectStaffBuilderMeasure(score, measureIndex);
   return <details className="staff-builder-score-details">
     <summary>Score details</summary>

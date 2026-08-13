@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { durationToTicks, getMeasureCapacityTicks, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "@/features/staff-builder/staff-builder-time";
 import { insertStaffBuilderMeasure } from "@/features/staff-builder/staff-builder-score";
-import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
 import type { NoteLetter } from "@/lib/music/note-utils";
 import { projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
 
@@ -53,10 +53,10 @@ function score(options: Readonly<{
   events?: readonly StaffBuilderEvent[];
   timeSignature?: StaffBuilderTimeSignature;
   ties?: readonly StaffBuilderTie[];
-}> = {}): StaffBuilderScoreV1 {
+}> = {}): StaffBuilderScore {
   const timeSignature = options.timeSignature ?? "4/4";
   return {
-    schemaVersion: 1,
+    schemaVersion: 2, annotations: [],
     id: "piece",
     title: "Projection study",
     createdAt: NOW,
@@ -69,7 +69,7 @@ function score(options: Readonly<{
   };
 }
 
-function projected(source: StaffBuilderScoreV1) {
+function projected(source: StaffBuilderScore) {
   const result = projectStaffBuilderPieceForPractice(source);
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error(result.issues.map(({ code }) => code).join(", "));
@@ -314,7 +314,7 @@ describe("Staff Builder piece-practice projection", () => {
       notes("d", "treble", 720, "eighth", [pitch("d-p", 62, "D")]), rest("tail", "treble", 960, "quarter"), rest("bass", "bass", 0, "dotted-half"),
     ] }] });
     expect(projectStaffBuilderPieceForPractice(valid).ok).toBe(true);
-    const gap: StaffBuilderScoreV1 = {
+    const gap: StaffBuilderScore = {
       ...valid,
       measures: valid.measures.map((measure, measureIndex) => measureIndex === 0
         ? { ...measure, events: measure.events.filter(({ id }) => id !== "tail") }
@@ -367,7 +367,7 @@ describe("Staff Builder piece-practice projection", () => {
   });
 });
 
-function tiedScore(destinationPitches: readonly StaffBuilderPitch[], ties: readonly Readonly<{ id: string; fromPitchId: string; toPitchId: string }>[]): StaffBuilderScoreV1 {
+function tiedScore(destinationPitches: readonly StaffBuilderPitch[], ties: readonly Readonly<{ id: string; fromPitchId: string; toPitchId: string }>[]): StaffBuilderScore {
   return score({
     measures: [
       completeMeasure("m1", 1920, [notes("source", "treble", 0, "whole", [pitch("source-p", 60)])]),

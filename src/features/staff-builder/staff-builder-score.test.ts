@@ -98,7 +98,7 @@ describe("Staff Builder score", () => {
   });
   it("creates versioned metadata and an empty first measure with stable injected values", () => {
     expect(score()).toEqual({
-      schemaVersion: 1, id: "id-1", title: "Prelude", createdAt: "2026-01-01T00:00:00.000Z",
+      schemaVersion: 2, annotations: [], id: "id-1", title: "Prelude", createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 120, initialKeySignatureId: "c-major",
       initialTimeSignature: "4/4", measures: [{ id: "id-2", events: [] }], ties: [],
     });

@@ -54,6 +54,45 @@ export type StaffBuilderTie = Readonly<{
   toPitchId: string;
 }>;
 
+export type StaffBuilderAnnotationAnchor =
+  | Readonly<{ kind: "event"; eventId: string }>
+  | Readonly<{ kind: "measure"; measureId: string }>;
+
+type StaffBuilderAnnotationBase = Readonly<{
+  id: string;
+  anchor: StaffBuilderAnnotationAnchor;
+}>;
+
+export type StaffBuilderStudyNoteAnnotation = StaffBuilderAnnotationBase & Readonly<{
+  kind: "study-note";
+  text: string;
+}>;
+
+export type StaffBuilderPracticeMarkCategory =
+  | "needs-work"
+  | "rhythm"
+  | "hands-separate"
+  | "check-fingering"
+  | "other";
+
+export type StaffBuilderPracticeMarkAnnotation = StaffBuilderAnnotationBase & Readonly<{
+  kind: "practice-mark";
+  category: StaffBuilderPracticeMarkCategory;
+  text?: string;
+}>;
+
+export type StaffBuilderBookmarkCategory = "interesting" | "needs-work" | "question" | "revisit";
+
+export type StaffBuilderBookmarkAnnotation = StaffBuilderAnnotationBase & Readonly<{
+  kind: "bookmark";
+  category: StaffBuilderBookmarkCategory;
+}>;
+
+export type StaffBuilderAnnotation =
+  | StaffBuilderStudyNoteAnnotation
+  | StaffBuilderPracticeMarkAnnotation
+  | StaffBuilderBookmarkAnnotation;
+
 export type StaffBuilderScoreV1 = Readonly<{
   schemaVersion: 1;
   id: string;
@@ -66,6 +105,13 @@ export type StaffBuilderScoreV1 = Readonly<{
   measures: readonly StaffBuilderMeasure[];
   ties: readonly StaffBuilderTie[];
 }>;
+
+export type StaffBuilderScoreV2 = Readonly<Omit<StaffBuilderScoreV1, "schemaVersion"> & {
+  schemaVersion: 2;
+  annotations: readonly StaffBuilderAnnotation[];
+}>;
+
+export type StaffBuilderScore = StaffBuilderScoreV2;
 
 export type StaffBuilderMeasureContext = Readonly<{
   keySignatureId: MusicKeyId;

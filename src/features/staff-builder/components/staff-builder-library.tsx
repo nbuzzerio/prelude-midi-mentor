@@ -1,15 +1,15 @@
 import { useRef } from "react";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 
 export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownload, onImportFile, onOpen, onPractice, onRename }: Readonly<{
   activePieceId: string | null;
-  pieces: readonly StaffBuilderScoreV1[];
+  pieces: readonly StaffBuilderScore[];
   onDelete: (id: string) => void;
-  onDownload: (piece: StaffBuilderScoreV1) => void;
+  onDownload: (piece: StaffBuilderScore) => void;
   onImportFile: (file: File) => void;
   onOpen: (id: string) => void;
-  onPractice: (piece: StaffBuilderScoreV1) => void;
+  onPractice: (piece: StaffBuilderScore) => void;
   onRename: (id: string, title: string) => void;
 }>) {
   const importInputRef = useRef<HTMLInputElement>(null);

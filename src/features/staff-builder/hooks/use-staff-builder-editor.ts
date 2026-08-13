@@ -11,8 +11,9 @@ import {
   routeStaffBuilderCapturePitch,
 } from "../staff-builder-capture";
 import { insertStaffBuilderMeasure, resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
+import { reconcileStaffBuilderAnnotations } from "../staff-builder-annotations";
 import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, setStaffBuilderEventDuration, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { MusicKeyId } from "@/lib/music/keys";
 import { createStaffBuilderTies, fillAllStaffBuilderGapsWithRests, fillStaffBuilderGapWithRests, removeStaffBuilderTie, setStaffBuilderInitialKey, setStaffBuilderInitialTime, splitStaffBuilderEventAcrossBarline } from "../staff-builder-corrections";
@@ -35,17 +36,17 @@ function toggleSorted(values: readonly number[], midiNumber: number): readonly n
   return [...values, midiNumber].sort((a, b) => a - b);
 }
 
-function scoreFingerprint(score: StaffBuilderScoreV1): string {
+function scoreFingerprint(score: StaffBuilderScore): string {
   return JSON.stringify(score);
 }
 
 export function useStaffBuilderEditor({ score: initialScore, initialCaptureState, initialEditorPass = "capture", initialRhythmState = { measureIndex: 0, selectedEventId: null }, onDraftChange, onValidatedSave, confirmDiscardPending = () => window.confirm("Discard pending pitches and switch editor passes?") }: Readonly<{
-  score: StaffBuilderScoreV1;
+  score: StaffBuilderScore;
   initialCaptureState: StaffBuilderCaptureState;
   initialEditorPass?: StaffBuilderEditorPass;
   initialRhythmState?: StaffBuilderRhythmState;
-  onDraftChange: (score: StaffBuilderScoreV1, editorState: StaffBuilderPersistedEditorState) => unknown;
-  onValidatedSave?: (score: StaffBuilderScoreV1, editorState: StaffBuilderPersistedEditorState) => Readonly<{ ok: boolean }>;
+  onDraftChange: (score: StaffBuilderScore, editorState: StaffBuilderPersistedEditorState) => unknown;
+  onValidatedSave?: (score: StaffBuilderScore, editorState: StaffBuilderPersistedEditorState) => Readonly<{ ok: boolean }>;
   confirmDiscardPending?: () => boolean;
 }>) {
   const [score, setScore] = useState(initialScore);
@@ -69,15 +70,16 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }
   const history = useStaffBuilderHistory(50, externalScoreGeneration);
 
-  const persist = useCallback((nextScore: StaffBuilderScoreV1, nextCaptureState: StaffBuilderCaptureState, nextEditorPass = editorPass, nextRhythmState = rhythmState) => {
-    setScore(nextScore);
+  const persist = useCallback((nextScore: StaffBuilderScore, nextCaptureState: StaffBuilderCaptureState, nextEditorPass = editorPass, nextRhythmState = rhythmState) => {
+    const reconciledScore = reconcileStaffBuilderAnnotations(nextScore);
+    setScore(reconciledScore);
     setCaptureState(nextCaptureState);
     setEditorPass(nextEditorPass);
     setRhythmState(nextRhythmState);
-    onDraftChange(nextScore, { editorPass: nextEditorPass, captureState: nextCaptureState, rhythmState: nextRhythmState });
+    onDraftChange(reconciledScore, { editorPass: nextEditorPass, captureState: nextCaptureState, rhythmState: nextRhythmState });
   }, [editorPass, onDraftChange, rhythmState]);
 
-  const persistOutsideRhythmHistory = useCallback((nextScore: StaffBuilderScoreV1, nextCaptureState: StaffBuilderCaptureState) => {
+  const persistOutsideRhythmHistory = useCallback((nextScore: StaffBuilderScore, nextCaptureState: StaffBuilderCaptureState) => {
     if (nextScore !== score) history.clear();
     persist(nextScore, nextCaptureState);
   }, [history, persist, score]);
@@ -91,7 +93,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     persist(score, captureState, "rhythm", selectionToState(selection));
   }, [captureState, persist, score, selectionToState]);
 
-  const handleRhythmMutation = useCallback((nextScore: StaffBuilderScoreV1, selection: StaffBuilderEventSelection | null) => {
+  const handleRhythmMutation = useCallback((nextScore: StaffBuilderScore, selection: StaffBuilderEventSelection | null) => {
     history.record(score);
     persist(nextScore, captureState, "rhythm", selectionToState(selection));
   }, [captureState, history, persist, score, selectionToState]);
@@ -107,7 +109,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     if (next?.target.eventId) rhythm.setSelection({ measureIndex: next.target.measureIndex, eventId: next.target.eventId });
   }, [rhythm]);
 
-  const reconcileIssueAfterMutation = useCallback((previous: StaffBuilderIssue | null, nextScore: StaffBuilderScoreV1) => {
+  const reconcileIssueAfterMutation = useCallback((previous: StaffBuilderIssue | null, nextScore: StaffBuilderScore) => {
     const nextIssues = validateStaffBuilderScore(nextScore);
     if (nextIssues.length === 0) { setActiveIssueId(null); setValidationStatus("All issues are corrected. Ready to save."); return; }
     const retained = previous ? nextIssues.find(({ id }) => id === previous.id) : null;
@@ -117,7 +119,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     if (next?.target.eventId) rhythm.setSelection({ measureIndex: next.target.measureIndex, eventId: next.target.eventId });
   }, [rhythm]);
 
-  const applyHistoryMutation = useCallback((nextScore: StaffBuilderScoreV1, selection: StaffBuilderEventSelection | null = rhythm.selection) => {
+  const applyHistoryMutation = useCallback((nextScore: StaffBuilderScore, selection: StaffBuilderEventSelection | null = rhythm.selection) => {
     if (nextScore === score) return false;
     history.record(score);
     const nextSelection = reconcileStaffBuilderEventSelection(nextScore, selection);

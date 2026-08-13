@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { NoteLetter } from "@/lib/music/note-utils";
 import type { StaffBuilderDuration } from "../staff-builder-time";
-import type { StaffBuilderScoreV1, StaffBuilderStaff } from "../staff-builder-types";
+import type { StaffBuilderScore, StaffBuilderStaff } from "../staff-builder-types";
 import {
   convertStaffBuilderEventToRest,
   deleteStaffBuilderEvent,
@@ -26,19 +26,19 @@ const ERROR_MESSAGES: Readonly<Record<StaffBuilderRhythmEditError, string>> = {
   "invalid-spelling": "That spelling is not available without changing the pitch or using a double accidental.",
 };
 
-function selectionFromState(score: StaffBuilderScoreV1, state: StaffBuilderRhythmState): StaffBuilderEventSelection | null {
+function selectionFromState(score: StaffBuilderScore, state: StaffBuilderRhythmState): StaffBuilderEventSelection | null {
   const candidate = state.selectedEventId === null ? null : { measureIndex: state.measureIndex, eventId: state.selectedEventId };
   return reconcileStaffBuilderEventSelection(score, candidate);
 }
 
-function restoresEmptyMeasure(score: StaffBuilderScoreV1, state: StaffBuilderRhythmState): boolean {
+function restoresEmptyMeasure(score: StaffBuilderScore, state: StaffBuilderRhythmState): boolean {
   return state.selectedEventId === null && score.measures[state.measureIndex]?.events.length === 0;
 }
 
 export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, onSelectionChange }: Readonly<{
-  score: StaffBuilderScoreV1;
+  score: StaffBuilderScore;
   initialState: StaffBuilderRhythmState;
-  onMutation: (score: StaffBuilderScoreV1, selection: StaffBuilderEventSelection | null) => void;
+  onMutation: (score: StaffBuilderScore, selection: StaffBuilderEventSelection | null) => void;
   onSelectionChange: (selection: StaffBuilderEventSelection | null) => void;
 }>) {
   const [selection, setSelection] = useState<StaffBuilderEventSelection | null>(() => restoresEmptyMeasure(score, initialState) ? null : selectionFromState(score, initialState));

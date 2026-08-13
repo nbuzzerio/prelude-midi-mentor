@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1 } from "./staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore } from "./staff-builder-types";
 import type { StaffBuilderDuration } from "./staff-builder-time";
 import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const pitch = (id: string, midiNumber = 60): StaffBuilderPitch => ({ id, midiNumber, letter: "C", accidental: "natural", octave: 4 });
 const note = (id: string, staff: "treble" | "bass", startTick: number, duration: StaffBuilderDuration = "whole", pitches = [pitch(`${id}-p`)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "final", duration }, pitches });
 const rest = (id: string, staff: "treble" | "bass", startTick: number, duration: StaffBuilderDuration): StaffBuilderEvent => ({ id, kind: "rest", staff, startTick, rhythm: { status: "final", duration } });
-const score = (measures: StaffBuilderScoreV1["measures"], time: StaffBuilderScoreV1["initialTimeSignature"] = "4/4", ties: StaffBuilderScoreV1["ties"] = []): StaffBuilderScoreV1 => ({ schemaVersion: 1, id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: time, measures, ties });
+const score = (measures: StaffBuilderScore["measures"], time: StaffBuilderScore["initialTimeSignature"] = "4/4", ties: StaffBuilderScore["ties"] = []): StaffBuilderScore => ({ schemaVersion: 2, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: time, measures, ties });
 
 describe("Staff Builder structural validation", () => {
   it.each([

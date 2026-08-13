@@ -3,13 +3,13 @@ import type { NoteLetter } from "@/lib/music/note-utils";
 import { getStaffBuilderPitchSpellingCandidates } from "../staff-builder-rhythm";
 import { STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "../staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderStaff } from "../staff-builder-types";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderTieControls } from "./staff-builder-tie-controls";
 
 const durationLabel = (duration: StaffBuilderDuration) => duration.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
 
 export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, selectedEvent, selectedDescription, selectedIndex, eventCount, canPrevious, canNext, canUndo, canRedo, status, onPrevious, onNext, onAssignDuration, onConvertToRest, onMoveToStaff, onRespellPitch, onDelete, onUndo, onRedo, onCreateTies, onRemoveTie, onSplitAndTie }: Readonly<{
-  score?: StaffBuilderScoreV1;
+  score?: StaffBuilderScore;
   selectedMeasureIndex?: number;
   selectedEvent: StaffBuilderEvent | null;
   selectedDescription: string;

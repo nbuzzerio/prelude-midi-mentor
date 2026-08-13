@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { StaffBuilderScoreV1 } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
 import type { PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 import {
@@ -65,8 +65,8 @@ function piece(targetCounts: readonly number[] = [2, 1]): PiecePracticePiece {
 }
 
 function projectedPolyphonicPiece(): PiecePracticePiece {
-  const source: StaffBuilderScoreV1 = {
-    schemaVersion: 1, id: "polyphonic-score", title: "Polyphonic study",
+  const source: StaffBuilderScore = {
+    schemaVersion: 2, annotations: [], id: "polyphonic-score", title: "Polyphonic study",
     createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 96, initialKeySignatureId: "c-major", initialTimeSignature: "6/8", ties: [],
     measures: [{ id: "m1", events: [

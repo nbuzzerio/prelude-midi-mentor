@@ -1,6 +1,6 @@
 import { resolveStaffBuilderMeasureContext } from "@/features/staff-builder/staff-builder-score";
 import { durationToTicks } from "@/features/staff-builder/staff-builder-time";
-import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff } from "@/features/staff-builder/staff-builder-types";
 import { validateStaffBuilderScore } from "@/features/staff-builder/staff-builder-validation";
 import type {
   PiecePracticeAttackedPitch,
@@ -34,7 +34,7 @@ function compareAttackedPitches(left: PiecePracticeAttackedPitch, right: PiecePr
     || left.sourcePitchId.localeCompare(right.sourcePitchId);
 }
 
-export function projectStaffBuilderPieceForPractice(score: StaffBuilderScoreV1): PiecePracticeProjectionResult {
+export function projectStaffBuilderPieceForPractice(score: StaffBuilderScore): PiecePracticeProjectionResult {
   const issues = validateStaffBuilderScore(score);
   if (issues.length > 0) return { ok: false, issues };
 

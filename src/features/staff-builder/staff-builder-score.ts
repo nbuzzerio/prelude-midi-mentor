@@ -12,7 +12,7 @@ import type {
   StaffBuilderMeasure,
   StaffBuilderMeasureContext,
   StaffBuilderPitch,
-  StaffBuilderScoreV1,
+  StaffBuilderScore,
   StaffBuilderStaff,
 } from "./staff-builder-types";
 
@@ -38,11 +38,11 @@ function requireTimeSignature(timeSignature: StaffBuilderTimeSignature): void {
   getMeasureCapacityTicks(timeSignature);
 }
 
-function updated(score: StaffBuilderScoreV1, factories: StaffBuilderFactories, changes: Partial<StaffBuilderScoreV1>): StaffBuilderScoreV1 {
+function updated(score: StaffBuilderScore, factories: StaffBuilderFactories, changes: Partial<StaffBuilderScore>): StaffBuilderScore {
   return { ...score, ...changes, updatedAt: factories.now() };
 }
 
-function updateMeasure(score: StaffBuilderScoreV1, measureIndex: number, factories: StaffBuilderFactories, change: (measure: StaffBuilderMeasure) => StaffBuilderMeasure): StaffBuilderScoreV1 {
+function updateMeasure(score: StaffBuilderScore, measureIndex: number, factories: StaffBuilderFactories, change: (measure: StaffBuilderMeasure) => StaffBuilderMeasure): StaffBuilderScore {
   const measure = score.measures[measureIndex];
   if (!measure) throw new Error(`Unknown measure index ${measureIndex}.`);
   const measures = score.measures.map((item, index) => index === measureIndex ? change(item) : item);
@@ -55,14 +55,14 @@ export function createStaffBuilderScore(options: Readonly<{
   initialKeySignatureId: MusicKeyId;
   initialTimeSignature: StaffBuilderTimeSignature;
   factories?: StaffBuilderFactories;
-}>): StaffBuilderScoreV1 {
+}>): StaffBuilderScore {
   requireTempo(options.tempoBpm);
   requireKey(options.initialKeySignatureId);
   requireTimeSignature(options.initialTimeSignature);
   const factories = options.factories ?? defaultFactories;
   const timestamp = factories.now();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: factories.createId(),
     title: options.title,
     createdAt: timestamp,
@@ -72,18 +72,19 @@ export function createStaffBuilderScore(options: Readonly<{
     initialTimeSignature: options.initialTimeSignature,
     measures: [{ id: factories.createId(), events: [] }],
     ties: [],
+    annotations: [],
   };
 }
 
-export function appendStaffBuilderMeasure(score: StaffBuilderScoreV1, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScoreV1 {
+export function appendStaffBuilderMeasure(score: StaffBuilderScore, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
   return updated(score, factories, { measures: [...score.measures, { id: factories.createId(), events: [] }] });
 }
 
 export type InsertStaffBuilderMeasureResult =
-  | Readonly<{ ok: true; score: StaffBuilderScoreV1; measureIndex: number }>
-  | Readonly<{ ok: false; score: StaffBuilderScoreV1; error: "invalid-index" | "tie-crosses-boundary" }>;
+  | Readonly<{ ok: true; score: StaffBuilderScore; measureIndex: number }>
+  | Readonly<{ ok: false; score: StaffBuilderScore; error: "invalid-index" | "tie-crosses-boundary" }>;
 
-export function insertStaffBuilderMeasure(score: StaffBuilderScoreV1, insertionIndex: number, factories: StaffBuilderFactories = defaultFactories): InsertStaffBuilderMeasureResult {
+export function insertStaffBuilderMeasure(score: StaffBuilderScore, insertionIndex: number, factories: StaffBuilderFactories = defaultFactories): InsertStaffBuilderMeasureResult {
   if (!Number.isInteger(insertionIndex) || insertionIndex < 0 || insertionIndex > score.measures.length) {
     return { ok: false, score, error: "invalid-index" };
   }
@@ -98,16 +99,16 @@ export function insertStaffBuilderMeasure(score: StaffBuilderScoreV1, insertionI
   return { ok: true, measureIndex: insertionIndex, score: updated(score, factories, { measures: [...score.measures.slice(0, insertionIndex), measure, ...score.measures.slice(insertionIndex)] }) };
 }
 
-export function renameStaffBuilderScore(score: StaffBuilderScoreV1, title: string, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScoreV1 {
+export function renameStaffBuilderScore(score: StaffBuilderScore, title: string, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
   return updated(score, factories, { title });
 }
 
-export function updateStaffBuilderTempo(score: StaffBuilderScoreV1, tempoBpm: number, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScoreV1 {
+export function updateStaffBuilderTempo(score: StaffBuilderScore, tempoBpm: number, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
   requireTempo(tempoBpm);
   return updated(score, factories, { tempoBpm });
 }
 
-export function setStaffBuilderMeasureKeySignature(score: StaffBuilderScoreV1, measureIndex: number, keyId: MusicKeyId | null, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScoreV1 {
+export function setStaffBuilderMeasureKeySignature(score: StaffBuilderScore, measureIndex: number, keyId: MusicKeyId | null, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
   if (keyId !== null) requireKey(keyId);
   return updateMeasure(score, measureIndex, factories, (measure) => {
     const { keySignatureChange, ...rest } = measure;
@@ -116,7 +117,7 @@ export function setStaffBuilderMeasureKeySignature(score: StaffBuilderScoreV1, m
   });
 }
 
-export function setStaffBuilderMeasureTimeSignature(score: StaffBuilderScoreV1, measureIndex: number, timeSignature: StaffBuilderTimeSignature | null, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScoreV1 {
+export function setStaffBuilderMeasureTimeSignature(score: StaffBuilderScore, measureIndex: number, timeSignature: StaffBuilderTimeSignature | null, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
   if (timeSignature !== null) requireTimeSignature(timeSignature);
   return updateMeasure(score, measureIndex, factories, (measure) => {
     const { timeSignatureChange, ...rest } = measure;
@@ -125,7 +126,7 @@ export function setStaffBuilderMeasureTimeSignature(score: StaffBuilderScoreV1, 
   });
 }
 
-export function resolveStaffBuilderMeasureContext(score: StaffBuilderScoreV1, measureIndex: number): StaffBuilderMeasureContext {
+export function resolveStaffBuilderMeasureContext(score: StaffBuilderScore, measureIndex: number): StaffBuilderMeasureContext {
   if (!Number.isInteger(measureIndex) || measureIndex < 0 || measureIndex >= score.measures.length) {
     throw new Error(`Unknown measure index ${measureIndex}.`);
   }
@@ -139,7 +140,7 @@ export function resolveStaffBuilderMeasureContext(score: StaffBuilderScoreV1, me
   return { keySignatureId, timeSignature, capacityTicks: getMeasureCapacityTicks(timeSignature) };
 }
 
-function requireStartTick(score: StaffBuilderScoreV1, measureIndex: number, startTick: number): void {
+function requireStartTick(score: StaffBuilderScore, measureIndex: number, startTick: number): void {
   const { capacityTicks } = resolveStaffBuilderMeasureContext(score, measureIndex);
   if (!Number.isInteger(startTick) || startTick < 0 || startTick >= capacityTicks) {
     throw new Error(`Start tick must be an integer from 0 through ${capacityTicks - 1}.`);
@@ -171,14 +172,14 @@ function replaceAtPosition(events: readonly StaffBuilderEvent[], event: StaffBui
   return [...events.filter((item) => item.staff !== event.staff || item.startTick !== event.startTick), event];
 }
 
-export function insertStaffBuilderNotes(score: StaffBuilderScoreV1, options: Readonly<{
+export function insertStaffBuilderNotes(score: StaffBuilderScore, options: Readonly<{
   measureIndex: number;
   staff: StaffBuilderStaff;
   startTick: number;
   midiNumbers: Iterable<number>;
   rhythm: Extract<StaffBuilderEvent, { kind: "notes" }>["rhythm"];
   factories?: StaffBuilderFactories;
-}>): StaffBuilderScoreV1 {
+}>): StaffBuilderScore {
   requireStartTick(score, options.measureIndex, options.startTick);
   const factories = options.factories ?? defaultFactories;
   const uniqueMidiNumbers = [...new Set(options.midiNumbers)].sort(
@@ -194,23 +195,23 @@ export function insertStaffBuilderNotes(score: StaffBuilderScoreV1, options: Rea
   return updateMeasure(score, options.measureIndex, factories, (measure) => ({ ...measure, events: replaceAtPosition(measure.events, event) }));
 }
 
-export function insertUnresolvedStaffBuilderNotes(score: StaffBuilderScoreV1, options: Readonly<{
+export function insertUnresolvedStaffBuilderNotes(score: StaffBuilderScore, options: Readonly<{
   measureIndex: number;
   staff: StaffBuilderStaff;
   startTick: number;
   midiNumbers: Iterable<number>;
   factories?: StaffBuilderFactories;
-}>): StaffBuilderScoreV1 {
+}>): StaffBuilderScore {
   return insertStaffBuilderNotes(score, { ...options, rhythm: { status: "unresolved" } });
 }
 
-export function insertStaffBuilderRest(score: StaffBuilderScoreV1, options: Readonly<{
+export function insertStaffBuilderRest(score: StaffBuilderScore, options: Readonly<{
   measureIndex: number;
   staff: StaffBuilderStaff;
   startTick: number;
   duration: StaffBuilderDuration;
   factories?: StaffBuilderFactories;
-}>): StaffBuilderScoreV1 {
+}>): StaffBuilderScore {
   requireStartTick(score, options.measureIndex, options.startTick);
   const factories = options.factories ?? defaultFactories;
   durationToTicks(options.duration);
@@ -221,11 +222,11 @@ export function insertStaffBuilderRest(score: StaffBuilderScoreV1, options: Read
   return updateMeasure(score, options.measureIndex, factories, (measure) => ({ ...measure, events: replaceAtPosition(measure.events, event) }));
 }
 
-export function removeStaffBuilderEvent(score: StaffBuilderScoreV1, measureIndex: number, eventId: string, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScoreV1 {
+export function removeStaffBuilderEvent(score: StaffBuilderScore, measureIndex: number, eventId: string, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
   return updateMeasure(score, measureIndex, factories, (measure) => ({ ...measure, events: measure.events.filter(({ id }) => id !== eventId) }));
 }
 
-export function getStaffBuilderEventsInScoreOrder(score: StaffBuilderScoreV1): readonly StaffBuilderEvent[] {
+export function getStaffBuilderEventsInScoreOrder(score: StaffBuilderScore): readonly StaffBuilderEvent[] {
   return score.measures.flatMap((measure, measureIndex) => measure.events.map((event) => ({ event, measureIndex })))
     .sort((left, right) => left.measureIndex - right.measureIndex
       || left.event.startTick - right.event.startTick

@@ -1,10 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderScore } from "../staff-builder-types";
 import { useStaffBuilderRhythmEditor } from "./use-staff-builder-rhythm-editor";
 
 const note = (id: string, startTick: number, staff: "treble" | "bass" = "treble"): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "unresolved" }, pitches: [{ id: `${id}-pitch`, midiNumber: 61, letter: "C", accidental: "sharp", octave: 4 }] });
-const score = (events: readonly StaffBuilderEvent[], ties: StaffBuilderScoreV1["ties"] = []): StaffBuilderScoreV1 => ({ schemaVersion: 1, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }], ties });
+const score = (events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore => ({ schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }], ties });
 
 describe("useStaffBuilderRhythmEditor", () => {
   it("selects deterministically, navigates without wrapping, and reports selection changes", () => {
@@ -44,7 +44,7 @@ describe("useStaffBuilderRhythmEditor", () => {
   it("owns an empty target measure and selects only the first deterministic event in that measure", () => {
     const first = note("first", 240, "bass");
     const earlier = note("earlier", 0);
-    const current: StaffBuilderScoreV1 = {
+    const current: StaffBuilderScore = {
       ...score([]),
       measures: [
         { id: "m1", events: [note("outside", 0)] },
@@ -65,7 +65,7 @@ describe("useStaffBuilderRhythmEditor", () => {
   });
 
   it("restores persisted empty-measure ownership and retains it across an authoritative-score rerender", () => {
-    const current: StaffBuilderScoreV1 = {
+    const current: StaffBuilderScore = {
       ...score([]),
       measures: [
         { id: "m1", events: [note("outside", 0)] },
@@ -85,7 +85,7 @@ describe("useStaffBuilderRhythmEditor", () => {
   });
 
   it("restores a valid event and reconciles a stale event ID through the existing fallback", () => {
-    const current: StaffBuilderScoreV1 = {
+    const current: StaffBuilderScore = {
       ...score([]),
       measures: [{ id: "m1", events: [note("valid", 0)] }, { id: "m2", events: [] }],
     };

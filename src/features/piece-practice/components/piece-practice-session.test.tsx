@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StaffBuilderScoreV1 } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { submitPiecePracticeAttempt } from "../piece-practice-session";
 import type { PiecePracticeInputFeedback } from "../hooks/use-piece-practice-input";
@@ -76,13 +76,13 @@ function piece(): PiecePracticePiece {
   };
 }
 
-function realisticPolyphonicScore(): StaffBuilderScoreV1 {
+function realisticPolyphonicScore(): StaffBuilderScore {
   const note = (id: string, staff: "treble" | "bass", startTick: number, duration: "dotted-half" | "dotted-quarter" | "quarter" | "eighth", pitches: readonly { id: string; midiNumber: number; letter: "A" | "C" | "D" | "E" | "F" | "G"; octave: number }[]) => ({
     id, kind: "notes" as const, staff, startTick, rhythm: { status: "final" as const, duration },
     pitches: pitches.map((source) => ({ ...source, accidental: "natural" as const })),
   });
   return {
-    schemaVersion: 1, id: "realistic-6-8", title: "Six-Eight Practice Study", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    schemaVersion: 2, annotations: [], id: "realistic-6-8", title: "Six-Eight Practice Study", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 72, initialKeySignatureId: "c-major", initialTimeSignature: "6/8",
     measures: [
       { id: "measure-1", events: [

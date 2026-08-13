@@ -1,7 +1,7 @@
 import type { PlayableMusicalEvent } from "@/lib/audio/musical-event-player";
 import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
 import { durationToTicks, getMeasureStartTick, tickBoundaryDurationMilliseconds, ticksToMilliseconds } from "./staff-builder-time";
-import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1 } from "./staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore } from "./staff-builder-types";
 import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 export const STAFF_BUILDER_AUDITION_DURATION_MS = 600;
@@ -34,7 +34,7 @@ function pitchKey(eventId: string, pitchId: string): string {
   return `${eventId}:${pitchId}`;
 }
 
-function measureTiming(score: StaffBuilderScoreV1) {
+function measureTiming(score: StaffBuilderScore) {
   const capacities = score.measures.map((_measure, measureIndex) => resolveStaffBuilderMeasureContext(score, measureIndex).capacityTicks);
   const starts = capacities.map((_capacity, measureIndex) => getMeasureStartTick(capacities, measureIndex));
   return { capacities, starts, totalTicks: capacities.reduce((sum, capacity) => sum + capacity, 0) };
@@ -48,7 +48,7 @@ export function sampleStaffBuilderPlaybackTick(clock: StaffBuilderPlaybackClock,
   return clock.scopeStartTick + Math.floor((tick - clock.scopeStartTick) / 120) * 120;
 }
 
-export function resolveStaffBuilderPlaybackPosition(score: StaffBuilderScoreV1, absoluteTick: number, preferPreviousBoundary = false): StaffBuilderPlaybackPosition {
+export function resolveStaffBuilderPlaybackPosition(score: StaffBuilderScore, absoluteTick: number, preferPreviousBoundary = false): StaffBuilderPlaybackPosition {
   const { capacities, starts, totalTicks } = measureTiming(score);
   const tick = Math.max(0, Math.min(Number.isFinite(absoluteTick) ? absoluteTick : 0, totalTicks));
   for (let measureIndex = 0; measureIndex < capacities.length; measureIndex += 1) {
@@ -60,7 +60,7 @@ export function resolveStaffBuilderPlaybackPosition(score: StaffBuilderScoreV1, 
   return { measureIndex: 0, offsetTicks: 0 };
 }
 
-function flattenSoundingPitches(score: StaffBuilderScoreV1, measureStarts: readonly number[]): readonly SoundingPitch[] {
+function flattenSoundingPitches(score: StaffBuilderScore, measureStarts: readonly number[]): readonly SoundingPitch[] {
   const pitches = new Map<string, LocatedPitch>();
   score.measures.forEach((measure, measureIndex) => measure.events.forEach((event) => {
     if (event.kind !== "notes" || event.rhythm.status !== "final") return;
@@ -91,7 +91,7 @@ function flattenSoundingPitches(score: StaffBuilderScoreV1, measureStarts: reado
   return sounding.sort((left, right) => left.attackTick - right.attackTick || left.endTick - right.endTick || left.midiNumber - right.midiNumber);
 }
 
-function resolveScope(score: StaffBuilderScoreV1, scope: StaffBuilderPlaybackScope, capacities: readonly number[], starts: readonly number[], totalTicks: number): Readonly<{ startTick: number; endTick: number }> {
+function resolveScope(score: StaffBuilderScore, scope: StaffBuilderPlaybackScope, capacities: readonly number[], starts: readonly number[], totalTicks: number): Readonly<{ startTick: number; endTick: number }> {
   if (scope.kind === "entire-piece") return { startTick: 0, endTick: totalTicks };
   if (scope.kind === "measure") {
     const startTick = starts[scope.measureIndex];
@@ -108,7 +108,7 @@ function resolveScope(score: StaffBuilderScoreV1, scope: StaffBuilderPlaybackSco
   return { startTick: measureStart + scope.position.offsetTicks, endTick: totalTicks };
 }
 
-export function projectStaffBuilderPlayback(score: StaffBuilderScoreV1, scope: StaffBuilderPlaybackScope): StaffBuilderPlaybackProjection {
+export function projectStaffBuilderPlayback(score: StaffBuilderScore, scope: StaffBuilderPlaybackScope): StaffBuilderPlaybackProjection {
   if (validateStaffBuilderScore(score).length > 0) throw new Error("Staff Builder playback requires a structurally valid score.");
   const timing = measureTiming(score);
   const resolvedScope = resolveScope(score, scope, timing.capacities, timing.starts, timing.totalTicks);

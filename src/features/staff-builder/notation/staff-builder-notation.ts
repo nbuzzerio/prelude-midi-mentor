@@ -13,7 +13,7 @@ import { stepDurationToTicks } from "../staff-builder-time";
 import type {
   StaffBuilderEvent,
   StaffBuilderPitch,
-  StaffBuilderScoreV1,
+  StaffBuilderScore,
   StaffBuilderStaff,
 } from "../staff-builder-types";
 import { deriveStaffBuilderVoices } from "../staff-builder-voices";
@@ -76,7 +76,7 @@ export type StaffBuilderProjectedVoice = Readonly<{
 export type StaffBuilderMeasureProjection = Readonly<{
   measureIndex: number;
   measureNumber: number;
-  keySignatureId: StaffBuilderScoreV1["initialKeySignatureId"];
+  keySignatureId: StaffBuilderScore["initialKeySignatureId"];
   keySignatureName: string;
   vexflowKeySignature: string;
   timeSignature: StaffBuilderTimeSignature;
@@ -95,7 +95,7 @@ export type StaffBuilderMeasureProjection = Readonly<{
 }>;
 
 export type StaffBuilderPendingPreviewProjection = Readonly<{
-  renderScore: StaffBuilderScoreV1;
+  renderScore: StaffBuilderScore;
   events: Readonly<Record<StaffBuilderStaff, StaffBuilderEvent | null>>;
   layoutDurationTicksByEventId: ReadonlyMap<string, number>;
   previewEventIds: ReadonlySet<string>;
@@ -209,7 +209,7 @@ function pitchName(pitch: StaffBuilderPitch): string {
 }
 
 export function projectStaffBuilderPendingPreview(
-  score: StaffBuilderScoreV1,
+  score: StaffBuilderScore,
   measureIndex: number,
   startTick: number,
   pending: StaffBuilderPendingCapture,
@@ -280,7 +280,7 @@ function summarize(events: readonly StaffBuilderEvent[], staff: StaffBuilderStaf
   return descriptions.length === 0 ? "No events." : descriptions.join("; ");
 }
 
-function projectTies(score: StaffBuilderScoreV1, eventById: ReadonlyMap<string, StaffBuilderProjectedEvent>): Readonly<{
+function projectTies(score: StaffBuilderScore, eventById: ReadonlyMap<string, StaffBuilderProjectedEvent>): Readonly<{
   ties: readonly StaffBuilderProjectedTie[];
   unavailableTies: readonly StaffBuilderUnavailableTie[];
   boundaryTies: readonly StaffBuilderBoundaryTie[];
@@ -313,7 +313,7 @@ function projectTies(score: StaffBuilderScoreV1, eventById: ReadonlyMap<string, 
   return { ties, unavailableTies, boundaryTies };
 }
 
-export function projectStaffBuilderMeasure(score: StaffBuilderScoreV1, measureIndex: number, options?: StaffBuilderMeasureProjectionOptions): StaffBuilderMeasureProjection {
+export function projectStaffBuilderMeasure(score: StaffBuilderScore, measureIndex: number, options?: StaffBuilderMeasureProjectionOptions): StaffBuilderMeasureProjection {
   const measure = score.measures[measureIndex];
   if (!measure) throw new Error(`Unknown measure index ${measureIndex}.`);
   const context = resolveStaffBuilderMeasureContext(score, measureIndex);

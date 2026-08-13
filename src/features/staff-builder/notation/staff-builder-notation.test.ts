@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STAFF_BUILDER_DURATIONS, durationToTicks, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
-import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore } from "../staff-builder-types";
 import { getStaffBuilderVisualDuration, projectStaffBuilderMeasure, projectStaffBuilderPendingPreview } from "./staff-builder-notation";
 
 const pitch = (id: string, letter = "C", accidental: StaffBuilderPitch["accidental"] = "natural", octave = 4, midiNumber = 60): StaffBuilderPitch => ({ id, letter: letter as StaffBuilderPitch["letter"], accidental, octave, midiNumber });
@@ -9,11 +9,11 @@ const rest = (id: string, staff: "treble" | "bass", startTick: number, duration:
 
 function score(options: Readonly<{
   time?: StaffBuilderTimeSignature;
-  measures?: StaffBuilderScoreV1["measures"];
-  ties?: StaffBuilderScoreV1["ties"];
-}> = {}): StaffBuilderScoreV1 {
+  measures?: StaffBuilderScore["measures"];
+  ties?: StaffBuilderScore["ties"];
+}> = {}): StaffBuilderScore {
   return {
-    schemaVersion: 1, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: options.time ?? "4/4",
     measures: options.measures ?? [{ id: "measure-1", events: [] }], ties: options.ties ?? [],
   };

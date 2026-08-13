@@ -2,13 +2,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import StaffBuilderSession from "./staff-builder-session";
 
 const { fileBoundary, midiBoundary, practiceBoundary } = vi.hoisted(() => ({
   fileBoundary: { download: vi.fn(), read: vi.fn() },
   midiBoundary: { onNote: null as ((midiNumber: number) => void) | null },
-  practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, projectionScores: [] as import("../staff-builder-types").StaffBuilderScoreV1[], forceFailure: false },
+  practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, projectionScores: [] as import("../staff-builder-types").StaffBuilderScore[], forceFailure: false },
 }));
 vi.mock("../persistence/staff-builder-piece-file-browser", () => ({
   downloadStaffBuilderPiece: fileBoundary.download,
@@ -26,7 +26,7 @@ vi.mock("@/features/piece-practice/components/piece-practice-session", () => ({ 
 } }));
 vi.mock("@/features/piece-practice/piece-practice-projection", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/piece-practice/piece-practice-projection")>();
-  return { projectStaffBuilderPieceForPractice: (score: import("../staff-builder-types").StaffBuilderScoreV1) => {
+  return { projectStaffBuilderPieceForPractice: (score: import("../staff-builder-types").StaffBuilderScore) => {
     practiceBoundary.projectionScores.push(score);
     return practiceBoundary.forceFailure ? { ok: false as const, issues: [] } : actual.projectStaffBuilderPieceForPractice(score);
   } };
@@ -48,6 +48,13 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
     measureText: (text: string) => ({ width: text.length * 8, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2, actualBoundingBoxLeft: 0, actualBoundingBoxRight: text.length * 8 }),
   } as CanvasRenderingContext2D);
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+  vi.stubGlobal("ResizeObserver", class {
+    callback: ResizeObserverCallback;
+    constructor(callback: ResizeObserverCallback) { this.callback = callback; }
+    observe(target: Element) { this.callback([{ target, contentRect: { width: 700 } } as ResizeObserverEntry], this as unknown as ResizeObserver); }
+    disconnect() {}
+  });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -63,9 +70,9 @@ function createPiece(title = "Minuet") {
   fireEvent.click(screen.getByRole("button", { name: "Create Piece" }));
 }
 
-function savedValidScore(title = "Practice Study"): StaffBuilderScoreV1 {
+function savedValidScore(title = "Practice Study"): StaffBuilderScore {
   return {
-    schemaVersion: 1 as const, id: `saved-${title}`, title, createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    schemaVersion: 2 as const, annotations: [], id: `saved-${title}`, title, createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 96, initialKeySignatureId: "c-major" as const, initialTimeSignature: "4/4" as const, ties: [], measures: [{ id: "m1", events: [
       { id: "treble", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "tp", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] },
       { id: "bass", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
@@ -73,12 +80,104 @@ function savedValidScore(title = "Practice Study"): StaffBuilderScoreV1 {
   };
 }
 
-function seedLibrary(storage: MemoryStorage, pieces: readonly StaffBuilderScoreV1[]) {
-  storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 1, pieces }));
+function savedTwoMeasureScore(title = "Practice Study"): StaffBuilderScore {
+  const score = savedValidScore(title);
+  return {
+    ...score,
+    measures: [
+      score.measures[0]!,
+      {
+        id: "m2",
+        events: [
+          { id: "treble-2", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "tp-2", midiNumber: 62, letter: "D", accidental: "natural", octave: 4 }] },
+          { id: "bass-2", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
+        ],
+      },
+    ],
+  };
+}
+
+function seedLibrary(storage: MemoryStorage, pieces: readonly StaffBuilderScore[]) {
+  storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 2, pieces }));
   storage.values.set(STAFF_BUILDER_STORAGE_KEYS.introductionDismissed, "true");
 }
 
 describe("Staff Builder session", () => {
+  it("enters a clean Study View, preserves editor state, suppresses MIDI, and restores focus", async () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, [savedTwoMeasureScore("Study Shell")]);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Study Shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+    expect(screen.getByRole("heading", { name: "Measure 2 of 2" })).toBeTruthy();
+    const tempo = screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement;
+    fireEvent.change(tempo, { target: { value: "104" } });
+    fireEvent.keyDown(tempo, { key: "Enter" });
+    expect(tempo.value).toBe("104");
+    expect((screen.getByRole("button", { name: "Undo last score edit" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getAllByRole("button", { name: "Play Piece" })[0]!);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop playback" })).toBeTruthy());
+    act(() => midiBoundary.onNote?.(64));
+    expect(screen.getByText(/pending treble MIDI pitches 64;/)).toBeTruthy();
+    const launcher = screen.getByRole("button", { name: "Study View" });
+    launcher.focus();
+    fireEvent.click(launcher);
+    expect(screen.getByRole("heading", { name: "Study Shell", level: 1 })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Next Position" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Annotation" })).toBeNull();
+    act(() => midiBoundary.onNote?.(67));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Study View" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Study View" })));
+    expect(screen.queryByRole("button", { name: "Stop playback" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Measure 2 of 2" })).toBeTruthy();
+    expect(screen.getByText(/pending treble MIDI pitches 64;/)).toBeTruthy();
+    const undo = screen.getByRole("button", { name: "Undo last score edit" }) as HTMLButtonElement;
+    expect(undo.disabled).toBe(false);
+    fireEvent.click(undo);
+    expect((screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement).value).toBe("96");
+    expect(screen.getByRole("heading", { name: "Measure 2 of 2" })).toBeTruthy();
+    act(() => midiBoundary.onNote?.(67));
+    expect(screen.getByText(/pending treble MIDI pitches 64, 67;/)).toBeTruthy();
+  });
+  it("integrates annotation authoring and transient layer presentation with the canonical editor score", async () => {
+    const storage = new MemoryStorage();
+    const base = savedValidScore("Annotated Study");
+    const annotated = { ...base, annotations: [
+      { id: "measure-note", kind: "study-note" as const, anchor: { kind: "measure" as const, measureId: "m1" }, text: "Shape the phrase" },
+      { id: "event-practice", kind: "practice-mark" as const, anchor: { kind: "event" as const, eventId: "treble" }, category: "rhythm" as const },
+      { id: "event-bookmark", kind: "bookmark" as const, anchor: { kind: "event" as const, eventId: "treble" }, category: "revisit" as const },
+    ] };
+    seedLibrary(storage, [annotated]);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Annotated Study" }));
+
+    expect(screen.getByRole("heading", { name: "Study annotations" })).toBeTruthy();
+    expect(screen.getByText("Shape the phrase")).toBeTruthy();
+    await waitFor(() => expect(screen.getByLabelText("Study Note, 1 annotation")).toBeTruthy());
+    expect(screen.getByLabelText("Practice Mark, 1 annotation, event in measure 1")).toBeTruthy();
+    expect(screen.getByLabelText("Bookmark, 1 annotation, event in measure 1")).toBeTruthy();
+    const scoreBeforeLayerChanges = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null").score;
+
+    fireEvent.click(screen.getByLabelText("Study Notes"));
+    expect(screen.queryByLabelText("Study Note, 1 annotation")).toBeNull();
+    expect(screen.getByLabelText("Practice Mark, 1 annotation, event in measure 1")).toBeTruthy();
+    expect(screen.getByLabelText("Bookmark, 1 annotation, event in measure 1")).toBeTruthy();
+    expect(screen.getByText("Shape the phrase")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Practice Marks"));
+    expect(screen.queryByLabelText(/Practice Mark, 1 annotation/)).toBeNull();
+    expect(screen.getByLabelText("Bookmark, 1 annotation, event in measure 1")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Bookmarks"));
+    expect(screen.queryByLabelText(/Bookmark, 1 annotation/)).toBeNull();
+    expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null").score).toEqual(scoreBeforeLayerChanges);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Annotation" }));
+    fireEvent.change(screen.getByLabelText("Study note"), { target: { value: "New integrated note" } });
+    fireEvent.click(screen.getByRole("group", { name: "Add annotation" }).querySelector('button[type="button"]') as HTMLButtonElement);
+    expect(screen.getByText("New integrated note")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Undo last score edit" }));
+    expect(screen.queryByText("New integrated note")).toBeNull();
+  });
+
   it("downloads saved pieces and imports schema-valid incomplete pieces without opening an editor", async () => {
     const storage = new MemoryStorage();
     const saved = savedValidScore();
@@ -313,8 +412,8 @@ describe("Staff Builder session", () => {
     let id = 0;
     const base = createStaffBuilderScore({ title: "Saved", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", factories: { createId: () => `id-${++id}`, now: () => "2026-08-06T12:00:00.000Z" } });
     const draftScore = { ...base, title: "Draft", updatedAt: "2026-08-06T13:00:00.000Z" };
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 1, pieces: [base] }));
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 1, savedPieceId: base.id, updatedAt: draftScore.updatedAt, score: draftScore, editorPass: "capture" }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 2, pieces: [base] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 2, savedPieceId: base.id, updatedAt: draftScore.updatedAt, score: draftScore, editorPass: "capture" }));
     render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
     expect(screen.getByText("A newer Staff Builder draft is available.")).toBeTruthy();

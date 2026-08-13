@@ -13,7 +13,7 @@ import {
   type StaffBuilderStepDuration,
   type StaffBuilderTimeSignature,
 } from "./staff-builder-time";
-import type { StaffBuilderScoreV1, StaffBuilderStaff } from "./staff-builder-types";
+import type { StaffBuilderScore, StaffBuilderStaff } from "./staff-builder-types";
 
 export type StaffBuilderCaptureState = Readonly<{
   cursor: StaffBuilderPosition;
@@ -36,12 +36,12 @@ export function routeStaffBuilderCapturePitch(inputMode: StaffBuilderCaptureInpu
   return inputMode;
 }
 
-export function getStaffBuilderMeasureCapacities(score: StaffBuilderScoreV1): readonly number[] {
+export function getStaffBuilderMeasureCapacities(score: StaffBuilderScore): readonly number[] {
   return score.measures.map((_measure, measureIndex) => resolveStaffBuilderMeasureContext(score, measureIndex).capacityTicks);
 }
 
 export type StaffBuilderCursorMove = Readonly<{
-  score: StaffBuilderScoreV1;
+  score: StaffBuilderScore;
   cursor: StaffBuilderPosition;
   appendedMeasure: boolean;
 }>;
@@ -64,7 +64,7 @@ export function formatStaffBuilderCapturePosition(timeSignature: StaffBuilderTim
 }
 
 export function moveStaffBuilderCaptureForward(
-  score: StaffBuilderScoreV1,
+  score: StaffBuilderScore,
   cursor: StaffBuilderPosition,
   stepDuration: StaffBuilderStepDuration,
   factories?: StaffBuilderFactories,
@@ -85,7 +85,7 @@ export function moveStaffBuilderCaptureForward(
 }
 
 export function moveStaffBuilderCaptureBackward(
-  score: StaffBuilderScoreV1,
+  score: StaffBuilderScore,
   cursor: StaffBuilderPosition,
   stepDuration: StaffBuilderStepDuration,
 ): StaffBuilderPosition {
@@ -94,11 +94,11 @@ export function moveStaffBuilderCaptureBackward(
 }
 
 export function commitStaffBuilderPendingCapture(
-  score: StaffBuilderScoreV1,
+  score: StaffBuilderScore,
   cursor: StaffBuilderPosition,
   pending: StaffBuilderPendingCapture,
   factories?: StaffBuilderFactories,
-): StaffBuilderScoreV1 {
+): StaffBuilderScore {
   let next = score;
   for (const staff of ["treble", "bass"] as const) {
     if (pending[staff].length === 0) continue;
@@ -115,11 +115,11 @@ export function commitStaffBuilderPendingCapture(
 }
 
 export type StaffBuilderCaptureRestResult =
-  | Readonly<{ ok: true; score: StaffBuilderScoreV1; staves: readonly StaffBuilderStaff[] }>
-  | Readonly<{ ok: false; error: "tied-event"; score: StaffBuilderScoreV1 }>;
+  | Readonly<{ ok: true; score: StaffBuilderScore; staves: readonly StaffBuilderStaff[] }>
+  | Readonly<{ ok: false; error: "tied-event"; score: StaffBuilderScore }>;
 
 export function commitStaffBuilderCaptureRest(
-  score: StaffBuilderScoreV1,
+  score: StaffBuilderScore,
   state: StaffBuilderCaptureState,
   factories?: StaffBuilderFactories,
 ): StaffBuilderCaptureRestResult {

@@ -19,8 +19,8 @@ function validScore() {
 describe("Staff Builder schema", () => {
   it("parses valid scores, libraries, and drafts without mutating input", () => {
     const score = validScore();
-    const library = { schemaVersion: 1, pieces: [score] };
-    const draft = { schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture" };
+    const library = { schemaVersion: 2, pieces: [score] };
+    const draft = { schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture" };
     const before = JSON.stringify({ library, draft });
     expect(parseStaffBuilderScore(score).ok).toBe(true);
     expect(parseStaffBuilderLibrary(library).ok).toBe(true);
@@ -64,8 +64,41 @@ describe("Staff Builder schema", () => {
   });
 
   it("distinguishes unsupported schema versions", () => {
-    expect(parseStaffBuilderLibrary({ schemaVersion: 2, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
-    expect(parseStaffBuilderDraft({ schemaVersion: 2 })).toMatchObject({ ok: false, reason: "unsupported" });
+    expect(parseStaffBuilderLibrary({ schemaVersion: 3, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
+    expect(parseStaffBuilderDraft({ schemaVersion: 3 })).toMatchObject({ ok: false, reason: "unsupported" });
+  });
+
+  it("deliberately migrates V1 scores, libraries, and drafts to canonical V2", () => {
+    const current = validScore();
+    const { annotations: _annotations, ...withoutAnnotations } = current;
+    void _annotations;
+    const legacy = { ...withoutAnnotations, schemaVersion: 1 as const };
+    const parsedScore = parseStaffBuilderScore(legacy);
+    expect(parsedScore).toEqual({ ok: true, value: { ...legacy, schemaVersion: 2, annotations: [] } });
+    expect(parseStaffBuilderLibrary({ schemaVersion: 1, pieces: [legacy] })).toEqual({
+      ok: true,
+      value: { schemaVersion: 2, pieces: [{ ...legacy, schemaVersion: 2, annotations: [] }] },
+    });
+    expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: legacy.id, updatedAt: legacy.updatedAt, score: legacy, editorPass: "capture" })).toMatchObject({
+      ok: true,
+      value: { schemaVersion: 2, score: { schemaVersion: 2, annotations: [] } },
+    });
+  });
+
+  it("parses the exact Phase 1 annotation union and rejects malformed or orphaned annotations", () => {
+    const current = validScore();
+    const eventId = current.measures[0]!.events[0]!.id;
+    const measureId = current.measures[0]!.id;
+    const annotations = [
+      { id: "note", kind: "study-note", anchor: { kind: "event", eventId }, text: "Shape this line." },
+      { id: "mark", kind: "practice-mark", anchor: { kind: "measure", measureId }, category: "rhythm" },
+      { id: "other", kind: "practice-mark", anchor: { kind: "event", eventId }, category: "other", text: "Block this chord." },
+      { id: "bookmark", kind: "bookmark", anchor: { kind: "measure", measureId }, category: "question" },
+    ];
+    expect(parseStaffBuilderScore({ ...current, annotations })).toEqual({ ok: true, value: { ...current, annotations } });
+    expect(parseStaffBuilderScore({ ...current, annotations: [...annotations, annotations[0]] })).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderScore({ ...current, annotations: [{ ...annotations[0], kind: "fingering" }] })).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderScore({ ...current, annotations: [{ id: "orphan", kind: "bookmark", category: "revisit", anchor: { kind: "event", eventId: "missing" } }] })).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it("hard-rejects duplicate measure, event, and tie IDs", () => {
@@ -78,7 +111,7 @@ describe("Staff Builder schema", () => {
 
   it("accepts optional validated capture state while preserving older drafts", () => {
     const score = validScore();
-    const base = { schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture" };
+    const base = { schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture" };
     const older = parseStaffBuilderDraft(base);
     expect(older.ok && older.value.captureState).toBeUndefined();
     expect(parseStaffBuilderDraft({ ...base, captureState: { cursor: { measureIndex: 1, offsetTicks: 120 }, stepDuration: "sixteenth", activeStaff: "bass" } })).toMatchObject({
@@ -94,7 +127,7 @@ describe("Staff Builder schema", () => {
   it.each([0, 120, 240, 360, 1800])("accepts sixteenth-grid capture position %i", (offsetTicks) => {
     const score = validScore();
     const draft = {
-      schemaVersion: 1,
+      schemaVersion: 2, annotations: [],
       savedPieceId: score.id,
       updatedAt: "2026-08-06T13:00:00.000Z",
       score,
@@ -107,7 +140,7 @@ describe("Staff Builder schema", () => {
   it.each([37, 121, 239])("rejects off-grid integer capture position %i as corrupt", (offsetTicks) => {
     const score = validScore();
     const draft = {
-      schemaVersion: 1,
+      schemaVersion: 2, annotations: [],
       savedPieceId: score.id,
       updatedAt: "2026-08-06T13:00:00.000Z",
       score,
@@ -123,18 +156,18 @@ describe("Staff Builder schema", () => {
     { cursor: { measureIndex: 0, offsetTicks: 0 }, stepDuration: "quarter", inputMode: "alto" },
   ])("rejects invalid capture state %#", (captureState) => {
     const score = validScore();
-    expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState })).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderDraft({ schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState })).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it("repairs a capture cursor invalidated by a time-signature change", () => {
     const score = validScore();
-    const parsed = parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState: { cursor: { measureIndex: 1, offsetTicks: 1440 }, stepDuration: "quarter", inputMode: "grand" } });
+    const parsed = parseStaffBuilderDraft({ schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture", captureState: { cursor: { measureIndex: 1, offsetTicks: 1440 }, stepDuration: "quarter", inputMode: "grand" } });
     expect(parsed).toMatchObject({ ok: true, value: { captureState: { cursor: { measureIndex: 1, offsetTicks: 0 } } } });
   });
 
   it("accepts optional rhythm selection and preserves compatibility without it", () => {
     const score = validScore();
-    const base = { schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm" };
+    const base = { schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm" };
     const older = parseStaffBuilderDraft(base);
     expect(older.ok && older.value.rhythmState).toBeUndefined();
     const eventId = score.measures[0]?.events[0]?.id;
@@ -144,11 +177,11 @@ describe("Staff Builder schema", () => {
 
   it.each([{ measureIndex: -1, selectedEventId: null }])("rejects malformed rhythm selection %#", (rhythmState) => {
     const score = validScore();
-    expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm", rhythmState })).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderDraft({ schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm", rhythmState })).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it.each([{ measureIndex: 9, selectedEventId: null }, { measureIndex: 0, selectedEventId: "missing" }])("repairs stale rhythm selection %#", (rhythmState) => {
     const score = validScore();
-    expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm", rhythmState })).toMatchObject({ ok: true, value: { rhythmState: { selectedEventId: null } } });
+    expect(parseStaffBuilderDraft({ schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "rhythm", rhythmState })).toMatchObject({ ok: true, value: { rhythmState: { selectedEventId: null } } });
   });
 });

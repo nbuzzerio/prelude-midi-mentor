@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { resolveStaffBuilderMeasureContext } from "../staff-builder-score";
 import { durationToTicks, STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "../staff-builder-time";
-import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderScore } from "../staff-builder-types";
 
 function pitchName(pitch: Extract<StaffBuilderEvent, { kind: "notes" }>["pitches"][number]): string {
   return `${pitch.letter}${pitch.accidental === "sharp" ? "♯" : pitch.accidental === "flat" ? "♭" : ""}${pitch.octave} (MIDI ${pitch.midiNumber})`;
 }
 
 export function StaffBuilderTieControls({ score, measureIndex, event, onCreateTies, onRemoveTie, onSplitAndTie }: Readonly<{
-  score: StaffBuilderScoreV1;
+  score: StaffBuilderScore;
   measureIndex: number;
   event: StaffBuilderEvent;
   onCreateTies: (fromEventId: string, toEventId: string, pitchIds: readonly string[]) => void;

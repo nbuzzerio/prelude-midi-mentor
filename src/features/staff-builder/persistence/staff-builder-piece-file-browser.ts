@@ -1,4 +1,4 @@
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import {
   getStaffBuilderPieceFilename,
   parseStaffBuilderPieceFileText,
@@ -17,7 +17,7 @@ export async function readStaffBuilderPieceFile(file: Pick<File, "text">): Promi
   }
 }
 
-export function downloadStaffBuilderPiece(score: StaffBuilderScoreV1): void {
+export function downloadStaffBuilderPiece(score: StaffBuilderScore): void {
   const blob = new Blob([serializeStaffBuilderPiece(score)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

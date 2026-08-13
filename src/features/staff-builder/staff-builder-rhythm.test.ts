@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { StaffBuilderEvent, StaffBuilderScoreV1 } from "./staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderScore } from "./staff-builder-types";
 import { convertStaffBuilderEventToRest, deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, getStaffBuilderEventSelections, getStaffBuilderPitchSpellingCandidates, moveStaffBuilderEventSelection, moveStaffBuilderEventToStaff, respellStaffBuilderPitch, setStaffBuilderEventDuration } from "./staff-builder-rhythm";
 import { deriveStaffBuilderVoices } from "./staff-builder-voices";
 import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const pitch = (id: string, midiNumber = 61) => ({ id, midiNumber, letter: "C" as const, accidental: "sharp" as const, octave: 4 });
 const event = (id: string, staff: "treble" | "bass", startTick: number, rhythm: StaffBuilderEvent["rhythm"] = { status: "unresolved" }): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm, pitches: [pitch(`${id}-pitch`)] });
-function score(events: readonly StaffBuilderEvent[], ties: StaffBuilderScoreV1["ties"] = []): StaffBuilderScoreV1 { return { schemaVersion: 1, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }, { id: "m2", events: [event("later", "treble", 0)] }], ties }; }
+function score(events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore { return { schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }, { id: "m2", events: [event("later", "treble", 0)] }], ties }; }
 const now = { now: () => "2026-01-02T00:00:00.000Z" };
 
 describe("Staff Builder rhythm operations", () => {
@@ -121,8 +121,8 @@ describe("Staff Builder rhythm operations", () => {
   it("keeps a valid cross-measure tie valid through derived-voice duration changes and rejects moving one endpoint", () => {
     const tiedPitch = pitch("tied-pitch", 61);
     const destinationPitch = { ...tiedPitch, id: "destination-pitch" };
-    const validTied: StaffBuilderScoreV1 = {
-      schemaVersion: 1, id: "tied", title: "Tie safety", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
+    const validTied: StaffBuilderScore = {
+      schemaVersion: 2, annotations: [], id: "tied", title: "Tie safety", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
       initialKeySignatureId: "c-major", initialTimeSignature: "4/4",
       measures: [
         { id: "m1", events: [

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createStaffBuilderContinuationAndTies, createStaffBuilderTies, decomposeStaffBuilderGap, fillAllStaffBuilderGapsWithRests, fillStaffBuilderGapWithRests, getExactStaffBuilderFittingDuration, removeStaffBuilderTie, splitStaffBuilderEventAcrossBarline } from "./staff-builder-corrections";
-import type { StaffBuilderScoreV1 } from "./staff-builder-types";
+import type { StaffBuilderScore } from "./staff-builder-types";
 
 const factories = () => { let id = 0; return { createId: () => `new-${++id}`, now: () => "2026-01-02T00:00:00.000Z" }; };
-const base = (): StaffBuilderScoreV1 => ({ schemaVersion: 1, id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [{ id: "from", kind: "notes", staff: "treble", startTick: 1440, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "fp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }, { id: "fe", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] }] }, { id: "m2", events: [] }], ties: [] });
+const base = (): StaffBuilderScore => ({ schemaVersion: 2, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [{ id: "from", kind: "notes", staff: "treble", startTick: 1440, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "fp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }, { id: "fe", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] }] }, { id: "m2", events: [] }], ties: [] });
 
 describe("Staff Builder corrections", () => {
   it("returns only an exact supported duration for the remaining measure span", () => {
@@ -31,7 +31,7 @@ describe("Staff Builder corrections", () => {
 
   it("atomically fills safe gaps across measures and staves with beat-aware rests", () => {
     const note = (id: string, staff: "treble" | "bass", startTick: number, duration: "quarter" | "dotted-quarter") => ({ id, kind: "notes" as const, staff, startTick, rhythm: { status: "final" as const, duration }, pitches: [{ id: `${id}-p`, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] });
-    const original: StaffBuilderScoreV1 = { ...base(), measures: [
+    const original: StaffBuilderScore = { ...base(), measures: [
       { id: "m1", events: [note("m1-note", "treble", 480, "quarter")] },
       { id: "m2", timeSignatureChange: "6/8", events: [note("m2-note", "treble", 720, "dotted-quarter")] },
     ] };
@@ -71,7 +71,7 @@ describe("Staff Builder corrections", () => {
   });
 
   it("fills only true staff-union gaps in polyphonic material", () => {
-    const source: StaffBuilderScoreV1 = { ...base(), measures: [{ id: "m1", events: [
+    const source: StaffBuilderScore = { ...base(), measures: [{ id: "m1", events: [
       { id: "long", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches: [{ id: "lp", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] },
       { id: "later", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "sp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
     ] }] };
@@ -81,7 +81,7 @@ describe("Staff Builder corrections", () => {
   });
 
   it("rejects a voice-local gap as stale when staff-wide coverage exists", () => {
-    const source: StaffBuilderScoreV1 = { ...base(), measures: [{ id: "m1", events: [
+    const source: StaffBuilderScore = { ...base(), measures: [{ id: "m1", events: [
       { id: "whole", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "wp", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] },
       { id: "later", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "lp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
     ] }] };

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderEventSelection } from "../staff-builder-rhythm";
 import type { StaffBuilderDuration } from "../staff-builder-time";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderScoreDetails, StaffBuilderScoreView } from "./staff-builder-score-view";
 
 const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: unknown, renderedScore: unknown, measureIndex: number, options?: unknown) => {
@@ -36,9 +36,9 @@ const { renderMeasure } = vi.hoisted(() => ({ renderMeasure: vi.fn((container: u
 }) }));
 vi.mock("../notation/render-staff-builder-measure", () => ({ renderStaffBuilderMeasure: renderMeasure }));
 
-function score(): StaffBuilderScoreV1 {
+function score(): StaffBuilderScore {
   return {
-    schemaVersion: 1, id: "score", title: "Navigation", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 2, annotations: [], id: "score", title: "Navigation", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [
       { id: "m1", events: [{ id: "treble-note", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "unresolved" }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] }] },
       { id: "m2", keySignatureChange: "g-major", timeSignatureChange: "6/8", events: [{ id: "bass-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "quarter" } }] },
@@ -46,7 +46,7 @@ function score(): StaffBuilderScoreV1 {
   };
 }
 
-function interactiveScore(): StaffBuilderScoreV1 {
+function interactiveScore(): StaffBuilderScore {
   const current = score();
   return { ...current, measures: [{ ...current.measures[0]!, events: [
     current.measures[0]!.events[0]!,
@@ -59,7 +59,7 @@ function interactiveScore(): StaffBuilderScoreV1 {
   ] }, current.measures[1]!] };
 }
 
-function priorityScore(): StaffBuilderScoreV1 {
+function priorityScore(): StaffBuilderScore {
   const current = score();
   return { ...current, measures: [{ ...current.measures[0]!, events: [
     { id: "time-padding-event", kind: "notes", staff: "treble", startTick: 240, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "time-pitch", midiNumber: 72, letter: "C", accidental: "natural", octave: 5 }] },
@@ -71,6 +71,26 @@ function priorityScore(): StaffBuilderScoreV1 {
 afterEach(() => { cleanup(); renderMeasure.mockClear(); vi.unstubAllGlobals(); });
 
 describe("StaffBuilderScoreView", () => {
+  it("shows aggregated measure and event indicators only for visible annotation layers", async () => {
+    const current = { ...score(), annotations: [
+      { id: "m-note-1", kind: "study-note" as const, anchor: { kind: "measure" as const, measureId: "m1" }, text: "First" },
+      { id: "m-note-2", kind: "study-note" as const, anchor: { kind: "measure" as const, measureId: "m1" }, text: "Second" },
+      { id: "event-practice", kind: "practice-mark" as const, anchor: { kind: "event" as const, eventId: "treble-note" }, category: "rhythm" as const },
+      { id: "event-bookmark", kind: "bookmark" as const, anchor: { kind: "event" as const, eventId: "treble-note" }, category: "question" as const },
+    ] };
+    const { container, rerender } = render(<StaffBuilderScoreView measureIndex={0} score={current} />);
+    await waitFor(() => expect(container.querySelector('[data-annotation-layer="practice-marks"]')).toBeTruthy());
+    expect(screen.getByText("Study Note ×2")).toBeTruthy();
+    expect(screen.getByLabelText("Practice Mark, 1 annotation, event in measure 1")).toBeTruthy();
+    expect(screen.getByLabelText("Bookmark, 1 annotation, event in measure 1")).toBeTruthy();
+    expect(container.querySelectorAll(".staff-builder-notation-canvas")).toHaveLength(1);
+    rerender(<StaffBuilderScoreView measureIndex={0} score={current} visibleAnnotationLayers={new Set(["bookmarks"])} />);
+    await waitFor(() => expect(screen.queryByText("Study Note ×2")).toBeNull());
+    expect(screen.queryByLabelText(/Practice Mark, 1 annotation/)).toBeNull();
+    expect(screen.getByLabelText("Bookmark, 1 annotation, event in measure 1")).toBeTruthy();
+    expect(current.annotations).toHaveLength(4);
+  });
+
   it("renders generic read-only highlights from authoritative event anchors only", async () => {
     render(<StaffBuilderScoreView eventHighlights={[
       { eventId: "treble-note", status: "current" },
@@ -259,7 +279,7 @@ describe("StaffBuilderScoreView", () => {
 
   it("renders treble and bass pending previews while keeping committed semantic output separate", () => {
     render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration: "quarter" }} measureIndex={0} pendingPreview={{ treble: [64], bass: [48, 52] }} score={score()} />);
-    const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1;
+    const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScore;
     const events = renderScore.measures[0]?.events ?? [];
     expect(events.find(({ staff }) => staff === "treble")).toMatchObject({ id: expect.stringContaining("__staff-builder-preview"), startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 64 }] });
     expect(events.find(({ staff }) => staff === "bass")).toMatchObject({ startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ midiNumber: 48 }, { midiNumber: 52 }] });
@@ -273,16 +293,16 @@ describe("StaffBuilderScoreView", () => {
     const current = score();
     const before = JSON.stringify(current);
     const { rerender } = render(<StaffBuilderScoreView cursor={{ offsetTicks: 240, stepDuration: "eighth" }} measureIndex={0} pendingPreview={{ treble: [66], bass: [] }} score={current} />);
-    expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.find(({ id }) => id.includes("preview"))).toMatchObject({ startTick: 240, pitches: [{ midiNumber: 66 }] });
+    expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScore).measures[0]?.events.find(({ id }) => id.includes("preview"))).toMatchObject({ startTick: 240, pitches: [{ midiNumber: 66 }] });
     rerender(<StaffBuilderScoreView cursor={{ offsetTicks: 240, stepDuration: "eighth" }} measureIndex={0} pendingPreview={{ treble: [], bass: [] }} score={current} />);
-    expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1).measures[0]?.events.some(({ id }) => id.includes("preview"))).toBe(false);
+    expect((renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScore).measures[0]?.events.some(({ id }) => id.includes("preview"))).toBe(false);
     expect(screen.getByLabelText(/Pending treble preview: none/)).toBeTruthy();
     expect(JSON.stringify(current)).toBe(before);
   });
 
   it.each(["quarter", "eighth", "sixteenth"] as const)("keeps pending notation at quarter duration with %s cursor movement", (stepDuration) => {
     render(<StaffBuilderScoreView cursor={{ offsetTicks: 0, stepDuration }} measureIndex={0} pendingPreview={{ treble: [60], bass: [] }} score={score()} />);
-    const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScoreV1;
+    const renderScore = renderMeasure.mock.calls.at(-1)?.[1] as StaffBuilderScore;
     expect(renderScore.measures[0]?.events.find(({ id }) => id.includes("preview"))?.rhythm).toEqual({ status: "final", duration: "quarter" });
     const options = renderMeasure.mock.calls.at(-1)?.[3] as { layoutDurationTicksByEventId: ReadonlyMap<string, number>; excludedEventIds: ReadonlySet<string> };
     expect([...options.layoutDurationTicksByEventId.values()]).toEqual([{ quarter: 480, eighth: 240, sixteenth: 120 }[stepDuration]]);

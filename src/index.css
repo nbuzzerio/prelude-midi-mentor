@@ -290,6 +290,42 @@ button {
 .staff-builder-boundary-tie-outgoing { right: 0.25rem; }
 .staff-builder-measure-summary { display: grid; gap: 0.25rem; font-size: 0.875rem; }
 .staff-builder-measure-summary p { margin: 0; }
+.staff-builder-annotations-panel { display: grid; gap: 0.75rem; margin-top: 1rem; border: 1px solid rgb(63 63 70); border-radius: 0.5rem; background: rgb(39 39 42); padding: 0.75rem; }
+.staff-builder-annotations-heading { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 0.75rem; }
+.staff-builder-annotations-heading h3,
+.staff-builder-annotations-heading p,
+.staff-builder-annotation-item p { margin: 0; }
+.staff-builder-annotations-heading p,
+.staff-builder-annotation-item span { color: rgb(212 212 216); font-size: 0.8rem; }
+.staff-builder-annotation-layers,
+.staff-builder-annotation-form fieldset { display: flex; flex-wrap: wrap; gap: 0.75rem; border: 0; padding: 0; }
+.staff-builder-annotation-layers label,
+.staff-builder-annotation-form fieldset label { display: flex; min-height: 2.75rem; align-items: center; gap: 0.4rem; }
+.staff-builder-annotation-form { display: grid; gap: 0.75rem; border: 1px solid rgb(82 82 91); border-radius: 0.5rem; padding: 0.75rem; }
+.staff-builder-annotation-form > label { display: grid; gap: 0.3rem; }
+.staff-builder-annotation-form :is(input[type="text"], textarea, select) { width: 100%; min-width: 0; border: 1px solid rgb(82 82 91); border-radius: 0.375rem; background: rgb(9 9 11); padding: 0.5rem; color: white; }
+.staff-builder-annotation-form-actions,
+.staff-builder-annotation-item > div:last-child { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.staff-builder-annotation-error { margin: 0; color: rgb(253 186 116); }
+.staff-builder-annotation-list { display: grid; gap: 0.5rem; }
+.staff-builder-annotation-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; border-top: 1px solid rgb(82 82 91); padding-top: 0.5rem; }
+.staff-builder-annotation-item[data-selected-event="true"] { border-left: 0.25rem solid rgb(56 189 248); padding-left: 0.5rem; }
+.staff-builder-annotation-item > div:first-child { display: grid; gap: 0.15rem; min-width: 0; }
+.staff-builder-measure-annotation-indicators { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.staff-builder-measure-annotation-indicators span { border: 1px solid rgb(82 82 91); border-radius: 999px; background: white; padding: 0.15rem 0.45rem; color: rgb(24 24 27); font-size: 0.7rem; font-weight: 700; }
+.staff-builder-event-annotation-indicator { position: absolute; z-index: 7; display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border: 1px solid rgb(39 39 42); border-radius: 999px; background: white; color: rgb(24 24 27); font-size: 11px; font-weight: 800; pointer-events: none; }
+.staff-builder-event-annotation-indicator small { position: absolute; right: -4px; bottom: -5px; border-radius: 999px; background: rgb(39 39 42); padding: 0 3px; color: white; font-size: 8px; }
+.staff-builder-measure-annotation-indicators [data-annotation-layer="study-notes"],
+.staff-builder-event-annotation-indicator[data-annotation-layer="study-notes"] { border-style: dashed; }
+.staff-builder-measure-annotation-indicators [data-annotation-layer="bookmarks"],
+.staff-builder-event-annotation-indicator[data-annotation-layer="bookmarks"] { border-width: 2px; }
+@media (max-width: 700px) {
+  .staff-builder-annotations-heading > button,
+  .staff-builder-annotation-form-actions > button { width: 100%; min-height: 2.75rem; }
+  .staff-builder-annotation-item { align-items: stretch; }
+  .staff-builder-annotation-item > div { width: 100%; }
+  .staff-builder-annotation-item > div:last-child > button { flex: 1 1 8rem; min-height: 2.75rem; }
+}
 .staff-builder-capture { display: grid; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgb(63 63 70); padding-top: 1rem; }
 .staff-builder-capture-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; }
 .staff-builder-capture-options { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; }
@@ -356,6 +392,17 @@ button {
 .staff-builder-toolbar-trigger:focus-visible { outline: 2px solid rgb(125 211 252); outline-offset: 2px; }
 .staff-builder-score-details { margin-top: 0.75rem; border: 1px solid rgb(63 63 70); border-radius: 0.5rem; padding: 0.65rem 0.75rem; }
 .staff-builder-score-details summary { cursor: pointer; font-weight: 700; }
+.staff-builder-study-view { position: fixed; z-index: 80; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; overflow: hidden; background: rgb(24 24 27); padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); color: white; }
+.staff-builder-study-view-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; padding-bottom: 0.75rem; }
+.staff-builder-study-view-header h1 { min-width: 0; font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+.staff-builder-study-view-viewport { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid rgb(82 82 91); border-radius: 0.5rem; background: rgb(250 250 250); color: rgb(24 24 27); }
+.staff-builder-study-view-viewport:focus-visible { outline: 3px solid rgb(125 211 252); outline-offset: -3px; }
+.staff-builder-study-view-transform { min-width: 100%; min-height: 100%; }
+.staff-builder-study-view-document { width: max-content; min-width: 100%; }
+@media (max-width: 479px) {
+  .staff-builder-study-view { padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left)); }
+  .staff-builder-study-view-header > button { min-height: 2.75rem; }
+}
 .staff-builder-score-details .staff-builder-measure-summary { margin-top: 0.65rem; }
 .staff-builder-rhythm-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; }
 .staff-builder-rhythm-edit-grid { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem; }
@@ -569,7 +616,8 @@ button {
 }
 
 @supports selector(body:has(*)) {
-  body:has(.mobile-play-mode) .prelude-mode-nav { visibility: hidden; }
+  body:has(.mobile-play-mode) .prelude-mode-nav,
+  body:has(.staff-builder-study-view) .prelude-mode-nav { visibility: hidden; }
 }
 
 .sequence-notation svg { flex: 0 0 auto; height: auto !important; max-height: none !important; transform: none !important; }

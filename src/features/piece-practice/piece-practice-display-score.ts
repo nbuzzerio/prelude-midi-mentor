@@ -1,7 +1,7 @@
-import type { StaffBuilderScoreV1, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderScore, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
 import type { PiecePracticePiece } from "./piece-practice-types";
 
-export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): StaffBuilderScoreV1 {
+export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): StaffBuilderScore {
   const tieEndpoints = new Map<string, Partial<StaffBuilderTie>>();
   const measures = piece.measures.map((measure, measureIndex) => {
     const previous = piece.measures[measureIndex - 1];
@@ -28,7 +28,7 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
   )).sort((left, right) => left.id.localeCompare(right.id));
   const timestamp = piece.sourceScoreUpdatedAt;
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: piece.sourceScoreId,
     title: piece.title,
     createdAt: timestamp,
@@ -38,5 +38,6 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
     initialTimeSignature: piece.measures[0]?.timeSignature ?? "4/4",
     measures,
     ties,
+    annotations: [],
   };
 }

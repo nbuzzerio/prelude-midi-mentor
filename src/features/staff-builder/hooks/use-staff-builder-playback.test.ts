@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MusicalEventPlaybackResult } from "@/lib/audio/musical-event-player";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { useStaffBuilderPlayback } from "./use-staff-builder-playback";
 
 const mocks = vi.hoisted(() => ({ cancel: vi.fn(), play: vi.fn(), preload: vi.fn() }));
@@ -14,9 +14,9 @@ function deferred() {
   return { completion, resolve };
 }
 
-function score(updatedAt = "2026-01-01T00:00:00.000Z"): StaffBuilderScoreV1 {
+function score(updatedAt = "2026-01-01T00:00:00.000Z"): StaffBuilderScore {
   return {
-    schemaVersion: 1, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt,
+    schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt,
     tempoBpm: 120, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [],
     measures: [{ id: "m1", events: [
       { id: "treble", kind: "rest", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" } },
@@ -25,7 +25,7 @@ function score(updatedAt = "2026-01-01T00:00:00.000Z"): StaffBuilderScoreV1 {
   };
 }
 
-function twoMeasureScore(): StaffBuilderScoreV1 {
+function twoMeasureScore(): StaffBuilderScore {
   const first = score();
   return { ...first, measures: [first.measures[0]!, { ...first.measures[0]!, id: "m2", events: first.measures[0]!.events.map((event) => ({ ...event, id: `${event.id}-2` })) }] };
 }

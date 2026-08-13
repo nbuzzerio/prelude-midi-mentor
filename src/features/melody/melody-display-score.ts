@@ -1,11 +1,11 @@
-import type { StaffBuilderScoreV1 } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import type { MelodyExercise } from "./melody-types";
 
 const DISPLAY_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 
-export function projectMelodyExerciseToDisplayScore(exercise: MelodyExercise): StaffBuilderScoreV1 {
+export function projectMelodyExerciseToDisplayScore(exercise: MelodyExercise): StaffBuilderScore {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: `${exercise.id}-display-score`,
     title: "Melody exercise",
     createdAt: DISPLAY_TIMESTAMP,
@@ -25,5 +25,6 @@ export function projectMelodyExerciseToDisplayScore(exercise: MelodyExercise): S
       })),
     })),
     ties: [],
+    annotations: [],
   };
 }

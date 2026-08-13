@@ -1,10 +1,10 @@
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { parseStaffBuilderScore } from "./staff-builder-schema";
 
 export const STAFF_BUILDER_PIECE_FILE_EXTENSION = ".prelude.json";
 
 export type StaffBuilderPieceFileParseResult =
-  | Readonly<{ ok: true; score: StaffBuilderScoreV1 }>
+  | Readonly<{ ok: true; score: StaffBuilderScore }>
   | Readonly<{
       ok: false;
       reason: "invalid-json" | "invalid-score" | "unsupported-version";
@@ -21,7 +21,7 @@ const defaultImportFactories: StaffBuilderImportFactories = {
   now: () => new Date().toISOString(),
 };
 
-export function serializeStaffBuilderPiece(score: StaffBuilderScoreV1): string {
+export function serializeStaffBuilderPiece(score: StaffBuilderScore): string {
   const parsed = parseStaffBuilderScore(score);
   if (!parsed.ok) throw new Error("Cannot export an invalid Staff Builder score object.");
   return `${JSON.stringify(parsed.value, null, 2)}\n`;
@@ -38,7 +38,7 @@ function slug(value: string): string {
     .replace(/-+$/g, "");
 }
 
-export function getStaffBuilderPieceFilename(score: Pick<StaffBuilderScoreV1, "id" | "title">): string {
+export function getStaffBuilderPieceFilename(score: Pick<StaffBuilderScore, "id" | "title">): string {
   const titleSlug = slug(score.title);
   const fallbackId = slug(score.id).slice(0, 12) || "backup";
   return `${titleSlug || `staff-builder-piece-${fallbackId}`}${STAFF_BUILDER_PIECE_FILE_EXTENSION}`;
@@ -59,10 +59,10 @@ export function parseStaffBuilderPieceFileText(text: string): StaffBuilderPieceF
 }
 
 export function normalizeImportedStaffBuilderPiece(
-  score: StaffBuilderScoreV1,
+  score: StaffBuilderScore,
   existingScoreIds: ReadonlySet<string>,
   factories: StaffBuilderImportFactories = defaultImportFactories,
-): StaffBuilderScoreV1 {
+): StaffBuilderScore {
   if (!existingScoreIds.has(score.id)) return score;
   let id = factories.createId();
   while (existingScoreIds.has(id)) id = factories.createId();

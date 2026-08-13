@@ -1,12 +1,14 @@
 import type { StaffBuilderCaptureState } from "../staff-builder-capture";
 import { useEffect, useRef, useState } from "react";
+import { ALL_STAFF_BUILDER_ANNOTATION_LAYERS, type StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
 import { useStaffBuilderEditor, type StaffBuilderEditorPass, type StaffBuilderPersistedEditorState } from "../hooks/use-staff-builder-editor";
 import { useStaffBuilderInput } from "../hooks/use-staff-builder-input";
 import { useStaffBuilderMobilePresentation } from "../hooks/use-staff-builder-mobile-presentation";
 import { useStaffBuilderPlayback } from "../hooks/use-staff-builder-playback";
 import { describeStaffBuilderSelectedEvent, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderCaptureControls } from "./staff-builder-capture-controls";
+import { StaffBuilderAnnotationsPanel } from "./staff-builder-annotations-panel";
 import { StaffBuilderCaptureStrip } from "./staff-builder-capture-strip";
 import { StaffBuilderHistoryControls } from "./staff-builder-history-controls";
 import { StaffBuilderMeasureContextControls } from "./staff-builder-measure-context-controls";
@@ -18,30 +20,36 @@ import { StaffBuilderRhythmControls } from "./staff-builder-rhythm-controls";
 import { StaffBuilderScoreDetails, StaffBuilderScoreView } from "./staff-builder-score-view";
 import { StaffBuilderScoreToolbar } from "./staff-builder-score-toolbar";
 import { StaffBuilderTempoControl } from "./staff-builder-tempo-control";
+import { StaffBuilderStudyView } from "./staff-builder-study-view";
 import { StaffBuilderValidationPanel } from "./staff-builder-validation-panel";
 
 export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave, onClose, savingAvailable }: Readonly<{
-  score: StaffBuilderScoreV1;
+  score: StaffBuilderScore;
   initialCaptureState: StaffBuilderCaptureState;
   initialEditorPass: StaffBuilderEditorPass;
   initialRhythmState: StaffBuilderRhythmState;
-  onDraftChange: (score: StaffBuilderScoreV1, editorState: StaffBuilderPersistedEditorState) => unknown;
-  onValidatedSave: (score: StaffBuilderScoreV1, editorState: StaffBuilderPersistedEditorState) => Readonly<{ ok: boolean }>;
+  onDraftChange: (score: StaffBuilderScore, editorState: StaffBuilderPersistedEditorState) => unknown;
+  onValidatedSave: (score: StaffBuilderScore, editorState: StaffBuilderPersistedEditorState) => Readonly<{ ok: boolean }>;
   onClose: () => void;
   savingAvailable: boolean;
 }>) {
   const editor = useStaffBuilderEditor({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave });
   const playback = useStaffBuilderPlayback(editor.score);
   const stopPlayback = playback.stop;
-  const midi = useStaffBuilderInput(editor.addMidiPitch);
+  const [studyViewOpen, setStudyViewOpen] = useState(false);
+  const midi = useStaffBuilderInput((midiNumber) => { if (!studyViewOpen) editor.addMidiPitch(midiNumber); });
   const mobilePresentation = useStaffBuilderMobilePresentation();
   const mobileKeyboardOwnerAvailable = mobilePresentation && !editor.validation.active && editor.editorPass === "capture";
   const [mobileKeyboardState, setMobileKeyboardState] = useState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
+  const [visibleAnnotationLayers, setVisibleAnnotationLayers] = useState<ReadonlySet<StaffBuilderAnnotationLayer>>(() => new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS));
   if (mobileKeyboardState.ownerAvailable !== mobileKeyboardOwnerAvailable) {
     setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
   }
   const scoreRegionRef = useRef<HTMLDivElement>(null);
   const keyboardLauncherRef = useRef<HTMLButtonElement>(null);
+  const studyViewButtonRef = useRef<HTMLButtonElement>(null);
+  const workspaceHeadingRef = useRef<HTMLHeadingElement>(null);
+  const previousStudyViewOpen = useRef(false);
   const rhythmMeasureIndex = editor.rhythm.measureIndex;
   const editorVisibleMeasureIndex = editor.validation.active
     ? editor.validation.activeIssue?.target.measureIndex ?? rhythmMeasureIndex
@@ -59,6 +67,8 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   const auditionSelectedEvent = () => playback.auditionSelectedEvent(editor.rhythm.selectedEvent, editor.rhythm.selection ? { measureIndex: editor.rhythm.selection.measureIndex, offsetTicks: editor.rhythm.selectedEvent?.startTick ?? 0 } : undefined);
   const playCurrentMeasure = () => playback.playCurrentMeasure(visibleMeasureIndex);
   const playFromHere = () => playback.playFromHere(fromHerePosition);
+  const rhythmSelectionId = !editor.validation.active && editor.editorPass === "rhythm" ? editor.rhythm.selection?.eventId ?? null : null;
+  const selectedAnnotationEventId = rhythmSelectionId && editor.score.measures[visibleMeasureIndex]?.events.some((event) => event.id === rhythmSelectionId) ? rhythmSelectionId : null;
 
   const closeMobileKeyboard = () => {
     setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
@@ -71,9 +81,21 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
     previousPlaybackLifecycle.current = playbackLifecycle;
     if (playback.state.status === "playing") stopPlayback();
   }, [playback.state.status, stopPlayback, playbackLifecycle]);
+  const openStudyView = () => {
+    stopPlayback();
+    setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
+    setStudyViewOpen(true);
+  };
+  useEffect(() => {
+    const exitedStudyView = previousStudyViewOpen.current && !studyViewOpen;
+    previousStudyViewOpen.current = studyViewOpen;
+    if (exitedStudyView) requestAnimationFrame(() => (studyViewButtonRef.current ?? workspaceHeadingRef.current)?.focus({ preventScroll: true }));
+  }, [studyViewOpen]);
+
+  if (studyViewOpen) return <StaffBuilderStudyView onExit={() => setStudyViewOpen(false)} score={editor.score} />;
 
   return <section className={`staff-builder-panel${showMobileKeyboard ? " staff-builder-mobile-keyboard-open" : ""}`} aria-labelledby="staff-builder-workspace-title">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold" id="staff-builder-workspace-title">{editor.score.title}</h2><p className={savingAvailable ? "text-sky-300" : "text-amber-300"}>{savingAvailable ? `${editor.validation.issues.length === 0 ? "Ready to save" : "Needs validation"} · Draft saved automatically.` : "In memory · Local saving unavailable"}</p></div><button className="staff-builder-secondary-button" onClick={() => { if (window.confirm("Return to Piece Library?")) onClose(); }} type="button">Piece Library</button></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold" id="staff-builder-workspace-title" ref={workspaceHeadingRef} tabIndex={-1}>{editor.score.title}</h2><p className={savingAvailable ? "text-sky-300" : "text-amber-300"}>{savingAvailable ? `${editor.validation.issues.length === 0 ? "Ready to save" : "Needs validation"} · Draft saved automatically.` : "In memory · Local saving unavailable"}</p></div><button className="staff-builder-secondary-button" onClick={() => { if (window.confirm("Return to Piece Library?")) onClose(); }} type="button">Piece Library</button></div>
     <div className="staff-builder-primary-editor-bar">
       <div className="staff-builder-primary-editor-main">
         <StaffBuilderTempoControl onTempoChange={editor.setTempo} tempoBpm={editor.score.tempoBpm} />
@@ -85,12 +107,13 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
       </div>
     </div>
     <div className="staff-builder-score-header">
-      <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} navigationDisabled={editor.validation.active || playbackOwnsMeasure} navigationDisabledReason={playbackOwnsMeasure ? "Measure insertion and navigation are unavailable while playback follows the score." : editor.validation.active ? "Measure insertion and navigation are unavailable in Correction Mode." : undefined} onInsertMeasureAfter={() => editor.insertMeasureAfter(visibleMeasureIndex)} onInsertMeasureBefore={() => editor.insertMeasureBefore(visibleMeasureIndex)} onNavigate={editor.goToMeasure} playbackControls={<StaffBuilderQuickPlaybackControls availability={playbackAvailability} onAuditionSelectedEvent={auditionSelectedEvent} onPlayCurrentMeasure={playCurrentMeasure} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={playFromHere} onStop={playback.stop} state={playback.state} />} score={editor.score} />
+      <StaffBuilderScoreToolbar measureIndex={visibleMeasureIndex} navigationDisabled={editor.validation.active || playbackOwnsMeasure} navigationDisabledReason={playbackOwnsMeasure ? "Measure insertion and navigation are unavailable while playback follows the score." : editor.validation.active ? "Measure insertion and navigation are unavailable in Correction Mode." : undefined} onInsertMeasureAfter={() => editor.insertMeasureAfter(visibleMeasureIndex)} onInsertMeasureBefore={() => editor.insertMeasureBefore(visibleMeasureIndex)} onNavigate={editor.goToMeasure} onOpenStudyView={openStudyView} playbackControls={<StaffBuilderQuickPlaybackControls availability={playbackAvailability} onAuditionSelectedEvent={auditionSelectedEvent} onPlayCurrentMeasure={playCurrentMeasure} onPlayEntirePiece={playback.playEntirePiece} onPlayFromHere={playFromHere} onStop={playback.stop} state={playback.state} />} score={editor.score} studyViewButtonRef={studyViewButtonRef} />
     </div>
     <div className="staff-builder-immediate-workspace" ref={scoreRegionRef}>
-      <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, onInputModeChange: editor.setInputMode, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onCaptureRestAsNote={editor.validation.active ? undefined : editor.captureRestAsNote} onConvertToRest={editor.validation.active ? undefined : editor.rhythm.convertToRest} onDeleteEvent={editor.validation.active ? undefined : editor.rhythm.deleteEvent} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onKeyChange={editor.validation.active ? undefined : editor.setMeasureKey} onPositionSelect={!editor.validation.active && editor.editorPass === "capture" ? editor.setCapturePosition : undefined} onTimeChange={editor.validation.active ? undefined : editor.setMeasureTime} playbackPosition={playbackPosition ? { offsetTicks: playbackPosition.offsetTicks } : undefined} score={editor.score} />
+      <StaffBuilderScoreView {...(!editor.validation.active && editor.editorPass === "capture" ? { cursor: { offsetTicks: editor.captureState.cursor.offsetTicks, stepDuration: editor.captureState.stepDuration }, onInputModeChange: editor.setInputMode, pendingPreview: editor.pending } : { selectedEventId: editor.validation.active ? editor.validation.activeIssue?.target.eventId : editor.rhythm.selection?.eventId })} inputMode={editor.captureState.inputMode} issue={editor.validation.active ? editor.validation.activeIssue : null} measureIndex={visibleMeasureIndex} onAssignDuration={editor.validation.active ? undefined : editor.rhythm.assignDuration} onCaptureRestAsNote={editor.validation.active ? undefined : editor.captureRestAsNote} onConvertToRest={editor.validation.active ? undefined : editor.rhythm.convertToRest} onDeleteEvent={editor.validation.active ? undefined : editor.rhythm.deleteEvent} onEventSelect={editor.validation.active ? undefined : editor.selectRhythmEventFromScore} onKeyChange={editor.validation.active ? undefined : editor.setMeasureKey} onPositionSelect={!editor.validation.active && editor.editorPass === "capture" ? editor.setCapturePosition : undefined} onTimeChange={editor.validation.active ? undefined : editor.setMeasureTime} playbackPosition={playbackPosition ? { offsetTicks: playbackPosition.offsetTicks } : undefined} score={editor.score} visibleAnnotationLayers={visibleAnnotationLayers} />
       {!editor.validation.active && editor.editorPass === "capture" && <StaffBuilderCaptureStrip captureState={editor.captureState} hasPending={editor.hasPending} keyboardLauncherRef={keyboardLauncherRef} onClear={editor.clearCurrentEntry} onLock={editor.lockAndContinue} onNext={editor.nextPosition} onOpenKeyboard={() => setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: true })} onPrevious={editor.previousPosition} onRest={editor.addRestAndContinue} onStepDurationChange={editor.setStepDuration} showKeyboardLauncher={mobilePresentation} />}
     </div>
+    {!editor.validation.active && <StaffBuilderAnnotationsPanel measureIndex={visibleMeasureIndex} onLayerVisibilityChange={(layer, visible) => setVisibleAnnotationLayers((current) => { const next = new Set(current); if (visible) next.add(layer); else next.delete(layer); return next; })} onScoreMutation={editor.applyScoreMutation} score={editor.score} selectedEventId={selectedAnnotationEventId} visibleLayers={visibleAnnotationLayers} />}
     {editor.captureStatus && <p aria-live="polite" className="staff-builder-capture-status" role="status">{editor.captureStatus}</p>}
     {!editor.canEnterRhythm && <p className="text-sm text-zinc-300">Capture at least one event before starting Rhythm Correction.</p>}
     <StaffBuilderScoreDetails measureIndex={visibleMeasureIndex} score={editor.score} />

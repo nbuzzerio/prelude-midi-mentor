@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import {
   getStaffBuilderPieceFilename,
   normalizeImportedStaffBuilderPiece,
@@ -7,9 +7,9 @@ import {
   serializeStaffBuilderPiece,
 } from "./staff-builder-piece-file";
 
-function score(): StaffBuilderScoreV1 {
+function score(): StaffBuilderScore {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2, annotations: [],
     id: "piece-id",
     title: "Polyphonic Étude",
     createdAt: "2026-08-11T12:00:00.000Z",
@@ -37,11 +37,11 @@ function score(): StaffBuilderScoreV1 {
 
 describe("Staff Builder piece files", () => {
   it("serializes one canonical authoritative score as deterministic human-readable JSON", () => {
-    const source = { ...score(), editorPass: "rhythm", practiceProgress: { target: 3 } } as StaffBuilderScoreV1;
+    const source = { ...score(), editorPass: "rhythm", practiceProgress: { target: 3 } } as StaffBuilderScore;
     const serialized = serializeStaffBuilderPiece(source);
     expect(serialized).toBe(serializeStaffBuilderPiece(source));
     expect(serialized.endsWith("\n")).toBe(true);
-    expect(serialized).toContain('\n  "schemaVersion": 1');
+    expect(serialized).toContain('\n  "schemaVersion": 2');
     expect(serialized).not.toContain("editorPass");
     expect(serialized).not.toContain("practiceProgress");
   });
@@ -67,7 +67,24 @@ describe("Staff Builder piece files", () => {
   it("rejects malformed JSON, malformed score data, and unsupported versions with learner-facing results", () => {
     expect(parseStaffBuilderPieceFileText("{" )).toMatchObject({ ok: false, reason: "invalid-json" });
     expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 1 }))).toMatchObject({ ok: false, reason: "invalid-score" });
-    expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 2 }))).toMatchObject({ ok: false, reason: "unsupported-version" });
+    expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 3 }))).toMatchObject({ ok: false, reason: "unsupported-version" });
+  });
+
+  it("imports V1 as V2 and round trips every Phase 1 annotation kind and anchor", () => {
+    const current = score();
+    const { annotations: _annotations, ...withoutAnnotations } = current;
+    void _annotations;
+    const legacy = { ...withoutAnnotations, schemaVersion: 1 };
+    expect(parseStaffBuilderPieceFileText(JSON.stringify(legacy))).toEqual({ ok: true, score: { ...legacy, schemaVersion: 2, annotations: [] } });
+    const annotated = {
+      ...current,
+      annotations: [
+        { id: "note", kind: "study-note" as const, anchor: { kind: "event" as const, eventId: "long" }, text: "Follow the inner voice." },
+        { id: "mark", kind: "practice-mark" as const, anchor: { kind: "measure" as const, measureId: "m1" }, category: "hands-separate" as const },
+        { id: "bookmark", kind: "bookmark" as const, anchor: { kind: "measure" as const, measureId: "m2" }, category: "revisit" as const },
+      ],
+    };
+    expect(parseStaffBuilderPieceFileText(serializeStaffBuilderPiece(annotated))).toEqual({ ok: true, score: annotated });
   });
 
   it("preserves structurally incomplete scores because file parsing owns schema validity only", () => {
@@ -90,6 +107,17 @@ describe("Staff Builder piece files", () => {
     expect(imported).toEqual({ ...source, id: "piece-id-3", updatedAt: "2026-08-11T14:00:00.000Z" });
     expect(imported.measures).toBe(source.measures);
     expect(imported.ties).toBe(source.ties);
+    expect(imported.annotations).toBe(source.annotations);
+  });
+
+  it("keeps annotation IDs and internal anchors unchanged when only a colliding score ID is normalized", () => {
+    const source = { ...score(), annotations: [
+      { id: "event-note", kind: "study-note" as const, anchor: { kind: "event" as const, eventId: "long" }, text: "Listen." },
+      { id: "measure-mark", kind: "bookmark" as const, anchor: { kind: "measure" as const, measureId: "m2" }, category: "interesting" as const },
+    ] };
+    const imported = normalizeImportedStaffBuilderPiece(source, new Set([source.id]), { createId: () => "copy", now: () => "2026-08-11T14:00:00.000Z" });
+    expect(imported.annotations).toBe(source.annotations);
+    expect(imported.annotations).toEqual(source.annotations);
   });
 
   it("does not mutate its source during serialization, parsing, or normalization", () => {

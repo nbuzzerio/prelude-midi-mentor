@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { durationToTicks, STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "./staff-builder-time";
-import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScoreV1, StaffBuilderStaff } from "./staff-builder-types";
+import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff } from "./staff-builder-types";
 import { projectStaffBuilderEventAudition, projectStaffBuilderPlayback, resolveStaffBuilderPlaybackPosition, sampleStaffBuilderPlaybackTick } from "./staff-builder-playback";
 
 let nextId = 0;
 const pitch = (midiNumber: number, id = `p-${++nextId}`): StaffBuilderPitch => ({ id, midiNumber, letter: midiNumber === 64 ? "E" : midiNumber === 67 ? "G" : "C", accidental: "natural", octave: 4 });
 const note = (id: string, staff: StaffBuilderStaff, startTick: number, duration: StaffBuilderDuration, pitches = [pitch(60)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "final", duration }, pitches });
 const rest = (id: string, staff: StaffBuilderStaff, startTick: number, duration: StaffBuilderDuration): StaffBuilderEvent => ({ id, kind: "rest", staff, startTick, rhythm: { status: "final", duration } });
-const baseScore = (measures: StaffBuilderScoreV1["measures"], options: Partial<Pick<StaffBuilderScoreV1, "initialTimeSignature" | "initialKeySignatureId" | "tempoBpm" | "ties">> = {}): StaffBuilderScoreV1 => ({ schemaVersion: 1, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: options.tempoBpm ?? 120, initialKeySignatureId: options.initialKeySignatureId ?? "c-major", initialTimeSignature: options.initialTimeSignature ?? "4/4", measures, ties: options.ties ?? [] });
+const baseScore = (measures: StaffBuilderScore["measures"], options: Partial<Pick<StaffBuilderScore, "initialTimeSignature" | "initialKeySignatureId" | "tempoBpm" | "ties">> = {}): StaffBuilderScore => ({ schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: options.tempoBpm ?? 120, initialKeySignatureId: options.initialKeySignatureId ?? "c-major", initialTimeSignature: options.initialTimeSignature ?? "4/4", measures, ties: options.ties ?? [] });
 const fullRest = (id: string, staff: StaffBuilderStaff, duration: StaffBuilderDuration = "whole") => rest(id, staff, 0, duration);
 
 function remainderRests(staff: StaffBuilderStaff, startTick: number, remainingTicks: number): StaffBuilderEvent[] {
@@ -24,14 +24,14 @@ function remainderRests(staff: StaffBuilderStaff, startTick: number, remainingTi
   return events;
 }
 
-function tiedScore(chain = false, partial = false): StaffBuilderScoreV1 {
+function tiedScore(chain = false, partial = false): StaffBuilderScore {
   const sourcePitches = partial ? [pitch(60, "from-c"), pitch(67, "from-g")] : [pitch(60, "from-c")];
   const destinationPitches = partial ? [pitch(60, "mid-c"), pitch(64, "mid-e")] : [pitch(60, "mid-c")];
-  const measures: StaffBuilderScoreV1["measures"][number][] = [
+  const measures: StaffBuilderScore["measures"][number][] = [
     { id: "m1", events: [rest("lead", "treble", 0, "dotted-half"), note("from", "treble", 1440, "quarter", sourcePitches), fullRest("b1", "bass")] },
     { id: "m2", events: chain ? [note("mid", "treble", 0, "whole", destinationPitches), fullRest("b2", "bass")] : [note("mid", "treble", 0, "quarter", destinationPitches), rest("m2-tail", "treble", 480, "dotted-half"), fullRest("b2", "bass")] },
   ];
-  const ties: StaffBuilderScoreV1["ties"][number][] = [{ id: "tie-1", fromEventId: "from", fromPitchId: "from-c", toEventId: "mid", toPitchId: "mid-c" }];
+  const ties: StaffBuilderScore["ties"][number][] = [{ id: "tie-1", fromEventId: "from", fromPitchId: "from-c", toEventId: "mid", toPitchId: "mid-c" }];
   if (chain) {
     measures.push({ id: "m3", events: [note("to", "treble", 0, "quarter", [pitch(60, "to-c")]), rest("m3-tail", "treble", 480, "dotted-half"), fullRest("b3", "bass")] });
     ties.push({ id: "tie-2", fromEventId: "mid", fromPitchId: "mid-c", toEventId: "to", toPitchId: "to-c" });

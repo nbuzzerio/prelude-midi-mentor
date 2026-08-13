@@ -5,6 +5,7 @@ import { appendStaffBuilderMeasure, createStaffBuilderScore, insertStaffBuilderR
 import { setStaffBuilderEventDuration } from "../staff-builder-rhythm";
 import { deriveStaffBuilderVoices } from "../staff-builder-voices";
 import { useStaffBuilderEditor } from "./use-staff-builder-editor";
+import { addStaffBuilderAnnotation, deleteStaffBuilderAnnotation, updateStaffBuilderAnnotation } from "../staff-builder-annotations";
 
 function score(keyId: "c-major" | "g-major" = "c-major") {
   let id = 0;
@@ -17,6 +18,33 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("undoes and redoes annotation add, edit, and delete through the real score mutation boundary", () => {
+    const original = score();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    const annotation = { id: "note", kind: "study-note" as const, anchor: { kind: "measure" as const, measureId: original.measures[0]!.id }, text: "Original" };
+    act(() => expect(result.current.applyScoreMutation(addStaffBuilderAnnotation(result.current.score, annotation, { now: () => "2026-08-07T00:00:00.000Z" }))).toBe(true));
+    expect(result.current.score.annotations).toEqual([annotation]);
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([]);
+    act(() => expect(result.current.redo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([annotation]);
+
+    const revised = { ...annotation, text: "Revised" };
+    act(() => expect(result.current.applyScoreMutation(updateStaffBuilderAnnotation(result.current.score, revised, { now: () => "2026-08-08T00:00:00.000Z" }))).toBe(true));
+    expect(result.current.score.annotations).toEqual([revised]);
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([annotation]);
+    act(() => expect(result.current.redo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([revised]);
+
+    act(() => expect(result.current.applyScoreMutation(deleteStaffBuilderAnnotation(result.current.score, annotation.id, { now: () => "2026-08-09T00:00:00.000Z" }))).toBe(true));
+    expect(result.current.score.annotations).toEqual([]);
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([revised]);
+    act(() => expect(result.current.redo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([]);
+  });
+
   it("inserts before or after the visible measure as one atomic Capture history edit", () => {
     const original = appendStaffBuilderMeasure(appendStaffBuilderMeasure(score()));
     const originalIds = original.measures.map(({ id }) => id);
@@ -886,5 +914,21 @@ describe("useStaffBuilderEditor", () => {
     act(() => result.current.captureRestAsNote({ measureIndex: 0, eventId: rest.id }));
     expect(result.current.captureState.stepDuration).toBe("sixteenth");
     expect(result.current.captureState.inputMode).toBe("treble");
+  });
+
+  it("reconciles orphan annotations inside the same authoritative history transition", () => {
+    const withEvent = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const eventId = withEvent.measures[0]!.events[0]!.id;
+    const annotated = { ...withEvent, annotations: [{ id: "note", kind: "study-note" as const, anchor: { kind: "event" as const, eventId }, text: "Return here." }] };
+    const edited = { ...annotated, measures: [{ ...annotated.measures[0]!, events: [] }] };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: annotated, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    act(() => expect(result.current.applyScoreMutation(edited)).toBe(true));
+    expect(result.current.score.annotations).toEqual([]);
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score.measures[0]!.events[0]!.id).toBe(eventId);
+    expect(result.current.score.annotations).toEqual(annotated.annotations);
+    act(() => expect(result.current.redo()).toBe(true));
+    expect(result.current.score.measures[0]!.events).toEqual([]);
+    expect(result.current.score.annotations).toEqual([]);
   });
 });

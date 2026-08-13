@@ -1,11 +1,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setInstrumentVolume } from "@/lib/audio/instrument-volume";
-import type { StaffBuilderScoreV1 } from "../staff-builder-types";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderScoreToolbar } from "./staff-builder-score-toolbar";
 
-const score: StaffBuilderScoreV1 = {
-  schemaVersion: 1, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
+const score: StaffBuilderScore = {
+  schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
   initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [] }, { id: "m2", events: [] }], ties: [],
 };
 afterEach(() => { cleanup(); setInstrumentVolume(0.5); });
@@ -47,5 +47,14 @@ describe("StaffBuilderScoreToolbar", () => {
     rerender(<StaffBuilderScoreToolbar measureIndex={1} navigationDisabled navigationDisabledReason="Playback owns the score." onInsertMeasureAfter={after} onInsertMeasureBefore={before} onNavigate={vi.fn()} score={score} />);
     expect((screen.getByRole("button", { name: "Insert Measure Before Measure 2" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("button", { name: "Insert Measure After Measure 2" }).getAttribute("title")).toBe("Playback owns the score.");
+  });
+
+  it("offers the Study View entry through the supplied persistent launcher ref", () => {
+    const open = vi.fn();
+    const launcher = { current: null } as React.RefObject<HTMLButtonElement | null>;
+    render(<StaffBuilderScoreToolbar measureIndex={0} onNavigate={vi.fn()} onOpenStudyView={open} score={score} studyViewButtonRef={launcher} />);
+    fireEvent.click(screen.getByRole("button", { name: "Study View" }));
+    expect(open).toHaveBeenCalledOnce();
+    expect(launcher.current).toBeInstanceOf(HTMLButtonElement);
   });
 });
