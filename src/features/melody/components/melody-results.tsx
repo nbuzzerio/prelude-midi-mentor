@@ -29,38 +29,18 @@ export const MelodyResults = forwardRef<HTMLHeadingElement, MelodyResultsProps>(
 
     return (
       <section className="melody-results space-y-5">
-        <header className="melody-result-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <header className="melody-result-header flex items-center justify-between gap-3">
           <h2 ref={ref} tabIndex={-1}>
             Melody results
           </h2>
 
-          <div
-            aria-label="Melody result actions"
-            className="melody-result-actions flex flex-wrap items-center gap-2"
-            role="group"
+          <button
+            className="melody-result-settings min-h-11 rounded-lg border border-zinc-600 px-3 py-2 font-medium text-zinc-200 hover:bg-zinc-800 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-zinc-300"
+            onClick={onSettings}
+            type="button"
           >
-            <button
-              className="min-h-11 rounded-lg border border-sky-400 px-4 py-2 font-semibold text-sky-100 hover:bg-sky-400/15 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-sky-300"
-              onClick={onRetrySame}
-              type="button"
-            >
-              Retry Same
-            </button>
-            <button
-              className="min-h-11 rounded-lg bg-sky-400 px-4 py-2 font-bold text-zinc-950 hover:bg-sky-300 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-sky-200"
-              onClick={onTryAnother}
-              type="button"
-            >
-              Try Another
-            </button>
-            <button
-              className="min-h-11 rounded-lg border border-zinc-600 px-3 py-2 font-medium text-zinc-200 hover:bg-zinc-800 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-zinc-300"
-              onClick={onSettings}
-              type="button"
-            >
-              Settings
-            </button>
-          </div>
+            Settings
+          </button>
         </header>
 
         <div className="melody-results-grid grid gap-3 sm:grid-cols-3">
@@ -90,28 +70,50 @@ export const MelodyResults = forwardRef<HTMLHeadingElement, MelodyResultsProps>(
             <h3 id="melody-pitch-results-title">Pitch results on the staff</h3>
             <p>The staff below shows pitch results. Timing is scored separately.</p>
           </div>
-          <div aria-label="Pitch result legend" className="melody-result-legend">
-            <span>
-              <i
-                aria-hidden="true"
-                className="melody-result-swatch melody-result-swatch-correct"
-              />
-              Correct
-            </span>
-            <span>
-              <i
-                aria-hidden="true"
-                className="melody-result-swatch melody-result-swatch-missed"
-              />
-              Missed
-            </span>
-            <span>
-              <i
-                aria-hidden="true"
-                className="melody-result-swatch melody-result-swatch-wrong-pitch"
-              />
-              Wrong pitch
-            </span>
+          <div className="melody-result-legend-row flex flex-wrap items-center justify-between gap-3">
+            <div aria-label="Pitch result legend" className="melody-result-legend">
+              <span>
+                <i
+                  aria-hidden="true"
+                  className="melody-result-swatch melody-result-swatch-correct"
+                />
+                Correct
+              </span>
+              <span>
+                <i
+                  aria-hidden="true"
+                  className="melody-result-swatch melody-result-swatch-missed"
+                />
+                Missed
+              </span>
+              <span>
+                <i
+                  aria-hidden="true"
+                  className="melody-result-swatch melody-result-swatch-wrong-pitch"
+                />
+                Wrong pitch
+              </span>
+            </div>
+            <div
+              aria-label="Melody primary result actions"
+              className="melody-result-primary-actions grid grid-cols-2 gap-2"
+              role="group"
+            >
+              <button
+                className="min-h-11 rounded-lg border border-sky-400 px-4 py-2 font-semibold text-sky-100 hover:bg-sky-400/15 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-sky-300"
+                onClick={onRetrySame}
+                type="button"
+              >
+                Retry Same
+              </button>
+              <button
+                className="min-h-11 rounded-lg bg-sky-400 px-4 py-2 font-bold text-zinc-950 hover:bg-sky-300 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-sky-200"
+                onClick={onTryAnother}
+                type="button"
+              >
+                Try Another
+              </button>
+            </div>
           </div>
           <div
             aria-label="Melody pitch result score"

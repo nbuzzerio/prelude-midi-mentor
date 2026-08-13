@@ -166,11 +166,18 @@ describe("MelodySession", () => {
     expect(screen.getByLabelText("Melody pitch result score").tabIndex).toBe(0);
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Melody results" }));
     const resultActions = screen.getByRole("group", {
-      name: "Melody result actions",
+      name: "Melody primary result actions",
     });
-    expect(resultActions.closest("header")?.className).toContain(
-      "melody-result-header",
+    expect(resultActions.parentElement?.className).toContain(
+      "melody-result-legend-row",
     );
+    expect(
+      screen.getByLabelText("Pitch result legend").parentElement,
+    ).toBe(resultActions.parentElement);
+    expect(
+      screen.getByRole("button", { name: "Settings" }).closest("header")
+        ?.className,
+    ).toContain("melody-result-header");
     expect(screen.getAllByRole("button", { name: "Retry Same" })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: "Try Another" })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: "Settings" })).toHaveLength(1);

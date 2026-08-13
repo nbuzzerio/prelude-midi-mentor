@@ -31,7 +31,7 @@ button {
 .melody-keyboard .piano-keyboard { touch-action: none; user-select: none; -webkit-user-select: none; }
 .melody-keyboard .piano-keyboard button { touch-action: none; }
 .melody-results-grid article { min-width: 0; border: 1px solid rgb(63 63 70); border-radius: 0.75rem; padding: 0.75rem; }
-.melody-result-actions { padding-bottom: max(0rem, env(safe-area-inset-bottom)); }
+.melody-result-primary-actions { padding-bottom: max(0rem, env(safe-area-inset-bottom)); }
 .melody-mobile-play-context { margin: 0; padding-right: 9rem; color: rgb(212 212 216); font-size: 0.875rem; font-weight: 600; }
 .melody-practice { display: grid; gap: 1rem; min-height: 0; }
 .melody-mobile-play { align-content: start; gap: 0.75rem; max-width: none; }
