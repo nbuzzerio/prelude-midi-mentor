@@ -394,6 +394,75 @@ describe("timed Sequence notation", () => {
     expect(mocks.staveNoteInstances[1]?.setAttribute).not.toHaveBeenCalled();
   });
 
+  it("keeps current-measure presentation width independent of total target length", () => {
+    const shortContainer = document.createElement("div");
+    const longContainer = document.createElement("div");
+
+    renderSequenceTarget(shortContainer, timedTarget([480, 480]), 0, {
+      firstVisibleStepIndex: 0,
+      lastVisibleStepIndex: 1,
+      showWholeSequence: false,
+    });
+    renderSequenceTarget(
+      longContainer,
+      timedTarget(Array.from({ length: 15 }, () => 480)),
+      0,
+      {
+        firstVisibleStepIndex: 0,
+        lastVisibleStepIndex: 3,
+        showWholeSequence: false,
+      },
+    );
+
+    expect(
+      shortContainer.querySelector("svg")?.style.getPropertyValue(
+        "--sequence-renderer-width",
+      ),
+    ).toBe("370px");
+    expect(
+      longContainer.querySelector("svg")?.style.getPropertyValue(
+        "--sequence-renderer-width",
+      ),
+    ).toBe("370px");
+  });
+
+  it("grows whole-sequence presentation width by temporal measure count", () => {
+    const oneMeasureContainer = document.createElement("div");
+    const fourMeasureContainer = document.createElement("div");
+
+    renderSequenceTarget(
+      oneMeasureContainer,
+      timedTarget(Array.from({ length: 4 }, () => 480)),
+      0,
+      {
+        firstVisibleStepIndex: 0,
+        lastVisibleStepIndex: 3,
+        showWholeSequence: true,
+      },
+    );
+    renderSequenceTarget(
+      fourMeasureContainer,
+      timedTarget(Array.from({ length: 15 }, () => 480)),
+      0,
+      {
+        firstVisibleStepIndex: 0,
+        lastVisibleStepIndex: 14,
+        showWholeSequence: true,
+      },
+    );
+
+    expect(
+      oneMeasureContainer.querySelector("svg")?.style.getPropertyValue(
+        "--sequence-renderer-width",
+      ),
+    ).toBe("370px");
+    expect(
+      fourMeasureContainer.querySelector("svg")?.style.getPropertyValue(
+        "--sequence-renderer-width",
+      ),
+    ).toBe("1450px");
+  });
+
   it("renders whole temporal measures and a soft final partial measure", () => {
     const target = timedTarget([480, 480, 480, 480, 480]);
     renderSequenceTarget(document.createElement("div"), target, 4, {

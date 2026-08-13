@@ -94,8 +94,9 @@ button {
 .prelude-mode-group-start { margin-inline-start: 1rem; }
 
 .mobile-disclosure-trigger { display: none; }
-.sequence-notation { justify-content: flex-start; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
-.sequence-notation svg { flex: 0 0 auto; min-width: 20rem; }
+.sequence-notation { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+.sequence-notation[data-sequence-presentation="measure"] { justify-content: center; }
+.sequence-notation[data-sequence-presentation="whole"] { justify-content: flex-start; }
 .sequence-notation:focus-visible { outline: 3px solid rgb(125 211 252); outline-offset: 2px; }
 
 @media (min-width: 640px) {
@@ -571,8 +572,6 @@ button {
   body:has(.mobile-play-mode) .prelude-mode-nav { visibility: hidden; }
 }
 
-.focus-staff-mode .sequence-notation[data-sequence-presentation="whole"] svg,
-.mobile-play-mode .sequence-notation[data-sequence-presentation="whole"] svg {
-  width: auto !important;
-  min-width: max(20rem, 100%);
-}
+.sequence-notation svg { flex: 0 0 auto; height: auto !important; max-height: none !important; transform: none !important; }
+.sequence-notation[data-sequence-presentation="measure"] svg { max-width: 40rem; min-width: 0; width: 100% !important; }
+.sequence-notation[data-sequence-presentation="whole"] svg { min-width: 20rem; width: var(--sequence-renderer-width) !important; }

@@ -353,6 +353,12 @@ export function renderSequenceTarget(
   });
 
   configureResponsiveSvg(container, rendererWidth, RENDERER_HEIGHT);
+
+  const svg = container.querySelector("svg");
+
+  if (svg) {
+    svg.style.setProperty("--sequence-renderer-width", `${rendererWidth}px`);
+  }
 }
 
 export function renderGrandStaffHeldNotes(

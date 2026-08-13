@@ -164,7 +164,7 @@ describe("MusicStaff graded rendering", () => {
     expect(mocks.renderGrandStaffHeldNotes).not.toHaveBeenCalled();
   });
 
-  it("uses distinct Flashcard and Sequence Mobile Play scaling", () => {
+  it("keeps Sequence sizing independent from graded-staff Mobile Play scaling", () => {
     const practice = render(
       <MusicStaff isMobilePlayMode practiceTarget={PRACTICE_TARGET} />,
     );
@@ -183,8 +183,12 @@ describe("MusicStaff graded rendering", () => {
         showWholeSequence={false}
       />,
     );
-    expect(screen.getByLabelText(/Musical staff showing/).className).toContain(
-      "scale-[115%]",
+    const sequenceStaff = screen.getByLabelText(/Musical staff showing/);
+    expect(sequenceStaff.className).toContain("sequence-notation");
+    expect(sequenceStaff.className).not.toContain("scale-[115%]");
+    expect(sequenceStaff.className).not.toContain("h-[200%]");
+    expect(sequenceStaff.getAttribute("data-sequence-presentation")).toBe(
+      "measure",
     );
   });
 

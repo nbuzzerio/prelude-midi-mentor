@@ -162,12 +162,12 @@ export default function MusicStaff(props: MusicStaffProps) {
           ? "[&_svg]:scale-[300%] [&_svg]:translate-y-[55px]"
           : "md:[&_svg]:scale-[125%] lg:[&_svg]:scale-[150%] md:[&_svg]:translate-y-[65px]",
       ].join(" ")
-    : [
+    : isSequenceStaff
+      ? "music-staff sequence-notation mx-auto flex min-h-0 w-full items-center invert"
+      : [
         "music-staff mx-auto flex min-h-0 w-full items-center justify-center invert [&_svg]:h-[200%]! [&_svg]:w-auto!",
         props.isMobilePlayMode
-          ? props.sequenceTarget !== undefined
-            ? "[&_svg]:scale-[115%] [&_svg]:translate-y-[8px]"
-            : "[&_svg]:scale-[175%] [&_svg]:translate-y-[15px]"
+          ? "[&_svg]:scale-[175%] [&_svg]:translate-y-[15px]"
           : "",
       ].join(" ");
 
@@ -175,7 +175,7 @@ export default function MusicStaff(props: MusicStaffProps) {
     <div
       ref={containerRef}
       aria-label={ariaLabel}
-      className={`${className}${isSequenceStaff ? " sequence-notation" : ""}`}
+      className={className}
       data-sequence-presentation={
         isSequenceStaff
           ? props.showWholeSequence
