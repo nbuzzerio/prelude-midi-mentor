@@ -5,6 +5,7 @@ import {
   updateStaffBuilderAnnotation,
 } from "../staff-builder-annotations";
 import type { StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
+import { describeStaffBuilderAnnotation, STAFF_BUILDER_ANNOTATION_KIND_LABELS, STAFF_BUILDER_ANNOTATION_LAYER_LABELS, STAFF_BUILDER_BOOKMARK_LABELS, STAFF_BUILDER_PRACTICE_MARK_LABELS } from "../staff-builder-annotation-presentation";
 import type {
   StaffBuilderAnnotation,
   StaffBuilderAnnotationAnchor,
@@ -13,36 +14,17 @@ import type {
   StaffBuilderScore,
 } from "../staff-builder-types";
 
-const KIND_LABELS = { "study-note": "Study Note", "practice-mark": "Practice Mark", bookmark: "Bookmark" } as const;
 const PRACTICE_CATEGORIES: readonly Readonly<{ value: StaffBuilderPracticeMarkCategory; label: string }>[] = [
-  { value: "needs-work", label: "Needs work" },
-  { value: "rhythm", label: "Rhythm" },
-  { value: "hands-separate", label: "Hands separate" },
-  { value: "check-fingering", label: "Check fingering" },
-  { value: "other", label: "Other" },
+  ...Object.entries(STAFF_BUILDER_PRACTICE_MARK_LABELS).map(([value, label]) => ({ value: value as StaffBuilderPracticeMarkCategory, label })),
 ];
 const BOOKMARK_CATEGORIES: readonly Readonly<{ value: StaffBuilderBookmarkCategory; label: string }>[] = [
-  { value: "interesting", label: "Interesting" },
-  { value: "needs-work", label: "Needs work" },
-  { value: "question", label: "Question" },
-  { value: "revisit", label: "Revisit" },
+  ...Object.entries(STAFF_BUILDER_BOOKMARK_LABELS).map(([value, label]) => ({ value: value as StaffBuilderBookmarkCategory, label })),
 ];
 const LAYER_CONTROLS: readonly Readonly<{ layer: StaffBuilderAnnotationLayer; label: string }>[] = [
-  { layer: "study-notes", label: "Study Notes" },
-  { layer: "practice-marks", label: "Practice Marks" },
-  { layer: "bookmarks", label: "Bookmarks" },
+  ...Object.entries(STAFF_BUILDER_ANNOTATION_LAYER_LABELS).map(([layer, label]) => ({ layer: layer as StaffBuilderAnnotationLayer, label })),
 ];
 
 type FormKind = StaffBuilderAnnotation["kind"];
-function annotationSummary(annotation: StaffBuilderAnnotation): string {
-  if (annotation.kind === "study-note") return annotation.text;
-  if (annotation.kind === "practice-mark") {
-    const label = PRACTICE_CATEGORIES.find(({ value }) => value === annotation.category)?.label ?? annotation.category;
-    return annotation.category === "other" ? annotation.text ?? label : label;
-  }
-  return BOOKMARK_CATEGORIES.find(({ value }) => value === annotation.category)?.label ?? annotation.category;
-}
-
 export function StaffBuilderAnnotationsPanel({
   score,
   measureIndex,
@@ -139,9 +121,9 @@ export function StaffBuilderAnnotationsPanel({
     </div>}
     <div className="staff-builder-annotation-list">{relevant.length === 0 ? <p>No annotations in this measure.</p> : relevant.map((annotation) => {
       const selected = annotation.anchor.kind === "event" && annotation.anchor.eventId === selectedEventId;
-      const typeLabel = KIND_LABELS[annotation.kind];
+      const typeLabel = STAFF_BUILDER_ANNOTATION_KIND_LABELS[annotation.kind];
       const location = annotation.anchor.kind === "measure" ? `Measure ${measureIndex + 1}` : selected ? "Selected event" : "Event in this measure";
-      return <article className="staff-builder-annotation-item" data-selected-event={selected || undefined} key={annotation.id}><div><strong>{typeLabel}</strong><span>{location}</span><p>{annotationSummary(annotation)}</p></div><div><button aria-label={`Edit ${typeLabel}: ${annotationSummary(annotation)}`} className="staff-builder-secondary-button" onClick={() => beginEdit(annotation)} type="button">Edit</button><button aria-label={`Delete ${typeLabel}: ${annotationSummary(annotation)}`} className="staff-builder-danger-button" onClick={() => onScoreMutation(deleteStaffBuilderAnnotation(score, annotation.id, now ? { now } : undefined))} type="button">Delete</button></div></article>;
+      return <article className="staff-builder-annotation-item" data-selected-event={selected || undefined} key={annotation.id}><div><strong>{typeLabel}</strong><span>{location}</span><p>{describeStaffBuilderAnnotation(annotation)}</p></div><div><button aria-label={`Edit ${typeLabel}: ${describeStaffBuilderAnnotation(annotation)}`} className="staff-builder-secondary-button" onClick={() => beginEdit(annotation)} type="button">Edit</button><button aria-label={`Delete ${typeLabel}: ${describeStaffBuilderAnnotation(annotation)}`} className="staff-builder-danger-button" onClick={() => onScoreMutation(deleteStaffBuilderAnnotation(score, annotation.id, now ? { now } : undefined))} type="button">Delete</button></div></article>;
     })}</div>
   </section>;
 }

@@ -1,12 +1,13 @@
-import { useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import type { StaffBuilderScore } from "../staff-builder-types";
-import { renderStaffBuilderSystem } from "../notation/render-staff-builder-system";
+import { renderStaffBuilderSystem, type StaffBuilderSystemRenderResult } from "../notation/render-staff-builder-system";
 import { projectStaffBuilderMeasure } from "../notation/staff-builder-notation";
 import type { StaffBuilderScoreDocumentLayout, StaffBuilderSystemLayout } from "../notation/staff-builder-system-layout";
 
 export type StaffBuilderMultiSystemScoreProps = Readonly<{
   score: StaffBuilderScore;
   layout: StaffBuilderScoreDocumentLayout;
+  onRenderResultsChange?: (results: readonly StaffBuilderSystemRenderResult[]) => void;
 }>;
 
 const SEMANTIC_ONLY_STYLE = {
@@ -21,15 +22,15 @@ const SEMANTIC_ONLY_STYLE = {
   border: 0,
 } as const;
 
-function StaffBuilderSystemVisual({ score, system }: Readonly<{ score: StaffBuilderScore; system: StaffBuilderSystemLayout }>) {
+function StaffBuilderSystemVisual({ generation, onRender, score, system }: Readonly<{ generation: symbol; onRender: (generation: symbol, result: StaffBuilderSystemRenderResult) => void; score: StaffBuilderScore; system: StaffBuilderSystemLayout }>) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    renderStaffBuilderSystem(container, score, system);
+    onRender(generation, renderStaffBuilderSystem(container, score, system));
     return () => container.replaceChildren();
-  }, [score, system]);
+  }, [generation, onRender, score, system]);
 
   return (
     <div
@@ -41,11 +42,29 @@ function StaffBuilderSystemVisual({ score, system }: Readonly<{ score: StaffBuil
   );
 }
 
-export function StaffBuilderMultiSystemScore({ score, layout }: StaffBuilderMultiSystemScoreProps) {
+function StaffBuilderMultiSystemScoreGeneration({ score, layout, onRenderResultsChange }: StaffBuilderMultiSystemScoreProps) {
+  const generation = useMemo(() => Symbol("staff-builder-system-render"), []);
+  const aggregationRef = useRef({ results: new Map<number, StaffBuilderSystemRenderResult>(), emitted: false });
+  const requiredIndexes = useMemo(() => layout.systems.map(({ systemIndex }) => systemIndex), [layout]);
+  const reportRender = useCallback((reportedGeneration: symbol, result: StaffBuilderSystemRenderResult) => {
+    if (reportedGeneration !== generation) return;
+    const aggregation = aggregationRef.current;
+    aggregation.results.set(result.system.systemIndex, result);
+    if (aggregation.emitted || requiredIndexes.some((index) => !aggregation.results.has(index))) return;
+    aggregation.emitted = true;
+    onRenderResultsChange?.(requiredIndexes.map((index) => aggregation.results.get(index)!));
+  }, [generation, onRenderResultsChange, requiredIndexes]);
+  useLayoutEffect(() => {
+    const aggregation = aggregationRef.current;
+    if (requiredIndexes.length === 0 && !aggregation.emitted) {
+      aggregation.emitted = true;
+      onRenderResultsChange?.([]);
+    }
+  }, [onRenderResultsChange, requiredIndexes.length]);
   return (
     <div data-staff-builder-score-document style={{ position: "relative", width: layout.width, height: layout.height }}>
       <div aria-hidden="true">
-        {layout.systems.map((system) => <StaffBuilderSystemVisual key={system.systemIndex} score={score} system={system} />)}
+        {layout.systems.map((system) => <StaffBuilderSystemVisual generation={generation} key={system.systemIndex} onRender={reportRender} score={score} system={system} />)}
       </div>
 
       <section aria-label={`${score.title} score`} data-staff-builder-score-semantics style={SEMANTIC_ONLY_STYLE}>
@@ -70,4 +89,9 @@ export function StaffBuilderMultiSystemScore({ score, layout }: StaffBuilderMult
       </section>
     </div>
   );
+}
+
+export function StaffBuilderMultiSystemScore(props: StaffBuilderMultiSystemScoreProps) {
+  const renderGenerationKey = `${props.score.id}:${props.score.updatedAt}:${JSON.stringify(props.layout)}`;
+  return <StaffBuilderMultiSystemScoreGeneration key={renderGenerationKey} {...props} />;
 }

@@ -163,6 +163,17 @@ describe("Staff Builder session", () => {
     expect(screen.getByLabelText("Practice Mark, 1 annotation, event in measure 1")).toBeTruthy();
     expect(screen.getByLabelText("Bookmark, 1 annotation, event in measure 1")).toBeTruthy();
     expect(screen.getByText("Shape the phrase")).toBeTruthy();
+    const undoBeforeVisibility = (screen.getByRole("button", { name: "Undo last score edit" }) as HTMLButtonElement).disabled;
+    fireEvent.click(screen.getByRole("button", { name: "Study View" }));
+    expect((screen.getByLabelText("Study Notes") as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByText("Shape the phrase")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Study Notes"));
+    expect(screen.getByText("Shape the phrase")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Exit Study View" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Study View" })).toBeTruthy());
+    expect((screen.getByLabelText("Study Notes") as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByLabelText("Study Note, 1 annotation")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Undo last score edit" }) as HTMLButtonElement).disabled).toBe(undoBeforeVisibility);
     fireEvent.click(screen.getByLabelText("Practice Marks"));
     expect(screen.queryByLabelText(/Practice Mark, 1 annotation/)).toBeNull();
     expect(screen.getByLabelText("Bookmark, 1 annotation, event in measure 1")).toBeTruthy();

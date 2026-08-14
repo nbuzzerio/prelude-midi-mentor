@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { StaffBuilderMeasure, StaffBuilderScore } from "../staff-builder-types";
 import type { StaffBuilderScoreDocumentLayout } from "../notation/staff-builder-system-layout";
 import { StaffBuilderMultiSystemScore } from "./staff-builder-multi-system-score";
@@ -121,5 +121,28 @@ describe("StaffBuilderMultiSystemScore", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryAllByRole("textbox")).toHaveLength(0);
     expect(screen.queryByText(/playback|add annotation|study view|fullscreen/i)).toBeNull();
+  });
+
+  it("emits complete ordered geometry snapshots and replaces stale systems", async () => {
+    const onResults = vi.fn();
+    const current = score();
+    const { rerender } = render(<StaffBuilderMultiSystemScore layout={documentLayout([[0, 1], [2, 3]])} onRenderResultsChange={onResults} score={current} />);
+    await waitFor(() => expect(onResults).toHaveBeenCalled());
+    expect(onResults.mock.lastCall?.[0].map((result: { system: { systemIndex: number } }) => result.system.systemIndex)).toEqual([0, 1]);
+    const calls = onResults.mock.calls.length;
+    rerender(<StaffBuilderMultiSystemScore layout={documentLayout([[0], [1], [2], [3]], 360)} onRenderResultsChange={onResults} score={current} />);
+    await waitFor(() => expect(onResults.mock.calls.length).toBeGreaterThan(calls));
+    expect(onResults.mock.lastCall?.[0].map((result: { system: { systemIndex: number } }) => result.system.systemIndex)).toEqual([0, 1, 2, 3]);
+    const narrowCalls = onResults.mock.calls.length;
+    rerender(<StaffBuilderMultiSystemScore layout={documentLayout([[0, 1, 2, 3]], 900)} onRenderResultsChange={onResults} score={current} />);
+    await waitFor(() => expect(onResults.mock.calls.length).toBeGreaterThan(narrowCalls));
+    expect(onResults.mock.lastCall?.[0]).toHaveLength(1);
+  });
+
+  it("emits one empty snapshot for an empty layout without looping", () => {
+    const onResults = vi.fn();
+    render(<StaffBuilderMultiSystemScore layout={{ width: 500, height: 0, systems: [] }} onRenderResultsChange={onResults} score={score(0)} />);
+    expect(onResults).toHaveBeenCalledTimes(1);
+    expect(onResults).toHaveBeenCalledWith([]);
   });
 });
