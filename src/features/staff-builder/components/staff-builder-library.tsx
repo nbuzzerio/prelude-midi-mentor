@@ -1,12 +1,14 @@
 import { useRef } from "react";
+import type { StaffBuilderDuplicationMode } from "../staff-builder-duplication";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 
-export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownload, onImportFile, onOpen, onPractice, onRename }: Readonly<{
+export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onPractice, onRename }: Readonly<{
   activePieceId: string | null;
   pieces: readonly StaffBuilderScore[];
   onDelete: (id: string) => void;
   onDownload: (piece: StaffBuilderScore) => void;
+  onDuplicate: (id: string, mode: StaffBuilderDuplicationMode) => void;
   onImportFile: (file: File) => void;
   onOpen: (id: string) => void;
   onPractice: (piece: StaffBuilderScore) => void;
@@ -36,6 +38,17 @@ export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownloa
                   <button aria-label={`Open ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onOpen(piece.id)} type="button">Open</button>
                   <button aria-describedby={!practiceEligible ? practiceReasonId : undefined} aria-label={`Practice ${piece.title}`} className="staff-builder-secondary-button" disabled={!practiceEligible} onClick={() => onPractice(piece)} title={!practiceEligible ? "Complete structural validation before practicing this piece." : undefined} type="button">Practice</button>
                   <button aria-label={`Download ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onDownload(piece)} type="button">Download</button>
+                  <details>
+                    <summary aria-label={`Duplicate ${piece.title}`} className="staff-builder-secondary-button cursor-pointer">Duplicate</summary>
+                    <div className="mt-2 grid gap-2 rounded-md border border-zinc-600 bg-zinc-950 p-3">
+                      <p className="max-w-xs text-sm text-zinc-300">Treble keeps Middle C and above. Bass keeps notes below Middle C.</p>
+                      {([
+                        ["full", "Duplicate full piece"],
+                        ["treble", "Duplicate treble-range copy"],
+                        ["bass", "Duplicate bass-range copy"],
+                      ] as const).map(([mode, label]) => <button className="staff-builder-secondary-button text-left" key={mode} onClick={() => onDuplicate(piece.id, mode)} type="button">{label}</button>)}
+                    </div>
+                  </details>
                   <button aria-label={`Rename ${piece.title}`} className="staff-builder-secondary-button" onClick={() => {
                     const title = window.prompt(`Rename ${piece.title}`, piece.title);
                     if (title?.trim()) onRename(piece.id, title);

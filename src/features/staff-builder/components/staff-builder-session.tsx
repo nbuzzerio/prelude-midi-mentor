@@ -76,7 +76,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
               } catch {
                 setPieceFileStatus({ kind: "error", message: "Prelude could not download that piece. Try again." });
               }
-            }} onImportFile={(file) => {
+            }} onDuplicate={state.duplicatePiece} onImportFile={(file) => {
               void readStaffBuilderPieceFile(file).then((result) => {
                 if (!result.ok) {
                   setPieceFileStatus({ kind: "error", message: result.message });

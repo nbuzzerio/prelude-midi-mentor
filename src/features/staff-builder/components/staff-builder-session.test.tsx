@@ -254,6 +254,27 @@ describe("Staff Builder session", () => {
     expect(saved).toEqual(savedValidScore());
   });
 
+  it("offers all duplicate modes and opens a treble-range copy without changing the original", () => {
+    const storage = new MemoryStorage();
+    const original = savedValidScore("Duplicate Study");
+    seedLibrary(storage, [original]);
+    render(<StaffBuilderSession storage={storage} />);
+
+    fireEvent.click(screen.getByLabelText("Duplicate Duplicate Study"));
+    expect(screen.getByText("Treble keeps Middle C and above. Bass keeps notes below Middle C.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Duplicate full piece" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Duplicate treble-range copy" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Duplicate bass-range copy" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate treble-range copy" }));
+
+    expect(screen.getByRole("heading", { name: "Duplicate Study — Treble Copy" })).toBeTruthy();
+    const persisted = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
+    expect(persisted.pieces).toHaveLength(2);
+    expect(persisted.pieces[0]).toEqual(original);
+    expect(persisted.pieces[1]).toMatchObject({ title: "Duplicate Study — Treble Copy" });
+    expect(persisted.pieces[1].id).not.toBe(original.id);
+  });
+
   it("launches validated same-staff polyphony while invalid saved material remains disabled", () => {
     const storage = new MemoryStorage();
     const base = savedValidScore("Polyphony");

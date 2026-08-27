@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import { createStaffBuilderScore, renameStaffBuilderScore } from "../staff-builder-score";
+import { createStaffBuilderScore, renameStaffBuilderScore, type StaffBuilderFactories } from "../staff-builder-score";
+import { duplicateStaffBuilderScore, type StaffBuilderDuplicationMode } from "../staff-builder-duplication";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import type { StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { MusicKeyId } from "@/lib/music/keys";
@@ -131,6 +132,23 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setLibrary(next);
     return { score: imported, persisted: persistLibrary(next) };
   }, [library, persistLibrary]);
+
+  const duplicatePiece = useCallback((pieceId: string, mode: StaffBuilderDuplicationMode, factories?: StaffBuilderFactories) => {
+    const source = library.pieces.find(({ id }) => id === pieceId);
+    if (!source) return null;
+    const duplicate = duplicateStaffBuilderScore(source, mode, factories);
+    const next = { ...library, pieces: [...library.pieces, duplicate] };
+    setLibrary(next);
+    setActiveScore(duplicate);
+    setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
+    setActiveEditorPass("capture");
+    setActiveRhythmState({ measureIndex: 0, selectedEventId: null });
+    setActiveSavedPieceId(duplicate.id);
+    const libraryPersisted = persistLibrary(next);
+    const draftPersisted = persistDraft(duplicate, duplicate.id);
+    reportWrite("preferences", writeStaffBuilderValue(storage, "lastPieceId", duplicate.id));
+    return { score: duplicate, persisted: libraryPersisted && draftPersisted };
+  }, [library, persistDraft, persistLibrary, reportWrite, storage]);
 
   const openPiece = useCallback((pieceId: string) => {
     const piece = library.pieces.find(({ id }) => id === pieceId);
@@ -268,7 +286,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
 
   return {
     library, activeScore, activeCaptureState, activeEditorPass, activeRhythmState, activeSavedPieceId, recoveryDraft, introductionOpen, issues,
-    createPiece, importPiece, openPiece, renamePiece, deletePiece, closePiece, restoreDraft, declineDraft,
+    createPiece, importPiece, duplicatePiece, openPiece, renamePiece, deletePiece, closePiece, restoreDraft, declineDraft,
     closeIntroduction, reopenIntroduction: () => setIntroductionOpen(true), clearCorruptArea, updateActiveDraft, validateAndSave,
   };
 }

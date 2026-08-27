@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { createStaffBuilderScore, insertUnresolvedStaffBuilderNotes } from "../staff-builder-score";
+import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE } from "../staff-builder-capture";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import { useStaffBuilderLibrary } from "./use-staff-builder-library";
 
@@ -59,6 +60,38 @@ describe("useStaffBuilderLibrary", () => {
     expect(result.current.activeSavedPieceId).toBeNull();
     expect(storage.values.has(STAFF_BUILDER_STORAGE_KEYS.draft)).toBe(false);
     expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null").pieces).toEqual([imported]);
+  });
+
+  it("duplicates a library piece and opens the independent copy with fresh editor state", () => {
+    const storage = new MemoryStorage();
+    const original = createStaffBuilderScore({
+      title: "Source",
+      tempoBpm: 100,
+      initialKeySignatureId: "c-major",
+      initialTimeSignature: "4/4",
+      factories: { createId: () => "source-id", now: () => "2026-08-01T12:00:00.000Z" },
+    });
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 2, pieces: [original] }));
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    let nextId = 0;
+
+    act(() => result.current.duplicatePiece("source-id", "full", {
+      createId: () => `duplicate-${++nextId}`,
+      now: () => "2026-08-27T12:00:00.000Z",
+    }));
+
+    expect(result.current.library.pieces).toHaveLength(2);
+    expect(result.current.library.pieces[0]).toEqual(original);
+    expect(result.current.activeScore?.title).toBe("Source — Copy");
+    expect(result.current.activeSavedPieceId).toBe(result.current.activeScore?.id);
+    expect(result.current.activeCaptureState).toEqual(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
+    expect(result.current.activeEditorPass).toBe("capture");
+    expect(result.current.activeRhythmState).toEqual({ measureIndex: 0, selectedEventId: null });
+    const persistedLibrary = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
+    const persistedDraft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(persistedLibrary.pieces).toHaveLength(2);
+    expect(persistedDraft.savedPieceId).toBe(result.current.activeScore?.id);
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.lastPieceId)).toBe(result.current.activeScore?.id);
   });
 
   it("copies a colliding imported project without overwriting it and preserves duplicate titles", () => {
