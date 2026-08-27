@@ -1,5 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { generateMelodyExercise } from "../melody-generator";
+import { getMelodyTimedExpectedAttacks } from "../melody-timing";
+import { DEFAULT_MELODY_SETTINGS } from "../melody-types";
 import MelodySession from "./melody-session";
 
 vi.mock("@/hooks/use-mobile-play", async () => {
@@ -65,78 +68,122 @@ describe("MelodySession", () => {
     expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
   });
 
-  it("keeps Continuous Practice optional with a ten-attempt default", () => {
+  it("keeps Continuous Practice optional with a five-minute default", () => {
     render(<MelodySession seedFactory={() => "seed"} />);
     const continuous = screen.getByRole("checkbox", {
       name: "Continuous Practice",
     });
     expect((continuous as HTMLInputElement).checked).toBe(false);
     expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
-    expect(screen.queryByRole("combobox", { name: "Session length" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Session duration" })).toBeNull();
 
     fireEvent.click(continuous);
-    const length = screen.getByRole("combobox", { name: "Session length" });
-    expect((length as HTMLSelectElement).value).toBe("10");
-    expect([...length.querySelectorAll("option")].map(({ value }) => value)).toEqual([
-      "5",
-      "10",
-      "20",
-    ]);
+    const duration = screen.getByRole("combobox", { name: "Session duration" });
+    expect((duration as HTMLSelectElement).value).toBe("5");
+    expect([...duration.querySelectorAll("option")].map(({ value }) => value)).toEqual(["1", "2", "3", "5"]);
     expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
   });
 
-  it("starts continuous retries directly and completes the configured session", async () => {
+  it("starts the timed diagnostic at the first count-in and advances without Retry Same", async () => {
     const audio = fakeAudio();
     const createAudioContext = vi.fn(() => audio.context);
-    render(<MelodySession createAudioContext={createAudioContext} seedFactory={() => "seed"} />);
+    let nowMs = 10_000;
+    render(<MelodySession createAudioContext={createAudioContext} nowMs={() => nowMs} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Session length" }), {
-      target: { value: "5" },
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), {
+      target: { value: "1" },
     });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
-
-    for (let attempt = 1; attempt <= 5; attempt += 1) {
-      audio.setNow(attempt * 20);
-      act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
-      if (attempt < 5) {
-        expect(screen.getByText(`Attempt ${attempt} of 5 complete`)).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: "Retry Same" }));
-        await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
-        expect(screen.queryByRole("button", { name: "Start Session" })).toBeNull();
-      }
-    }
-
-    expect(screen.getByRole("heading", { name: "Session complete" })).toBeTruthy();
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Session complete" }));
-    expect(screen.getByText("5", { selector: "strong" })).toBeTruthy();
+    expect(screen.getByText(/Time remaining: 1:00/)).toBeTruthy();
+    audio.setNow(20);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.getByText(/Diagnostic trial 1 complete/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Retry Same" })).toBeNull();
-    expect(createAudioContext).toHaveBeenCalledTimes(1);
-    const completedScore = screen.queryByText("Score measure 1");
-    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    nowMs = 20_000;
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
     await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
-    expect(screen.getByText("Attempt 1 of 5")).toBeTruthy();
-    expect(screen.getByText("Score measure 1")).not.toBe(completedScore);
     expect(screen.queryByRole("button", { name: "Start Session" })).toBeNull();
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
   });
 
-  it("ends a completed Continuous Practice session through Settings", async () => {
+  it("finishes an in-flight trial after the deadline and retains it", async () => {
     const audio = fakeAudio();
-    render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
+    let nowMs = 0;
+    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Session length" }), { target: { value: "5" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
-    for (let attempt = 1; attempt <= 5; attempt += 1) {
-      audio.setNow(attempt * 20);
-      act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
-      if (attempt < 5) {
-        fireEvent.click(screen.getByRole("button", { name: "Retry Same" }));
-        await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
-      }
-    }
+    nowMs = 60_001;
+    expect(screen.getByText("Count in")).toBeTruthy();
+    audio.setNow(20);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
+    expect(screen.getByText("1", { selector: "strong" })).toBeTruthy();
+  });
+
+  it("prevents a new diagnostic trial when the deadline expires on results", async () => {
+    const audio = fakeAudio();
+    let nowMs = 0;
+    const seedFactory = vi.fn(() => "seed");
+    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={seedFactory} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    audio.setNow(20);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    nowMs = 60_000;
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
+    expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
+    expect(seedFactory).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives a new timed session a fresh deadline based on its own first count-in", async () => {
+    const audio = fakeAudio();
+    let nowMs = 10_000;
+    const seedFactory = vi.fn(() => `seed-${seedFactory.mock.calls.length + 1}`);
+    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={seedFactory} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    audio.setNow(20);
+    nowMs = 70_000;
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
+
+    nowMs = 100_000;
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "New Timed Session" })); });
+    expect(screen.getByText(/Time remaining: 1:00/)).toBeTruthy();
+    audio.setNow(40);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    nowMs = 159_999;
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
+    await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
+    expect(seedFactory).toHaveBeenCalledTimes(3);
+  });
+
+  it("moves to the next diagnostic trial needing review and exits Review through Settings", async () => {
+    const audio = fakeAudio();
+    let nowMs = 0;
+    const seeds = ["first-review", "second-review"];
+    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => seeds.shift() ?? "later"} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    nowMs = 1_000;
+    audio.setNow(20);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
+    await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
+    nowMs = 60_000;
+    audio.setNow(40);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+
+    expect(screen.getByText("Diagnostic trial 1 of 2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next Needs Review" }));
+    expect(screen.getByText("Diagnostic trial 2 of 2")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Session complete" })).toBeNull();
-    expect(screen.queryByText(/Attempt \d+ of 5/)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Timed Melody Session Review" })).toBeNull();
   });
 
   it("starts Try Another directly with a fresh exercise and the same AudioContext", async () => {
@@ -159,7 +206,7 @@ describe("MelodySession", () => {
     expect(createAudioContext).toHaveBeenCalledTimes(1);
   });
 
-  it("routes an imperfect Continuous Practice result pedal press into a direct retry", async () => {
+  it("routes an imperfect timed diagnostic pedal press into a fresh trial", async () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
@@ -169,25 +216,25 @@ describe("MelodySession", () => {
 
     act(() => midi.options?.onSustainPedalChanged?.(true));
     await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
-    expect(screen.getByText("Attempt 2 of 10")).toBeTruthy();
+    expect(screen.getByText(/Trials completed: 1/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Start Session" })).toBeNull();
   });
 
-  it("cancels Continuous Practice and clears progress when hidden", async () => {
+  it("preserves completed diagnostic trials and enters an interrupted summary when hidden", async () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
-    fireEvent.click(screen.getByRole("button", { name: "Retry Same" }));
-    await waitFor(() => expect(screen.getByText("Attempt 2 of 10")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
+    await waitFor(() => expect(screen.getByText(/Trials completed: 1/)).toBeTruthy());
 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     act(() => document.dispatchEvent(new Event("visibilitychange")));
-    expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
-    expect(screen.queryByText(/Attempt \d+ of 10/)).toBeNull();
-    expect(screen.getByRole("status").textContent).toContain("no longer active");
+    expect(screen.getByRole("heading", { name: "Session interrupted" })).toBeTruthy();
+    expect(screen.getAllByText(/Completed trials were preserved/)).toHaveLength(2);
+    expect(screen.getByText("1", { selector: "strong" })).toBeTruthy();
   });
 
   it("resets attempt source locking between Continuous Practice attempts", async () => {
@@ -201,13 +248,120 @@ describe("MelodySession", () => {
     expect(screen.getByText(/Input: MIDI/)).toBeTruthy();
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
-    fireEvent.click(screen.getByRole("button", { name: "Retry Same" }));
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
     await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
     expect(screen.queryByText(/Input:/)).toBeNull();
     audio.setNow(24.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
     expect(screen.getByText(/Input: On-screen keyboard/)).toBeTruthy();
+  });
+
+  it("retries the exact retained trial without a timer or new seed and pins mastery in Review", async () => {
+    const audio = fakeAudio();
+    const createAudioContext = vi.fn(() => audio.context);
+    const seedFactory = vi.fn(() => "review-retry-seed");
+    let nowMs = 0;
+    render(<MelodySession createAudioContext={createAudioContext} nowMs={() => nowMs} seedFactory={seedFactory} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    nowMs = 60_000;
+    audio.setNow(20);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+
+    expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
+    expect(screen.queryByText(/Time remaining/)).toBeNull();
+    expect(screen.queryByText(/Keyboard /)).toBeNull();
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    act(() => midi.options?.onSustainPedalChanged?.(true));
+    act(() => midi.options?.onSustainPedalChanged?.(false));
+    expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
+    await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
+    expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
+    expect(seedFactory).toHaveBeenCalledTimes(1);
+    audio.setNow(40);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.getByText("Original + 1 retry")).toBeTruthy();
+    expect(screen.getByText("Needs Review", { selector: "p" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Trial 1 result" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
+    await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
+    const retainedExercise = generateMelodyExercise(DEFAULT_MELODY_SETTINGS, "review-retry-seed");
+    for (const attack of getMelodyTimedExpectedAttacks(retainedExercise)) {
+      audio.setNow(44.1 + attack.expectedTimeSeconds);
+      act(() => midi.options?.onNotePlayed?.(attack.midiNumber));
+    }
+    audio.setNow(60);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+
+    expect(screen.getByText("Original + 2 retries")).toBeTruthy();
+    expect(screen.getByText("Mastered", { selector: "p" })).toBeTruthy();
+    expect(screen.getByText(/Repair complete/)).toBeTruthy();
+    expect(screen.getByText("All diagnostic trials mastered")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry This Melody" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(screen.queryByText(/Keyboard /)).toBeNull();
+    expect(seedFactory).toHaveBeenCalledTimes(1);
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets a diagnostic MIDI lock so a Review retry can lock to the virtual keyboard", async () => {
+    const audio = fakeAudio();
+    let nowMs = 0;
+    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => "seed"} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    audio.setNow(4.1);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    act(() => midi.options?.onNotePlayed?.(60));
+    expect(screen.getByText(/Input: MIDI/)).toBeTruthy();
+    nowMs = 60_000;
+    audio.setNow(20);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
+    await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
+    audio.setNow(24.1);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
+    expect(screen.getByText(/Input: On-screen keyboard/)).toBeTruthy();
+    act(() => midi.options?.onNotePlayed?.(60));
+    expect(screen.getByText(/Input: On-screen keyboard/)).toBeTruthy();
+    expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
+    audio.setNow(40);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    expect(screen.queryByText(/Keyboard /)).toBeNull();
+  });
+
+  it("resets a diagnostic virtual lock so a Review retry can lock to MIDI", async () => {
+    const audio = fakeAudio();
+    let nowMs = 0;
+    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => "seed"} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    audio.setNow(4.1);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
+    expect(screen.getByText(/Input: On-screen keyboard/)).toBeTruthy();
+    nowMs = 60_000;
+    audio.setNow(20);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
+    await waitFor(() => expect(screen.getByText("Count in")).toBeTruthy());
+    audio.setNow(24.1);
+    act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+    act(() => midi.options?.onNotePlayed?.(60));
+    expect(screen.getByText(/Input: MIDI/)).toBeTruthy();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
+    expect(screen.getByText(/Input: MIDI/)).toBeTruthy();
+    expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
   });
 
   it("keeps one responsive keyboard and one shared score/count scroll track for both measures", () => {

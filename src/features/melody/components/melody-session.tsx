@@ -8,10 +8,19 @@ import { useMobilePlay } from "@/hooks/use-mobile-play";
 import { createMelodyBrowserAudioContext, type MelodyOwnedAudioContext } from "../melody-browser-audio";
 import { createMelodyPerformanceClock, type MelodyPerformanceClock } from "../melody-clock";
 import {
-  createMelodyContinuousAttemptSummary,
-  MELODY_CONTINUOUS_ATTEMPT_TARGETS,
-  type MelodyContinuousAttemptSummary,
-  type MelodyContinuousAttemptTarget,
+  appendMelodyContinuousTrialRetry,
+  canStartMelodyContinuousDiagnosticTrial,
+  createMelodyContinuousDeadline,
+  createMelodyContinuousDiagnosticTrial,
+  DEFAULT_MELODY_CONTINUOUS_DURATION_MINUTES,
+  getMelodyContinuousRemainingMs,
+  getMelodyContinuousTrialRetryCount,
+  getMelodyContinuousTrialsNeedingReview,
+  getNextMelodyContinuousTrialNeedingReviewId,
+  isMelodyContinuousTrialMastered,
+  MELODY_CONTINUOUS_DURATION_MINUTES,
+  type MelodyContinuousDiagnosticTrial,
+  type MelodyContinuousDurationMinutes,
 } from "../melody-continuous-practice";
 import { projectMelodyExerciseToDisplayScore } from "../melody-display-score";
 import { generateMelodyExercise } from "../melody-generator";
@@ -23,15 +32,30 @@ import { getMelodyPerformancePhase } from "../melody-timing";
 import { DEFAULT_MELODY_SETTINGS, type MelodyExercise, type MelodySeed, type MelodySettings } from "../melody-types";
 import { MelodyCountGuide } from "./melody-count-guide";
 import { MelodyResults } from "./melody-results";
-import { MelodySessionSummary } from "./melody-session-summary";
+import {
+  MelodyTimedSessionReview,
+  type MelodyReviewFilter,
+  type MelodyReviewResultView,
+} from "./melody-timed-session-review";
 
-type MelodyPresentationState = "setup" | "starting" | "count-in" | "performing" | "results" | "summary";
+type MelodyPresentationState = "setup" | "starting" | "count-in" | "performing" | "results" | "review";
+type MelodyAttemptContext =
+  | Readonly<{ kind: "single" }>
+  | Readonly<{ kind: "diagnostic" }>
+  | Readonly<{ kind: "review-retry"; trialId: MelodyContinuousDiagnosticTrial["id"] }>;
 type MelodyAudioFactory = typeof createMelodyBrowserAudioContext;
 let runtimeSeedCounter = 0;
 const defaultSeedFactory = (): MelodySeed => `melody-runtime-${Date.now()}-${runtimeSeedCounter++}`;
+const defaultNowMs = () => performance.now();
 const EMPTY = new Set<number>();
 
-export default function MelodySession({ seedFactory = defaultSeedFactory, createAudioContext = createMelodyBrowserAudioContext }: Readonly<{ seedFactory?: () => MelodySeed; createAudioContext?: MelodyAudioFactory }>) {
+function formatRemainingTime(remainingMs: number): string {
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  return `${minutes}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
+export default function MelodySession({ seedFactory = defaultSeedFactory, createAudioContext = createMelodyBrowserAudioContext, nowMs = defaultNowMs }: Readonly<{ seedFactory?: () => MelodySeed; createAudioContext?: MelodyAudioFactory; nowMs?: () => number }>) {
   const [settings, setSettings] = useState<MelodySettings>(DEFAULT_MELODY_SETTINGS);
   const [exercise, setExercise] = useState<MelodyExercise>(() => generateMelodyExercise(DEFAULT_MELODY_SETTINGS, seedFactory()));
   const [presentation, setPresentation] = useState<MelodyPresentationState>("setup");
@@ -44,12 +68,19 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const [activeVirtual, setActiveVirtual] = useState<ReadonlySet<number>>(EMPTY);
   const [lockedSource, setLockedSource] = useState<"midi" | "virtual" | null>(null);
   const [continuousPractice, setContinuousPractice] = useState(false);
-  const [continuousAttemptTarget, setContinuousAttemptTarget] =
-    useState<MelodyContinuousAttemptTarget>(10);
+  const [continuousDurationMinutes, setContinuousDurationMinutes] =
+    useState<MelodyContinuousDurationMinutes>(DEFAULT_MELODY_CONTINUOUS_DURATION_MINUTES);
   const [continuousSessionActive, setContinuousSessionActive] = useState(false);
   const [continuousHistory, setContinuousHistory] = useState<
-    readonly MelodyContinuousAttemptSummary[]
+    readonly MelodyContinuousDiagnosticTrial[]
   >([]);
+  const [continuousDeadlineMs, setContinuousDeadlineMs] = useState<number | null>(null);
+  const [timerDisplayNowMs, setTimerDisplayNowMs] = useState(0);
+  const [continuousInterrupted, setContinuousInterrupted] = useState(false);
+  const [reviewTrialId, setReviewTrialId] = useState<string | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<MelodyReviewFilter>("all");
+  const [reviewResultView, setReviewResultView] = useState<MelodyReviewResultView>("original");
+  const [reviewPinnedTrialId, setReviewPinnedTrialId] = useState<string | null>(null);
   const clockRef = useRef<MelodyPerformanceClock | null>(null);
   const audioContextRef = useRef<MelodyOwnedAudioContext | null>(null);
   const recorderRef = useRef<MelodyPerformanceRecorder | null>(null);
@@ -60,13 +91,48 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const sustainPedalDownRef = useRef(false);
   const pedalReadyInResultsRef = useRef(false);
   const continuousSessionActiveRef = useRef(false);
-  const continuousHistoryRef = useRef<readonly MelodyContinuousAttemptSummary[]>([]);
+  const continuousHistoryRef = useRef<readonly MelodyContinuousDiagnosticTrial[]>([]);
+  const continuousDeadlineMsRef = useRef<number | null>(null);
   const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
-  const summaryHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reviewTrialHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reviewFocusTargetRef = useRef<"review" | "trial">("review");
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
   const score = useMemo(() => projectMelodyExerciseToDisplayScore(exercise), [exercise]);
   const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const clearContinuousDeadline = useCallback(() => {
+    continuousDeadlineMsRef.current = null;
+    setContinuousDeadlineMs(null);
+  }, []);
+
+  const resetReviewPresentation = useCallback(() => {
+    setReviewTrialId(null);
+    setReviewFilter("all");
+    setReviewResultView("original");
+    setReviewPinnedTrialId(null);
+    reviewFocusTargetRef.current = "review";
+  }, []);
+
+  const enterReview = useCallback((
+    trials: readonly MelodyContinuousDiagnosticTrial[],
+    interrupted: boolean,
+    focusTarget: "review" | "trial" = "review",
+  ) => {
+    continuousSessionActiveRef.current = false;
+    setContinuousSessionActive(false);
+    clearContinuousDeadline();
+    setContinuousInterrupted(interrupted);
+    const firstNeedsReview = getMelodyContinuousTrialsNeedingReview(trials)[0] ?? null;
+    const selected = firstNeedsReview ?? trials[0] ?? null;
+    setReviewFilter(firstNeedsReview ? "needs-review" : "all");
+    setReviewTrialId(selected?.id ?? null);
+    setReviewResultView(selected && getMelodyContinuousTrialRetryCount(selected) > 0 ? "latest" : "original");
+    setReviewPinnedTrialId(null);
+    reviewFocusTargetRef.current = focusTarget;
+    setPresentation("review");
+  }, [clearContinuousDeadline]);
 
   const cancelAttempt = useCallback(() => {
     generationRef.current += 1;
@@ -93,24 +159,51 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     try { void context.close().catch(() => undefined); } catch { /* Browser audio teardown is best-effort. */ }
   }, [cancelAttempt]);
   useEffect(() => { if (presentation === "results") resultsHeadingRef.current?.focus(); }, [presentation]);
-  useEffect(() => { if (presentation === "summary") summaryHeadingRef.current?.focus(); }, [presentation]);
+  useEffect(() => {
+    if (presentation !== "review") return;
+    if (reviewFocusTargetRef.current === "trial") reviewTrialHeadingRef.current?.focus();
+    else reviewHeadingRef.current?.focus();
+  }, [presentation, continuousHistory]);
+  useEffect(() => {
+    if (!continuousSessionActive || continuousDeadlineMs === null) return;
+    const updateTimer = () => {
+      const currentNowMs = nowMs();
+      setTimerDisplayNowMs(currentNowMs);
+      if (presentationRef.current === "results"
+        && !canStartMelodyContinuousDiagnosticTrial(continuousDeadlineMs, currentNowMs)) {
+        enterReview(continuousHistoryRef.current, false);
+        setStatusMessage("Timed diagnostic complete.");
+      }
+    };
+    updateTimer();
+    const timer = window.setInterval(updateTimer, 1000);
+    return () => window.clearInterval(timer);
+  }, [continuousDeadlineMs, continuousSessionActive, enterReview, nowMs]);
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden" || !(["starting", "count-in", "performing"] as MelodyPresentationState[]).includes(presentationRef.current)) return;
       cancelAttempt();
       setResult(null);
+      if (continuousSessionActiveRef.current) {
+        enterReview(continuousHistoryRef.current, true);
+        setInterruptionNotice("Timed diagnostic interrupted because Prelude was no longer active.");
+        setStatusMessage("Timed diagnostic interrupted. Completed trials were preserved.");
+        return;
+      }
       setPresentation("setup");
       continuousSessionActiveRef.current = false;
-      continuousHistoryRef.current = [];
       setContinuousSessionActive(false);
-      setContinuousHistory([]);
       setInterruptionNotice("Exercise stopped because Prelude was no longer active.");
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [cancelAttempt]);
+  }, [cancelAttempt, enterReview]);
 
-  function sampleClock(generation: number, exerciseToPerform: MelodyExercise) {
+  function sampleClock(
+    generation: number,
+    exerciseToPerform: MelodyExercise,
+    attemptContext: MelodyAttemptContext,
+  ) {
     const clock = clockRef.current;
     if (!clock || generation !== generationRef.current) return;
     const now = clock.nowSeconds();
@@ -125,22 +218,54 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       setActiveTick(undefined);
       setResult(nextResult);
       resultRef.current = nextResult;
-      if (continuousSessionActiveRef.current) {
+      if (attemptContext.kind === "diagnostic") {
         const previousHistory = continuousHistoryRef.current;
-        const entry = createMelodyContinuousAttemptSummary(
+        const entry = createMelodyContinuousDiagnosticTrial(
           previousHistory.length + 1,
           exerciseToPerform,
           nextResult,
-          previousHistory.at(-1),
         );
         const nextHistory = [...previousHistory, entry];
         continuousHistoryRef.current = nextHistory;
         setContinuousHistory(nextHistory);
-        if (nextHistory.length >= continuousAttemptTarget) {
-          setPresentation("summary");
-          setStatusMessage("Continuous Practice session complete.");
+        const deadlineMs = continuousDeadlineMsRef.current;
+        if (deadlineMs !== null
+          && !canStartMelodyContinuousDiagnosticTrial(deadlineMs, nowMs())) {
+          enterReview(nextHistory, false);
+          setStatusMessage("Timed diagnostic complete.");
           return;
         }
+        pedalReadyInResultsRef.current = !sustainPedalDownRef.current;
+        setPresentation("results");
+        setStatusMessage("Exercise complete. Results are ready.");
+        return;
+      }
+      if (attemptContext.kind === "review-retry") {
+        const previousHistory = continuousHistoryRef.current;
+        const previousTrial = previousHistory.find(({ id }) => id === attemptContext.trialId);
+        if (!previousTrial) {
+          throw new Error(`Cannot complete Melody retry: unknown diagnostic trial "${attemptContext.trialId}".`);
+        }
+        const wasMastered = isMelodyContinuousTrialMastered(previousTrial);
+        const nextHistory = appendMelodyContinuousTrialRetry(
+          previousHistory,
+          attemptContext.trialId,
+          nextResult,
+        );
+        const updatedTrial = nextHistory.find(({ id }) => id === attemptContext.trialId)!;
+        continuousHistoryRef.current = nextHistory;
+        setContinuousHistory(nextHistory);
+        setReviewTrialId(attemptContext.trialId);
+        setReviewResultView("latest");
+        if (reviewFilter === "needs-review"
+          && !wasMastered
+          && isMelodyContinuousTrialMastered(updatedTrial)) {
+          setReviewPinnedTrialId(attemptContext.trialId);
+        }
+        reviewFocusTargetRef.current = "trial";
+        setPresentation("review");
+        setStatusMessage("Melody retry complete. Review updated.");
+        return;
       }
       pedalReadyInResultsRef.current = !sustainPedalDownRef.current;
       setPresentation("results");
@@ -159,10 +284,13 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       const clamped = Math.max(0, Math.min(exerciseToPerform.measures.length * MELODY_PHASE_ONE_METER.capacityTicks, rawTick));
       setActiveTick(reducedMotion ? Math.floor(clamped / MELODY_PHASE_ONE_METER.subdivisionTicks) * MELODY_PHASE_ONE_METER.subdivisionTicks : clamped);
     }
-    animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform));
+    animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform, attemptContext));
   }
 
-  const beginAttempt = async (exerciseToPerform: MelodyExercise) => {
+  const beginAttempt = async (
+    exerciseToPerform: MelodyExercise,
+    attemptContext: MelodyAttemptContext,
+  ) => {
     cancelAttempt();
     const generation = generationRef.current;
     setAudioError(null);
@@ -179,11 +307,33 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       if (generation !== generationRef.current) { clock.cancel(); return; }
       clockRef.current = clock;
       recorderRef.current = createMelodyPerformanceRecorder(exerciseToPerform, clock);
+      if (attemptContext.kind === "diagnostic"
+        && continuousSessionActiveRef.current
+        && continuousDeadlineMsRef.current === null) {
+        const startedAtMs = nowMs();
+        const deadlineMs = createMelodyContinuousDeadline(startedAtMs, continuousDurationMinutes);
+        continuousDeadlineMsRef.current = deadlineMs;
+        setContinuousDeadlineMs(deadlineMs);
+        setTimerDisplayNowMs(startedAtMs);
+      }
       setPresentation("count-in");
       setStatusMessage("Count in started.");
-      animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform));
+      animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform, attemptContext));
     } catch {
       if (generation !== generationRef.current) return;
+      if (attemptContext.kind === "review-retry") {
+        setPresentation("review");
+        reviewFocusTargetRef.current = "trial";
+        setAudioError("Prelude couldn't start the Melody audio clock. Try again.");
+        setStatusMessage("Melody retry audio could not start.");
+        return;
+      }
+      if (continuousSessionActiveRef.current && continuousHistoryRef.current.length > 0) {
+        enterReview(continuousHistoryRef.current, true);
+        setInterruptionNotice("Timed diagnostic interrupted because the next audio clock could not start.");
+        setStatusMessage("Timed diagnostic interrupted. Completed trials were preserved.");
+        return;
+      }
       setPresentation("setup");
       setAudioError("Prelude couldn't start the Melody audio clock. Try again.");
       setStatusMessage("Melody audio could not start.");
@@ -191,10 +341,11 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       continuousHistoryRef.current = [];
       setContinuousSessionActive(false);
       setContinuousHistory([]);
+      clearContinuousDeadline();
     }
   };
 
-  const start = () => beginAttempt(exercise);
+  const start = () => beginAttempt(exercise, { kind: "single" });
 
   const record = useCallback((midiNumber: number, source: "midi" | "virtual") => {
     const recorder = recorderRef.current;
@@ -215,7 +366,8 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       pedalReadyInResultsRef.current = false;
       const completedResult = resultRef.current;
       if (!completedResult) return;
-      if (shouldTryAnotherFromPedal(completedResult)) tryAnother();
+      if (continuousSessionActiveRef.current) tryAnother();
+      else if (shouldTryAnotherFromPedal(completedResult)) tryAnother();
       else retrySame();
     },
   });
@@ -232,20 +384,30 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     continuousHistoryRef.current = [];
     setContinuousSessionActive(false);
     setContinuousHistory([]);
+    clearContinuousDeadline();
+    setContinuousInterrupted(false);
+    resetReviewPresentation();
   };
   const changeSetting = <K extends keyof MelodySettings>(key: K, value: MelodySettings[K]) => replaceExercise({ ...settings, [key]: value }, seedFactory());
   const retrySame = () => {
     if (continuousSessionActiveRef.current) {
-      void beginAttempt(exercise);
+      void beginAttempt(exercise, { kind: "diagnostic" });
       return;
     }
     cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Ready to retry the same melody.");
   };
   const tryAnother = () => {
     if (continuousSessionActiveRef.current) {
+      const deadlineMs = continuousDeadlineMsRef.current;
+      if (deadlineMs !== null
+        && !canStartMelodyContinuousDiagnosticTrial(deadlineMs, nowMs())) {
+        enterReview(continuousHistoryRef.current, false);
+        setStatusMessage("Timed diagnostic complete.");
+        return;
+      }
       const nextExercise = generateMelodyExercise(settings, seedFactory());
       setExercise(nextExercise);
-      void beginAttempt(nextExercise);
+      void beginAttempt(nextExercise, { kind: "diagnostic" });
       return;
     }
     replaceExercise(settings, seedFactory());
@@ -256,6 +418,9 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     continuousHistoryRef.current = [];
     setContinuousSessionActive(false);
     setContinuousHistory([]);
+    clearContinuousDeadline();
+    setContinuousInterrupted(false);
+    resetReviewPresentation();
   };
 
   const startContinuousSession = (useNewExercise = false) => {
@@ -267,7 +432,51 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     continuousHistoryRef.current = [];
     setContinuousSessionActive(true);
     setContinuousHistory([]);
-    void beginAttempt(exerciseToPerform);
+    clearContinuousDeadline();
+    setContinuousInterrupted(false);
+    resetReviewPresentation();
+    void beginAttempt(exerciseToPerform, { kind: "diagnostic" });
+  };
+
+  const selectReviewTrial = (trialId: string) => {
+    const selected = continuousHistoryRef.current.find(({ id }) => id === trialId);
+    if (!selected) return;
+    setReviewTrialId(trialId);
+    setReviewResultView(getMelodyContinuousTrialRetryCount(selected) > 0 ? "latest" : "original");
+    setReviewPinnedTrialId(null);
+  };
+
+  const changeReviewFilter = (filter: MelodyReviewFilter) => {
+    setReviewFilter(filter);
+    setReviewPinnedTrialId(null);
+    if (filter !== "needs-review") return;
+    const current = continuousHistoryRef.current.find(({ id }) => id === reviewTrialId);
+    if (current && !isMelodyContinuousTrialMastered(current)) return;
+    const firstNeedsReview = getMelodyContinuousTrialsNeedingReview(continuousHistoryRef.current)[0];
+    if (firstNeedsReview) selectReviewTrial(firstNeedsReview.id);
+  };
+
+  const reviewMistakes = () => {
+    const firstNeedsReview = getMelodyContinuousTrialsNeedingReview(continuousHistoryRef.current)[0];
+    setReviewFilter("needs-review");
+    setReviewPinnedTrialId(null);
+    if (firstNeedsReview) selectReviewTrial(firstNeedsReview.id);
+  };
+
+  const retryReviewTrial = (trialId: string) => {
+    const trial = continuousHistoryRef.current.find(({ id }) => id === trialId);
+    if (!trial) return;
+    setExercise(trial.exercise);
+    void beginAttempt(trial.exercise, { kind: "review-retry", trialId });
+  };
+
+  const nextNeedsReview = (trialId: string) => {
+    const nextTrialId = getNextMelodyContinuousTrialNeedingReviewId(
+      continuousHistoryRef.current,
+      trialId,
+    );
+    setReviewPinnedTrialId(null);
+    if (nextTrialId) selectReviewTrial(nextTrialId);
   };
 
   const handleExitMobilePlay = () => {
@@ -289,10 +498,10 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       <label>Tempo<select aria-label="Tempo" onChange={(event) => changeSetting("tempoBpm", Number(event.target.value) as MelodySettings["tempoBpm"])} value={settings.tempoBpm}>{[50, 60, 70, 80].map((bpm) => <option key={bpm} value={bpm}>{bpm} BPM</option>)}</select></label>
       <label>Length<select aria-label="Length" onChange={(event) => changeSetting("measureCount", Number(event.target.value) as 1 | 2)} value={settings.measureCount}><option value={1}>1 measure</option><option value={2}>2 measures</option></select></label>
       <label className="flex items-center gap-2"><input checked={continuousPractice} onChange={(event) => setContinuousPractice(event.target.checked)} type="checkbox" />Continuous Practice</label>
-      {continuousPractice && <label>Session length<select aria-label="Session length" onChange={(event) => setContinuousAttemptTarget(Number(event.target.value) as MelodyContinuousAttemptTarget)} value={continuousAttemptTarget}>{MELODY_CONTINUOUS_ATTEMPT_TARGETS.map((count) => <option key={count} value={count}>{count} attempts</option>)}</select></label>}
+      {continuousPractice && <label>Session duration<select aria-label="Session duration" onChange={(event) => setContinuousDurationMinutes(Number(event.target.value) as MelodyContinuousDurationMinutes)} value={continuousDurationMinutes}>{MELODY_CONTINUOUS_DURATION_MINUTES.map((minutes) => <option key={minutes} value={minutes}>{minutes} {minutes === 1 ? "minute" : "minutes"}</option>)}</select></label>}
     </fieldset>}
-    {presentation !== "results" && presentation !== "summary" && <div className="melody-practice">
-      {continuousSessionActive && presentation !== "setup" && <p>Attempt {continuousHistory.length + 1} of {continuousAttemptTarget}</p>}
+    {presentation !== "results" && presentation !== "review" && <div className="melody-practice">
+      {continuousSessionActive && continuousDeadlineMs !== null && presentation !== "setup" && <p>Time remaining: {formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))} · Trials completed: {continuousHistory.length}</p>}
       <div aria-label="Melody exercise score and count guide" className="melody-score-scroll" data-measure-count={exercise.measures.length} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div></div>
       {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => continuousPractice ? startContinuousSession() : void start()} type="button">{continuousPractice ? "Start Session" : "Start Exercise"}</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
@@ -301,7 +510,7 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
       <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></div>}
-    {presentation === "results" && result && <MelodyResults continuousProgress={continuousSessionActive ? `Attempt ${continuousHistory.length} of ${continuousAttemptTarget} complete` : undefined} exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} />}
-    {presentation === "summary" && <MelodySessionSummary history={continuousHistory} onPracticeAgain={() => startContinuousSession(true)} onSettings={returnSettings} ref={summaryHeadingRef} />}
+    {presentation === "results" && result && <MelodyResults continuousProgress={continuousSessionActive ? `Diagnostic trial ${continuousHistory.length} complete · Time remaining: ${formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs ?? nowMs(), timerDisplayNowMs))}` : undefined} exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} showRetrySame={!continuousSessionActive} />}
+    {presentation === "review" && <MelodyTimedSessionReview durationMinutes={continuousDurationMinutes} filter={reviewFilter} interrupted={continuousInterrupted} onFilterChange={changeReviewFilter} onNewTimedSession={() => startContinuousSession(true)} onNextNeedsReview={nextNeedsReview} onResultViewChange={setReviewResultView} onRetryTrial={retryReviewTrial} onReviewMistakes={reviewMistakes} onSelectTrial={selectReviewTrial} onSettings={returnSettings} pinnedTrialId={reviewPinnedTrialId} ref={reviewHeadingRef} resultView={reviewResultView} selectedTrialId={reviewTrialId} trialHeadingRef={reviewTrialHeadingRef} trials={continuousHistory} />}
   </section>;
 }

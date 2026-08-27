@@ -31,6 +31,10 @@ button {
 .melody-keyboard .piano-keyboard { touch-action: none; user-select: none; -webkit-user-select: none; }
 .melody-keyboard .piano-keyboard button { touch-action: none; }
 .melody-results-grid article { min-width: 0; border: 1px solid rgb(63 63 70); border-radius: 0.75rem; padding: 0.75rem; }
+.melody-review-overview-grid article { min-width: 0; border: 1px solid rgb(63 63 70); border-radius: 0.75rem; padding: 0.75rem; }
+.melody-review-comparison > section { min-width: 0; border: 1px solid rgb(63 63 70); border-radius: 0.75rem; padding: 0.75rem; }
+.melody-interval-statistic { display: grid; grid-template-columns: minmax(3.5rem, auto) minmax(0, 1fr) auto auto; gap: 0.5rem 1rem; align-items: baseline; border-radius: 0.5rem; background: rgb(24 24 27 / 0.7); padding: 0.625rem 0.75rem; }
+@media (max-width: 480px) { .melody-interval-statistic { grid-template-columns: minmax(3.5rem, auto) minmax(0, 1fr) auto; } .melody-interval-statistic > :last-child { grid-column: 2 / -1; } }
 .melody-result-primary-actions { padding-bottom: max(0rem, env(safe-area-inset-bottom)); }
 .melody-mobile-play-context { margin: 0; padding-right: 9rem; color: rgb(212 212 216); font-size: 0.875rem; font-weight: 600; }
 .melody-practice { display: grid; gap: 1rem; min-height: 0; }
@@ -40,6 +44,7 @@ button {
 .melody-mobile-play .melody-score-scroll { min-height: 0; }
 .melody-mobile-play .melody-keyboard { min-height: 10rem; }
 .melody-mobile-play .melody-results { min-height: 0; padding-top: 0.25rem; padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+.melody-mobile-play .melody-timed-session-review { min-height: 0; padding-top: 0.25rem; padding-right: max(0.75rem, env(safe-area-inset-right)); padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); padding-left: max(0.75rem, env(safe-area-inset-left)); }
 .melody-mobile-play :is(button, select):focus-visible { outline: 3px solid rgb(125 211 252); outline-offset: 2px; }
 .piece-practice-session { min-width: 0; }
 .piece-practice-stage { min-width: 0; }
