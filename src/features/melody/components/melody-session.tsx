@@ -22,9 +22,10 @@ import {
   type MelodyContinuousDiagnosticTrial,
   type MelodyContinuousDurationMinutes,
 } from "../melody-continuous-practice";
-import { projectMelodyExerciseToDisplayScore } from "../melody-display-score";
+import { projectMelodyExerciseToPracticeDisplayScore } from "../melody-display-score";
 import { generateMelodyExercise } from "../melody-generator";
 import { MELODY_PHASE_ONE_METER } from "../melody-meter";
+import { getMelodyPreparatoryLeadIn } from "../melody-preparatory-lead-in";
 import { createMelodyPerformanceRecorder, type MelodyPerformanceRecorder } from "../melody-performance";
 import { shouldTryAnotherFromPedal } from "../melody-pedal-result-action";
 import { evaluateMelodyAttempt, type MelodyAttemptResult } from "../melody-scoring";
@@ -64,7 +65,6 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const [audioError, setAudioError] = useState<string | null>(null);
   const [interruptionNotice, setInterruptionNotice] = useState<string | null>(null);
   const [activeTick, setActiveTick] = useState<number | undefined>();
-  const [countInBeat, setCountInBeat] = useState(1);
   const [activeVirtual, setActiveVirtual] = useState<ReadonlySet<number>>(EMPTY);
   const [lockedSource, setLockedSource] = useState<"midi" | "virtual" | null>(null);
   const [continuousPractice, setContinuousPractice] = useState(false);
@@ -99,7 +99,8 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const reviewFocusTargetRef = useRef<"review" | "trial">("review");
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
-  const score = useMemo(() => projectMelodyExerciseToDisplayScore(exercise), [exercise]);
+  const score = useMemo(() => projectMelodyExerciseToPracticeDisplayScore(exercise), [exercise]);
+  const preparatoryLeadIn = getMelodyPreparatoryLeadIn(MELODY_PHASE_ONE_METER.timeSignature);
   const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const clearContinuousDeadline = useCallback(() => {
@@ -274,9 +275,13 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     }
     if (phase === "count-in") {
       setPresentation("count-in");
-      setStatusMessage("Count in started.");
-      setCountInBeat(Math.max(1, Math.min(4, Math.floor((now - clock.countInStartedAtSeconds) / clock.quarterBeatSeconds) + 1)));
-      setActiveTick(undefined);
+      setStatusMessage("Preparatory lead-in started.");
+      const rawLeadInTick = ((now - clock.countInStartedAtSeconds) / clock.quarterBeatSeconds) * STAFF_BUILDER_TICKS_PER_QUARTER;
+      const clampedLeadInTick = Math.max(0, Math.min(preparatoryLeadIn.durationTicks, rawLeadInTick));
+      const displayedLeadInTick = reducedMotion
+        ? Math.floor(clampedLeadInTick / preparatoryLeadIn.pulseTicks) * preparatoryLeadIn.pulseTicks
+        : clampedLeadInTick;
+      setActiveTick(displayedLeadInTick - preparatoryLeadIn.durationTicks);
     } else {
       setPresentation("performing");
       setStatusMessage("Performance started.");
@@ -317,7 +322,8 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
         setTimerDisplayNowMs(startedAtMs);
       }
       setPresentation("count-in");
-      setStatusMessage("Count in started.");
+      setActiveTick(-preparatoryLeadIn.durationTicks);
+      setStatusMessage("Preparatory lead-in started.");
       animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform, attemptContext));
     } catch {
       if (generation !== generationRef.current) return;
@@ -484,8 +490,15 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     window.setTimeout(() => mobilePlayEntryRef.current?.focus(), 0);
   };
 
-  const currentMeasureIndex = activeTick === undefined ? 0 : Math.min(exercise.measures.length - 1, Math.floor(activeTick / MELODY_PHASE_ONE_METER.capacityTicks));
-  const measureTick = activeTick === undefined ? undefined : activeTick - currentMeasureIndex * MELODY_PHASE_ONE_METER.capacityTicks;
+  const targetMeasureIndex = activeTick === undefined || activeTick < 0
+    ? 0
+    : Math.min(exercise.measures.length - 1, Math.floor(activeTick / MELODY_PHASE_ONE_METER.capacityTicks));
+  const displayMeasureIndex = activeTick === undefined ? null : activeTick < 0 ? 0 : targetMeasureIndex + 1;
+  const measureTick = activeTick === undefined
+    ? undefined
+    : activeTick < 0
+      ? activeTick + preparatoryLeadIn.durationTicks
+      : activeTick - targetMeasureIndex * MELODY_PHASE_ONE_METER.capacityTicks;
   const range = settings.staff === "treble" ? { min: 60, max: 72 } : { min: 48, max: 60 };
 
   return <section className={isMobilePlayMode ? `melody-session melody-session-${presentation} melody-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} mx-auto max-w-6xl space-y-5 text-zinc-100`} data-testid="melody-session">
@@ -502,10 +515,10 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     </fieldset>}
     {presentation !== "results" && presentation !== "review" && <div className="melody-practice">
       {continuousSessionActive && continuousDeadlineMs !== null && presentation !== "setup" && <p>Time remaining: {formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))} · Trials completed: {continuousHistory.length}</p>}
-      <div aria-label="Melody exercise score and count guide" className="melody-score-scroll" data-measure-count={exercise.measures.length} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{exercise.measures.map((measure) => <StaffBuilderScoreView key={measure.id} measureIndex={measure.measureIndex} playbackPosition={currentMeasureIndex === measure.measureIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} /></div></div>
+      <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll" data-measure-count={exercise.measures.length} data-preparatory-measure-count="1" tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `minmax(8rem, 0.5fr) repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{score.measures.map((measure, displayIndex) => <StaffBuilderScoreView key={measure.id} measureIndex={displayIndex} playbackPosition={displayMeasureIndex === displayIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} showPreparatoryLeadIn /></div></div>
       {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => continuousPractice ? startContinuousSession() : void start()} type="button">{continuousPractice ? "Start Session" : "Start Exercise"}</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
-      {presentation === "count-in" && <p className="text-xl"><strong>Count in</strong> {countInBeat}</p>}
+      {presentation === "count-in" && <p className="text-xl"><strong>Lead-in</strong> · Preparatory rests</p>}
       {presentation === "performing" && <p className="text-xl"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}

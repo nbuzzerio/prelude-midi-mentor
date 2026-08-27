@@ -1,5 +1,6 @@
 import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-builder-time";
 import { MELODY_PHASE_ONE_METER } from "./melody-meter";
+import { getMelodyPreparatoryLeadIn } from "./melody-preparatory-lead-in";
 import type { MelodyExercise, MelodyExpectedAttack } from "./melody-types";
 
 export const MELODY_AUDIO_START_LEAD_SECONDS = 0.1;
@@ -26,7 +27,10 @@ export function melodyTicksToMilliseconds(ticks: number, tempoBpm: number): numb
 }
 
 export function getMelodyCountInDurationSeconds(tempoBpm: number): number {
-  return MELODY_PHASE_ONE_METER.countInBeats * getMelodyQuarterBeatSeconds(tempoBpm);
+  return melodyTicksToSeconds(
+    getMelodyPreparatoryLeadIn(MELODY_PHASE_ONE_METER.timeSignature).durationTicks,
+    tempoBpm,
+  );
 }
 
 export function getMelodyExerciseDurationSeconds(exercise: MelodyExercise): number {

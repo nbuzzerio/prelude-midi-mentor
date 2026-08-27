@@ -20,12 +20,12 @@ function exercise(measureCount: 1 | 2 = 1, tempoBpm: 50 | 60 | 70 | 80 = 60) {
 }
 
 describe("Melody performance clock", () => {
-  it("defines count-in, exact performance origin, written end, and evaluation tail from audio time", async () => {
+  it("defines the lead-in, exact performance origin, written end, and evaluation tail from audio time", async () => {
     const audio = fakeContext("running", 10);
     const clock = await createMelodyPerformanceClock(exercise(2), audio.context);
-    expect(clock).toMatchObject({ quarterBeatSeconds: 1, countInDurationSeconds: 4, exerciseDurationSeconds: 8, evaluationTailSeconds: 0.5, countInStartedAtSeconds: 10.1, performanceStartedAtSeconds: 14.1, performanceEndsAtSeconds: 22.1, evaluationEndsAtSeconds: 22.6 });
+    expect(clock).toMatchObject({ quarterBeatSeconds: 1, countInDurationSeconds: 2, exerciseDurationSeconds: 8, evaluationTailSeconds: 0.5, countInStartedAtSeconds: 10.1, performanceStartedAtSeconds: 12.1, performanceEndsAtSeconds: 20.1, evaluationEndsAtSeconds: 20.6 });
     expect(clock.nowSeconds()).toBe(10);
-    expect(audio.oscillators.map(({ start }) => start.mock.calls[0]![0])).toEqual([10.1, 11.1, 12.1, 13.1, 14.1, 15.1, 16.1, 17.1, 18.1, 19.1, 20.1, 21.1]);
+    expect(audio.oscillators.map(({ start }) => start.mock.calls[0]![0])).toEqual([10.1, 11.1, 12.1, 13.1, 14.1, 15.1, 16.1, 17.1, 18.1, 19.1]);
     expect(audio.oscillators.every(({ start }) => start.mock.calls[0]![0] < clock.performanceEndsAtSeconds)).toBe(true);
   });
 

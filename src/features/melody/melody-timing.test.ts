@@ -41,8 +41,8 @@ describe("Melody timing", () => {
     expect(timed.find(({ absoluteTick }) => absoluteTick === 1920)?.expectedTimeSeconds).toBe(4);
   });
 
-  it("derives one-measure count-in and one/two-measure exercise durations", () => {
-    expect(getMelodyCountInDurationSeconds(60)).toBe(4);
+  it("derives the preparatory lead-in and one/two-measure exercise durations", () => {
+    expect(getMelodyCountInDurationSeconds(60)).toBe(2);
     expect(getMelodyExerciseDurationSeconds(generateMelodyExercise(DEFAULT_MELODY_SETTINGS, 1))).toBe(4);
     expect(getMelodyExerciseDurationSeconds(generateMelodyExercise({ ...DEFAULT_MELODY_SETTINGS, measureCount: 2 }, 1))).toBe(8);
   });

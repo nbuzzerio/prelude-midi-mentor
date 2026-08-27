@@ -25,13 +25,11 @@ function audioContext() {
 }
 
 describe("Melody metronome schedule", () => {
-  it("creates four count-in quarter beats with only beat one accented", () => {
+  it("creates two preparatory quarter beats with only beat one accented", () => {
     const countIn = createMelodyMetronomeSchedule(exercise()).filter(({ phase }) => phase === "count-in");
     expect(countIn).toEqual([
       { phase: "count-in", measureIndex: null, beatIndex: 0, relativeTimeSeconds: 0, accented: true },
       { phase: "count-in", measureIndex: null, beatIndex: 1, relativeTimeSeconds: 1, accented: false },
-      { phase: "count-in", measureIndex: null, beatIndex: 2, relativeTimeSeconds: 2, accented: false },
-      { phase: "count-in", measureIndex: null, beatIndex: 3, relativeTimeSeconds: 3, accented: false },
     ]);
   });
 
@@ -41,14 +39,14 @@ describe("Melody metronome schedule", () => {
     expect(performance).toHaveLength(clickCount);
     expect(performance.filter(({ accented }) => accented).map(({ measureIndex, beatIndex }) => [measureIndex, beatIndex])).toEqual(Array.from({ length: measureCount }, (_, index) => [index, 0]));
     expect(performance.every(({ accented, beatIndex }) => accented === (beatIndex === 0))).toBe(true);
-    expect(performance.at(-1)!.relativeTimeSeconds).toBe(measureCount === 1 ? 7 : 11);
-    expect(schedule.every(({ relativeTimeSeconds }) => relativeTimeSeconds < (measureCount === 1 ? 8 : 12))).toBe(true);
+    expect(performance.at(-1)!.relativeTimeSeconds).toBe(measureCount === 1 ? 5 : 9);
+    expect(schedule.every(({ relativeTimeSeconds }) => relativeTimeSeconds < (measureCount === 1 ? 6 : 10))).toBe(true);
     expect(Object.isFrozen(schedule)).toBe(true);
   });
 
   it("scales schedule offsets by BPM without audible subdivisions or tail clicks", () => {
     const schedule = createMelodyMetronomeSchedule(exercise(1, 80));
-    expect(schedule.map(({ relativeTimeSeconds }) => relativeTimeSeconds)).toEqual([0, 0.75, 1.5, 2.25, 3, 3.75, 4.5, 5.25]);
+    expect(schedule.map(({ relativeTimeSeconds }) => relativeTimeSeconds)).toEqual([0, 0.75, 1.5, 2.25, 3, 3.75]);
   });
 });
 

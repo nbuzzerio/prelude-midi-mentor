@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parseStaffBuilderScore } from "@/features/staff-builder/persistence/staff-builder-schema";
 import { DEFAULT_MELODY_SETTINGS } from "./melody-types";
 import { generateMelodyExercise } from "./melody-generator";
-import { projectMelodyExerciseToDisplayScore } from "./melody-display-score";
+import {
+  projectMelodyExerciseToDisplayScore,
+  projectMelodyExerciseToPracticeDisplayScore,
+} from "./melody-display-score";
 
 describe("Melody display-score projection", () => {
   it("creates a deterministic schema-valid rendering transport with exact musical metadata", () => {
@@ -23,6 +26,23 @@ describe("Melody display-score projection", () => {
     const score = projectMelodyExerciseToDisplayScore(exercise);
     expect(score.measures.flatMap(({ events }) => events).every((event) => event.kind === "notes" && event.staff === "treble")).toBe(true);
     expect(score.ties).toEqual([]);
+    expect(exercise).toEqual(before);
+  });
+
+  it.each([1, 2] as const)("adds one ungraded rest region beside a %i-measure target without changing authored attacks", (measureCount) => {
+    const exercise = generateMelodyExercise({ ...DEFAULT_MELODY_SETTINGS, measureCount }, `practice-display-${measureCount}`);
+    const before = structuredClone(exercise);
+    const score = projectMelodyExerciseToPracticeDisplayScore(exercise);
+    expect(parseStaffBuilderScore(score).ok).toBe(true);
+    expect(score.measures).toHaveLength(measureCount + 1);
+    expect(score.measures[0]).toMatchObject({
+      id: `${exercise.id}-preparatory-lead-in`,
+      events: [{ kind: "rest", rhythm: { status: "final", duration: "half" } }],
+    });
+    expect(score.measures.slice(1).flatMap(({ events }) => events).map(({ id }) => id)).toEqual(
+      exercise.measures.flatMap(({ events }) => events).map(({ id }) => id),
+    );
+    expect(exercise.expectedAttacks.map(({ id }) => id)).toEqual(before.expectedAttacks.map(({ id }) => id));
     expect(exercise).toEqual(before);
   });
 });

@@ -16,4 +16,13 @@ describe("MelodyCountGuide", () => {
     expect(container.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
     expect(container.querySelector('[aria-current="true"]')?.textContent).toBe("1");
   });
+
+  it("shows two preparatory beats beside the unchanged target guide", () => {
+    const { container } = render(<MelodyCountGuide activeAbsoluteTick={-480} measureCount={1} showPreparatoryLeadIn />);
+    expect(screen.getByLabelText("Preparatory lead-in").textContent).toBe("12");
+    expect([...container.querySelectorAll("[data-preparatory-tick]")].map((token) =>
+      Number(token.getAttribute("data-preparatory-tick")))).toEqual([-960, -480]);
+    expect(container.querySelector('[data-preparatory-tick="-480"]')?.getAttribute("aria-current")).toBe("true");
+    expect(container.querySelectorAll("[data-tick]")).toHaveLength(8);
+  });
 });

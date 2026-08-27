@@ -1,4 +1,5 @@
 import { MELODY_PHASE_ONE_METER } from "./melody-meter";
+import { getMelodyPreparatoryLeadIn } from "./melody-preparatory-lead-in";
 import { getMelodyQuarterBeatSeconds } from "./melody-timing";
 import type { MelodyExercise } from "./melody-types";
 
@@ -12,12 +13,14 @@ export type MelodyScheduledBeat = Readonly<{
 
 export function createMelodyMetronomeSchedule(exercise: MelodyExercise): readonly MelodyScheduledBeat[] {
   const beatSeconds = getMelodyQuarterBeatSeconds(exercise.settings.tempoBpm);
-  const countIn = Array.from({ length: MELODY_PHASE_ONE_METER.countInBeats }, (_, beatIndex) => Object.freeze({
-    phase: "count-in" as const, measureIndex: null, beatIndex, relativeTimeSeconds: beatIndex * beatSeconds, accented: beatIndex === 0,
+  const leadIn = getMelodyPreparatoryLeadIn(MELODY_PHASE_ONE_METER.timeSignature);
+  const leadInPulseSeconds = (leadIn.pulseTicks / MELODY_PHASE_ONE_METER.beatTicks) * beatSeconds;
+  const countIn = Array.from({ length: leadIn.pulseCount }, (_, beatIndex) => Object.freeze({
+    phase: "count-in" as const, measureIndex: null, beatIndex, relativeTimeSeconds: beatIndex * leadInPulseSeconds, accented: beatIndex === 0,
   }));
   const performance = exercise.measures.flatMap((measure) => Array.from({ length: 4 }, (_, beatIndex) => Object.freeze({
     phase: "performance" as const, measureIndex: measure.measureIndex, beatIndex,
-    relativeTimeSeconds: (MELODY_PHASE_ONE_METER.countInBeats + measure.measureIndex * 4 + beatIndex) * beatSeconds,
+    relativeTimeSeconds: leadIn.durationTicks / MELODY_PHASE_ONE_METER.beatTicks * beatSeconds + (measure.measureIndex * 4 + beatIndex) * beatSeconds,
     accented: beatIndex === 0,
   })));
   return Object.freeze([...countIn, ...performance]);
