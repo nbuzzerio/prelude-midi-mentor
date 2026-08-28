@@ -8,6 +8,7 @@ import StaffBuilderSession from "./features/staff-builder/components/staff-build
 import { useFocusMode } from "./hooks/use-focus-mode";
 import { MidiProvider } from "./components/midi/midi-provider";
 import MelodySession from "./features/melody/components/melody-session";
+import { version } from "../package.json";
 
 type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody";
 
@@ -158,6 +159,14 @@ export default function App() {
         >
           Melody
         </button>
+
+        <span
+          aria-label={`Prelude v${version}`}
+          className="shrink-0 self-center px-1 text-xs text-zinc-500"
+          title={`Prelude v${version}`}
+        >
+          v{version}
+        </span>
       </nav>
 
       {content}

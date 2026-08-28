@@ -99,20 +99,45 @@ export function projectStaffBuilderPieceForPractice(score: StaffBuilderScore): P
           requiresAttack,
         };
       });
-      return { ...base, kind: "notes", pitches };
+      return { ...base, kind: "notes", pitches, ...(event.arpeggiation ? { arpeggiation: event.arpeggiation } : {}) };
     });
 
     const targets: PiecePracticeTarget[] = [...attackedByTick.entries()]
       .sort(([leftTick], [rightTick]) => leftTick - rightTick)
       .map(([startTick, collectedPitches]) => {
         const attackedPitches = [...collectedPitches].sort(compareAttackedPitches);
+        const sourceEventIds = [...new Set(attackedPitches.map(({ sourceEventId }) => sourceEventId))].sort();
+        const rolledEventIds = new Set(sourceEvents.filter((event) => event.kind === "notes" && event.startTick === startTick && event.arpeggiation === "up").map(({ sourceEventId }) => sourceEventId));
+        const normalPitches = attackedPitches.filter(({ sourceEventId }) => !rolledEventIds.has(sourceEventId));
+        const rolledChecks = [...rolledEventIds].map((sourceEventId) => {
+          const eventPitches = attackedPitches.filter((pitch) => pitch.sourceEventId === sourceEventId);
+          return {
+            id: `${measure.id}:attack:${startTick}:rolled:${sourceEventId}`,
+            kind: "rolled-chord" as const,
+            direction: "up" as const,
+            sourceEventIds: [sourceEventId],
+            expectedMidiNumbers: [...new Set(eventPitches.map(({ midiNumber }) => midiNumber))].sort((left, right) => left - right),
+            attackedPitches: eventPitches,
+          };
+        });
+        const checks = [
+          ...(normalPitches.length > 0 ? [{
+            id: `${measure.id}:attack:${startTick}:normal`,
+            kind: "normal" as const,
+            sourceEventIds: [...new Set(normalPitches.map(({ sourceEventId }) => sourceEventId))].sort(),
+            expectedMidiNumbers: [...new Set(normalPitches.map(({ midiNumber }) => midiNumber))].sort((left, right) => left - right),
+            attackedPitches: normalPitches,
+          }] : []),
+          ...rolledChecks,
+        ];
         return {
           id: `${measure.id}:attack:${startTick}`,
           measureIndex,
           sourceMeasureId: measure.id,
           startTick,
           absoluteStartTick: measureAbsoluteStartTick + startTick,
-          sourceEventIds: [...new Set(attackedPitches.map(({ sourceEventId }) => sourceEventId))].sort(),
+          checks,
+          sourceEventIds,
           expectedMidiNumbers: [...new Set(attackedPitches.map(({ midiNumber }) => midiNumber))].sort((left, right) => left - right),
           attackedPitches,
         };

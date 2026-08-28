@@ -70,7 +70,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   piece: PiecePracticePiece;
   sessionState: PiecePracticeSessionState;
 }>) {
-  const input = usePiecePracticeInput({ piece, sessionState, onSessionStateChange });
+  const input = usePiecePracticeInput({ piece, sessionState, onSessionStateChange, now });
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
   const completionHeadingRef = useRef<HTMLHeadingElement>(null);
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
@@ -78,6 +78,10 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   const measure = piece.measures[sessionState.currentMeasureIndex];
   const progress = getPiecePracticeProgress(piece, sessionState, now());
   const expectedNames = target?.attackedPitches.map(writtenPitchName) ?? [];
+  const checkProgress = target?.checks.map((check) => ({
+    check,
+    progress: sessionState.currentCheckProgress.find(({ checkId }) => checkId === check.id),
+  })) ?? [];
   const feedback = input.feedback;
   const grade = feedback.grade;
   const eventHighlights: readonly StaffBuilderEventHighlight[] = target?.sourceEventIds.map((eventId) => ({
@@ -154,6 +158,11 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
     <div className={isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}>
       <section aria-labelledby="piece-practice-current-target" className="grid min-h-0 gap-3 rounded-lg bg-zinc-900 p-3">
         <div><h2 className="font-bold" id="piece-practice-current-target">{target ? "Current target" : "Current measure"}</h2>{target ? <p>Expected: {expectedNames.join(", ")}</p> : <p>No notes to play in this measure.</p>}</div>
+        {checkProgress.length > 1 || checkProgress.some(({ check }) => check.kind === "rolled-chord") ? <div aria-label="Current target checks" className="grid gap-1 text-sm text-zinc-300">
+          {checkProgress.map(({ check, progress }) => check.kind === "normal"
+            ? <p key={check.id}>Normal {check.attackedPitches.map(writtenPitchName).join(", ")} — {progress?.completed ? "complete" : "pending"}</p>
+            : <div key={check.id}><p>Rolled upward:</p><ul className="flex flex-wrap gap-x-3">{check.attackedPitches.map((pitch) => <li key={pitch.sourcePitchId}>{writtenPitchName(pitch)} {progress?.accumulatedMidiNumbers.includes(pitch.midiNumber) ? "✓" : "pending"}</li>)}</ul></div>)}
+        </div> : null}
         <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} />
         {feedback.status === "correct" ? <p className="rounded-md border border-green-600 bg-green-950 p-3 font-semibold text-green-200">✓ Correct</p> : null}
         {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map((midi) => `MIDI ${midi}`).join(", ")}</p> : null}</div> : null}

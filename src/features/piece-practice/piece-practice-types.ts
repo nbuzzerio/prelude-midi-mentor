@@ -1,7 +1,7 @@
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { StaffBuilderDuration, StaffBuilderTimeSignature } from "@/features/staff-builder/staff-builder-time";
 import type { StaffBuilderIssue } from "@/features/staff-builder/staff-builder-validation";
-import type { StaffBuilderAccidental, StaffBuilderStaff } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderAccidental, StaffBuilderArpeggiation, StaffBuilderStaff } from "@/features/staff-builder/staff-builder-types";
 import type { NoteLetter } from "@/lib/music/note-utils";
 
 export type PiecePracticeSourcePitch = Readonly<{
@@ -27,6 +27,7 @@ type PiecePracticeSourceEventBase = Readonly<{
 export type PiecePracticeSourceEvent =
   | (PiecePracticeSourceEventBase & Readonly<{
       kind: "notes";
+      arpeggiation?: StaffBuilderArpeggiation;
       pitches: readonly PiecePracticeSourcePitch[];
     }>)
   | (PiecePracticeSourceEventBase & Readonly<{ kind: "rest" }>);
@@ -45,12 +46,24 @@ export type PiecePracticeAttackedPitch = Readonly<{
   outgoingTieIds: readonly string[];
 }>;
 
+type PiecePracticeCheckBase = Readonly<{
+  id: string;
+  sourceEventIds: readonly string[];
+  expectedMidiNumbers: readonly number[];
+  attackedPitches: readonly PiecePracticeAttackedPitch[];
+}>;
+
+export type PiecePracticeCheck =
+  | (PiecePracticeCheckBase & Readonly<{ kind: "normal" }>)
+  | (PiecePracticeCheckBase & Readonly<{ kind: "rolled-chord"; direction: "up" }>);
+
 export type PiecePracticeTarget = Readonly<{
   id: string;
   measureIndex: number;
   sourceMeasureId: string;
   startTick: number;
   absoluteStartTick: number;
+  checks: readonly PiecePracticeCheck[];
   sourceEventIds: readonly string[];
   expectedMidiNumbers: readonly number[];
   attackedPitches: readonly PiecePracticeAttackedPitch[];

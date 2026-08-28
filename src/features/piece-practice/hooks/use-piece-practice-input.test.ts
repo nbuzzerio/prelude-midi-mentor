@@ -22,7 +22,7 @@ vi.mock("@/hooks/use-app-midi-input", () => ({
 }));
 
 function target(measureIndex: number, targetIndex: number, expectedMidiNumbers: readonly number[]): PiecePracticeTarget {
-  return {
+  const base: Omit<PiecePracticeTarget, "checks"> = {
     id: `m${measureIndex}:attack:${targetIndex * 480}`, measureIndex, sourceMeasureId: `m${measureIndex}`,
     startTick: targetIndex * 480, absoluteStartTick: measureIndex * 1920 + targetIndex * 480,
     sourceEventIds: [`event-${measureIndex}-${targetIndex}`], expectedMidiNumbers,
@@ -32,6 +32,7 @@ function target(measureIndex: number, targetIndex: number, expectedMidiNumbers: 
       incomingTieIds: [], outgoingTieIds: [],
     })),
   };
+  return { ...base, checks: [{ id: `${base.id}:normal`, kind: "normal", sourceEventIds: base.sourceEventIds, expectedMidiNumbers, attackedPitches: base.attackedPitches }] };
 }
 
 function piece(targetsByMeasure: readonly (readonly (readonly number[])[])[] = [[[60], [64]]]): PiecePracticePiece {
@@ -43,6 +44,18 @@ function piece(targetsByMeasure: readonly (readonly (readonly number[])[])[] = [
       targets: targetSets.map((notes, targetIndex) => target(measureIndex, targetIndex, notes)),
     })),
   };
+}
+
+function rolledPiece(normalMidiNumbers: readonly number[] = [72]): PiecePracticePiece {
+  const source = piece([[[...normalMidiNumbers, 48, 52, 55]]]);
+  const original = source.measures[0]!.targets[0]!;
+  const normalPitches = original.attackedPitches.filter(({ midiNumber }) => normalMidiNumbers.includes(midiNumber));
+  const rolledPitches = original.attackedPitches.filter(({ midiNumber }) => !normalMidiNumbers.includes(midiNumber));
+  const checks = [
+    { id: `${original.id}:normal`, kind: "normal" as const, sourceEventIds: ["right"], expectedMidiNumbers: normalMidiNumbers, attackedPitches: normalPitches },
+    { id: `${original.id}:rolled:left`, kind: "rolled-chord" as const, direction: "up" as const, sourceEventIds: ["left"], expectedMidiNumbers: [48, 52, 55], attackedPitches: rolledPitches },
+  ];
+  return { ...source, measures: [{ ...source.measures[0]!, targets: [{ ...original, checks }] }] };
 }
 
 function initial(source: PiecePracticePiece): PiecePracticeSessionState {
@@ -101,7 +114,7 @@ describe("usePiecePracticeInput", () => {
     expect(view.result.current.feedback.grade).toMatchObject({ correct: false, unexpectedHeldMidiNumbers: [48] });
   });
 
-  it("collects block and rolled physical chords for 225ms with order and duplicate independence", () => {
+  it("collects block physical chords for 225ms with order and duplicate independence", () => {
     const view = setup(piece([[[60, 64, 67]]]));
     midiHeld(67, 60, 64);
     midiNote(67);
@@ -280,5 +293,78 @@ describe("usePiecePracticeInput", () => {
     setup(source);
     midiNote(60); midiNote(64); act(() => vi.advanceTimersByTime(225));
     expect(source).toEqual(before);
+  });
+
+  it("routes a same-onset normal note and expressive MIDI roll through independent checks", () => {
+    const view = setup(rolledPiece());
+    midiNote(48); view.sync();
+    act(() => vi.advanceTimersByTime(300));
+    midiNote(52); view.sync();
+    midiNote(72); view.sync();
+    act(() => vi.advanceTimersByTime(300));
+    midiNote(55);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1, incorrectAttemptCount: 0 });
+  });
+
+  it("retains normal held-note strictness while allowing pitches owned by the parallel roll", () => {
+    const allowed = setup(rolledPiece());
+    midiHeld(48, 72);
+    midiNote(72);
+    expect(allowed.getState().currentCheckProgress[0]?.completed).toBe(true);
+    allowed.unmount();
+
+    const unrelated = setup(rolledPiece());
+    midiHeld(72, 99);
+    midiNote(72);
+    expect(unrelated.getState()).toMatchObject({ incorrectAttemptCount: 1, status: "practicing" });
+    expect(unrelated.getState().currentCheckProgress[0]?.completed).toBe(false);
+  });
+
+  it("allows held parallel-roll pitches while completing a multi-note normal MIDI chord", () => {
+    const view = setup(rolledPiece([72, 76]));
+    midiHeld(48, 72, 76);
+    midiNote(48); view.sync();
+    midiNote(72); midiNote(76);
+    act(() => vi.advanceTimersByTime(225));
+    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 0, status: "practicing" });
+    expect(view.getState().currentCheckProgress[0]?.completed).toBe(true);
+  });
+
+  it("still rejects an unrelated held pitch beside a parallel roll and multi-note normal chord", () => {
+    const view = setup(rolledPiece([72, 76]));
+    midiHeld(48, 72, 76, 99);
+    midiNote(48); view.sync();
+    midiNote(72); midiNote(76);
+    act(() => vi.advanceTimersByTime(225));
+    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 1, status: "practicing" });
+    expect(view.getState().currentCheckProgress[0]?.completed).toBe(false);
+    expect(view.result.current.feedback.grade).toMatchObject({ unexpectedHeldMidiNumbers: [99] });
+  });
+
+  it("keeps ordinary multi-note MIDI chords strict without a parallel roll", () => {
+    const view = setup(piece([[[60, 64]]]));
+    midiHeld(48, 60, 64);
+    midiNote(60); midiNote(64);
+    act(() => vi.advanceTimersByTime(225));
+    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 1, status: "practicing" });
+    expect(view.result.current.feedback.grade).toMatchObject({ unexpectedHeldMidiNumbers: [48] });
+  });
+
+  it("routes virtual-keyboard pitches through the same parallel rolled evaluator", () => {
+    const view = setup(rolledPiece());
+    for (const midiNumber of [72, 55, 48, 52]) {
+      act(() => view.result.current.onVirtualNoteToggle(midiNumber));
+      view.sync();
+    }
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+  });
+
+  it("expires a partial MIDI roll without clearing its completed normal check", () => {
+    const view = setup(rolledPiece());
+    midiNote(72); view.sync();
+    midiNote(48); view.sync();
+    act(() => vi.advanceTimersByTime(938));
+    expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { completed: false, accumulatedMidiNumbers: [] }]);
+    expect(view.getState().incorrectAttemptCount).toBe(1);
   });
 });

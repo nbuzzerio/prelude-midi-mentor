@@ -55,7 +55,8 @@ function pitch(sourceEventId: string, sourcePitchId: string, midiNumber: number,
 }
 
 function target(id: string, measureIndex: number, startTick: number, pitches: ReturnType<typeof pitch>[]): PiecePracticeTarget {
-  return { id, measureIndex, sourceMeasureId: `m${measureIndex + 1}`, startTick, absoluteStartTick: measureIndex * 1920 + startTick, sourceEventIds: [...new Set(pitches.map(({ sourceEventId }) => sourceEventId))].sort(), expectedMidiNumbers: [...new Set(pitches.map(({ midiNumber }) => midiNumber))].sort(), attackedPitches: pitches };
+  const base = { id, measureIndex, sourceMeasureId: `m${measureIndex + 1}`, startTick, absoluteStartTick: measureIndex * 1920 + startTick, sourceEventIds: [...new Set(pitches.map(({ sourceEventId }) => sourceEventId))].sort(), expectedMidiNumbers: [...new Set(pitches.map(({ midiNumber }) => midiNumber))].sort(), attackedPitches: pitches };
+  return { ...base, checks: [{ id: `${id}:normal`, kind: "normal", sourceEventIds: base.sourceEventIds, expectedMidiNumbers: base.expectedMidiNumbers, attackedPitches: pitches }] };
 }
 
 function piece(): PiecePracticePiece {
@@ -143,6 +144,23 @@ describe("PiecePracticeSession", () => {
     expect(mocks.scoreProps).not.toHaveProperty("onEventSelect");
     expect(screen.queryByText(/Capture Notes|Rhythm Correction/)).toBeNull();
     expect(screen.getByText("Expected: C4, E4")).toBeTruthy();
+  });
+
+  it("shows compact normal and rolled-check progress without a live per-note announcement", () => {
+    const source = piece();
+    const first = source.measures[0]!.targets[0]!;
+    const normalPitch = first.attackedPitches[0]!;
+    const rolledPitches = [first.attackedPitches[1]!, pitch("bass-event", "g", 67, "G", "bass")];
+    const checks = [
+      { id: `${first.id}:normal`, kind: "normal" as const, sourceEventIds: [normalPitch.sourceEventId], expectedMidiNumbers: [normalPitch.midiNumber], attackedPitches: [normalPitch] },
+      { id: `${first.id}:rolled:bass-event`, kind: "rolled-chord" as const, direction: "up" as const, sourceEventIds: ["bass-event"], expectedMidiNumbers: rolledPitches.map(({ midiNumber }) => midiNumber), attackedPitches: rolledPitches },
+    ];
+    start({ ...source, measures: [{ ...source.measures[0]!, targets: [{ ...first, checks }, ...source.measures[0]!.targets.slice(1)] }, ...source.measures.slice(1)] });
+    const progress = screen.getByLabelText("Current target checks");
+    expect(within(progress).getByText("Normal C4 — pending")).toBeTruthy();
+    expect(within(progress).getByText("Rolled upward:")).toBeTruthy();
+    expect(within(progress).getByText("E4 pending")).toBeTruthy();
+    expect(progress.getAttribute("aria-live")).toBeNull();
   });
 
   it("shows beginner-readable incorrect details, stays blocked, and announces once", () => {

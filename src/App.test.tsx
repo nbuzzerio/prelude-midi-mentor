@@ -117,6 +117,14 @@ describe("App focus mode", () => {
     expect(screen.getByRole("button", { name: "Sequences" }).getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("exposes the package version in the persistent mode navigation", () => {
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
+    const version = within(navigation).getByLabelText("Prelude v0.1.0");
+    expect(version.textContent).toBe("v0.1.0");
+    expect(version.getAttribute("title")).toBe("Prelude v0.1.0");
+  });
+
   it("shares focus state between the visible control and keyboard shortcut", () => {
     render(<App />);
 

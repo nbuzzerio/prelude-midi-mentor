@@ -4,6 +4,7 @@ import { getPiecePracticeAllowedHeldMidiNumbers, getPiecePracticeIncomingTiedMid
 
 const target: PiecePracticeTarget = {
   id: "m1:attack:0", measureIndex: 0, sourceMeasureId: "m1", startTick: 0, absoluteStartTick: 0,
+  checks: [{ id: "m1:attack:0:normal", kind: "normal", sourceEventIds: ["chord"], expectedMidiNumbers: [64, 67], attackedPitches: [] }],
   sourceEventIds: ["chord"], expectedMidiNumbers: [64, 67], attackedPitches: [],
 };
 const piece: PiecePracticePiece = {

@@ -104,6 +104,26 @@ describe("Staff Builder piece-practice projection", () => {
     ] }));
     expect(piece.measures[0]?.targets).toHaveLength(1);
     expect(piece.measures[0]?.targets[0]).toMatchObject({ expectedMidiNumbers: [48, 64], sourceEventIds: ["bass", "treble"] });
+    expect(piece.measures[0]?.targets[0]?.checks).toMatchObject([{ kind: "normal", expectedMidiNumbers: [48, 64], sourceEventIds: ["bass", "treble"] }]);
+  });
+
+  it("separates authored rolled events from the aggregated normal check", () => {
+    const normal = notes("normal", "treble", 0, "whole", [pitch("c5", 72, "C", "natural", 5)]);
+    const rolled = { ...notes("rolled", "bass", 0, "whole", [pitch("c3", 48, "C", "natural", 3), pitch("e3", 52, "E", "natural", 3), pitch("g3", 55, "G", "natural", 3)]), arpeggiation: "up" as const };
+    const target = projected(score({ events: [normal, rolled] })).measures[0]?.targets[0];
+    expect(target?.checks).toMatchObject([
+      { kind: "normal", sourceEventIds: ["normal"], expectedMidiNumbers: [72] },
+      { kind: "rolled-chord", direction: "up", sourceEventIds: ["rolled"], expectedMidiNumbers: [48, 52, 55] },
+    ]);
+    expect(target?.checks).toHaveLength(2);
+  });
+
+  it("keeps two simultaneous authored rolled chords independent", () => {
+    const treble = { ...notes("upper", "treble", 0, "whole", [pitch("c4", 60), pitch("e4", 64, "E")]), arpeggiation: "up" as const };
+    const bass = { ...notes("lower", "bass", 0, "whole", [pitch("c3", 48, "C", "natural", 3), pitch("g3", 55, "G", "natural", 3)]), arpeggiation: "up" as const };
+    const checks = projected(score({ events: [treble, bass] })).measures[0]?.targets[0]?.checks;
+    expect(checks).toHaveLength(2);
+    expect(checks?.every(({ kind }) => kind === "rolled-chord")).toBe(true);
   });
 
   it("merges a treble chord and simultaneous bass note", () => {

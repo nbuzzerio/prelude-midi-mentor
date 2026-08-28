@@ -1,22 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
-import type { PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
+import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 import {
   advancePiecePracticeNoAttackMeasure,
   createPiecePracticeSession,
   getCurrentPiecePracticeTarget,
   getPiecePracticeElapsedMs,
   getPiecePracticeProgress,
+  getPiecePracticeRolledWindowMs,
+  expirePiecePracticeRolledChecks,
   restartCurrentPiecePracticeMeasure,
   restartPiecePractice,
   submitPiecePracticeAttempt,
+  submitPiecePracticePitch,
   type PiecePracticeSessionState,
 } from "./piece-practice-session";
 
 function target(measureIndex: number, targetIndex: number, expectedMidiNumbers: readonly number[] = [60 + measureIndex + targetIndex]): PiecePracticeTarget {
   const sourceMeasureId = `m${measureIndex + 1}`;
-  return {
+  const base = {
     id: `${sourceMeasureId}:attack:${targetIndex * 480}`,
     measureIndex,
     sourceMeasureId,
@@ -38,6 +41,7 @@ function target(measureIndex: number, targetIndex: number, expectedMidiNumbers: 
       outgoingTieIds: [],
     })),
   };
+  return { ...base, checks: [{ id: `${base.id}:normal`, kind: "normal", sourceEventIds: base.sourceEventIds, expectedMidiNumbers, attackedPitches: base.attackedPitches }] };
 }
 
 function measure(measureIndex: number, targetCount: number): PiecePracticeMeasure {
@@ -86,6 +90,23 @@ function initialized(source = piece(), startMeasureIndex = 0, startedAtMs = 1_00
   const result = createPiecePracticeSession(source, { startMeasureIndex, startedAtMs });
   if (!result.ok) throw new Error(result.reason);
   return result.state;
+}
+
+function checkedPiece(checks: readonly PiecePracticeCheck[], tempoBpm = 120): PiecePracticePiece {
+  const attackedPitches = checks.flatMap((check) => check.attackedPitches);
+  const target: PiecePracticeTarget = {
+    id: "m1:attack:0", measureIndex: 0, sourceMeasureId: "m1", startTick: 0, absoluteStartTick: 0, checks,
+    sourceEventIds: [...new Set(checks.flatMap(({ sourceEventIds }) => sourceEventIds))],
+    expectedMidiNumbers: [...new Set(checks.flatMap(({ expectedMidiNumbers }) => expectedMidiNumbers))].sort((a, b) => a - b),
+    attackedPitches,
+  };
+  return { sourceScoreId: "rolled", sourceScoreUpdatedAt: "now", title: "Rolled", tempoBpm, measures: [{ measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", sourceEvents: [], restEventIds: [], targets: [target] }] };
+}
+
+function check(kind: "normal" | "rolled-chord", id: string, midiNumbers: readonly number[]): PiecePracticeCheck {
+  const attackedPitches = midiNumbers.map((midiNumber, index) => ({ sourceEventId: id, sourcePitchId: `${id}-${index}`, staff: kind === "normal" ? "treble" as const : "bass" as const, midiNumber, letter: "C" as const, accidental: "natural" as const, octave: 4, duration: "quarter" as const, durationTicks: 480, incomingTieIds: [], outgoingTieIds: [] }));
+  const base = { id, sourceEventIds: [id], expectedMidiNumbers: midiNumbers, attackedPitches };
+  return kind === "normal" ? { ...base, kind } : { ...base, kind, direction: "up" };
 }
 
 function submit(source: PiecePracticePiece, state: PiecePracticeSessionState, midiNumbers?: readonly number[]) {
@@ -344,5 +365,98 @@ describe("Piece Practice blocking session", () => {
       return advanced.advanced ? advanced.state : advanced;
     };
     expect(run()).toEqual(run());
+  });
+});
+
+describe("Piece Practice rolled-chord checks", () => {
+  it.each([
+    [60, 1500], [96, 937.5], [120, 750], [180, 500],
+  ])("uses a 1.5-quarter-beat window at %i BPM", (tempoBpm, expectedMs) => {
+    expect(getPiecePracticeRolledWindowMs(tempoBpm)).toBe(expectedMs);
+  });
+
+  it("accumulates unique required tones in any order and ignores duplicate correct pitches", () => {
+    const source = checkedPiece([check("rolled-chord", "roll", [48, 52, 55])]);
+    let state = initialized(source, 0, 0);
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 55, atMs: 10 }).state;
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 55, atMs: 20 }).state;
+    expect(state.currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [55], startedAtMs: 10 });
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 48, atMs: 30 }).state;
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 52, atMs: 40 }).state;
+    expect(state).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+  });
+
+  it("records wrong pitches without starting, clearing, or extending the rolled window", () => {
+    const source = checkedPiece([check("rolled-chord", "roll", [48, 52, 55])]);
+    let state = initialized(source, 0, 0);
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 99, atMs: 10 }).state;
+    expect(state.currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [], startedAtMs: null });
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 48, atMs: 20 }).state;
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 98, atMs: 700 }).state;
+    expect(state.currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [48], startedAtMs: 20 });
+    expect(state.incorrectAttemptCount).toBe(2);
+  });
+
+  it("expires only the incomplete roll and preserves completed parallel checks", () => {
+    const source = checkedPiece([check("normal", "right", [72]), check("rolled-chord", "left", [48, 52, 55])]);
+    let state = initialized(source, 0, 0);
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 72, atMs: 0 }).state;
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 48, atMs: 10 }).state;
+    state = expirePiecePracticeRolledChecks(source, state, 760);
+    expect(state.currentCheckProgress).toMatchObject([
+      { checkId: "right", completed: true },
+      { checkId: "left", completed: false, accumulatedMidiNumbers: [], startedAtMs: null },
+    ]);
+    expect(state.incorrectAttemptCount).toBe(1);
+  });
+
+  it("counts each independent rolled check that expires in the same pass", () => {
+    const source = checkedPiece([check("rolled-chord", "lower", [48, 52]), check("rolled-chord", "upper", [60, 64])]);
+    let state = initialized(source, 0, 0);
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 48, atMs: 0 }).state;
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 60, atMs: 10 }).state;
+    state = expirePiecePracticeRolledChecks(source, state, 760);
+    expect(state.currentCheckProgress).toMatchObject([
+      { checkId: "lower", accumulatedMidiNumbers: [], startedAtMs: null },
+      { checkId: "upper", accumulatedMidiNumbers: [], startedAtMs: null },
+    ]);
+    expect(state).toMatchObject({ incorrectAttemptCount: 2, currentTargetIncorrectAttemptCount: 2 });
+  });
+
+  it("lets the expiry-triggering required pitch immediately start a fresh attempt", () => {
+    const source = checkedPiece([check("rolled-chord", "roll", [48, 52])]);
+    let state = initialized(source, 0, 0);
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 48, atMs: 0 }).state;
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 52, atMs: 750 }).state;
+    expect(state.currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [52], startedAtMs: 750 });
+    expect(state.incorrectAttemptCount).toBe(1);
+  });
+
+  it("allows one pitch to satisfy every pending check that expects it", () => {
+    const source = checkedPiece([check("normal", "normal", [60]), check("rolled-chord", "roll", [60, 64])]);
+    let state = initialized(source, 0, 0);
+    state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 60, atMs: 0 }).state;
+    expect(state.currentCheckProgress).toMatchObject([{ completed: true }, { accumulatedMidiNumbers: [60] }]);
+  });
+
+  it.each([
+    [72, 48, 52, 55],
+    [48, 52, 72, 55],
+    [48, 52, 55, 72],
+  ])("completes same-onset normal and rolled checks with the normal note first, middle, or last", (...midiNumbers) => {
+    const source = checkedPiece([check("normal", "right", [72]), check("rolled-chord", "left", [48, 52, 55])]);
+    let state = initialized(source, 0, 0);
+    midiNumbers.forEach((midiNumber, index) => {
+      state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber, atMs: index * 100 }).state;
+      if (index < midiNumbers.length - 1) expect(state.completedTargetCount).toBe(0);
+    });
+    expect(state).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+  });
+
+  it("clears partial rolled state on measure and piece restart", () => {
+    const source = checkedPiece([check("rolled-chord", "roll", [48, 52])]);
+    const partial = submitPiecePracticePitch(source, initialized(source, 0, 0), { targetId: "m1:attack:0", midiNumber: 48, atMs: 10 }).state;
+    expect(restartCurrentPiecePracticeMeasure(source, partial).currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [], startedAtMs: null });
+    expect(restartPiecePractice(source, partial, 100).currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [], startedAtMs: null });
   });
 });

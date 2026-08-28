@@ -19,7 +19,7 @@ function attacked(sourcePitchId: string, midiNumber: number, letter: PiecePracti
 }
 
 function target(expectedMidiNumbers: readonly number[] = [60], attackedPitches: readonly PiecePracticeAttackedPitch[] = [attacked("c", 60, "C")]): PiecePracticeTarget {
-  return {
+  const base = {
     id: "m1:attack:0",
     measureIndex: 0,
     sourceMeasureId: "m1",
@@ -29,6 +29,7 @@ function target(expectedMidiNumbers: readonly number[] = [60], attackedPitches: 
     expectedMidiNumbers,
     attackedPitches,
   };
+  return { ...base, checks: [{ id: `${base.id}:normal`, kind: "normal", sourceEventIds: base.sourceEventIds, expectedMidiNumbers, attackedPitches }] };
 }
 
 describe("Piece Practice target grading", () => {

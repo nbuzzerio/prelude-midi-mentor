@@ -14,7 +14,7 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
         pitch.incomingTieIds.forEach((id) => tieEndpoints.set(id, { ...tieEndpoints.get(id), id, toEventId: event.sourceEventId, toPitchId: pitch.sourcePitchId }));
         return { id: pitch.sourcePitchId, midiNumber: pitch.midiNumber, letter: pitch.letter, accidental: pitch.accidental, octave: pitch.octave };
       });
-      return { id: event.sourceEventId, kind: "notes" as const, staff: event.staff, startTick: event.startTick, rhythm: { status: "final" as const, duration: event.duration }, pitches };
+      return { id: event.sourceEventId, kind: "notes" as const, staff: event.staff, startTick: event.startTick, rhythm: { status: "final" as const, duration: event.duration }, pitches, ...(event.arpeggiation ? { arpeggiation: event.arpeggiation } : {}) };
     });
     return {
       id: measure.sourceMeasureId,
