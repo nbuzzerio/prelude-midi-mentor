@@ -7,6 +7,7 @@ import {
   Stave,
   StaveNote,
   Stem,
+  Stroke,
   Voice,
   type RenderContext,
   type StemmableNote,
@@ -75,6 +76,9 @@ export function createStaffBuilderVexFlowTickable(item: StaffBuilderProjectedTic
     ? [item.staff === "treble" ? "b/4" : "d/3"]
     : item.pitches.map((_pitch, index) => staffBuilderVexFlowPitchKey(item, index));
   const note = new StaveNote({ clef: item.staff, duration: `${duration}${item.kind === "rest" ? "r" : ""}`, keys });
+  if (item.kind === "notes" && item.arpeggiation === "up") {
+    note.addModifier(new Stroke(Stroke.Type.ARPEGGIO_DIRECTIONLESS, { allVoices: false }));
+  }
   note.setDuration(new Fraction(item.layoutDurationTicks * 128, 15));
   if (item.visualDuration.dots > 0) Dot.buildAndAttach([note], { all: true });
   return { projection: item, note };

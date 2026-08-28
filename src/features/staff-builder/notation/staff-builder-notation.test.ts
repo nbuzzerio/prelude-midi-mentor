@@ -13,7 +13,7 @@ function score(options: Readonly<{
   ties?: StaffBuilderScore["ties"];
 }> = {}): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 3, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: options.time ?? "4/4",
     measures: options.measures ?? [{ id: "measure-1", events: [] }], ties: options.ties ?? [],
   };

@@ -9,7 +9,7 @@ import {
 
 function score(): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [],
+    schemaVersion: 3, annotations: [],
     id: "piece-id",
     title: "Polyphonic Étude",
     createdAt: "2026-08-11T12:00:00.000Z",
@@ -20,7 +20,7 @@ function score(): StaffBuilderScore {
     measures: [
       { id: "m1", events: [
         { id: "long", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "long-c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
-        { id: "later-chord", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [
+        { id: "later-chord", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, arpeggiation: "up", pitches: [
           { id: "e4", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 },
           { id: "g4", midiNumber: 67, letter: "G", accidental: "natural", octave: 4 },
         ] },
@@ -37,11 +37,11 @@ function score(): StaffBuilderScore {
 
 describe("Staff Builder piece files", () => {
   it("serializes one canonical authoritative score as deterministic human-readable JSON", () => {
-    const source = { ...score(), editorPass: "rhythm", practiceProgress: { target: 3 } } as StaffBuilderScore;
+    const source = { ...score(), editorPass: "rhythm", practiceProgress: { target: 3 } };
     const serialized = serializeStaffBuilderPiece(source);
     expect(serialized).toBe(serializeStaffBuilderPiece(source));
     expect(serialized.endsWith("\n")).toBe(true);
-    expect(serialized).toContain('\n  "schemaVersion": 2');
+    expect(serialized).toContain('\n  "schemaVersion": 3');
     expect(serialized).not.toContain("editorPass");
     expect(serialized).not.toContain("practiceProgress");
   });
@@ -67,15 +67,17 @@ describe("Staff Builder piece files", () => {
   it("rejects malformed JSON, malformed score data, and unsupported versions with learner-facing results", () => {
     expect(parseStaffBuilderPieceFileText("{" )).toMatchObject({ ok: false, reason: "invalid-json" });
     expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 1 }))).toMatchObject({ ok: false, reason: "invalid-score" });
-    expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 3 }))).toMatchObject({ ok: false, reason: "unsupported-version" });
+    expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 4 }))).toMatchObject({ ok: false, reason: "unsupported-version" });
   });
 
-  it("imports V1 as V2 and round trips every Phase 1 annotation kind and anchor", () => {
+  it("imports V1 as V3 and round trips every Phase 1 annotation kind and anchor", () => {
     const current = score();
     const { annotations: _annotations, ...withoutAnnotations } = current;
     void _annotations;
     const legacy = { ...withoutAnnotations, schemaVersion: 1 };
-    expect(parseStaffBuilderPieceFileText(JSON.stringify(legacy))).toEqual({ ok: true, score: { ...legacy, schemaVersion: 2, annotations: [] } });
+    const parsedLegacy = parseStaffBuilderPieceFileText(JSON.stringify(legacy));
+    expect(parsedLegacy).toMatchObject({ ok: true, score: { schemaVersion: 3, annotations: [] } });
+    if (parsedLegacy.ok) expect(parsedLegacy.score.measures.flatMap(({ events }) => events)).not.toEqual(expect.arrayContaining([expect.objectContaining({ arpeggiation: "up" })]));
     const annotated = {
       ...current,
       annotations: [

@@ -4,6 +4,7 @@ import type { StaffBuilderDuration, StaffBuilderTimeSignature } from "./staff-bu
 
 export type StaffBuilderStaff = "treble" | "bass";
 export type StaffBuilderAccidental = "flat" | "natural" | "sharp";
+export type StaffBuilderArpeggiation = "up";
 
 export type StaffBuilderPitch = Readonly<{
   id: string;
@@ -30,6 +31,7 @@ type StaffBuilderEventBase = Readonly<{
 export type StaffBuilderNoteEvent = StaffBuilderEventBase & Readonly<{
   kind: "notes";
   pitches: readonly StaffBuilderPitch[];
+  arpeggiation?: StaffBuilderArpeggiation;
 }>;
 
 export type StaffBuilderRestEvent = StaffBuilderEventBase & Readonly<{
@@ -93,8 +95,14 @@ export type StaffBuilderAnnotation =
   | StaffBuilderPracticeMarkAnnotation
   | StaffBuilderBookmarkAnnotation;
 
-export type StaffBuilderScoreV1 = Readonly<{
-  schemaVersion: 1;
+type LegacyStaffBuilderNoteEvent = Omit<StaffBuilderNoteEvent, "arpeggiation">;
+type LegacyStaffBuilderEvent = LegacyStaffBuilderNoteEvent | StaffBuilderRestEvent;
+type LegacyStaffBuilderMeasure = Omit<StaffBuilderMeasure, "events"> & Readonly<{
+  events: readonly LegacyStaffBuilderEvent[];
+}>;
+
+type StaffBuilderScoreBase<TSchemaVersion extends number, TMeasure> = Readonly<{
+  schemaVersion: TSchemaVersion;
   id: string;
   title: string;
   createdAt: string;
@@ -102,16 +110,21 @@ export type StaffBuilderScoreV1 = Readonly<{
   tempoBpm: number;
   initialKeySignatureId: MusicKeyId;
   initialTimeSignature: StaffBuilderTimeSignature;
-  measures: readonly StaffBuilderMeasure[];
+  measures: readonly TMeasure[];
   ties: readonly StaffBuilderTie[];
 }>;
 
-export type StaffBuilderScoreV2 = Readonly<Omit<StaffBuilderScoreV1, "schemaVersion"> & {
-  schemaVersion: 2;
+export type StaffBuilderScoreV1 = StaffBuilderScoreBase<1, LegacyStaffBuilderMeasure>;
+
+export type StaffBuilderScoreV2 = StaffBuilderScoreBase<2, LegacyStaffBuilderMeasure> & Readonly<{
   annotations: readonly StaffBuilderAnnotation[];
 }>;
 
-export type StaffBuilderScore = StaffBuilderScoreV2;
+export type StaffBuilderScoreV3 = StaffBuilderScoreBase<3, StaffBuilderMeasure> & Readonly<{
+  annotations: readonly StaffBuilderAnnotation[];
+}>;
+
+export type StaffBuilderScore = StaffBuilderScoreV3;
 
 export type StaffBuilderMeasureContext = Readonly<{
   keySignatureId: MusicKeyId;

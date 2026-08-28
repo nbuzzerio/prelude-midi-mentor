@@ -13,7 +13,7 @@ const measure = (id: string, events = [note(`${id}-event`)]): StaffBuilderMeasur
 
 function score(measures: readonly StaffBuilderMeasure[], overrides: Partial<StaffBuilderScore> = {}): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [], id: "score", title: "System", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 3, annotations: [], id: "score", title: "System", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures, ...overrides,
   };
 }

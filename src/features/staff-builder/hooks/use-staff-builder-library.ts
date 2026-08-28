@@ -57,7 +57,7 @@ function loadInitialState(storage: StaffBuilderStorage): InitialState {
   }
   if (!introResult.ok) issues.push({ area: "preferences", message: introResult.message, clearable: false });
   if (!lastPieceResult.ok) issues.push({ area: "preferences", message: lastPieceResult.message, clearable: false });
-  const library = libraryResult.ok ? libraryResult.value : { schemaVersion: 2 as const, pieces: [] };
+  const library = libraryResult.ok ? libraryResult.value : { schemaVersion: 3 as const, pieces: [] };
   const draft = draftResult.ok ? draftResult.value : null;
   const savedPiece = draft?.savedPieceId ? library.pieces.find(({ id }) => id === draft.savedPieceId) : undefined;
   const draftMatchesSaved = Boolean(draft && savedPiece && JSON.stringify(draft.score) === JSON.stringify(savedPiece));
@@ -103,7 +103,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
 
   const persistDraft = useCallback((score: StaffBuilderScore, savedPieceId: string | null, editorState?: Readonly<{ editorPass: StaffBuilderDraft["editorPass"]; captureState: StaffBuilderCaptureState; rhythmState: StaffBuilderRhythmState }>, updatedAt = score.updatedAt) => {
     if (blockedAreas.has("draft")) return false;
-    const draft: StaffBuilderDraft = { schemaVersion: 2, savedPieceId, updatedAt, score, editorPass: editorState?.editorPass ?? "capture", ...(editorState ? { captureState: editorState.captureState, rhythmState: editorState.rhythmState } : {}) };
+    const draft: StaffBuilderDraft = { schemaVersion: 3, savedPieceId, updatedAt, score, editorPass: editorState?.editorPass ?? "capture", ...(editorState ? { captureState: editorState.captureState, rhythmState: editorState.rhythmState } : {}) };
     return reportWrite("draft", writeStaffBuilderValue(storage, "draft", draft));
   }, [blockedAreas, reportWrite, storage]);
 
@@ -114,7 +114,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
 
   const createPiece = useCallback((input: Readonly<{ title: string; keyId: MusicKeyId; timeSignature: StaffBuilderTimeSignature; tempoBpm: number }>) => {
     const score = createStaffBuilderScore({ title: input.title.trim(), tempoBpm: input.tempoBpm, initialKeySignatureId: input.keyId, initialTimeSignature: input.timeSignature });
-    const next = { schemaVersion: 2 as const, pieces: [...library.pieces, score] };
+    const next = { schemaVersion: 3 as const, pieces: [...library.pieces, score] };
     setLibrary(next);
     setActiveScore(score);
     setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
@@ -249,7 +249,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     }
     if (blockedAreas.has("draft")) return false;
     const draft: StaffBuilderDraft = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       savedPieceId: activeSavedPieceId,
       updatedAt: new Date(Math.max(Date.now(), Date.parse(score.updatedAt) + 1)).toISOString(),
       score,
@@ -272,7 +272,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setLibrary(nextLibrary);
     setActiveScore(savedScore);
     setActiveSavedPieceId(pieceId);
-    const draft: StaffBuilderDraft = { schemaVersion: 2, savedPieceId: pieceId, updatedAt: savedScore.updatedAt, score: savedScore, editorPass: editorState.editorPass, captureState: editorState.captureState, rhythmState: editorState.rhythmState };
+    const draft: StaffBuilderDraft = { schemaVersion: 3, savedPieceId: pieceId, updatedAt: savedScore.updatedAt, score: savedScore, editorPass: editorState.editorPass, captureState: editorState.captureState, rhythmState: editorState.rhythmState };
     const draftSaved = blockedAreas.has("draft") ? false : reportWrite("draft", writeStaffBuilderValue(storage, "draft", draft));
     return { ok: true as const, score: savedScore, draftSynchronized: draftSaved };
   }, [activeSavedPieceId, blockedAreas, library, persistLibrary, reportWrite, storage]);

@@ -6,7 +6,7 @@ import { validateStaffBuilderScore } from "./staff-builder-validation";
 const pitch = (id: string, midiNumber = 60): StaffBuilderPitch => ({ id, midiNumber, letter: "C", accidental: "natural", octave: 4 });
 const note = (id: string, staff: "treble" | "bass", startTick: number, duration: StaffBuilderDuration = "whole", pitches = [pitch(`${id}-p`)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "final", duration }, pitches });
 const rest = (id: string, staff: "treble" | "bass", startTick: number, duration: StaffBuilderDuration): StaffBuilderEvent => ({ id, kind: "rest", staff, startTick, rhythm: { status: "final", duration } });
-const score = (measures: StaffBuilderScore["measures"], time: StaffBuilderScore["initialTimeSignature"] = "4/4", ties: StaffBuilderScore["ties"] = []): StaffBuilderScore => ({ schemaVersion: 2, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: time, measures, ties });
+const score = (measures: StaffBuilderScore["measures"], time: StaffBuilderScore["initialTimeSignature"] = "4/4", ties: StaffBuilderScore["ties"] = []): StaffBuilderScore => ({ schemaVersion: 3, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: time, measures, ties });
 
 describe("Staff Builder structural validation", () => {
   it.each([
@@ -108,6 +108,13 @@ describe("Staff Builder structural validation", () => {
     const overflow = validateStaffBuilderScore(score([{ id: "m", events: [note("late", "treble", 1320, "whole"), note("bass", "bass", 0)] }])).find(({ code }) => code === "event-overflow");
     expect(overflow?.corrections.some(({ kind }) => kind === "set-duration")).toBe(false);
     expect(overflow?.corrections[0]).toEqual({ kind: "shorten-duration", eventId: "late" });
+  });
+
+  it("accepts upward arpeggiation only on chords", () => {
+    const chord = { ...note("chord", "treble", 0, "whole", [pitch("low", 60), pitch("high", 64)]), arpeggiation: "up" as const };
+    expect(validateStaffBuilderScore(score([{ id: "m", events: [chord, note("bass", "bass", 0)] }])).some(({ code }) => code === "invalid-arpeggiation")).toBe(false);
+    const malformed = { ...note("single", "treble", 0, "whole"), arpeggiation: "up" };
+    expect(validateStaffBuilderScore(score([{ id: "m", events: [malformed as never, note("bass", "bass", 0)] }])).some(({ code }) => code === "invalid-arpeggiation")).toBe(true);
   });
 
   it("validates dangling, duplicate, conflicting, adjacent, staff, and written tie identity", () => {

@@ -82,7 +82,7 @@ function realisticPolyphonicScore(): StaffBuilderScore {
     pitches: pitches.map((source) => ({ ...source, accidental: "natural" as const })),
   });
   return {
-    schemaVersion: 2, annotations: [], id: "realistic-6-8", title: "Six-Eight Practice Study", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    schemaVersion: 3, annotations: [], id: "realistic-6-8", title: "Six-Eight Practice Study", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 72, initialKeySignatureId: "c-major", initialTimeSignature: "6/8",
     measures: [
       { id: "measure-1", events: [

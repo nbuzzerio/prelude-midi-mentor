@@ -32,7 +32,7 @@ function measure(id: string, events: readonly StaffBuilderEvent[] = []): StaffBu
 
 function score(measures: readonly StaffBuilderMeasure[]): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [], id: "score", title: "Layout", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 3, annotations: [], id: "score", title: "Layout", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures,
   };
 }

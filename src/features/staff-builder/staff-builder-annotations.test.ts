@@ -21,7 +21,7 @@ import type { StaffBuilderAnnotation, StaffBuilderScore } from "./staff-builder-
 
 function score(annotations: readonly StaffBuilderAnnotation[] = []): StaffBuilderScore {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: "score",
     title: "Study",
     createdAt: "2026-01-01T00:00:00.000Z",

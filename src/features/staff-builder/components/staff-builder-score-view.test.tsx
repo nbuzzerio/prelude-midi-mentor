@@ -38,7 +38,7 @@ vi.mock("../notation/render-staff-builder-measure", () => ({ renderStaffBuilderM
 
 function score(): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [], id: "score", title: "Navigation", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 3, annotations: [], id: "score", title: "Navigation", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [
       { id: "m1", events: [{ id: "treble-note", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "unresolved" }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] }] },
       { id: "m2", keySignatureChange: "g-major", timeSignatureChange: "6/8", events: [{ id: "bass-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "quarter" } }] },
@@ -216,6 +216,14 @@ describe("StaffBuilderScoreView", () => {
     expect(screen.getByLabelText(/unresolved rhythm note C4 at tick 0/)).toBeTruthy();
     expect(screen.getByLabelText(/Bass: No events/)).toBeTruthy();
     expect(renderMeasure).toHaveBeenCalledWith(expect.any(HTMLDivElement), expect.objectContaining({ id: "score" }), 0, expect.any(Object));
+  });
+
+  it("describes authored arpeggiation textually as arpeggiated and rolled upward", () => {
+    const current = interactiveScore();
+    const rolled = { ...current, measures: current.measures.map((measure, index) => index === 0 ? { ...measure, events: measure.events.map((event) => event.id === "treble-chord" && event.kind === "notes" ? { ...event, arpeggiation: "up" as const } : event) } : measure) };
+    render(<StaffBuilderScoreView measureIndex={0} onEventSelect={() => true} score={rolled} />);
+    expect(screen.getByRole("button", { name: /half-note arpeggiated chord C4 and E4, rolled upward, treble staff, measure 1/i })).toBeTruthy();
+    expect(screen.getByLabelText(/half arpeggiated chord C4, E4, rolled upward at tick 480/i)).toBeTruthy();
   });
 
   it("renders the requested changed measure", () => {

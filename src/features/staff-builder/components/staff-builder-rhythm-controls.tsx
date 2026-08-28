@@ -2,13 +2,13 @@ import { useRef, useState } from "react";
 import type { NoteLetter } from "@/lib/music/note-utils";
 import { getStaffBuilderPitchSpellingCandidates } from "../staff-builder-rhythm";
 import { STAFF_BUILDER_DURATIONS, type StaffBuilderDuration } from "../staff-builder-time";
-import type { StaffBuilderEvent, StaffBuilderStaff } from "../staff-builder-types";
+import type { StaffBuilderArpeggiation, StaffBuilderEvent, StaffBuilderStaff } from "../staff-builder-types";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderTieControls } from "./staff-builder-tie-controls";
 
 const durationLabel = (duration: StaffBuilderDuration) => duration.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
 
-export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, selectedEvent, selectedDescription, selectedIndex, eventCount, canPrevious, canNext, canUndo, canRedo, status, onPrevious, onNext, onAssignDuration, onConvertToRest, onMoveToStaff, onRespellPitch, onDelete, onUndo, onRedo, onCreateTies, onRemoveTie, onSplitAndTie }: Readonly<{
+export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, selectedEvent, selectedDescription, selectedIndex, eventCount, canPrevious, canNext, canUndo, canRedo, status, onPrevious, onNext, onAssignDuration, onSetArpeggiation, onConvertToRest, onMoveToStaff, onRespellPitch, onDelete, onUndo, onRedo, onCreateTies, onRemoveTie, onSplitAndTie }: Readonly<{
   score?: StaffBuilderScore;
   selectedMeasureIndex?: number;
   selectedEvent: StaffBuilderEvent | null;
@@ -23,6 +23,7 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
   onPrevious: () => void;
   onNext: () => void;
   onAssignDuration: (duration: StaffBuilderDuration) => void;
+  onSetArpeggiation?: (arpeggiation: StaffBuilderArpeggiation | null) => void;
   onConvertToRest: (duration: StaffBuilderDuration) => void;
   onMoveToStaff: (staff: StaffBuilderStaff) => void;
   onRespellPitch: (pitchId: string, letter: NoteLetter) => void;
@@ -54,6 +55,7 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
           {selectedEvent.kind === "notes" && <button className="staff-builder-secondary-button" disabled={!hasDuration} onClick={() => hasDuration && onConvertToRest(targetDuration)} type="button">Convert to Rest</button>}
         </div>
         <fieldset><legend>Staff</legend><div className="flex gap-2">{(["treble", "bass"] as const).map((staff) => <button aria-pressed={selectedEvent.staff === staff} className="staff-builder-secondary-button" key={staff} onClick={() => onMoveToStaff(staff)} type="button">{staff === "treble" ? "Treble" : "Bass"}</button>)}</div></fieldset>
+        {selectedEvent.kind === "notes" && selectedEvent.pitches.length >= 2 && onSetArpeggiation && <label>Arpeggiation<select aria-label={`Arpeggiation: ${selectedEvent.arpeggiation === "up" ? "Rolled upward" : "None"}`} className="staff-builder-input" onChange={(event) => onSetArpeggiation(event.target.value === "up" ? "up" : null)} value={selectedEvent.arpeggiation ?? ""}><option value="">None</option><option value="up">Rolled upward</option></select></label>}
         {selectedEvent.kind === "notes" && <div className="staff-builder-spelling-controls"><strong>Pitch spelling</strong>{[...selectedEvent.pitches].sort((left, right) => left.midiNumber - right.midiNumber || left.id.localeCompare(right.id)).map((pitch) => {
           const candidates = getStaffBuilderPitchSpellingCandidates(pitch);
           return <label key={pitch.id}>MIDI {pitch.midiNumber}<select className="staff-builder-input" disabled={candidates.length < 2} onChange={(event) => onRespellPitch(pitch.id, event.target.value as NoteLetter)} value={pitch.letter}>{candidates.map((candidate) => <option key={candidate.letter} value={candidate.letter}>{candidate.letter}{candidate.accidental === "sharp" ? "♯" : candidate.accidental === "flat" ? "♭" : ""}{candidate.octave}</option>)}</select></label>;

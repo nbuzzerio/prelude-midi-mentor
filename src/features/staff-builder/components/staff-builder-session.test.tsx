@@ -72,7 +72,7 @@ function createPiece(title = "Minuet") {
 
 function savedValidScore(title = "Practice Study"): StaffBuilderScore {
   return {
-    schemaVersion: 2 as const, annotations: [], id: `saved-${title}`, title, createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    schemaVersion: 3 as const, annotations: [], id: `saved-${title}`, title, createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 96, initialKeySignatureId: "c-major" as const, initialTimeSignature: "4/4" as const, ties: [], measures: [{ id: "m1", events: [
       { id: "treble", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "tp", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] },
       { id: "bass", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
@@ -98,7 +98,7 @@ function savedTwoMeasureScore(title = "Practice Study"): StaffBuilderScore {
 }
 
 function seedLibrary(storage: MemoryStorage, pieces: readonly StaffBuilderScore[]) {
-  storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 2, pieces }));
+  storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces }));
   storage.values.set(STAFF_BUILDER_STORAGE_KEYS.introductionDismissed, "true");
 }
 
@@ -444,8 +444,8 @@ describe("Staff Builder session", () => {
     let id = 0;
     const base = createStaffBuilderScore({ title: "Saved", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", factories: { createId: () => `id-${++id}`, now: () => "2026-08-06T12:00:00.000Z" } });
     const draftScore = { ...base, title: "Draft", updatedAt: "2026-08-06T13:00:00.000Z" };
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 2, pieces: [base] }));
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 2, savedPieceId: base.id, updatedAt: draftScore.updatedAt, score: draftScore, editorPass: "capture" }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [base] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 3, savedPieceId: base.id, updatedAt: draftScore.updatedAt, score: draftScore, editorPass: "capture" }));
     render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
     expect(screen.getByText("A newer Staff Builder draft is available.")).toBeTruthy();

@@ -24,9 +24,9 @@ describe("useStaffBuilderLibrary", () => {
     let id = 0;
     const saved = createStaffBuilderScore({ title: "Saved", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", factories: { createId: () => `id-${++id}`, now: () => options.savedUpdatedAt ?? "2026-08-06T12:00:00.000Z" } });
     const draftScore = { ...saved, title: "Draft", updatedAt: options.draftUpdatedAt };
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 2, pieces: [saved] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [saved] }));
     storage.values.set(STAFF_BUILDER_STORAGE_KEYS.lastPieceId, saved.id);
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 2, savedPieceId: options.savedPieceId === undefined ? saved.id : options.savedPieceId, updatedAt: options.draftUpdatedAt, score: draftScore, editorPass: "capture" }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 3, savedPieceId: options.savedPieceId === undefined ? saved.id : options.savedPieceId, updatedAt: options.draftUpdatedAt, score: draftScore, editorPass: "capture" }));
     return saved;
   }
 
@@ -71,7 +71,7 @@ describe("useStaffBuilderLibrary", () => {
       initialTimeSignature: "4/4",
       factories: { createId: () => "source-id", now: () => "2026-08-01T12:00:00.000Z" },
     });
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 2, pieces: [original] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [original] }));
     const { result } = renderHook(() => useStaffBuilderLibrary(storage));
     let nextId = 0;
 

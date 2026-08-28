@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Accidental, Beam, Dot, GhostNote, StaveNote, Stem } from "vexflow";
+import { Accidental, Beam, Dot, GhostNote, StaveNote, Stem, Stroke } from "vexflow";
 import type { StaffBuilderProjectedEvent, StaffBuilderProjectedVoice } from "./staff-builder-notation";
 import {
   applyStaffBuilderVexFlowAccidentals,
@@ -32,6 +32,22 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Staff Builder shared VexFlow rendering", () => {
+  it("attaches a native directionless Stroke only to authored arpeggiated chords", () => {
+    const rolled = createStaffBuilderVexFlowTickable(event({ arpeggiation: "up" })).note as StaveNote;
+    const ordinary = createStaffBuilderVexFlowTickable(event()).note as StaveNote;
+    expect(rolled.getModifiers().filter((modifier) => modifier instanceof Stroke)).toHaveLength(1);
+    expect(ordinary.getModifiers().filter((modifier) => modifier instanceof Stroke)).toHaveLength(0);
+  });
+
+  it("keeps arpeggiation compatible with accidentals, ledger pitches, and multiple voices", () => {
+    const ledger = event({ arpeggiation: "up", pitches: [
+      { id: "low", midiNumber: 36, letter: "C", accidental: "natural", octave: 2 },
+      { id: "sharp", midiNumber: 78, letter: "F", accidental: "sharp", octave: 5 },
+      { id: "flat", midiNumber: 82, letter: "B", accidental: "flat", octave: 5 },
+    ] });
+    expect(() => createStaffBuilderVexFlowTickable(ledger)).not.toThrow();
+    expect(() => createStaffBuilderVexFlowVoices([voice(0), { ...voice(1), tickables: [ledger] }], "4/4")).not.toThrow();
+  });
   it("preserves pitched/chord keys, duration, dots, rests, and ghosts", () => {
     const dots = vi.spyOn(Dot, "buildAndAttach");
     expect(staffBuilderVexFlowPitchKey(event(), 0)).toBe("f#/4");

@@ -4,7 +4,7 @@ import type { StaffBuilderEvent, StaffBuilderScore } from "../staff-builder-type
 import { useStaffBuilderRhythmEditor } from "./use-staff-builder-rhythm-editor";
 
 const note = (id: string, startTick: number, staff: "treble" | "bass" = "treble"): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm: { status: "unresolved" }, pitches: [{ id: `${id}-pitch`, midiNumber: 61, letter: "C", accidental: "sharp", octave: 4 }] });
-const score = (events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore => ({ schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }], ties });
+const score = (events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore => ({ schemaVersion: 3, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }], ties });
 
 describe("useStaffBuilderRhythmEditor", () => {
   it("selects deterministically, navigates without wrapping, and reports selection changes", () => {

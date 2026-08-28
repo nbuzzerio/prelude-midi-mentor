@@ -9,6 +9,7 @@ export type StaffBuilderIssueCode =
   | "off-grid-start"
   | "start-outside-measure"
   | "event-overflow"
+  | "invalid-arpeggiation"
   | "same-position-conflict"
   | "gap"
   | "tie-endpoint-missing"
@@ -57,6 +58,7 @@ const ISSUE_RANK: Readonly<Record<StaffBuilderIssueCode, number>> = {
   "start-outside-measure": 2,
   "same-position-conflict": 3,
   "event-overflow": 4,
+  "invalid-arpeggiation": 5,
   "tie-endpoint-missing": 6,
   "tie-not-cross-measure": 7,
   "tie-not-adjacent": 8,
@@ -109,6 +111,10 @@ export function validateStaffBuilderScore(score: StaffBuilderScore): readonly St
     for (const event of measure.events) {
       const target = { measureIndex, staff: event.staff, positionTicks: event.startTick, eventId: event.id } as const;
       const deleteCorrection = { kind: "delete-event", eventId: event.id } as const;
+      const arpeggiation = "arpeggiation" in event ? event.arpeggiation : undefined;
+      if (arpeggiation !== undefined && (event.kind !== "notes" || event.pitches.length < 2 || arpeggiation !== "up")) {
+        issues.push(issue("invalid-arpeggiation", target, `e:${event.id}`, `Measure ${measureIndex + 1} contains arpeggiation metadata on an event that is not a supported chord.`, [deleteCorrection]));
+      }
       if (event.rhythm.status === "unresolved") {
         issues.push(issue("unresolved-rhythm", target, `e:${event.id}`, `Measure ${measureIndex + 1} ${event.staff} event at tick ${event.startTick} needs a final duration.`, [{ kind: "assign-duration", eventId: event.id }, deleteCorrection]));
       }

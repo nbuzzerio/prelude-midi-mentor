@@ -56,7 +56,7 @@ function score(options: Readonly<{
 }> = {}): StaffBuilderScore {
   const timeSignature = options.timeSignature ?? "4/4";
   return {
-    schemaVersion: 2, annotations: [],
+    schemaVersion: 3, annotations: [],
     id: "piece",
     title: "Projection study",
     createdAt: NOW,

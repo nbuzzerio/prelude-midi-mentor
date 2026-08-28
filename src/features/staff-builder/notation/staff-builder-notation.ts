@@ -11,6 +11,7 @@ import {
 } from "../staff-builder-time";
 import { stepDurationToTicks } from "../staff-builder-time";
 import type {
+  StaffBuilderArpeggiation,
   StaffBuilderEvent,
   StaffBuilderPitch,
   StaffBuilderScore,
@@ -34,6 +35,7 @@ export type StaffBuilderProjectedEvent = Readonly<{
   visualDuration: StaffBuilderVisualDuration;
   unresolved: boolean;
   pitches: readonly StaffBuilderPitch[];
+  arpeggiation?: StaffBuilderArpeggiation;
 }>;
 
 export type StaffBuilderProjectedSpacer = Readonly<{
@@ -145,6 +147,7 @@ function projectEvent(event: StaffBuilderEvent, capacityTicks: number, layoutDur
     visualDuration,
     unresolved,
     pitches: event.kind === "notes" ? event.pitches : [],
+    ...(event.kind === "notes" && event.arpeggiation ? { arpeggiation: event.arpeggiation } : {}),
   };
 }
 
@@ -275,7 +278,7 @@ function summarize(events: readonly StaffBuilderEvent[], staff: StaffBuilderStaf
       const rhythm = event.rhythm.status === "unresolved" ? "unresolved rhythm" : event.rhythm.duration;
       if (event.kind === "rest") return `${rhythm} rest at tick ${event.startTick}`;
       const label = event.pitches.length === 1 ? "note" : "chord";
-      return `${rhythm} ${label} ${event.pitches.map(pitchName).join(", ")} at tick ${event.startTick}`;
+      return `${rhythm} ${event.arpeggiation === "up" ? "arpeggiated " : ""}${label} ${event.pitches.map(pitchName).join(", ")}${event.arpeggiation === "up" ? ", rolled upward" : ""} at tick ${event.startTick}`;
     });
   return descriptions.length === 0 ? "No events." : descriptions.join("; ");
 }

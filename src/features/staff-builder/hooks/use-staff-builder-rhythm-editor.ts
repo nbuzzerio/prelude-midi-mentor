@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { NoteLetter } from "@/lib/music/note-utils";
 import type { StaffBuilderDuration } from "../staff-builder-time";
-import type { StaffBuilderScore, StaffBuilderStaff } from "../staff-builder-types";
+import type { StaffBuilderArpeggiation, StaffBuilderScore, StaffBuilderStaff } from "../staff-builder-types";
 import {
   convertStaffBuilderEventToRest,
   deleteStaffBuilderEvent,
@@ -13,6 +13,7 @@ import {
   reconcileStaffBuilderEventSelection,
   respellStaffBuilderPitch,
   setStaffBuilderEventDuration,
+  setStaffBuilderEventArpeggiation,
   type StaffBuilderEventSelection,
   type StaffBuilderRhythmEditError,
   type StaffBuilderRhythmState,
@@ -24,6 +25,7 @@ const ERROR_MESSAGES: Readonly<Record<StaffBuilderRhythmEditError, string>> = {
   "event-missing": "The selected event is no longer available.",
   "pitch-missing": "The selected pitch is no longer available.",
   "invalid-spelling": "That spelling is not available without changing the pitch or using a double accidental.",
+  "invalid-arpeggiation-target": "Arpeggiation is available only for chords containing at least two pitches.",
 };
 
 function selectionFromState(score: StaffBuilderScore, state: StaffBuilderRhythmState): StaffBuilderEventSelection | null {
@@ -90,6 +92,7 @@ export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, o
     previousEvent: () => activeSelection && select(moveStaffBuilderEventSelection(score, activeSelection, "previous")),
     nextEvent: () => activeSelection && select(moveStaffBuilderEventSelection(score, activeSelection, "next")),
     assignDuration: (duration: StaffBuilderDuration) => activeSelection ? apply(setStaffBuilderEventDuration(score, activeSelection, duration)) : false,
+    setArpeggiation: (arpeggiation: StaffBuilderArpeggiation | null) => activeSelection ? apply(setStaffBuilderEventArpeggiation(score, activeSelection, arpeggiation)) : false,
     convertToRest: (duration: StaffBuilderDuration) => activeSelection ? apply(convertStaffBuilderEventToRest(score, activeSelection, duration)) : false,
     moveToStaff: (staff: StaffBuilderStaff) => activeSelection ? apply(moveStaffBuilderEventToStaff(score, activeSelection, staff)) : false,
     respellPitch: (pitchId: string, letter: NoteLetter) => activeSelection ? apply(respellStaffBuilderPitch(score, activeSelection, pitchId, letter)) : false,

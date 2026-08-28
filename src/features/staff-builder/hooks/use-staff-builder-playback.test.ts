@@ -16,7 +16,7 @@ function deferred() {
 
 function score(updatedAt = "2026-01-01T00:00:00.000Z"): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt,
+    schemaVersion: 3, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt,
     tempoBpm: 120, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [],
     measures: [{ id: "m1", events: [
       { id: "treble", kind: "rest", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" } },

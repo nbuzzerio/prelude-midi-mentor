@@ -1,15 +1,44 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderEvent, StaffBuilderScore } from "./staff-builder-types";
-import { convertStaffBuilderEventToRest, deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, getStaffBuilderEventSelections, getStaffBuilderPitchSpellingCandidates, moveStaffBuilderEventSelection, moveStaffBuilderEventToStaff, respellStaffBuilderPitch, setStaffBuilderEventDuration } from "./staff-builder-rhythm";
+import { convertStaffBuilderEventToRest, deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, getStaffBuilderEventSelections, getStaffBuilderPitchSpellingCandidates, moveStaffBuilderEventSelection, moveStaffBuilderEventToStaff, respellStaffBuilderPitch, setStaffBuilderEventArpeggiation, setStaffBuilderEventDuration } from "./staff-builder-rhythm";
 import { deriveStaffBuilderVoices } from "./staff-builder-voices";
 import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const pitch = (id: string, midiNumber = 61) => ({ id, midiNumber, letter: "C" as const, accidental: "sharp" as const, octave: 4 });
 const event = (id: string, staff: "treble" | "bass", startTick: number, rhythm: StaffBuilderEvent["rhythm"] = { status: "unresolved" }): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm, pitches: [pitch(`${id}-pitch`)] });
-function score(events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore { return { schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }, { id: "m2", events: [event("later", "treble", 0)] }], ties }; }
+function score(events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore { return { schemaVersion: 3, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }, { id: "m2", events: [event("later", "treble", 0)] }], ties }; }
 const now = { now: () => "2026-01-02T00:00:00.000Z" };
 
 describe("Staff Builder rhythm operations", () => {
+  it("adds and removes upward arpeggiation only on chords while preserving identities", () => {
+    const chord = { ...event("selected", "treble", 240), pitches: [pitch("low", 60), pitch("high", 64)] } as StaffBuilderEvent;
+    const current = score([chord]);
+    const selection = { measureIndex: 0, eventId: "selected" };
+    const added = setStaffBuilderEventArpeggiation(current, selection, "up", now);
+    expect(added.ok).toBe(true);
+    if (!added.ok) return;
+    expect(added.score.measures[0]?.events[0]).toMatchObject({ id: "selected", startTick: 240, pitches: [{ id: "low" }, { id: "high" }], arpeggiation: "up" });
+    const removed = setStaffBuilderEventArpeggiation(added.score, selection, null, now);
+    expect(removed.ok && removed.score.measures[0]?.events[0]).not.toHaveProperty("arpeggiation");
+    const rest: StaffBuilderEvent = { id: "rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "quarter" } };
+    expect(setStaffBuilderEventArpeggiation(score([rest]), { measureIndex: 0, eventId: "rest" }, "up", now)).toMatchObject({ ok: false, error: "invalid-arpeggiation-target" });
+    expect(setStaffBuilderEventArpeggiation(score([event("single", "treble", 0)]), { measureIndex: 0, eventId: "single" }, "up", now)).toMatchObject({ ok: false, error: "invalid-arpeggiation-target" });
+  });
+
+  it("preserves arpeggiation through duration, staff, and spelling edits and clears it on rest conversion", () => {
+    const chord = { ...event("selected", "treble", 0), pitches: [pitch("first", 61), pitch("second", 64)], arpeggiation: "up" as const } as StaffBuilderEvent;
+    const selection = { measureIndex: 0, eventId: "selected" };
+    const duration = setStaffBuilderEventDuration(score([chord]), selection, "quarter", now);
+    expect(duration.ok && duration.score.measures[0]?.events[0]).toMatchObject({ arpeggiation: "up" });
+    if (!duration.ok) return;
+    const staff = moveStaffBuilderEventToStaff(duration.score, selection, "bass", now);
+    expect(staff.ok && staff.score.measures[0]?.events[0]).toMatchObject({ arpeggiation: "up" });
+    if (!staff.ok) return;
+    const respelled = respellStaffBuilderPitch(staff.score, selection, "first", "D", now);
+    expect(respelled.ok && respelled.score.measures[0]?.events[0]).toMatchObject({ arpeggiation: "up" });
+    const rest = convertStaffBuilderEventToRest(respelled.score, selection, "quarter", now);
+    expect(rest.ok && rest.score.measures[0]?.events[0]).not.toHaveProperty("arpeggiation");
+  });
   it("orders selections by measure, tick, treble before bass, and ID", () => {
     const current = score([event("z", "bass", 0), event("b", "treble", 240), event("a", "treble", 240), event("t", "treble", 0)]);
     expect(getStaffBuilderEventSelections(current).map(({ eventId }) => eventId)).toEqual(["t", "z", "a", "b", "later"]);
@@ -122,7 +151,7 @@ describe("Staff Builder rhythm operations", () => {
     const tiedPitch = pitch("tied-pitch", 61);
     const destinationPitch = { ...tiedPitch, id: "destination-pitch" };
     const validTied: StaffBuilderScore = {
-      schemaVersion: 2, annotations: [], id: "tied", title: "Tie safety", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
+      schemaVersion: 3, annotations: [], id: "tied", title: "Tie safety", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
       initialKeySignatureId: "c-major", initialTimeSignature: "4/4",
       measures: [
         { id: "m1", events: [

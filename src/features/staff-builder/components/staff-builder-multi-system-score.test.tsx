@@ -15,7 +15,7 @@ const measure = (id: string, index: number): StaffBuilderMeasure => ({
 
 function score(count = 4, title = "Read-only proof"): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [], id: "score", title, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 3, annotations: [], id: "score", title, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [],
     measures: Array.from({ length: count }, (_value, index) => measure(`m${index + 1}`, index)),
   };

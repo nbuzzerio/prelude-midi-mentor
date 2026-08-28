@@ -4,7 +4,7 @@ import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderMeasureContextControls } from "./staff-builder-measure-context-controls";
 
 afterEach(cleanup);
-const score: StaffBuilderScore = { schemaVersion: 2, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [] }, { id: "m2", events: [] }], ties: [] };
+const score: StaffBuilderScore = { schemaVersion: 3, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [] }, { id: "m2", events: [] }], ties: [] };
 
 describe("StaffBuilderMeasureContextControls", () => {
   it("edits initial context and exposes inherited later context", () => {

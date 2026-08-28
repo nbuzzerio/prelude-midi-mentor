@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 function initialScore(): StaffBuilderScore {
   return {
-    schemaVersion: 2, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 3, id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], annotations: [],
     measures: [{ id: "measure", events: [{ id: "event", kind: "rest", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" } }] }],
   };

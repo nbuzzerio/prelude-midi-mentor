@@ -6,7 +6,7 @@ import { projectStaffBuilderPendingPreview } from "./staff-builder-notation";
 
 function score(): StaffBuilderScore {
   return {
-    schemaVersion: 2, annotations: [], id: "score", title: "Renderer", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 3, annotations: [], id: "score", title: "Renderer", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "g-major", initialTimeSignature: "4/4",
     measures: [{ id: "measure", events: [
       { id: "chord", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-eighth" }, pitches: [

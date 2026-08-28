@@ -13,7 +13,7 @@ vi.mock("./staff-builder-multi-system-score", () => ({ StaffBuilderMultiSystemSc
   return <div data-staff-builder-score-semantics />;
 } }));
 
-const score: StaffBuilderScore = { schemaVersion: 2, id: "s", title: "Geometry", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: Array.from({ length: 4 }, (_value, index) => ({ id: `m${index}`, events: [] })), annotations: [{ id: "note", kind: "study-note", anchor: { kind: "measure", measureId: "m0" }, text: "Always readable" }] };
+const score: StaffBuilderScore = { schemaVersion: 3, id: "s", title: "Geometry", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: Array.from({ length: 4 }, (_value, index) => ({ id: `m${index}`, events: [] })), annotations: [{ id: "note", kind: "study-note", anchor: { kind: "measure", measureId: "m0" }, text: "Always readable" }] };
 let resize: ((width: number) => void) | null = null;
 let observed: Element | null = null;
 

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { useStaffBuilderHistory } from "./use-staff-builder-history";
 
-const score = (title: string): StaffBuilderScore => ({ schemaVersion: 2, annotations: [], id: "score", title, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: `2026-01-01T00:00:0${title.length}.000Z`, tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [] }], ties: [] });
+const score = (title: string): StaffBuilderScore => ({ schemaVersion: 3, annotations: [], id: "score", title, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: `2026-01-01T00:00:0${title.length}.000Z`, tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [] }], ties: [] });
 
 describe("useStaffBuilderHistory", () => {
   it("records score snapshots, undoes, redoes, and clears redo after a new mutation", () => {

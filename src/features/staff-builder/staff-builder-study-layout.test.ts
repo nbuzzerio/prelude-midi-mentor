@@ -4,7 +4,7 @@ import { layoutStaffBuilderScoreSystems } from "./notation/staff-builder-system-
 import { getStaffBuilderStudyLayoutConstraints } from "./staff-builder-study-layout";
 
 const score: StaffBuilderScore = {
-  schemaVersion: 2, annotations: [], id: "study", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  schemaVersion: 3, annotations: [], id: "study", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
   tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [],
   measures: Array.from({ length: 6 }, (_value, index) => ({ id: `m${index}`, events: [] })),
 };

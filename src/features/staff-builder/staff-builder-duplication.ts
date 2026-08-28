@@ -56,7 +56,8 @@ export function duplicateStaffBuilderScore(
         pitchIds.set(pitch.id, pitchId);
         return { ...pitch, id: pitchId };
       });
-      events.push({ ...event, id: eventId, staff: destinationStaff ?? event.staff, pitches });
+      const { arpeggiation: sourceArpeggiation, ...ordinaryEvent } = event;
+      events.push({ ...ordinaryEvent, id: eventId, staff: destinationStaff ?? event.staff, pitches, ...(retainedPitches.length >= 2 && sourceArpeggiation ? { arpeggiation: sourceArpeggiation } : {}) });
     }
     return { ...measure, id: measureId, events };
   });

@@ -3,7 +3,7 @@ import type { StaffBuilderScore } from "./staff-builder-types";
 import { duplicateStaffBuilderScore } from "./staff-builder-duplication";
 
 const source: StaffBuilderScore = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   id: "source",
   title: "Study",
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -15,7 +15,7 @@ const source: StaffBuilderScore = {
     {
       id: "measure-1",
       events: [
-        { id: "mixed", kind: "notes", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [
+        { id: "mixed", kind: "notes", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" }, arpeggiation: "up", pitches: [
           { id: "p59", midiNumber: 59, letter: "B", accidental: "natural", octave: 3 },
           { id: "p60", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 },
           { id: "p61", midiNumber: 61, letter: "C", accidental: "sharp", octave: 4 },
@@ -58,7 +58,7 @@ function musicalMeasures(score: StaffBuilderScore) {
     events: measure.events.map((event) => event.kind === "rest" ? {
       kind: event.kind, staff: event.staff, startTick: event.startTick, rhythm: event.rhythm,
     } : {
-      kind: event.kind, staff: event.staff, startTick: event.startTick, rhythm: event.rhythm,
+      kind: event.kind, staff: event.staff, startTick: event.startTick, rhythm: event.rhythm, arpeggiation: event.arpeggiation,
       pitches: event.pitches.map(({ midiNumber, letter, accidental, octave }) => ({ midiNumber, letter, accidental, octave })),
     }),
   }));
@@ -90,6 +90,8 @@ describe("duplicateStaffBuilderScore", () => {
     expect(copy.title).toBe("Study — Treble Copy");
     expect(noteEvents.every(({ staff }) => staff === "treble")).toBe(true);
     expect(noteEvents.map((event) => event.pitches.map(({ midiNumber }) => midiNumber))).toEqual([[60, 61], [72]]);
+    expect(noteEvents[0]).toMatchObject({ arpeggiation: "up" });
+    expect(noteEvents[1]).not.toHaveProperty("arpeggiation");
     expect(copy.measures[0]?.events.some(({ kind, staff }) => kind === "rest" && staff === "treble")).toBe(true);
     expect(copy.measures[1]?.events.some(({ kind }) => kind === "rest")).toBe(false);
     expect(copy.ties).toHaveLength(1);
@@ -105,6 +107,7 @@ describe("duplicateStaffBuilderScore", () => {
     expect(copy.title).toBe("Study — Bass Copy");
     expect(noteEvents).toHaveLength(1);
     expect(noteEvents[0]).toMatchObject({ staff: "bass", pitches: [{ midiNumber: 59 }] });
+    expect(noteEvents[0]).not.toHaveProperty("arpeggiation");
     expect(copy.measures[0]?.events.some(({ kind }) => kind === "rest")).toBe(false);
     expect(copy.measures[1]?.events).toHaveLength(1);
     expect(copy.measures[1]?.events[0]).toMatchObject({ kind: "rest", staff: "bass" });

@@ -28,7 +28,7 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
   )).sort((left, right) => left.id.localeCompare(right.id));
   const timestamp = piece.sourceScoreUpdatedAt;
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: piece.sourceScoreId,
     title: piece.title,
     createdAt: timestamp,

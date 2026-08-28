@@ -6,7 +6,7 @@ function validScore() {
   let id = 0;
   const factories = { createId: () => `id-${++id}`, now: () => "2026-08-06T12:00:00.000Z" };
   let score = createStaffBuilderScore({ title: "Study", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", factories });
-  score = insertUnresolvedStaffBuilderNotes(score, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60], factories });
+  score = insertUnresolvedStaffBuilderNotes(score, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60, 64, 67], factories });
   score = insertStaffBuilderRest(score, { measureIndex: 0, staff: "bass", startTick: 0, duration: "quarter", factories });
   score = appendStaffBuilderMeasure(score, factories);
   score = setStaffBuilderMeasureKeySignature(score, 1, "g-major", factories);
@@ -19,8 +19,8 @@ function validScore() {
 describe("Staff Builder schema", () => {
   it("parses valid scores, libraries, and drafts without mutating input", () => {
     const score = validScore();
-    const library = { schemaVersion: 2, pieces: [score] };
-    const draft = { schemaVersion: 2, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture" };
+    const library = { schemaVersion: 3, pieces: [score] };
+    const draft = { schemaVersion: 3, savedPieceId: score.id, updatedAt: "2026-08-06T13:00:00.000Z", score, editorPass: "capture" };
     const before = JSON.stringify({ library, draft });
     expect(parseStaffBuilderScore(score).ok).toBe(true);
     expect(parseStaffBuilderLibrary(library).ok).toBe(true);
@@ -64,25 +64,45 @@ describe("Staff Builder schema", () => {
   });
 
   it("distinguishes unsupported schema versions", () => {
-    expect(parseStaffBuilderLibrary({ schemaVersion: 3, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
-    expect(parseStaffBuilderDraft({ schemaVersion: 3 })).toMatchObject({ ok: false, reason: "unsupported" });
+    expect(parseStaffBuilderLibrary({ schemaVersion: 4, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
+    expect(parseStaffBuilderDraft({ schemaVersion: 4 })).toMatchObject({ ok: false, reason: "unsupported" });
   });
 
-  it("deliberately migrates V1 scores, libraries, and drafts to canonical V2", () => {
+  it("deliberately migrates V1 scores, libraries, and drafts to canonical V3", () => {
     const current = validScore();
     const { annotations: _annotations, ...withoutAnnotations } = current;
     void _annotations;
     const legacy = { ...withoutAnnotations, schemaVersion: 1 as const };
     const parsedScore = parseStaffBuilderScore(legacy);
-    expect(parsedScore).toEqual({ ok: true, value: { ...legacy, schemaVersion: 2, annotations: [] } });
+    expect(parsedScore).toEqual({ ok: true, value: { ...legacy, schemaVersion: 3, annotations: [] } });
     expect(parseStaffBuilderLibrary({ schemaVersion: 1, pieces: [legacy] })).toEqual({
       ok: true,
-      value: { schemaVersion: 2, pieces: [{ ...legacy, schemaVersion: 2, annotations: [] }] },
+      value: { schemaVersion: 3, pieces: [{ ...legacy, schemaVersion: 3, annotations: [] }] },
     });
     expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: legacy.id, updatedAt: legacy.updatedAt, score: legacy, editorPass: "capture" })).toMatchObject({
       ok: true,
-      value: { schemaVersion: 2, score: { schemaVersion: 2, annotations: [] } },
+      value: { schemaVersion: 3, score: { schemaVersion: 3, annotations: [] } },
     });
+  });
+
+  it("migrates V2 scores to V3 without accepting authored arpeggiation", () => {
+    const current = validScore();
+    const legacy = { ...current, schemaVersion: 2 as const, measures: current.measures.map((measure, index) => index === 0 ? { ...measure, events: measure.events.map((event) => event.kind === "notes" ? { ...event, arpeggiation: "up" } : event) } : measure) };
+    const parsed = parseStaffBuilderScore(legacy);
+    expect(parsed).toMatchObject({ ok: true, value: { schemaVersion: 3 } });
+    if (parsed.ok) expect(parsed.value.measures[0]?.events.find(({ kind }) => kind === "notes")).not.toHaveProperty("arpeggiation");
+  });
+
+  it("round-trips V3 upward arpeggiation and rejects unknown or structurally invalid values", () => {
+    const current = validScore();
+    const withArpeggiation = { ...current, measures: current.measures.map((measure, index) => index === 0 ? { ...measure, events: measure.events.map((event) => event.kind === "notes" ? { ...event, arpeggiation: "up" } : event) } : measure) };
+    expect(parseStaffBuilderScore(withArpeggiation)).toEqual({ ok: true, value: withArpeggiation });
+    const replaceArpeggiation = (value: unknown, pitches?: unknown[]) => ({ ...withArpeggiation, measures: withArpeggiation.measures.map((measure, index) => index === 0 ? { ...measure, events: measure.events.map((event) => event.kind === "notes" ? { ...event, arpeggiation: value, ...(pitches ? { pitches } : {}) } : event) } : measure) });
+    expect(parseStaffBuilderScore(replaceArpeggiation("down"))).toMatchObject({ ok: false, reason: "corrupt" });
+    const note = withArpeggiation.measures[0]!.events.find((event) => event.kind === "notes")!;
+    expect(parseStaffBuilderScore(replaceArpeggiation("up", note.kind === "notes" ? [note.pitches[0]] : []))).toMatchObject({ ok: false, reason: "corrupt" });
+    const restWithArpeggiation = { ...withArpeggiation, measures: withArpeggiation.measures.map((measure, index) => index === 0 ? { ...measure, events: measure.events.map((event) => event.kind === "rest" ? { ...event, arpeggiation: "up" } : event) } : measure) };
+    expect(parseStaffBuilderScore(restWithArpeggiation)).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it("parses the exact Phase 1 annotation union and rejects malformed or orphaned annotations", () => {

@@ -5,7 +5,7 @@ import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderScoreToolbar } from "./staff-builder-score-toolbar";
 
 const score: StaffBuilderScore = {
-  schemaVersion: 2, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
+  schemaVersion: 3, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
   initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [] }, { id: "m2", events: [] }], ties: [],
 };
 afterEach(() => { cleanup(); setInstrumentVolume(0.5); });

@@ -62,7 +62,7 @@ export function createStaffBuilderScore(options: Readonly<{
   const factories = options.factories ?? defaultFactories;
   const timestamp = factories.now();
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: factories.createId(),
     title: options.title,
     createdAt: timestamp,

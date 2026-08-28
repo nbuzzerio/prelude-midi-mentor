@@ -3,12 +3,12 @@ import type { StaffBuilderFactories } from "./staff-builder-score";
 import type { StaffBuilderDuration } from "./staff-builder-time";
 import { formatStaffBuilderCapturePosition } from "./staff-builder-capture";
 import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
-import type { StaffBuilderAccidental, StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff } from "./staff-builder-types";
+import type { StaffBuilderAccidental, StaffBuilderArpeggiation, StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff } from "./staff-builder-types";
 import { getStaffBuilderSamePositionConflicts } from "./staff-builder-voices";
 
 export type StaffBuilderEventSelection = Readonly<{ measureIndex: number; eventId: string }>;
 export type StaffBuilderRhythmState = Readonly<{ measureIndex: number; selectedEventId: string | null }>;
-export type StaffBuilderRhythmEditError = "staff-conflict" | "tied-event" | "event-missing" | "pitch-missing" | "invalid-spelling";
+export type StaffBuilderRhythmEditError = "staff-conflict" | "tied-event" | "event-missing" | "pitch-missing" | "invalid-spelling" | "invalid-arpeggiation-target";
 export type StaffBuilderRhythmEditResult =
   | Readonly<{ ok: true; score: StaffBuilderScore }>
   | Readonly<{ ok: false; error: StaffBuilderRhythmEditError; score: StaffBuilderScore }>;
@@ -64,6 +64,18 @@ export function setStaffBuilderEventDuration(score: StaffBuilderScore, selection
   const event = getSelectedStaffBuilderEvent(score, selection);
   if (event?.rhythm.status === "final" && event.rhythm.duration === duration) return { ok: true, score };
   return updateSelectedEvent(score, selection, (event) => ({ ...event, rhythm: { status: "final", duration } }), factories);
+}
+
+export function setStaffBuilderEventArpeggiation(score: StaffBuilderScore, selection: StaffBuilderEventSelection, arpeggiation: StaffBuilderArpeggiation | null, factories: Pick<StaffBuilderFactories, "now"> = defaultFactories): StaffBuilderRhythmEditResult {
+  const event = getSelectedStaffBuilderEvent(score, selection);
+  if (!event) return { ok: false, error: "event-missing", score };
+  if (event.kind !== "notes" || event.pitches.length < 2) return { ok: false, error: "invalid-arpeggiation-target", score };
+  if ((event.arpeggiation ?? null) === arpeggiation) return { ok: true, score };
+  return updateSelectedEvent(score, selection, (item) => {
+    if (item.kind !== "notes") return item;
+    if (arpeggiation !== null) return { ...item, arpeggiation };
+    return { id: item.id, kind: item.kind, staff: item.staff, startTick: item.startTick, rhythm: item.rhythm, pitches: item.pitches };
+  }, factories);
 }
 
 export function staffBuilderEventParticipatesInTie(score: StaffBuilderScore, eventId: string): boolean {
@@ -131,7 +143,7 @@ export function describeStaffBuilderSelectedEvent(score: StaffBuilderScore, sele
   if (!event || !selection) return "No event selected.";
   const context = resolveStaffBuilderMeasureContext(score, selection.measureIndex);
   const position = formatStaffBuilderCapturePosition(context.timeSignature, event.startTick);
-  const content = event.kind === "rest" ? "rest" : event.pitches.map((pitch) => `${pitch.letter}${pitch.accidental === "sharp" ? "♯" : pitch.accidental === "flat" ? "♭" : ""}${pitch.octave}`).join(", ");
+  const content = event.kind === "rest" ? "rest" : `${event.arpeggiation === "up" ? "arpeggiated chord " : ""}${event.pitches.map((pitch) => `${pitch.letter}${pitch.accidental === "sharp" ? "♯" : pitch.accidental === "flat" ? "♭" : ""}${pitch.octave}`).join(", ")}${event.arpeggiation === "up" ? ", rolled upward" : ""}`;
   const rhythm = event.rhythm.status === "unresolved" ? "unresolved rhythm" : event.rhythm.duration;
   return `Selected event: measure ${selection.measureIndex + 1}, ${event.staff}, ${position}, ${content}, ${rhythm}.`;
 }

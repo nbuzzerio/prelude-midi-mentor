@@ -36,7 +36,7 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
   if (event.kind === "rest") return `${durationName(event)} rest, ${location}`;
   const pitches = event.pitches.map(({ letter, accidental, octave }) => `${letter}${accidental === "sharp" ? "♯" : accidental === "flat" ? "♭" : ""}${octave}`);
   return pitches.length > 1
-    ? `${durationName(event)}-note chord ${pitches.slice(0, -1).join(", ")} and ${pitches.at(-1)}, ${location}`
+    ? `${durationName(event)}-note ${event.arpeggiation === "up" ? "arpeggiated " : ""}chord ${pitches.slice(0, -1).join(", ")} and ${pitches.at(-1)}${event.arpeggiation === "up" ? ", rolled upward" : ""}, ${location}`
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 

@@ -6,7 +6,7 @@ import { StaffBuilderStudyView } from "./staff-builder-study-view";
 import { ALL_STAFF_BUILDER_ANNOTATION_LAYERS, type StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
 
 const score: StaffBuilderScore = {
-  schemaVersion: 2, annotations: [{ id: "ignored", kind: "study-note", anchor: { kind: "measure", measureId: "m0" }, text: "Not in Phase 5A" }], id: "study", title: "Clean Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  schemaVersion: 3, annotations: [{ id: "ignored", kind: "study-note", anchor: { kind: "measure", measureId: "m0" }, text: "Not in Phase 5A" }], id: "study", title: "Clean Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
   tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [],
   measures: Array.from({ length: 4 }, (_value, index) => ({ id: `m${index}`, events: [] })),
 };

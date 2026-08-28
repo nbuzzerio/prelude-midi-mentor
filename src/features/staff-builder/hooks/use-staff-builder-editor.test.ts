@@ -718,6 +718,18 @@ describe("useStaffBuilderEditor", () => {
     expect(onDraftChange).toHaveBeenCalledTimes(3);
   });
 
+  it("restores authored arpeggiation through ordinary score snapshot Undo/Redo", () => {
+    const current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60, 64, 67] });
+    const selectedEventId = current.measures[0]?.events[0]?.id ?? null;
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "rhythm", initialRhythmState: { measureIndex: 0, selectedEventId }, onDraftChange: vi.fn() }));
+    act(() => result.current.rhythm.setArpeggiation("up"));
+    expect(result.current.rhythm.selectedEvent).toMatchObject({ arpeggiation: "up" });
+    act(() => result.current.undo());
+    expect(result.current.rhythm.selectedEvent).not.toHaveProperty("arpeggiation");
+    act(() => result.current.redo());
+    expect(result.current.rhythm.selectedEvent).toMatchObject({ arpeggiation: "up" });
+  });
+
   it("does not record history or persist no-op rhythm actions", () => {
     let current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
     const selection = { measureIndex: 0, eventId: current.measures[0]!.events[0]!.id };

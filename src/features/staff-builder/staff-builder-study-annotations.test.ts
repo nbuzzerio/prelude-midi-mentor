@@ -4,7 +4,7 @@ import type { StaffBuilderScoreDocumentLayout } from "./notation/staff-builder-s
 import { projectStaffBuilderStudyAnnotations } from "./staff-builder-study-annotations";
 import type { StaffBuilderScore } from "./staff-builder-types";
 
-const score: StaffBuilderScore = { schemaVersion: 2, id: "s", title: "Study", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [
+const score: StaffBuilderScore = { schemaVersion: 3, id: "s", title: "Study", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [
   { id: "m1", events: [{ id: "e1", kind: "notes", staff: "treble", startTick: 240, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "p1", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] }] },
   { id: "m2", events: [{ id: "e2", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } }] },
 ], annotations: [

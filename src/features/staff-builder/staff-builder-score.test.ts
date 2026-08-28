@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { StaffBuilderTimeSignature } from "./staff-builder-time";
+import type { StaffBuilderScore, StaffBuilderScoreV3 } from "./staff-builder-types";
 import {
   appendStaffBuilderMeasure,
   createStaffBuilderScore,
@@ -97,8 +98,11 @@ describe("Staff Builder score", () => {
     expect(validateStaffBuilderScore(authored)).toEqual([]);
   });
   it("creates versioned metadata and an empty first measure with stable injected values", () => {
-    expect(score()).toEqual({
-      schemaVersion: 2, annotations: [], id: "id-1", title: "Prelude", createdAt: "2026-01-01T00:00:00.000Z",
+    const current = score();
+    expectTypeOf(current).toEqualTypeOf<StaffBuilderScore>();
+    expectTypeOf<StaffBuilderScore>().toEqualTypeOf<StaffBuilderScoreV3>();
+    expect(current).toEqual({
+      schemaVersion: 3, annotations: [], id: "id-1", title: "Prelude", createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 120, initialKeySignatureId: "c-major",
       initialTimeSignature: "4/4", measures: [{ id: "id-2", events: [] }], ties: [],
     });
@@ -176,6 +180,18 @@ describe("Staff Builder score", () => {
     current = setStaffBuilderMeasureKeySignature(current, 0, "f-major", factory);
     current = setStaffBuilderMeasureTimeSignature(current, 0, "3/4", factory);
     expect(current.measures[0]?.events[0]).toEqual(pitches);
+  });
+
+  it("capture replacement never carries authored arpeggiation onto the new event", () => {
+    const factory = factories();
+    let current = insertUnresolvedStaffBuilderNotes(score(factory), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60, 64, 67], factories: factory });
+    const chord = current.measures[0]!.events[0]!;
+    if (chord.kind !== "notes") throw new Error("Expected captured chord.");
+    current = { ...current, measures: [{ ...current.measures[0]!, events: [{ ...chord, arpeggiation: "up" as const }] }] };
+    const replacement = insertUnresolvedStaffBuilderNotes(current, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60], factories: factory });
+    expect(replacement.measures[0]?.events[0]).not.toHaveProperty("arpeggiation");
+    const expanded = insertUnresolvedStaffBuilderNotes(replacement, { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60, 64], factories: factory });
+    expect(expanded.measures[0]?.events[0]).not.toHaveProperty("arpeggiation");
   });
 
   it("rejects invalid tempo, keys, signatures, pitches, and start ticks", () => {

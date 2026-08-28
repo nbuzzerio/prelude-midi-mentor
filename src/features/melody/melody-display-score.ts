@@ -7,7 +7,7 @@ const DISPLAY_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 
 export function projectMelodyExerciseToDisplayScore(exercise: MelodyExercise): StaffBuilderScore {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: `${exercise.id}-display-score`,
     title: "Melody exercise",
     createdAt: DISPLAY_TIMESTAMP,
