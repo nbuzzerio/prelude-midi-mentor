@@ -64,21 +64,26 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Prompt-oriented feedback, streaks, accuracy, and response-time statistics
 - Focus Staff exclusion and a dedicated Mobile Play answer layout
 
-### Staff Builder (v2.4-era Development)
+### Staff Builder
 
-- Beginner-friendly sheet-music transcription and practice-material building
-- MIDI and virtual-keyboard capture on a multi-measure grand staff
-- Direct notation editing for rhythm, rests, ties, key, time, and staff routing
+- Multi-measure authoring with treble, bass, and grand-staff MIDI or virtual-keyboard capture
+- Direct correction of rhythm, rests, spelling, ties, key, time, and staff routing
+- Automatic same-staff polyphony and authored upward rolled/arpeggiated chords
 - Deterministic event, measure, position, and piece playback
-- Local project persistence with draft autosave and validated Save
-- Per-piece `.prelude.json` download and schema-validated import for browser-storage backup and recovery
+- Local project persistence, draft recovery, structural validation, and validated Save
+- Study View with score annotations and multi-system presentation
+- Per-piece `.prelude.json` download and schema-validated import for local backup and recovery
+- Full-piece, treble-range, and bass-range duplication without changing the source piece
 - Responsive desktop, Chromebook, and mobile interaction
 
-### Blocking Piece Practice (v2.4-era Development)
+### Blocking Piece Practice
 
 - Launch structurally valid saved Staff Builder pieces directly from the local library
-- Practice one authored measure and attack onset at a time; incorrect attempts remain blocked for retry
-- Grade simultaneous notes and chords as pitch sets through physical MIDI or the virtual keyboard
+- Practice a transient projection of the saved Staff Builder score without creating another persisted copy
+- Practice one score position at a time; incorrect attempts remain blocked for retry
+- Grade same-onset polyphony through one normal pitch-set check plus independent authored rolled-chord checks
+- Evaluate upward rolls expressively with a tempo-relative window while retaining ordinary block-chord collection
+- Support physical MIDI and persistent virtual-keyboard selection without merging their attempts
 - Respect authored rests, pitch-specific ties, independent grand-staff rhythm, and automatic same-staff polyphony
 - Start at any measure, restart the current measure or selected practice range, and return to the Staff Builder library
 - Reuse the authored score as read-only notation without creating a copied Sequence score
@@ -102,13 +107,17 @@ Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It do
 - Continuous, non-blocking one- or two-measure sight-reading in treble or bass
 - C/G/F major and A/D natural minor at 50, 60, 70, or 80 BPM
 - Physical MIDI and momentary on-screen-keyboard input
+- Count-in/metronome timing and a two-quarter-beat preparatory display lead-in
 - Independent Pitch, Movement, and attack-Timing scores
 - Pitch-result staff: green correct, dashed light blue missed, red wrong pitch; timing is scored separately
 - Seeded Retry Same and Try Another exercises
+- Timed diagnostic sessions with Session Review and targeted repair retries
+- Original Sight Read evidence preserved separately from latest and accumulated Repair evidence
+- Interval Trouble analytics reported independently for Sight Read and Repair attempts
 - Explicit Mobile Play that preserves setup, count-in, performance, and results state
 - Basic offline VKB workflow after the installed/loaded PWA has cached its assets
 
-Phase 1 is monophonic 4/4 without rests, chords, two-hand material, hold-duration grading, latency calibration, or persisted analytics.
+Melody is monophonic 4/4 without rests, chords, two-hand material, hold-duration grading, latency calibration, or server-side/persisted analytics. Timed diagnostic and repair evidence lasts only for the current in-memory session.
 
 ### Practice Statistics
 
@@ -183,7 +192,7 @@ Flashcards and Sequences generate musical targets, render them using standard no
 
 Free Play removes the target and grading layers. Physical MIDI and virtual-piano notes share the same live held-note state and key-aware spelling pipeline before appearing on a persistent grand staff. Players can use No Key or one of the supported major and minor keys, choose a chromatic spelling preference, and change notation settings without clearing or replaying held notes.
 
-Staff Builder is a separate learning-focused score editor. It combines beginner-oriented capture, direct score correction, validation, deterministic playback, and local projects without turning Prelude into a professional notation editor or a Guided Lesson engine. Structurally valid saved pieces can launch Blocking Piece Practice, which reads a transient projection of that authoritative score and advances only after each expected pitch attack is played correctly.
+Staff Builder is a separate learning-focused score editor. It combines beginner-oriented capture, direct score correction, validation, deterministic playback, Study View, annotations, duplication, and local projects without turning Prelude into a professional notation editor or a Guided Lesson engine. Structurally valid saved pieces can launch Piece Practice, which reads a transient projection of that authoritative score and advances only after all checks at the current score position are complete. Piece Practice is not a seventh top-level mode.
 
 Shared MIDI, notation, keyboard, audio, interval-domain, and musical-event playback systems keep the experience consistent while each mode retains its own state machine.
 
@@ -286,6 +295,8 @@ Prelude's automated suite covers:
 - Ear Training target generation, prompt scheduling, grading, and session statistics
 - Staff Builder score invariants, capture, correction, validation, persistence, playback, interaction geometry, radial controls, and responsive presentation
 - Blocking Piece Practice projection, ties/polyphony, blocking progression, MIDI/VKB input separation, read-only presentation, validation-gated launch, exit, and source/storage immutability
+- Staff Builder schema migration, annotations, Study View, duplication, and rolled-chord authoring
+- Melody timed diagnostics, Session Review, repairs, interval analytics, and preparatory lead-in
 
 Mobile Play preserves each mode's feature-owned session and input contract: Flashcards and Sequences retain graded toggle input, Free Play alone adds momentary multitouch press/release input, Melody retains its continuous recorder/clock/source lock, and Piece Practice retains blocking progression and pending chord input. Mobile Play and Focus Staff are mutually exclusive where both are available. Fullscreen and landscape lock are enhancements rather than requirements; if fullscreen exits externally, the Mobile Play layout remains active until the user explicitly exits it.
 
@@ -316,6 +327,8 @@ Interface MIDI IN  → Keyboard MIDI OUT
 
 When a device is not detected, check the cable direction and use Prelude's MIDI diagnostic display.
 
+Physical MIDI input depends on browser Web MIDI support and user permission; Chromium-based desktop browsers provide the most reliable current path. The virtual keyboard remains available where physical MIDI is unavailable, but MIDI, touch, audio-autoplay, fullscreen, and orientation behavior can vary by browser and device and should be verified before relying on a particular setup.
+
 ---
 
 ## Project Structure
@@ -333,13 +346,13 @@ src/
 ├── data/
 │
 ├── features/
+│   ├── ear-training/
 │   ├── flashcards/
-│   │   ├── components/
-│   │   └── hooks/
 │   ├── freeplay/
-│   └── sequences/
-│       ├── components/
-│       └── hooks/
+│   ├── melody/
+│   ├── piece-practice/
+│   ├── sequences/
+│   └── staff-builder/
 │
 ├── hooks/
 │
@@ -373,7 +386,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Prelude's latest repository tag is **v2.4.0 — Staff Builder**. The current working repository is ahead of that tag in the v2.4-era development line.
+Prelude's latest repository tag is **v2.4.0 — Staff Builder**. The current release candidate is preparing the backward-compatible feature work accumulated since that tag for a planned v2.5.0 release.
 
 The application now supports six complementary top-level modes:
 
@@ -384,7 +397,13 @@ The application now supports six complementary top-level modes:
 - Melody for continuous one- or two-measure sight-reading and independent Pitch, Movement, and Timing results
 - Staff Builder for beginner-friendly score transcription and editing
 
-Staff Builder, automatic same-staff polyphony, Blocking Piece Practice Phase 1, Melody Mode Phase 1, and the coordinated mobile UX stream are complete at the current v2.4-era development checkpoint, which is ahead of the latest repository tag. Development is paused for combined Chromebook, phone, accessibility, fullscreen/orientation, and physical-MIDI manual QA and product review; release scope, version, and any next feature will be decided afterward. Melody duration/hold grading and Piece Practice Accuracy remain future work.
+The release candidate includes Piece Practice, automatic same-staff polyphony, import/export, coordinated Mobile Play, annotations and Study View, Melody timed diagnostics and repair review, interval analytics, preparatory lead-in, piece duplication, and authored/graded rolled chords. Chromebook, phone, accessibility, fullscreen/orientation, physical-MIDI, and installed-PWA manual QA remain required before release. Melody duration/hold grading, persisted practice evidence, and Piece Practice Accuracy remain future work.
+
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. Its package version is updated to match the annotated release tag only after release validation; until that release step, the development UI may display the previous package version.
+
+Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
+
+The PWA precaches the application shell and bundled piano samples for a basic offline virtual-keyboard workflow after a successful online load/install. Physical MIDI, browser permission, installation, update delivery, and offline behavior remain browser/device dependent and require release smoke testing.
 
 See [`ROADMAP.md`](./docs/ROADMAP.md) for completed milestones and future development areas.
 
@@ -394,25 +413,23 @@ See [`ROADMAP.md`](./docs/ROADMAP.md) for completed milestones and future develo
 
 Prelude is designed to grow from single-note recognition into a complete browser-based musicianship platform.
 
-Planned areas include:
+Possible expansion areas include:
 
-### Harmony
+### Deeper Harmony
 
-- Intervals
-- Major and minor chords
-- Diminished and augmented chords
+- Harmonic-interval study beyond current melodic interval practice
+- Chord identification and analysis beyond current triads and progressions
 - Suspended chords
-- Seventh chords
-- Chord inversions
+- Additional seventh-chord practice
+- Voicing and inversion study beyond current triad flashcards
 
-### Technique and Theory
+### Deeper Technique and Theory
 
-- Scales
-- Arpeggios
+- Expanded scale and arpeggio material
 - Expanded key-signature practice
 - Cadences
-- Rhythm
-- Ear training
+- Dedicated rhythm practice
+- Ear training beyond melodic interval identification
 
 ### Guided Lessons
 
@@ -471,6 +488,8 @@ Future lesson-based features can build on these existing primitives without forc
 - [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Current structure and technical direction
 - [`DECISIONS.md`](./docs/DECISIONS.md) — Important product and architectural decisions
 - [`TESTING.md`](./docs/TESTING.md) — Testing philosophy and coverage
+- [`DEVLOG.md`](./docs/DEVLOG.md) — Release history and current unreleased changes
+- [`RELEASING.md`](./docs/RELEASING.md) — Versioning, validation, tagging, and deployment process
 
 ---
 

@@ -1,6 +1,6 @@
 # Ideas
 
-A place to quickly capture ideas without interrupting development.
+A noncommittal place to capture brainstorming without interrupting development. Items here are not scheduled or promised; [`ROADMAP.md`](./ROADMAP.md) is the source for completed and intentionally planned direction.
 
 ## Current Ideas
 

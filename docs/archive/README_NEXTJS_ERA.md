@@ -1,6 +1,6 @@
-# Prelude: MIDI Mentor
+# Prelude: MIDI Mentor — Historical Next.js-Era Scaffold
 
-> **Historical note:** This file preserves the original development scaffold and is not a description of the current application. For current setup, features, architecture, and verification guidance, use [`README.md`](./README.md), [`docs/ONBOARDING.md`](./docs/ONBOARDING.md), and [`docs/TESTING.md`](./docs/TESTING.md).
+> This document preserves Prelude's original development scaffold. It is not a description of the current application. See the repository [`README.md`](../../README.md), [`ONBOARDING.md`](../ONBOARDING.md), and [`TESTING.md`](../TESTING.md) for current guidance.
 
 An open-source MIDI-powered piano sight-reading trainer built with Next.js and TypeScript.
 

@@ -1,10 +1,37 @@
 # Dev Log
 
-A high-level record of significant milestones in Prelude's development.
+A high-level release history and record of significant milestones in Prelude's development. The Unreleased section describes the current release candidate; a version is moved into a dated release section only when it is actually released.
 
-## Unreleased — Melody Mode Phase 1
+## Unreleased
 
-Completed generated continuous sight-reading with Web Audio count-in/metronome, MIDI/VKB capture, timing-led alignment, independent Pitch/Movement/Timing results, a Pitch-only colored result staff, mobile/visibility hardening, and cached-PWA support for the basic offline VKB workflow.
+### Piece Practice
+
+- Added validation-gated practice projected directly from authoritative saved Staff Builder pieces.
+- Added blocking score-position progression across both staves, rests, ties, same-onset polyphony, held-note allowances, start/restart controls, and MIDI/VKB source separation.
+- Added independent normal and rolled checks at one onset, with expressive upward rolls evaluated in a tempo-relative 1.5-quarter-note-beat window.
+
+### Staff Builder
+
+- Added automatic derived same-staff polyphony, `.prelude.json` import/export, schema v3 migration/validation, and collision-safe import.
+- Added score annotations, annotation layers, and multi-system Study View.
+- Added full-piece, treble-range, and bass-range duplication.
+- Added authored upward rolled/arpeggiated chords across editing, validation, notation, playback, persistence, and Piece Practice.
+
+### Melody
+
+- Added generated continuous one- and two-measure sight-reading with count-in/metronome, MIDI/VKB capture, alignment, and independent Pitch, Movement, and Timing results.
+- Added continuous timed diagnostics, interruption-safe Session Review, targeted repair retries, immutable original evidence, and original-versus-latest comparison.
+- Added interval analytics that keep Sight Read evidence separate from Repair evidence.
+- Added a two-quarter-beat preparatory display lead-in before authored and scored material.
+
+### Mobile and Platform
+
+- Coordinated explicit Mobile Play across supported modes while retaining one mounted session, MIDI owner, and virtual keyboard.
+- Hardened Melody and Piece Practice mobile, focus, visibility, fullscreen/orientation, and offline-VKB behavior.
+
+### Release Readiness
+
+- Documented `package.json` as the visible application-version source. Its value remains unchanged until the planned release-version step, when it must be synchronized with the annotated tag.
 
 ---
 
@@ -122,7 +149,7 @@ Completed generated continuous sight-reading with Web Audio count-in/metronome, 
 
 ---
 
-## Post-v2.3 Development (Unreleased)
+## v2.4.0
 
 ### Staff Builder Foundation
 
@@ -131,11 +158,4 @@ Completed generated continuous sight-reading with Web Audio count-in/metronome, 
 - Added score validation, guided corrections, score history, local project persistence, and distinct draft/validated saves.
 - Added deterministic score playback and playback-follow visualization through the shared musical-event player.
 - Added score-first notation controls, specialized radial controls, deterministic interaction geometry, and responsive mobile workflows.
-- Completed the August 9, 2026 implementation checkpoint at `92cf7e5`; physical-device and responsive manual QA remains before any release decision.
-
-### Blocking Piece Practice Phase 1
-
-- Added validation-gated direct practice for saved Staff Builder pieces without copying scores into Sequence or persistence.
-- Added blocking pitch-attack progression through authored measures with MIDI/VKB input, chords, rests, pitch-specific ties, and automatic same-staff polyphony.
-- Reused the authored score as read-only notation with target highlights, start/restart controls, completion feedback, and return to the Staff Builder library.
-- Completed automated projection, state-machine, input-lifecycle, rendering, accessibility, launch/exit, and immutability verification; real-device QA remains before any release decision.
+- Released the Staff Builder foundation as the authoritative local score-authoring and project workflow.

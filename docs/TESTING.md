@@ -1,10 +1,10 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** Current v2.4-era mobile UX stream code checkpoint, ahead of the latest repository tag
+> **Status:** Planned v2.5.0 release-readiness checkpoint, ahead of the latest repository tag
 
-The latest verified checkpoint passes ESLint, TypeScript, the production build, and 1,328 tests across 117 test files. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, responsive presentation, fullscreen/orientation variations, screen readers/reduced motion, and installed-PWA airplane mode.
+The current automated baseline is 1,544 passing tests across 137 test files. The most recent complete build checkpoint also passed ESLint, TypeScript, and the production build; the full `pnpm verify` workflow must be rerun against the final release candidate. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, responsive presentation, fullscreen/orientation variations, screen readers/reduced motion, and installed-PWA airplane mode.
 > **Latest repository tag:** v2.4.0 — Staff Builder
-> **Last updated:** August 12, 2026
+> **Last updated:** September 2, 2026
 
 ## Purpose
 
@@ -318,6 +318,8 @@ Focused automated coverage includes:
 
 Melody integration coverage preserves exercise identity, one lazy AudioContext, count-in and clock continuity, recorder/source locking, one keyboard and MIDI owner, results-heading focus, and Retry Same, Try Another, and Settings while Mobile Play remains active.
 
+Current Melody coverage also verifies the two-quarter-beat preparatory display lead-in, timed diagnostic deadlines and interruption, immutable original trial evidence, appended repair retries, Session Review navigation and focus, original-versus-latest comparison, mastery summaries, and separate Sight Read/Repair interval analytics.
+
 ### Block 11 — Ear Training and Musical-Event Playback
 
 Automated coverage includes:
@@ -339,11 +341,12 @@ Automated coverage includes:
 
 Automated coverage includes:
 
-- score-domain invariants, measure context, meter capacity, notes, chords, rests, and ties
+- canonical schema v3 score-domain invariants, v1/v2 migration, unsupported/corrupt data, measure context, meter capacity, notes, chords, rests, ties, annotations, and upward arpeggiation
 - Capture Notes routing, rhythmic cursor movement, pending input, replacement, and rest insertion
 - Rhythm Correction selection, duration, event type, staff, spelling, ties, deletion, and score history
 - validation, guided corrections, draft persistence, validated Save, and local project recovery
 - direct-score `.prelude.json` serialization, schema-validated import, round trips, collision-safe insertion, and accessible library file actions
+- full-piece, treble-range, and bass-range duplication with fresh copy identity and source immutability
 - deterministic event, measure, position, and piece playback, including silence and partial chords
 - playback-follow measure display and sliding highlight without editor-state mutation
 - renderer projection and public event, position, playback, and notation-control anchors
@@ -351,15 +354,18 @@ Automated coverage includes:
 - Duration, Key, and Time radial controls and their opening-gesture guard
 - mobile virtual-keyboard lifecycle, safe-area presentation, and responsive state preservation
 - accessible score semantics, direct notation controls, disclosures, and workspace integration
+- annotation editing/layers and multi-system Study View layout, semantics, and geometry
+- rolled-chord editing, schema validation, notation projection, playback, and accessible descriptions
 
 ### Block 13 — Blocking Piece Practice
 
 Automated coverage includes:
 
 - validation-gated projection from authoritative Staff Builder scores without copied persistence or `SequenceTarget`
-- attack-onset grouping across chords, both staves, same-staff polyphony, independent rhythms, rests, and ties
-- exact pitch-set grading, blocking retries, measure/piece completion, targetless measures, start-at-measure, and restarts
-- physical single-note and 225 millisecond chord input, stale-attempt cleanup, and stable MIDI ownership
+- score-position grouping across chords, both staves, same-staff polyphony, independent rhythms, rests, and ties
+- one aggregated normal check plus independent rolled checks, including mixed and multiple-roll same-onset targets
+- exact normal pitch-set grading, tempo-relative upward-roll order/window grading, blocking retries, measure/piece completion, targetless measures, start-at-measure, and restarts
+- physical single-note and ordinary 225 millisecond block-chord input, rolled-check expiry scheduling, stale-attempt cleanup, and stable MIDI ownership
 - held/lingering and incoming-tie allowances without allowing held notes to satisfy missing attacks
 - persistent virtual chord selection and strict MIDI/VKB attempt separation
 - read-only score presentation, authoritative multi-event highlighting, feedback, accessibility, and one responsive keyboard
@@ -377,8 +383,8 @@ The initial suite should not deeply test:
 
 - VexFlow's generated SVG structure
 - browser audio playback internals
-- the complete Web MIDI API
-- PWA manifest and Workbox configuration
+- full browser-level Web MIDI end-to-end behavior
+- generated PWA/update/offline behavior beyond focused configuration checks
 - GitHub Actions, Nginx, or DigitalOcean deployment
 - Tailwind layout details
 - random statistical distribution
@@ -387,6 +393,8 @@ The initial suite should not deeply test:
 - coverage percentage targets
 
 These areas are better served by build checks, focused manual verification, or later integration and browser testing.
+
+Prelude does not currently have a full browser Web MIDI end-to-end suite. Installed-PWA updates, navigation fallback, asset availability, and true offline behavior still require a production build plus manual validation on representative browsers/devices.
 
 ## Release Verification
 
@@ -444,16 +452,22 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - audition, measure, from-here, and piece playback, Stop, and the sliding playback highlight
 - rests, ties, partial chords, trailing silence, key/time changes, Undo/Redo, and guided validation corrections
 - local project close/reopen, draft recovery, validated Save, and installed-PWA behavior
+- annotations in edit and Study View, multi-system placement, keyboard focus, and screen-reader verbosity
+- full-piece, treble-range, and bass-range duplication with the source left unchanged
+- authored upward rolled-chord creation, save/reload, export/import, playback, and accessible notation
 - Blocking Piece Practice launch from a saved valid piece and disabled-reason behavior for invalid pieces
 - physical MIDI single notes, block chords, slightly rolled chords, rapid retries, held previous notes, and tied destinations
 - MIDI hotplug/disconnect during practice and clean Staff Builder ownership after exit
 - desktop VKB and Chromebook touch chord selection, toggle removal, restart, and source switching
 - Android portrait/landscape score readability, keyboard reach, target feedback, safe areas, and exactly one keyboard
 - same-staff polyphonic notation/stems with playback and practice attacks aligned; sustained notes must not be re-required
+- mixed normal/rolled and multiple rolled chords at one onset, including order, wrong-note, timeout, and tempo-relative window behavior
 - rest-only and consecutive targetless measure acknowledgement, Start at Measure, restart statistics, and completion focus
 - screen-reader verbosity, expected/missing/extra pitch feedback, disabled Practice explanation, and keyboard focus order
 - save, practice, exit, edit, save, and relaunch using the updated authoritative score without practice-progress persistence
 - sustain-pedal behavior is not graded in Phase 1 and should be observed as a known hardware/browser limitation
+- Melody timed-session expiry/interruption, Session Review filters, original/latest evidence, repeated repairs, next-needs-review, and separate Sight Read/Repair interval reports
+- visible and audible alignment of the two-quarter-beat preparatory lead-in without counting it as scored evidence
 
 This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issues found during normal use may be recorded through the project's bug-log workflow.
 
@@ -462,15 +476,15 @@ This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issu
 | Device class | Highest-risk checks |
 | --- | --- |
 | 360px portrait | Compact navigation/header, Free Play and Sequence action flow, keyboard adjacency, safe-area Exit controls |
-| 390–412px portrait | Mobile Play entry policy, Ear Training header, Flashcard disclosures/stats, Piece Practice actions/completion |
+| 390–412px portrait | Mobile Play entry policy, Ear Training header, Flashcard disclosures/stats, Piece Practice rolled-check actions/completion |
 | Phone landscape | Score/keyboard proportions, horizontal overflow, safe areas, explicit exit without session reset |
 | Chromebook laptop | Whole Sequence scrolling, narrow/wide breakpoint behavior, keyboard and mouse focus visibility |
 | Chromebook tablet/touch | Coarse-pointer Mobile Play entry, touch controls, one keyboard/input owner, physical MIDI handoff |
 | Android Chrome | Fullscreen/orientation accepted, rejected, and unavailable paths; Escape leaves Prelude Mobile Play active |
-| Narrow desktop | Entry visibility below 1024px, document-flow layouts, keyboard scrolling of Melody score regions |
+| Narrow desktop | Entry visibility below 1024px, document-flow layouts, keyboard scrolling of Melody score and Session Review regions |
 | Wide desktop | Mobile Play entry hidden for mouse input, desktop navigation/grouping and headers unchanged |
 
-Across the matrix, verify real MIDI attacks and chords, no duplicate input, Sequence Whole Sequence active-step discoverability, Melody two-measure scrolling/focus, and Piece Practice blocking/restart/targetless/completion controls. This QA has not yet been performed.
+Across the matrix, verify real MIDI attacks and chords, no duplicate input, Sequence Whole Sequence active-step discoverability, Staff Builder Study View/duplication/rolled authoring, Melody lead-in/timed review/repair scrolling and focus, and Piece Practice normal-plus-rolled blocking/restart/targetless/completion controls. This QA has not yet been performed.
 
 ## Future Opportunities
 

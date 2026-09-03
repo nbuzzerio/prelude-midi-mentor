@@ -2,9 +2,13 @@
 
 > This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
 >
-> **Current checkpoint:** August 12, 2026 — the repository is ahead of the v2.4.0 Staff Builder tag in the current v2.4-era development line; Melody Phase 1, the coordinated mobile UX stream, automatic same-staff polyphony, and Blocking Piece Practice Phase 1 are implemented, while final real-device QA and any release decision remain pending.
+> **Current checkpoint:** September 2, 2026 — the repository is preparing a planned v2.5.0 release containing the completed feature work since the v2.4.0 Staff Builder tag. Automated coverage is current; final real-device, accessibility, MIDI, and installed-PWA QA remains pending.
 
 ---
+
+# Completed
+
+The milestones in this section describe implemented product behavior. An unchecked manual-QA item does not turn the implemented feature back into a future commitment.
 
 # ✅ Phase 1 — Core Flashcard MVP (Completed)
 
@@ -164,13 +168,13 @@ Container-driven responsive VexFlow sizing is deferred to the later UI/UX overha
 
 Future Free Play ideas such as chord analysis, phrase history, last-measure display, rhythm, zoom controls, and automatic key detection remain unimplemented.
 
-## Current Direction
+## Completed Release-Candidate Scope
 
-Chord Progressions, key-aware Free Play, shared Mobile Play, melodic-interval Ear Training, Melody Mode Phase 1, Staff Builder, automatic same-staff polyphony, Blocking Piece Practice Phase 1, and the coordinated mobile UX stream are complete in code. Development now pauses for final manual QA:
+Chord Progressions, key-aware Free Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, Piece Practice, Melody, and the coordinated Mobile Play stream are complete in code. The post-v2.4.0 release candidate also includes annotations and Study View, timed Melody diagnostics and review, piece duplication, and authored and practiced rolled chords. Development now pauses for final manual QA:
 
 1. Perform combined physical-MIDI, Chromebook touch/mouse, Android portrait/landscape, responsive, playback, and persistence QA.
 2. Fix only defects confirmed by that stabilization pass.
-3. Decide release scope and version after QA; no release identifier for the checkpoint beyond the v2.4.0 tag is selected yet.
+3. Finalize the package version and release history only after QA passes.
 4. Review the completed product checkpoint before selecting the next feature milestone. Melody duration/hold grading and Piece Practice Accuracy remain separate future work.
 
 Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
@@ -183,6 +187,10 @@ Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, a
 - Read-only notation, playhead, mobile presentation, and Pitch-result staff
 - Explicit Mobile Play through setup, count-in, performance, and results without replacing audio/input ownership
 - Cached-PWA basic offline VKB workflow
+- Two-quarter-beat preparatory display lead-in before scored material
+- Timed diagnostic sessions with interruption-safe Session Review
+- Targeted repair retries with immutable original versus latest evidence
+- Interval Trouble analytics separated into Sight Read and Repair evidence
 - Final device/accessibility/airplane-mode QA remains pending
 
 Future work remains separate: rests, 6/8/richer meters, two-hand notes, dyads/chords, adaptive difficulty, latency calibration, and detailed timing/extra-note overlays. Piece Practice Accuracy Phase 2 has not started.
@@ -207,6 +215,8 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 - [x] Score validation with guided learner-facing corrections
 - [x] Draft autosave and distinct validated Save
 - [x] Local project library and persistence
+- [x] Per-piece `.prelude.json` import/export with schema validation and collision-safe insertion
+- [x] Full-piece, treble-range, and bass-range duplication
 - [x] Event, measure, position, and piece playback with Stop
 - [x] Deterministic score projection through shared musical-event playback
 - [x] Playback-follow measure display and sliding score highlight
@@ -219,6 +229,8 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 - [x] Responsive score scaling and touch-compensated interaction
 - [x] Safe-area-aware mobile virtual-keyboard bottom sheet with one active presentation
 - [x] Collapsed technical and advanced fallback controls
+- [x] Score annotations and multi-system Study View
+- [x] Authored upward rolled/arpeggiated chords
 
 ## Automatic Same-Staff Polyphony
 
@@ -229,12 +241,14 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 
 ---
 
-# ✅ v2.4-era — Blocking Piece Practice Phase 1 (Implemented, Manual QA Pending)
+# ✅ Post-v2.4.0 — Piece Practice (Implemented, Manual QA Pending)
 
 - [x] Validation-gated launch from saved Staff Builder pieces
 - [x] Transient attack-onset projection without `SequenceTarget` or copied score persistence
-- [x] Pitch-set blocking progression across measures, chords, both staves, polyphony, rests, and ties
+- [x] Score-position blocking progression across measures, chords, both staves, same-onset polyphony, rests, and ties
+- [x] One aggregated normal check plus independent authored rolled-chord checks at an onset
 - [x] Physical MIDI single/chord input with the shared 225 millisecond collector
+- [x] Expressive upward rolled-chord evaluation in a tempo-relative 1.5-quarter-note-beat window
 - [x] Persistent virtual-keyboard chord input with strict MIDI/VKB source separation
 - [x] Start at Measure, Restart Measure, Restart Piece, targetless-measure acknowledgement, completion, and session statistics
 - [x] Read-only authored-score presentation and authoritative multi-event highlighting
@@ -242,9 +256,21 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 - [x] Automated projection, state, input, rendering, accessibility, eligibility, launch/exit, and immutability coverage
 - [ ] Final physical-MIDI, Chromebook, Android, responsive, audio, and screen-reader QA
 
-Piece Practice now has explicit Mobile Play during an active session; narrow/coarse responsive layout alone does not activate it. This presentation change preserves the blocking session, pending input, restart, targetless-measure, completion, and Staff Builder return semantics. Future Piece Practice Accuracy mode remains separate: it may add continuous BPM-driven capture and post-performance feedback, but no such engine is part of Phase 1. The next product step is final QA and assessment.
+Piece Practice has explicit Mobile Play during an active session; narrow/coarse responsive layout alone does not activate it. This presentation change preserves the blocking session, pending input, restart, targetless-measure, completion, and Staff Builder return semantics. Future Piece Practice Accuracy mode remains separate: it may add continuous BPM-driven capture and post-performance feedback, but no such engine is part of the current release candidate.
 
 ---
+
+# Future / Exploratory
+
+The following areas are possibilities, not existing capabilities or committed delivery dates. They must not be read as a promise or as a strict implementation order.
+
+## Near-Term Post-Release Direction
+
+- [ ] Acquire and persist learner practice evidence across sessions
+- [ ] Define product and privacy requirements before designing any persistence schema
+- [ ] Use accumulated evidence to inform later review and practice guidance without claiming server-side analytics today
+
+This direction is intentionally not a data-model commitment. The current application keeps Melody diagnostic/repair evidence in memory and Staff Builder projects in browser-local storage.
 
 # 🎹 Phase 3 — Harmony Trainer
 
@@ -353,6 +379,8 @@ Build lesson authoring, sharing, and consumption on top of the completed Staff B
 - [ ] Teacher assignment workflow
 - [ ] Lesson sharing and consumption
 - [ ] Broader structured external interchange beyond Prelude score backup files
+
+Whole-piece and treble-/bass-range duplication are complete. “Duplicate measures” above is a distinct future editor operation and is not implied by the existing piece-copy workflows.
 
 ---
 

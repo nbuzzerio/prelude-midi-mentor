@@ -2,13 +2,17 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
-## Melody Mode Phase 1
+## Melody
 
-Melody owns a transient seeded exercise and projects it through a pure adapter into read-only Staff Builder notation. Expected attacks feed a feature-local Web Audio clock, continuous MIDI/VKB recorder, timing-led dynamic-programming alignment, and independent Pitch, Movement, and Timing scoring. Web Audio time is authoritative; React/RAF samples it only for presentation.
+Melody owns a transient seeded authored exercise and projects it through a pure adapter into a read-only Staff Builder display score. Expected attacks feed a feature-local Web Audio clock, continuous MIDI/VKB recorder, timing-led dynamic-programming alignment, and independent Pitch, Movement, and Timing scoring. Web Audio time is authoritative; React/RAF samples it only for presentation.
 
-Results reuse the exact exercise display score. A pure adapter maps expected event IDs to generic `correct`, `missed`, or `wrong-pitch` highlights. These encode Pitch only. App-level MidiProvider ownership remains separate from Melody attempt/source locking. Shared piano WAVs are PWA-precached; metronome clicks are oscillator-generated. No Melody exercise, attempt, result, or analytics is persisted.
+The display projection prepends a two-quarter-beat preparatory measure used by notation, count guide, and clock scheduling. That lead-in is presentation/timing support: it is not part of the authored exercise and contributes no scored or diagnostic evidence. Results reuse the exact display score. A pure adapter maps expected event IDs to generic `correct`, `missed`, or `wrong-pitch` highlights; these encode Pitch only.
 
-Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering or exiting the focused presentation may occur during setup, audio startup, count-in, performance, or results without replacing the generated exercise, AudioContext, performance clock, recorder, first-input-source lock, MIDI consumer, PianoKeyboard, score/count guide, or result state. Results remain in Mobile Play until explicit exit. The existing visibility-interruption policy still cancels an active starting, count-in, or performing attempt when the document becomes hidden; Mobile Play does not weaken that safety boundary. Duration and hold grading are not part of Melody Phase 1.
+Timed practice stores each completed original attempt as immutable diagnostic evidence under stable trial identity. Session Review derives summaries and review order without rewriting those originals. Repair attempts append to a separate retry history, allowing the UI to compare the original Sight Read with the latest Repair while retaining every retry. Interval analytics aggregate transitions from original results into the Sight Read dataset and retry results into the Repair dataset; neither dataset is persisted beyond the in-memory session.
+
+App-level MidiProvider ownership remains separate from Melody attempt/source locking. Shared piano WAVs are PWA-precached; metronome clicks are oscillator-generated. No Melody exercise, attempt, result, or analytics is persisted.
+
+Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering or exiting the focused presentation may occur during setup, audio startup, count-in, performance, results, or Session Review without replacing the generated exercise, AudioContext, performance clock, recorder, first-input-source lock, MIDI consumer, PianoKeyboard, score/count guide, result, or diagnostic history. The existing visibility-interruption policy still cancels an active starting, count-in, or performing attempt when the document becomes hidden; completed timed trials remain available for review. Duration and hold grading are not part of Melody.
 
 ---
 
@@ -467,7 +471,7 @@ Staff Builder is a feature-owned, learning-focused score editor. It creates loca
 
 The Staff Builder feature separates durable responsibilities:
 
-- the score domain owns measures, events, staves, rhythm, pitches, rests, ties, tempo, and measure context;
+- the score domain owns measures, events, staves, rhythm, pitches, rests, ties, annotations, tempo, and measure context;
 - editor orchestration coordinates Capture Notes, Rhythm Correction, validation, history, and persistence;
 - Capture Notes owns beginner transcription state, pending pitches, routing, cursor movement, and lock/rest operations;
 - Rhythm Correction owns authoritative event selection and explicit correction operations;
@@ -480,9 +484,11 @@ These boundaries live inside `src/features/staff-builder`; they do not turn Flas
 
 ## Application-Owned Score Model
 
-Staff Builder score data is independent of VexFlow. Measures contain authoritative note/chord/rest events with staff, onset, and rhythm. Notes retain explicitly spelled pitches, ties are explicit score relationships, and effective key/time context is resolved from initial settings and measure overrides. Tempo and variable measure capacities remain score-domain facts.
+Staff Builder score data is independent of VexFlow. The canonical model is `StaffBuilderScoreV3`; `StaffBuilderScore` aliases that current form. Measures contain authoritative note/chord/rest events with staff, onset, and rhythm. Notes retain explicitly spelled pitches, ties are explicit score relationships, and effective key/time context is resolved from initial settings and measure overrides. A note event may carry `arpeggiation?: "up"` only when it contains at least two pitches. Tempo and variable measure capacities remain score-domain facts.
 
-The persistence schema validates stored data at the browser-storage boundary. The same schema boundary validates imported `.prelude.json` files, which contain one authoritative `StaffBuilderScoreV1` rather than a library envelope, draft, history, or practice state. On an imported top-level score-ID collision, the library creates a new score ID without rewriting score-local event, pitch, or tie identities. Renderer geometry and transient UI state are never persisted as musical score data.
+The persistence schema validates stored data at the browser-storage boundary. Legacy schema v1 scores receive an empty annotation collection; schema v2 score events are normalized into v3; current v3 data validates annotations and optional upward arpeggiation. Libraries and drafts likewise parse supported v1/v2 forms and return canonical v3 data. The local-storage keys retain historical `-v1` names for compatibility. Those key names are not schema declarations and must not be casually renamed when the score schema changes.
+
+The same schema boundary validates imported `.prelude.json` files, which contain one authoritative score rather than a library envelope, draft, history, or practice state. On an imported top-level score-ID collision, the library creates a new score ID and timestamp without rewriting score-local measure, event, pitch, tie, or annotation identities. Full-piece duplication creates fresh score-local identities throughout the copy; treble- and bass-range copies also filter material to the requested range and remove invalid cross-copy relationships. No duplication operation mutates the source. Renderer geometry and transient UI state are never persisted as musical score data.
 
 Same-staff rhythmic voices are deterministic derived state, not persisted score identity. Validation partitions authoritative half-open event intervals into the minimum non-overlapping voice count while checking completeness through staff-wide union coverage. The notation projection renders those voices with invisible, noninteractive gap tickables; playback, ties, editing, persistence, and practice continue to address authoritative event and pitch IDs rather than voice numbers.
 
@@ -509,6 +515,8 @@ React owns semantic controls, focus, hover, highlights, hit testing, and pointer
 5. Capture position.
 
 Meaningful pointer movement or cancellation suppresses activation so notation controls and score events do not convert a swipe into an edit.
+
+Annotations remain canonical score data, separate from VexFlow geometry. Study View derives multi-system layout and annotation placement from the score and public renderer geometry, while React owns the semantic annotation presentation. Study View is read-only presentation over the same score; it does not create another persisted document.
 
 ## Radial Controls
 
@@ -537,7 +545,7 @@ Responsive score scaling, compact controls, and the mobile virtual-keyboard bott
 Blocking Piece Practice is a Sequence-adjacent feature with its own domain under `src/features/piece-practice`; it does not use `SequenceTarget` or Sequence session state. Its launch path is:
 
 ```text
-saved StaffBuilderScoreV1
+saved StaffBuilderScoreV3
   -> Staff Builder structural validation
   -> transient Piece Practice projection
   -> blocking session state
@@ -547,17 +555,17 @@ saved StaffBuilderScoreV1
 
 Staff Builder remains the sole persisted score authority. A launch projects a stable in-memory snapshot containing source measure/event/pitch identity, staff, onset, duration, written spelling, rests, and ties. Nothing in the Piece Practice projection or session is written back to the Staff Builder library or converted into Sequence storage. Exiting unmounts the session and returns to the existing Staff Builder library; a later launch reads the latest saved score.
 
-Targets describe newly attacked pitches grouped by measure and onset across both staves. Sustained pitches are not repeated at later attacks, incoming tied pitches are retained as source metadata but excluded from required attacks, and simultaneous duplicate sounding pitches require one physical MIDI pitch while retaining all source identities. Rests remain visible source events but create no answer target.
+Targets describe score positions grouped by measure and onset across both staves. Sustained pitches are not repeated at later attacks, incoming tied pitches are retained as source metadata but excluded from required attacks, and simultaneous duplicate sounding pitches require one physical MIDI pitch while retaining all source identities. Rests remain visible source events but create no answer target.
 
-The Phase 1 state machine grades exact unique MIDI attack sets and blocks progression after an incorrect attempt. Normal completed measures advance immediately in domain state; measures without attacks require explicit acknowledgement because Phase 1 has no timing engine. Start-at-measure and restart operations remain transient session behavior.
+Each score-position target owns a set of checks. All non-arpeggiated attacked pitches at that onset form at most one aggregated normal check. Every authored upward arpeggiated chord forms its own independent rolled check, even when normal notes or another roll share the onset. The target advances only after all checks complete; an incorrect attempt leaves the unresolved checks available for retry. Completed measures advance in domain state, while measures without attacks require explicit acknowledgement because Piece Practice has no continuous timing engine. Start-at-measure and restart operations remain transient session behavior.
 
-One mounted input hook owns Web MIDI and the shared 225 millisecond chord collector for the active session. Physical attacks and persistent virtual-keyboard selections never merge. Held pitches are supplied separately from attacks so only an immediately previous successful target or an incoming tie can receive the narrow approved held-note allowance. Responsive and explicit Mobile Play presentations reuse this one owner and never duplicate session state or keyboard instances.
+One mounted input hook owns Web MIDI and the shared 225 millisecond chord collector for ordinary physical block chords. Authored rolled checks instead accept ordered attacks within a tempo-relative window equal to 1.5 quarter-note beats. Physical attacks and persistent virtual-keyboard selections never merge. Held pitches are supplied separately from attacks so only an immediately previous successful target or an incoming tie can receive the narrow approved held-note allowance. Responsive and explicit Mobile Play presentations reuse this one owner and never duplicate session state or keyboard instances.
 
 Narrow or coarse-pointer detection remains Staff Builder editor presentation state; it no longer automatically places Piece Practice into a fixed Mobile Play layout. After `Start Practice`, the active Piece Practice session calls `useMobilePlay` once and exposes an explicit entry action. Ordinary narrow Piece Practice remains in normal document flow.
 
 Entering or exiting Mobile Play preserves the current piece, measure, target, blocking attempt and mistake state, original session timing, pending physical chord collector, persistent virtual chord selection, MIDI owner, and PianoKeyboard. `Exit Mobile Play` leaves only the focused presentation; `Exit Piece Practice` retains its separate behavior of returning to Staff Builder. Restart Measure and Restart Piece retain their domain semantics, targetless measures still require explicit `Next Measure`, and completion may remain in Mobile Play until explicit exit. Staff Builder editor responsive ownership is unchanged.
 
-The presentation reuses `StaffBuilderScoreView` in read-only mode and highlights authoritative source event IDs. It mounts no Capture, Rhythm Correction, history, persistence, or notation-edit controls. Phase 1 intentionally has no BPM grading, hold-duration grading, metronome, continuous performance capture, or post-performance accuracy overlay.
+The presentation reuses `StaffBuilderScoreView` in read-only mode and highlights authoritative source event IDs. It mounts no Capture, Rhythm Correction, history, persistence, or notation-edit controls. The pure Piece Practice domain owns check progress, mistakes, and advancement truth; React schedules expiry checks and presents the timer/result state without redefining completion. Piece Practice intentionally has no BPM grading, hold-duration grading, metronome, continuous performance capture, or post-performance accuracy overlay.
 
 ---
 

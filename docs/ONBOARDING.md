@@ -1,10 +1,10 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
 > **Latest Repository Tag:** v2.4.0 — Staff Builder
-> **Last Updated:** August 12, 2026
-> **Current Milestone:** Coordinated mobile UX stream complete in the current v2.4-era development line, ahead of the latest tag
+> **Last Updated:** September 2, 2026
+> **Current Milestone:** Planned v2.5.0 documentation and release-readiness pass
 >
-> Final device/manual QA and release assessment are next. Do not begin Piece Practice Accuracy Phase 2 or expand Melody scope without a new approved plan.
+> Combined physical-device, responsive, accessibility, MIDI, and installed-PWA QA is next. Do not begin Piece Practice Accuracy or expand Melody scope without a new approved plan.
 
 ---
 
@@ -163,12 +163,15 @@ Completed features include:
 
 ## Staff Builder
 
-- Application-owned multi-measure grand-staff score model
+- Application-owned canonical schema v3 multi-measure grand-staff score model; persisted/imported v1 and v2 scores migrate into v3 at the validation boundary
 - MIDI and virtual-keyboard Capture Notes with rhythmic positioning and staff routing
 - Direct duration, rest, tie, spelling, staff, key, and time correction
 - Validation with guided corrections and learner-facing issue text
 - Local project library, draft autosave, and distinct validated Save
 - Per-piece `.prelude.json` download/import for backup and recovery without exporting draft or practice state
+- Score annotations and multi-system Study View
+- Full-piece, treble-range, and bass-range duplication; copies receive new top-level identity without mutating the source
+- Upward rolled/arpeggiated chord authoring through optional schema v3 `arpeggiation` data
 - Deterministic event, measure, position, and piece playback with playback-follow visualization
 - Direct notation interaction, radial controls, responsive score scaling, and a mobile keyboard bottom sheet
 - Automatic derived same-staff rhythmic voices with no persisted voice IDs or beginner-facing Voice controls
@@ -176,10 +179,11 @@ Completed features include:
 ## Blocking Piece Practice
 
 - Structurally valid saved Staff Builder pieces launch directly from the local library
-- Staff Builder remains authoritative; practice uses a transient attack-onset projection rather than `SequenceTarget`
-- Exact pitch-set blocking with unlimited retry, normal measure progression, and explicit targetless-measure acknowledgement
+- Staff Builder remains authoritative; practice uses a transient score-position projection rather than `SequenceTarget`
+- Each position contains one aggregated normal check plus independent checks for authored rolled chords
+- A position advances only after every check completes; mistakes remain blocked for retry and targetless measures require acknowledgement
 - Chords, cross-staff attacks, independent/polyphonic rhythm, rests, and pitch-specific ties retain their authored musical meaning
-- One stable MIDI owner, shared rolled-chord collection, persistent VKB chord selection, and strict MIDI/VKB source separation
+- One stable MIDI owner, the ordinary 225 millisecond block-chord collector, tempo-relative rolled evaluation, persistent VKB chord selection, and strict MIDI/VKB source separation
 - Start at Measure, Restart Measure, Restart Piece, completion statistics, read-only score reuse, and exit to the library
 - Ordinary narrow Piece Practice remains responsive document flow; explicit Mobile Play preserves the same blocking session and input owner
 - No persisted practice progress and no BPM, hold-duration, metronome, or continuous timing grading
@@ -187,7 +191,11 @@ Completed features include:
 ## Melody
 
 - Seeded monophonic one/two-measure 4/4 exercises with Web Audio count-in and continuous MIDI/VKB capture
+- Two-quarter-beat preparatory display lead-in before authored and scored material
 - Independent Pitch, Movement, and attack-Timing results with a read-only Pitch-result staff
+- Timed diagnostic sessions with interruption-safe Session Review and targeted repair retries
+- Immutable original diagnostic evidence, separate accumulated retry evidence, and original-versus-latest comparison
+- Interval Trouble analytics separated into Sight Read and Repair datasets
 - Explicit Mobile Play preserves the generated exercise, AudioContext, clock, recorder, source lock, keyboard, and results
 - No duration/hold grading, richer meters, rests, chords, or persisted analytics in Phase 1
 
@@ -206,13 +214,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's latest repository tag is v2.4.0. The current working repository is ahead of that tag in the v2.4-era development line and includes Staff Builder, automatic same-staff polyphony, Blocking Piece Practice Phase 1, Melody Mode Phase 1, and the coordinated mobile UX stream.
+Prelude's latest repository tag is v2.4.0. The current release candidate is preparing the backward-compatible work since that tag for a planned v2.5.0 release, including Piece Practice, automatic same-staff polyphony, import/export, annotations and Study View, Melody and its timed review workflow, coordinated Mobile Play, duplication, and rolled-chord authoring/practice.
 
-The next step is combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, fullscreen/orientation, accessibility, playback, and persistence QA. Fix only confirmed defects, then decide release scope and version before selecting another milestone. Melody duration/hold grading, richer Melody work, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
+The next step is combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, fullscreen/orientation, accessibility, playback, persistence, and installed-PWA QA. Fix only confirmed defects, then finalize the release version and notes before selecting another milestone. Melody duration/hold grading, persistent practice evidence, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 
-Staff Builder owns its score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Piece Practice owns transient projection, blocking session, input, and read-only presentation state without copying the score or coupling back into the editor.
+Staff Builder owns its schema v3 score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, annotations, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Historical local-storage keys retain `-v1` names for compatibility and must not be renamed merely because the current schema is v3. Piece Practice owns transient projection, check-based blocking state, input, and read-only presentation without copying the score or coupling back into the editor.
 
-The August 12, 2026 verification checkpoint is 117 passing test files and 1,328 passing tests, with ESLint, TypeScript, `pnpm verify`, and the production build passing. Real-device/manual QA remains pending.
+The current automated baseline is 137 passing test files and 1,544 passing tests. Real-device/manual QA remains pending; run the complete `pnpm verify` workflow again against the eventual release candidate.
 
 ---
 
