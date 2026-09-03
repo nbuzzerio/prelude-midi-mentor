@@ -58,14 +58,14 @@ The current `.github/workflows/deploy.yml` workflow has these operational assump
 - the job requires an available self-hosted Linux GitHub Actions runner;
 - the runner installs pnpm 10 and uses Node.js 22;
 - dependencies are installed with the frozen lockfile;
-- lint, type-check, and production build steps run before deployment;
+- the canonical `pnpm verify` gate runs lint, type-checking, the full automated test suite, and the production build before deployment;
 - static output is copied with `rsync --delete` into `/var/www/prelude`;
 - Nginx serves the application below `/prelude/`, matching the Vite base path, PWA scope/start URL, and navigation fallback;
 - runner permissions, `rsync`, the target directory, Nginx configuration, TLS, storage, and rollback/backup procedures are operational responsibilities outside this repository.
 
 Runner availability is required for deployment. A successful push or tag alone does not prove that production updated; inspect the workflow result and the live application.
 
-The current workflow does not run the full test suite even though `pnpm verify` is Prelude's release gate. CI behavior will be tightened in a later cleanup phase; do not treat this document as evidence that the workflow has already changed.
+The current workflow now invokes the same `pnpm verify` gate used for local release preparation. Broader CI redesign—such as matrices, environments, release jobs, or deployment-infrastructure changes—remains outside this cleanup phase.
 
 ## Failed or Partial Releases
 
