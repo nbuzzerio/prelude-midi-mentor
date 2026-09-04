@@ -1,8 +1,9 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** Planned v2.5.0 release-readiness checkpoint, ahead of the latest repository tag
+> **Status:** v2.5.0 release candidate prepared, ahead of the repository owner's manual tag
 
-The current automated baseline is 1,548 passing tests across 137 test files. The most recent complete build checkpoint also passed ESLint, TypeScript, and the production build; the full `pnpm verify` workflow must be rerun against the final release candidate. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, responsive presentation, fullscreen/orientation variations, screen readers/reduced motion, and installed-PWA airplane mode.
+The current automated baseline is 1,548 passing tests across 137 test files. The complete release-candidate checkpoint passes ESLint, TypeScript, the automated suite, and the production build. A lightweight owner sanity check remains before tagging, including representative physical MIDI, core practice flows, persistence, and installed-PWA behavior. Broader device, responsive, accessibility, fullscreen/orientation, and offline validation remain useful ongoing QA rather than release-blocking certification.
+
 > **Latest repository tag:** v2.4.0 — Staff Builder
 > **Last updated:** September 3, 2026
 
@@ -485,16 +486,16 @@ This is risk-based guidance, not an exhaustive manual-QA gate. Non-blocking issu
 
 ### Mobile UX real-device matrix still required
 
-| Device class | Highest-risk checks |
-| --- | --- |
-| 360px portrait | Compact navigation/header, Free Play and Sequence action flow, keyboard adjacency, safe-area Exit controls |
-| 390–412px portrait | Mobile Play entry policy, Ear Training header, Flashcard disclosures/stats, Piece Practice rolled-check actions/completion |
-| Phone landscape | Score/keyboard proportions, horizontal overflow, safe areas, explicit exit without session reset |
-| Chromebook laptop | Whole Sequence scrolling, narrow/wide breakpoint behavior, keyboard and mouse focus visibility |
-| Chromebook tablet/touch | Coarse-pointer Mobile Play entry, touch controls, one keyboard/input owner, physical MIDI handoff |
-| Android Chrome | Fullscreen/orientation accepted, rejected, and unavailable paths; Escape leaves Prelude Mobile Play active |
-| Narrow desktop | Entry visibility below 1024px, document-flow layouts, keyboard scrolling of Melody score and Session Review regions |
-| Wide desktop | Mobile Play entry hidden for mouse input, desktop navigation/grouping and headers unchanged |
+| Device class            | Highest-risk checks                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 360px portrait          | Compact navigation/header, Free Play and Sequence action flow, keyboard adjacency, safe-area Exit controls                 |
+| 390–412px portrait      | Mobile Play entry policy, Ear Training header, Flashcard disclosures/stats, Piece Practice rolled-check actions/completion |
+| Phone landscape         | Score/keyboard proportions, horizontal overflow, safe areas, explicit exit without session reset                           |
+| Chromebook laptop       | Whole Sequence scrolling, narrow/wide breakpoint behavior, keyboard and mouse focus visibility                             |
+| Chromebook tablet/touch | Coarse-pointer Mobile Play entry, touch controls, one keyboard/input owner, physical MIDI handoff                          |
+| Android Chrome          | Fullscreen/orientation accepted, rejected, and unavailable paths; Escape leaves Prelude Mobile Play active                 |
+| Narrow desktop          | Entry visibility below 1024px, document-flow layouts, keyboard scrolling of Melody score and Session Review regions        |
+| Wide desktop            | Mobile Play entry hidden for mouse input, desktop navigation/grouping and headers unchanged                                |
 
 Across the matrix, verify real MIDI attacks and chords, no duplicate input, Sequence Whole Sequence active-step discoverability, Staff Builder Study View/duplication/rolled authoring, Melody lead-in/timed review/repair scrolling and focus, and Piece Practice normal-plus-rolled blocking/restart/targetless/completion controls. This QA has not yet been performed.
 

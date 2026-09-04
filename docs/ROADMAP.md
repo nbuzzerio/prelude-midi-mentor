@@ -2,7 +2,7 @@
 
 > This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
 >
-> **Current checkpoint:** September 2, 2026 — the repository is preparing a planned v2.5.0 release containing the completed feature work since the v2.4.0 Staff Builder tag. Automated coverage is current; final real-device, accessibility, MIDI, and installed-PWA QA remains pending.
+> **Current checkpoint:** September 3, 2026 — the repository, application version, and release notes are prepared for the v2.5.0 release candidate containing the completed feature work since the v2.4.0 Staff Builder tag. Owner review, final sanity checks, the manual tag, and deployment verification remain.
 
 ---
 
@@ -168,13 +168,13 @@ Container-driven responsive VexFlow sizing is deferred to the later UI/UX overha
 
 Future Free Play ideas such as chord analysis, phrase history, last-measure display, rhythm, zoom controls, and automatic key detection remain unimplemented.
 
-## Completed Release-Candidate Scope
+## Completed v2.5.0 Release-Candidate Scope
 
-Chord Progressions, key-aware Free Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, Piece Practice, Melody, and the coordinated Mobile Play stream are complete in code. The post-v2.4.0 release candidate also includes annotations and Study View, timed Melody diagnostics and review, piece duplication, and authored and practiced rolled chords. Development now pauses for final manual QA:
+Chord Progressions, key-aware Free Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, Piece Practice, Melody, and the coordinated Mobile Play stream are complete in code. The v2.5.0 release candidate also includes annotations and Study View, timed Melody diagnostics and review, piece duplication, and authored and practiced rolled chords. Development now pauses for final release preparation:
 
-1. Perform combined physical-MIDI, Chromebook touch/mouse, Android portrait/landscape, responsive, playback, and persistence QA.
-2. Fix only defects confirmed by that stabilization pass.
-3. Finalize the package version and release history only after QA passes.
+1. Perform the final owner sanity check across application startup, MIDI, Melody, Staff Builder to Piece Practice, persistence, and the installed PWA.
+2. Review and commit the prepared v2.5.0 version and release documentation, then create the annotated tag manually.
+3. Verify deployment and the installed-PWA update after pushing the release commit and tag.
 4. Review the completed product checkpoint before selecting the next feature milestone. Melody duration/hold grading and Piece Practice Accuracy remain separate future work.
 
 Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
@@ -241,7 +241,7 @@ Staff Builder provides a beginner-focused transcription and practice-material wo
 
 ---
 
-# ✅ Post-v2.4.0 — Piece Practice (Implemented, Manual QA Pending)
+# ✅ Post-v2.4.0 — Piece Practice (Implemented for v2.5.0)
 
 - [x] Validation-gated launch from saved Staff Builder pieces
 - [x] Transient attack-onset projection without `SequenceTarget` or copied score persistence

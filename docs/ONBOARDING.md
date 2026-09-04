@@ -1,10 +1,10 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
 > **Latest Repository Tag:** v2.4.0 — Staff Builder
-> **Last Updated:** September 2, 2026
-> **Current Milestone:** Planned v2.5.0 documentation and release-readiness pass
+> **Last Updated:** September 3, 2026
+> **Current Milestone:** v2.5.0 release candidate prepared; owner review and manual tag pending
 >
-> Combined physical-device, responsive, accessibility, MIDI, and installed-PWA QA is next. Do not begin Piece Practice Accuracy or expand Melody scope without a new approved plan.
+> Final release sanity checks, owner review, the manual tag, and deployment verification are next. Do not begin Piece Practice Accuracy or expand Melody scope without a new approved plan.
 
 ---
 
@@ -214,13 +214,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's latest repository tag is v2.4.0. The current release candidate is preparing the backward-compatible work since that tag for a planned v2.5.0 release, including Piece Practice, automatic same-staff polyphony, import/export, annotations and Study View, Melody and its timed review workflow, coordinated Mobile Play, duplication, and rolled-chord authoring/practice.
+Prelude's latest repository tag remains v2.4.0 until the repository owner completes the manual release steps. The package version and release notes are prepared for the backward-compatible v2.5.0 release candidate, including Piece Practice, automatic same-staff polyphony, import/export, annotations and Study View, Melody and its timed review workflow, coordinated Mobile Play, duplication, and rolled-chord authoring/practice.
 
-The next step is combined physical-MIDI, Chromebook mouse/touch, Android portrait/landscape, responsive, fullscreen/orientation, accessibility, playback, persistence, and installed-PWA QA. Fix only confirmed defects, then finalize the release version and notes before selecting another milestone. Melody duration/hold grading, persistent practice evidence, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
+The next step is the repository owner's final application sanity check, review and commit of the prepared release metadata, manual annotated tag, deployment verification, and installed-PWA smoke check. Fix only confirmed defects before tagging. Melody duration/hold grading, persistent practice evidence, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 
 Staff Builder owns its schema v3 score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, annotations, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Historical local-storage keys retain `-v1` names for compatibility and must not be renamed merely because the current schema is v3. Piece Practice owns transient projection, check-based blocking state, input, and read-only presentation without copying the score or coupling back into the editor.
 
-The current automated baseline is 137 passing test files and 1,544 passing tests. Real-device/manual QA remains pending; run the complete `pnpm verify` workflow again against the eventual release candidate.
+The current automated baseline is 137 passing test files and 1,548 passing tests. Physical Web MIDI, installed-PWA behavior, real offline behavior, and representative browser/device behavior still require manual validation where relevant.
 
 ---
 

@@ -1,8 +1,14 @@
 # Dev Log
 
-A high-level release history and record of significant milestones in Prelude's development. The Unreleased section describes the current release candidate; a version is moved into a dated release section only when it is actually released.
+A high-level release history and record of significant milestones in Prelude's development. The Unreleased section records work after the prepared release, while dated sections preserve finalized release notes. The v2.5.0 section is prepared for the repository owner's manual release commit and annotated tag; it does not claim that tag already exists.
 
 ## Unreleased
+
+No changes recorded after v2.5.0 release preparation.
+
+---
+
+## v2.5.0 — September 3, 2026
 
 ### Piece Practice
 
@@ -22,7 +28,7 @@ A high-level release history and record of significant milestones in Prelude's d
 - Added generated continuous one- and two-measure sight-reading with count-in/metronome, MIDI/VKB capture, alignment, and independent Pitch, Movement, and Timing results.
 - Added continuous timed diagnostics, interruption-safe Session Review, targeted repair retries, immutable original evidence, and original-versus-latest comparison.
 - Added interval analytics that keep Sight Read evidence separate from Repair evidence.
-- Added a two-quarter-beat preparatory display lead-in before authored and scored material.
+- Added a two-quarter-beat preparatory display lead-in and improved first-note alignment before authored and scored material.
 
 ### Mobile and Platform
 
@@ -31,7 +37,8 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ### Release Readiness
 
-- Documented `package.json` as the visible application-version source. Its value remains unchanged until the planned release-version step, when it must be synchronized with the annotated tag.
+- Synchronized the visible application version with the canonical `package.json` version for v2.5.0 release preparation.
+- Completed focused repository, documentation, automated-testing, PWA-configuration, and release-readiness cleanup.
 
 ---
 

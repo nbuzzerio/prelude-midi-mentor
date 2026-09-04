@@ -386,7 +386,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Prelude's latest repository tag is **v2.4.0 — Staff Builder**. The current release candidate is preparing the backward-compatible feature work accumulated since that tag for a planned v2.5.0 release.
+Prelude's latest repository tag remains **v2.4.0 — Staff Builder** until the repository owner completes the manual release steps. The repository and application metadata are prepared for the backward-compatible **v2.5.0** release candidate.
 
 The application now supports six complementary top-level modes:
 
@@ -397,9 +397,9 @@ The application now supports six complementary top-level modes:
 - Melody for continuous one- or two-measure sight-reading and independent Pitch, Movement, and Timing results
 - Staff Builder for beginner-friendly score transcription and editing
 
-The release candidate includes Piece Practice, automatic same-staff polyphony, import/export, coordinated Mobile Play, annotations and Study View, Melody timed diagnostics and repair review, interval analytics, preparatory lead-in, piece duplication, and authored/graded rolled chords. Chromebook, phone, accessibility, fullscreen/orientation, physical-MIDI, and installed-PWA manual QA remain required before release. Melody duration/hold grading, persisted practice evidence, and Piece Practice Accuracy remain future work.
+The release candidate includes Piece Practice, automatic same-staff polyphony, import/export, coordinated Mobile Play, annotations and Study View, Melody timed diagnostics and repair review, interval analytics, preparatory lead-in, piece duplication, and authored/graded rolled chords. A final owner sanity check, manual tag, deployment verification, and representative device/PWA smoke checks remain before release completion. Melody duration/hold grading, persisted practice evidence, and Piece Practice Accuracy remain future work.
 
-`package.json` is the authoritative source for the version displayed in Prelude's navigation. Its package version is updated to match the annotated release tag only after release validation; until that release step, the development UI may display the previous package version.
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is set to `2.5.0`, so the prepared release candidate displays `v2.5.0`; the matching annotated tag is still created manually by the repository owner.
 
 Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
 
@@ -488,7 +488,7 @@ Future lesson-based features can build on these existing primitives without forc
 - [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Current structure and technical direction
 - [`DECISIONS.md`](./docs/DECISIONS.md) — Important product and architectural decisions
 - [`TESTING.md`](./docs/TESTING.md) — Testing philosophy and coverage
-- [`DEVLOG.md`](./docs/DEVLOG.md) — Release history and current unreleased changes
+- [`DEVLOG.md`](./docs/DEVLOG.md) — Release history and prepared v2.5.0 notes
 - [`RELEASING.md`](./docs/RELEASING.md) — Versioning, validation, tagging, and deployment process
 
 ---
