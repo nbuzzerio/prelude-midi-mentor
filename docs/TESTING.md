@@ -2,9 +2,9 @@
 
 > **Status:** Planned v2.5.0 release-readiness checkpoint, ahead of the latest repository tag
 
-The current automated baseline is 1,544 passing tests across 137 test files. The most recent complete build checkpoint also passed ESLint, TypeScript, and the production build; the full `pnpm verify` workflow must be rerun against the final release candidate. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, responsive presentation, fullscreen/orientation variations, screen readers/reduced motion, and installed-PWA airplane mode.
+The current automated baseline is 1,548 passing tests across 137 test files. The most recent complete build checkpoint also passed ESLint, TypeScript, and the production build; the full `pnpm verify` workflow must be rerun against the final release candidate. Manual release QA remains required for physical MIDI, Android/Chromebook interaction, responsive presentation, fullscreen/orientation variations, screen readers/reduced motion, and installed-PWA airplane mode.
 > **Latest repository tag:** v2.4.0 — Staff Builder
-> **Last updated:** September 2, 2026
+> **Last updated:** September 3, 2026
 
 ## Purpose
 
@@ -105,8 +105,8 @@ Tests should be grouped by public behavior and use musical terminology in their 
 
 **Current Result**
 
-- Test files: 101 passed
-- Tests: 1,144 passed
+- Test files: 137 passed
+- Tests: 1,548 passed
 - The complete `pnpm verify` workflow passes locally.
 
 ## Testing Blocks
@@ -376,6 +376,18 @@ Automated coverage includes:
 - Mobile Play preservation of blocking mistakes, current target/measure, original timing, pending physical chord collection, and partial virtual chord selection
 - unchanged Restart Measure, Restart Piece, explicit targetless-measure advancement, completion, and distinct Mobile Play/Piece Practice exits
 - exactly one mounted keyboard and input owner before, during, and after focused presentation
+
+### Block 14 — Production and PWA Configuration
+
+Focused automated coverage protects repository-owned release configuration:
+
+- the Vite production base remains `/prelude/` rather than root `/`
+- manifest scope and start URL remain aligned with the deployed subpath
+- Workbox navigation fallback remains `/prelude/index.html`
+- emitted piano WAV assets remain included in the precache glob
+- generated service-worker registration remains in auto-update mode
+
+These tests cover stable configuration invariants only. Installed-PWA update behavior, real offline behavior, and browser Web MIDI behavior still require manual validation on representative browsers and devices; Prelude does not have automated browser E2E coverage.
 
 ## Intentionally Not Deeply Tested
 

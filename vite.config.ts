@@ -6,15 +6,21 @@ import path from "node:path";
 import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
 import { PRELUDE_PWA_GLOB_PATTERNS } from "./src/pwa-assets";
+import {
+  PRELUDE_BASE_PATH,
+  PRELUDE_PWA_MANIFEST_PATHS,
+  PRELUDE_PWA_NAVIGATION_FALLBACK,
+  PRELUDE_PWA_REGISTER_TYPE,
+} from "./src/pwa-config";
 
 export default defineConfig({
-  base: "/prelude/",
+  base: PRELUDE_BASE_PATH,
 
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: PRELUDE_PWA_REGISTER_TYPE,
 
       includeAssets: [
         "favicon.ico",
@@ -35,8 +41,8 @@ export default defineConfig({
         display: "standalone",
         orientation: "any",
 
-        scope: "/prelude/",
-        start_url: "/prelude/",
+        scope: PRELUDE_PWA_MANIFEST_PATHS.scope,
+        start_url: PRELUDE_PWA_MANIFEST_PATHS.startUrl,
 
         icons: [
           {
@@ -59,7 +65,7 @@ export default defineConfig({
       },
 
       workbox: {
-        navigateFallback: "/prelude/index.html",
+        navigateFallback: PRELUDE_PWA_NAVIGATION_FALLBACK,
         globPatterns: PRELUDE_PWA_GLOB_PATTERNS,
       },
 
