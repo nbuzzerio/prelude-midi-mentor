@@ -544,3 +544,10 @@ The following functionality was also verified prior to the v1.0 release:
 - Offline application shell
 
 Together, these automated and manual checks establish the release baseline. Future releases should meet or exceed this verification standard before being tagged.
+
+
+### Feature configuration regression coverage
+
+Feature `*-config.test.ts` suites cover exact defaults, JSON round trips, Set/array boundaries, invalid selections, schema errors, Sequence subtype selections and progression compatibility, and separation of Melody generation settings from timed options. Settings-hook tests cover supplied mount-time prescriptions and stable selections on rerender. Settings-controls tests render editors without an exercise engine or MIDI provider and omit runtime reset actions. Existing session tests remain responsible for target regeneration, reset/statistics, input ownership, Mobile Play, and Melody timed behavior.
+
+For changes to these boundaries, manually check Flashcard defaults and settings; every Sequence subtype and its settings; Ear Training selections; and Melody generation settings plus Continuous Practice setup. Configured first-target launch and Scale Repertoire are not implemented by this boundary refactor.

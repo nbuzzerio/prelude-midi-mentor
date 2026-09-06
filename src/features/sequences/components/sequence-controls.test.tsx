@@ -138,3 +138,10 @@ describe("SequenceControls", () => {
     ).toBe("true");
   });
 });
+
+it("can render and edit settings without a runtime reset action or MIDI provider", () => {
+  render(<SequenceControls {...BASE_PROPS} exerciseType="scales" onReset={undefined} />);
+  expect(screen.queryByRole("button", { name: /reset session/i })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Ascending + Descending" }));
+  expect(BASE_PROPS.onScaleDirectionToggle).toHaveBeenCalledWith("ascending-descending");
+});

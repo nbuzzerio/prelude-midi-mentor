@@ -1,3 +1,4 @@
+import { DEFAULT_FLASHCARD_CONFIG, flashcardSettingsToConfig } from "../flashcard-config";
 import { useFlashcardSettings } from "@/features/flashcards/hooks/use-flashcard-settings";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -211,4 +212,13 @@ describe("useFlashcardSettings", () => {
       new Set(["root", "second"]),
     );
   });
+});
+
+it("initializes a supplied prescription without setters and keeps it stable on rerender", () => {
+  const config = { ...DEFAULT_FLASHCARD_CONFIG, mode: "mixed" as const, enabledExerciseTypes: ["triads"] as const };
+  const { result, rerender } = renderHook(({ initial }) => useFlashcardSettings(initial), { initialProps: { initial: config } });
+  expect(flashcardSettingsToConfig(result.current)).toEqual(config);
+  const selection = result.current.enabledExerciseTypes;
+  rerender({ initial: { ...config } });
+  expect(result.current.enabledExerciseTypes).toBe(selection);
 });

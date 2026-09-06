@@ -692,3 +692,16 @@ When extending Prelude:
 - Let feature hooks own coherent behavior.
 - Let session components coordinate rather than implement reusable domain behavior.
 - Keep documentation synchronized with architectural changes.
+
+
+## Feature configuration boundaries
+
+Flashcards, Sequences, Ear Training, and Melody own their JSON-safe prescription types in `flashcard-config.ts`, `sequence-config.ts`, `ear-training-config.ts`, and `melody-config.ts`. Version 1 configs contain only settings, with enum arrays rather than Sets. Feature parsers return `corrupt` or `unsupported` results; they reject unknown/missing fields, invalid selections, and duplicate selections rather than silently repairing a prescription. `src/lib/config-validation.ts` contains only structural parsing primitives, not music rules or a mode registry.
+
+The Flashcard, Sequence, and Ear Training settings hooks accept a mount-time initial config and otherwise use centralized existing defaults. Feature conversion functions create detached runtime Sets and serialize explicit settings fields back to plain arrays. Callback-bearing hook results may be supplied to these serializers; callbacks are not serialized. New initial props do not overwrite edits after mount.
+
+Sequence config retains settings for all four subtypes so switching subtypes preserves existing selections. Every selection group remains valid, including inactive groups. Progression compatibility preserves the existing rule that at least one selected key/template pair is compatible; incompatible cross-products are not newly forbidden. Scale configuration still describes existing random generation only. A future repertoire prescription can add a versioned scale-specific representation without changing global key IDs.
+
+MelodyConfig composes existing MelodySettings with static Continuous Practice options. Conversion to MelodySettings excludes those timed options. Active deadlines, recordings, results, and diagnostic history remain session-owned. MelodySettingsControls renders controlled generation fields; optional MelodyPracticeOptions composes timed setup controls in the existing fieldset. Neither mounts an exercise engine. Existing Flashcard, Sequence, and Ear Training controls omit Reset Session when no reset callback is provided; standalone sessions continue supplying it.
+
+These boundaries prepare future configuration editors without implementing Practice Session or storage. Fixed initial Flashcard/Sequence targets and configured launch remain unchanged and require a separate launch phase. MIDI, audio, Mobile Play, grading, target regeneration, and reset ownership are unchanged.

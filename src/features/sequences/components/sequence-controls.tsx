@@ -42,7 +42,7 @@ type SequenceControlsProps = Readonly<{
   onIntervalToggle: (interval: SequenceInterval) => void;
   onModeChange: (mode: PracticeClefMode) => void;
   onNoteCategoryToggle: (category: SequenceNoteCategory) => void;
-  onReset: () => void;
+  onReset?: () => void;
   onScaleToggle: (scale: SequenceScale) => void;
   onScaleDirectionToggle: (direction: SequenceScaleDirection) => void;
   onShowTargetNameChange: (enabled: boolean) => void;
@@ -353,13 +353,13 @@ export default function SequenceControls({
           </p>
         </div>
 
-        <button
+        {onReset && <button
           className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white"
           onClick={onReset}
           type="button"
         >
           Reset session
-        </button>
+        </button>}
       </div>
 
       <fieldset className="mt-5">

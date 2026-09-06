@@ -16,7 +16,7 @@ type PracticeControlsProps = Readonly<{
   onExerciseTypeToggle: (exerciseType: PracticeExerciseType) => void;
   onModeChange: (mode: PracticeClefMode) => void;
   onNoteCategoryToggle: (category: PracticeNoteCategory) => void;
-  onReset: () => void;
+  onReset?: () => void;
   onShowTargetNameChange: (showTargetName: boolean) => void;
   onTriadPositionToggle: (position: PracticeTriadPosition) => void;
   onTriadQualityToggle: (quality: PracticeTriadQuality) => void;
@@ -113,13 +113,13 @@ export default function PracticeControls({
           </p>
         </div>
 
-        <button
+        {onReset && <button
           className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white"
           onClick={onReset}
           type="button"
         >
           Reset session
-        </button>
+        </button>}
       </div>
 
       <fieldset className="mt-5">

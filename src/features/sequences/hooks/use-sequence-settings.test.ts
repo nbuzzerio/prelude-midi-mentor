@@ -1,3 +1,4 @@
+import { DEFAULT_SEQUENCE_CONFIG, sequenceSettingsToConfig } from "../sequence-config";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -392,4 +393,13 @@ describe("useSequenceSettings", () => {
       );
     });
   });
+});
+
+it("initializes a supplied prescription without setters and keeps it stable on rerender", () => {
+  const config = { ...DEFAULT_SEQUENCE_CONFIG, exerciseType: "scales" as const, enabledScales: ["melodic-minor"] as const };
+  const { result, rerender } = renderHook(({ initial }) => useSequenceSettings(initial), { initialProps: { initial: config } });
+  expect(sequenceSettingsToConfig(result.current)).toEqual(config);
+  const selection = result.current.enabledDirections;
+  rerender({ initial: { ...config } });
+  expect(result.current.enabledDirections).toBe(selection);
 });

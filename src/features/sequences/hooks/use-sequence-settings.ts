@@ -1,10 +1,7 @@
+import { DEFAULT_SEQUENCE_CONFIG, sequenceConfigToSettings, type SequenceConfig, hasCompatibleProgressionSelection } from "../sequence-config";
 import { useCallback, useState } from "react";
 
 import { toggleRequiredSetValue } from "@/lib/toggle-required-set-value";
-import {
-  CHORD_PROGRESSION_TEMPLATES,
-  SUPPORTED_CHORD_PROGRESSION_KEYS,
-} from "@/lib/music/chord-progressions";
 import type {
   ChordProgressionKeyId,
   ChordProgressionTemplateId,
@@ -22,98 +19,50 @@ import type {
   SequenceScaleDirection,
 } from "@/types/practice";
 
-const DEFAULT_ENABLED_DIRECTIONS = new Set<SequenceDirection>(["ascending"]);
 
-const DEFAULT_ENABLED_INTERVALS = new Set<SequenceInterval>([
-  "minor-second",
-  "major-second",
-  "minor-third",
-  "major-third",
-]);
-
-const DEFAULT_ENABLED_NOTE_CATEGORIES = new Set<SequenceNoteCategory>([
-  "naturals",
-]);
-
-const DEFAULT_ENABLED_SCALES = new Set<SequenceScale>(["major"]);
-
-const DEFAULT_ENABLED_SCALE_DIRECTIONS = new Set<SequenceScaleDirection>([
-  "ascending",
-]);
-
-const DEFAULT_ENABLED_ARPEGGIOS = new Set<SequenceArpeggio>(["major"]);
-const DEFAULT_ENABLED_ARPEGGIO_DIRECTIONS = new Set<SequenceArpeggioDirection>([
-  "ascending-descending",
-]);
-
-const DEFAULT_ENABLED_CHORD_PROGRESSION_KEY_IDS =
-  new Set<ChordProgressionKeyId>(["c-major"]);
-
-const DEFAULT_ENABLED_CHORD_PROGRESSION_TEMPLATE_IDS =
-  new Set<ChordProgressionTemplateId>(["major-1451"]);
-
-function hasCompatibleProgressionSelection(
-  keyIds: ReadonlySet<ChordProgressionKeyId>,
-  templateIds: ReadonlySet<ChordProgressionTemplateId>,
-): boolean {
-  const enabledModes = new Set(
-    SUPPORTED_CHORD_PROGRESSION_KEYS.filter((key) => keyIds.has(key.id)).map(
-      (key) => key.mode,
-    ),
-  );
-
-  return CHORD_PROGRESSION_TEMPLATES.some(
-    (template) =>
-      templateIds.has(template.id) && enabledModes.has(template.mode),
-  );
-}
-
-export function useSequenceSettings() {
+export function useSequenceSettings(initialConfig: SequenceConfig = DEFAULT_SEQUENCE_CONFIG) {
+  const [initial] = useState(() => sequenceConfigToSettings(initialConfig));
   const [exerciseType, setExerciseType] =
-    useState<SequenceExerciseType>("intervals");
+    useState<SequenceExerciseType>(initial.exerciseType);
 
-  const [mode, setMode] = useState<PracticeClefMode>("treble");
+  const [mode, setMode] = useState<PracticeClefMode>(initial.mode);
 
-  const [showTargetName, setShowTargetName] = useState(false);
+  const [showTargetName, setShowTargetName] = useState(initial.showTargetName);
 
   const [enabledDirections, setEnabledDirections] = useState<
     ReadonlySet<SequenceDirection>
-  >(DEFAULT_ENABLED_DIRECTIONS);
+  >(initial.enabledDirections);
 
   const [enabledIntervals, setEnabledIntervals] = useState<
     ReadonlySet<SequenceInterval>
-  >(DEFAULT_ENABLED_INTERVALS);
+  >(initial.enabledIntervals);
 
   const [enabledNoteCategories, setEnabledNoteCategories] = useState<
     ReadonlySet<SequenceNoteCategory>
-  >(DEFAULT_ENABLED_NOTE_CATEGORIES);
+  >(initial.enabledNoteCategories);
 
   const [enabledScales, setEnabledScales] = useState<
     ReadonlySet<SequenceScale>
-  >(DEFAULT_ENABLED_SCALES);
+  >(initial.enabledScales);
 
   const [enabledScaleDirections, setEnabledScaleDirections] = useState<
     ReadonlySet<SequenceScaleDirection>
-  >(DEFAULT_ENABLED_SCALE_DIRECTIONS);
+  >(initial.enabledScaleDirections);
 
   const [enabledArpeggios, setEnabledArpeggios] = useState<
     ReadonlySet<SequenceArpeggio>
-  >(DEFAULT_ENABLED_ARPEGGIOS);
+  >(initial.enabledArpeggios);
   const [enabledArpeggioDirections, setEnabledArpeggioDirections] = useState<
     ReadonlySet<SequenceArpeggioDirection>
-  >(DEFAULT_ENABLED_ARPEGGIO_DIRECTIONS);
+  >(initial.enabledArpeggioDirections);
 
   const [enabledChordProgressionKeyIds, setEnabledChordProgressionKeyIds] =
-    useState<ReadonlySet<ChordProgressionKeyId>>(
-      DEFAULT_ENABLED_CHORD_PROGRESSION_KEY_IDS,
-    );
+    useState<ReadonlySet<ChordProgressionKeyId>>(initial.enabledChordProgressionKeyIds);
 
   const [
     enabledChordProgressionTemplateIds,
     setEnabledChordProgressionTemplateIds,
-  ] = useState<ReadonlySet<ChordProgressionTemplateId>>(
-    DEFAULT_ENABLED_CHORD_PROGRESSION_TEMPLATE_IDS,
-  );
+  ] = useState<ReadonlySet<ChordProgressionTemplateId>>(initial.enabledChordProgressionTemplateIds);
 
   const toggleDirection = useCallback((direction: SequenceDirection) => {
     setEnabledDirections((currentDirections) =>

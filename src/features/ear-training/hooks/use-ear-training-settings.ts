@@ -1,18 +1,12 @@
+import { DEFAULT_EAR_TRAINING_CONFIG, earTrainingConfigToSettings, type EarTrainingConfig } from "../ear-training-config";
 import { useCallback, useState } from "react";
 import { toggleRequiredSetValue } from "@/lib/toggle-required-set-value";
 import type { IntervalDirection, MusicalInterval } from "@/lib/music/intervals";
 
-const DEFAULT_INTERVALS = new Set<MusicalInterval>([
-  "minor-second",
-  "major-second",
-  "minor-third",
-  "major-third",
-]);
-const DEFAULT_DIRECTIONS = new Set<IntervalDirection>(["ascending"]);
-
-export function useEarTrainingSettings() {
-  const [enabledIntervals, setEnabledIntervals] = useState<ReadonlySet<MusicalInterval>>(DEFAULT_INTERVALS);
-  const [enabledDirections, setEnabledDirections] = useState<ReadonlySet<IntervalDirection>>(DEFAULT_DIRECTIONS);
+export function useEarTrainingSettings(initialConfig: EarTrainingConfig = DEFAULT_EAR_TRAINING_CONFIG) {
+  const [initial] = useState(() => earTrainingConfigToSettings(initialConfig));
+  const [enabledIntervals, setEnabledIntervals] = useState<ReadonlySet<MusicalInterval>>(initial.enabledIntervals);
+  const [enabledDirections, setEnabledDirections] = useState<ReadonlySet<IntervalDirection>>(initial.enabledDirections);
 
   const toggleInterval = useCallback((interval: MusicalInterval) => {
     setEnabledIntervals((current) => toggleRequiredSetValue(current, interval));

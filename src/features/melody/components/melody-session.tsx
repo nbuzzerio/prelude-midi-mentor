@@ -1,3 +1,5 @@
+import { DEFAULT_MELODY_CONFIG, melodyConfigToSettings } from "../melody-config";
+import { MelodySettingsControls, MelodyPracticeOptions } from "./melody-settings-controls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
@@ -12,13 +14,11 @@ import {
   canStartMelodyContinuousDiagnosticTrial,
   createMelodyContinuousDeadline,
   createMelodyContinuousDiagnosticTrial,
-  DEFAULT_MELODY_CONTINUOUS_DURATION_MINUTES,
   getMelodyContinuousRemainingMs,
   getMelodyContinuousTrialRetryCount,
   getMelodyContinuousTrialsNeedingReview,
   getNextMelodyContinuousTrialNeedingReviewId,
   isMelodyContinuousTrialMastered,
-  MELODY_CONTINUOUS_DURATION_MINUTES,
   type MelodyContinuousDiagnosticTrial,
   type MelodyContinuousDurationMinutes,
 } from "../melody-continuous-practice";
@@ -57,7 +57,7 @@ function formatRemainingTime(remainingMs: number): string {
 }
 
 export default function MelodySession({ seedFactory = defaultSeedFactory, createAudioContext = createMelodyBrowserAudioContext, nowMs = defaultNowMs }: Readonly<{ seedFactory?: () => MelodySeed; createAudioContext?: MelodyAudioFactory; nowMs?: () => number }>) {
-  const [settings, setSettings] = useState<MelodySettings>(DEFAULT_MELODY_SETTINGS);
+  const [settings, setSettings] = useState<MelodySettings>(() => melodyConfigToSettings(DEFAULT_MELODY_CONFIG));
   const [exercise, setExercise] = useState<MelodyExercise>(() => generateMelodyExercise(DEFAULT_MELODY_SETTINGS, seedFactory()));
   const [presentation, setPresentation] = useState<MelodyPresentationState>("setup");
   const [result, setResult] = useState<MelodyAttemptResult | null>(null);
@@ -67,9 +67,9 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
   const [activeTick, setActiveTick] = useState<number | undefined>();
   const [activeVirtual, setActiveVirtual] = useState<ReadonlySet<number>>(EMPTY);
   const [lockedSource, setLockedSource] = useState<"midi" | "virtual" | null>(null);
-  const [continuousPractice, setContinuousPractice] = useState(false);
+  const [continuousPractice, setContinuousPractice] = useState(DEFAULT_MELODY_CONFIG.continuousPractice);
   const [continuousDurationMinutes, setContinuousDurationMinutes] =
-    useState<MelodyContinuousDurationMinutes>(DEFAULT_MELODY_CONTINUOUS_DURATION_MINUTES);
+    useState<MelodyContinuousDurationMinutes>(DEFAULT_MELODY_CONFIG.continuousDurationMinutes);
   const [continuousSessionActive, setContinuousSessionActive] = useState(false);
   const [continuousHistory, setContinuousHistory] = useState<
     readonly MelodyContinuousDiagnosticTrial[]
@@ -505,14 +505,9 @@ export default function MelodySession({ seedFactory = defaultSeedFactory, create
     <header className="melody-header flex flex-wrap items-center justify-between gap-3" hidden={isMobilePlayMode}><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><div className="flex items-center gap-2"><button className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15" onClick={enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div></header>
     {isMobilePlayMode ? <><p className="melody-mobile-play-context">Melody · {settings.tempoBpm} BPM · {settings.measureCount} {settings.measureCount === 1 ? "measure" : "measures"}</p><button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg" onClick={handleExitMobilePlay} type="button">Exit Mobile Play</button></> : null}
     <p aria-live="polite" className="sr-only">{statusMessage}</p>
-    {presentation === "setup" && <fieldset className="melody-settings grid gap-3 rounded-xl bg-zinc-900 p-4 sm:grid-cols-4"><legend>Exercise settings</legend>
-      <label>Staff<select aria-label="Staff" onChange={(event) => changeSetting("staff", event.target.value as MelodySettings["staff"])} value={settings.staff}><option value="treble">Treble</option><option value="bass">Bass</option></select></label>
-      <label>Key<select aria-label="Key" onChange={(event) => changeSetting("keyId", event.target.value as MelodySettings["keyId"])} value={settings.keyId}><option value="c-major">C major</option><option value="g-major">G major</option><option value="f-major">F major</option><option value="a-minor">A minor</option><option value="d-minor">D minor</option></select></label>
-      <label>Tempo<select aria-label="Tempo" onChange={(event) => changeSetting("tempoBpm", Number(event.target.value) as MelodySettings["tempoBpm"])} value={settings.tempoBpm}>{[50, 60, 70, 80].map((bpm) => <option key={bpm} value={bpm}>{bpm} BPM</option>)}</select></label>
-      <label>Length<select aria-label="Length" onChange={(event) => changeSetting("measureCount", Number(event.target.value) as 1 | 2)} value={settings.measureCount}><option value={1}>1 measure</option><option value={2}>2 measures</option></select></label>
-      <label className="flex items-center gap-2"><input checked={continuousPractice} onChange={(event) => setContinuousPractice(event.target.checked)} type="checkbox" />Continuous Practice</label>
-      {continuousPractice && <label>Session duration<select aria-label="Session duration" onChange={(event) => setContinuousDurationMinutes(Number(event.target.value) as MelodyContinuousDurationMinutes)} value={continuousDurationMinutes}>{MELODY_CONTINUOUS_DURATION_MINUTES.map((minutes) => <option key={minutes} value={minutes}>{minutes} {minutes === 1 ? "minute" : "minutes"}</option>)}</select></label>}
-    </fieldset>}
+    {presentation === "setup" && <MelodySettingsControls settings={settings} onChange={changeSetting}>
+      <MelodyPracticeOptions continuousPractice={continuousPractice} continuousDurationMinutes={continuousDurationMinutes} onContinuousPracticeChange={setContinuousPractice} onDurationChange={setContinuousDurationMinutes} />
+    </MelodySettingsControls>}
     {presentation !== "results" && presentation !== "review" && <div className="melody-practice">
       {continuousSessionActive && continuousDeadlineMs !== null && presentation !== "setup" && <p>Time remaining: {formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))} · Trials completed: {continuousHistory.length}</p>}
       <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll" data-measure-count={exercise.measures.length} data-preparatory-measure-count="1" tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `minmax(8rem, 0.5fr) repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{score.measures.map((measure, displayIndex) => <StaffBuilderScoreView key={measure.id} measureIndex={displayIndex} playbackPosition={displayMeasureIndex === displayIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} showPreparatoryLeadIn /></div></div>

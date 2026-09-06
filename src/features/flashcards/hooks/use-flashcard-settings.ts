@@ -1,3 +1,4 @@
+import { DEFAULT_FLASHCARD_CONFIG, flashcardConfigToSettings, type FlashcardConfig } from "../flashcard-config";
 import { useCallback, useState } from "react";
 import type {
   PracticeClefMode,
@@ -8,28 +9,29 @@ import type {
 } from "@/types/practice";
 import { toggleRequiredSetValue } from "@/lib/toggle-required-set-value";
 
-export function useFlashcardSettings() {
-  const [mode, setMode] = useState<PracticeClefMode>("bass");
-  const [showTargetName, setShowTargetName] = useState(false);
+export function useFlashcardSettings(initialConfig: FlashcardConfig = DEFAULT_FLASHCARD_CONFIG) {
+  const [initial] = useState(() => flashcardConfigToSettings(initialConfig));
+  const [mode, setMode] = useState<PracticeClefMode>(initial.mode);
+  const [showTargetName, setShowTargetName] = useState(initial.showTargetName);
 
   const [replayCorrectVirtualChords, setReplayCorrectVirtualChords] =
-    useState(true);
+    useState(initial.replayCorrectVirtualChords);
 
   const [enabledExerciseTypes, setEnabledExerciseTypes] = useState<
     ReadonlySet<PracticeExerciseType>
-  >(new Set(["notes"]));
+  >(initial.enabledExerciseTypes);
 
   const [enabledNoteCategories, setEnabledNoteCategories] = useState<
     ReadonlySet<PracticeNoteCategory>
-  >(new Set(["naturals"]));
+  >(initial.enabledNoteCategories);
 
   const [enabledTriadQualities, setEnabledTriadQualities] = useState<
     ReadonlySet<PracticeTriadQuality>
-  >(new Set(["major"]));
+  >(initial.enabledTriadQualities);
 
   const [enabledTriadPositions, setEnabledTriadPositions] = useState<
     ReadonlySet<PracticeTriadPosition>
-  >(new Set(["root"]));
+  >(initial.enabledTriadPositions);
 
   const toggleExerciseType = useCallback(
     (exerciseType: PracticeExerciseType) => {
