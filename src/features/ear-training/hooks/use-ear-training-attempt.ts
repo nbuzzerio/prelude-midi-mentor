@@ -15,6 +15,7 @@ import type { EarTrainingTarget } from "../ear-training-types";
 import type { EarTrainingPromptState } from "./use-ear-training-prompt";
 
 type Options = Readonly<{
+  onPracticeUnitCompleted?: () => void;
   cancelPrompt: () => void;
   generateNextTarget: () => void;
   getCurrentTarget: () => EarTrainingTarget;
@@ -28,6 +29,7 @@ type Options = Readonly<{
 export type EarTrainingFeedback = "idle" | "correct" | "incorrect";
 
 export function useEarTrainingAttempt({
+  onPracticeUnitCompleted,
   cancelPrompt,
   generateNextTarget,
   getCurrentTarget,
@@ -132,8 +134,10 @@ export function useEarTrainingAttempt({
           prepareNextTarget();
         }
       }, EAR_TRAINING_FEEDBACK_DELAY_MS);
+      onPracticeUnitCompleted?.();
     },
     [
+      onPracticeUnitCompleted,
       cancelPrompt,
       canReplay,
       getCurrentTarget,

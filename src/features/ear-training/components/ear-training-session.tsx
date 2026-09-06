@@ -1,3 +1,4 @@
+import type { EarTrainingConfig } from "../ear-training-config";
 import { useEffect, useMemo, useRef } from "react";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
@@ -10,8 +11,11 @@ import EarTrainingCard from "./ear-training-card";
 import EarTrainingControls from "./ear-training-controls";
 import EarTrainingStatsView from "./ear-training-stats";
 
-export default function EarTrainingSession() {
-  const settings = useEarTrainingSettings();
+export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted }: Readonly<{
+  initialConfig?: EarTrainingConfig;
+  onPracticeUnitCompleted?: () => void;
+}> = {}) {
+  const settings = useEarTrainingSettings(initialConfig);
   const targetOptions = useMemo(() => ({ enabledDirections: settings.enabledDirections, enabledIntervals: settings.enabledIntervals }), [settings.enabledDirections, settings.enabledIntervals]);
   const {
     generateNextTarget,
@@ -37,6 +41,7 @@ export default function EarTrainingSession() {
     stats,
     wrongAnswers,
   } = useEarTrainingAttempt({
+    onPracticeUnitCompleted,
     cancelPrompt,
     generateNextTarget,
     getCurrentTarget,
@@ -46,15 +51,13 @@ export default function EarTrainingSession() {
     promptState,
     resetPrompt,
   });
-  const initialSettingsRef = useRef(true);
+  const previousSettingsRef = useRef(targetOptions);
 
   useEffect(() => {
-    if (initialSettingsRef.current) {
-      initialSettingsRef.current = false;
-      return;
-    }
+    if (previousSettingsRef.current === targetOptions) return;
+    previousSettingsRef.current = targetOptions;
     prepareNextTarget();
-  }, [prepareNextTarget, settings.enabledDirections, settings.enabledIntervals]);
+  }, [prepareNextTarget, targetOptions]);
 
   const isMobilePlayActive = mobilePlay.isMobilePlayMode;
 

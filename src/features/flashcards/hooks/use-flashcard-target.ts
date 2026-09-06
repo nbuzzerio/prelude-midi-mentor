@@ -25,6 +25,8 @@ const INITIAL_PRACTICE_TARGET: PracticeTarget = {
 };
 
 type UseFlashcardTargetOptions = Readonly<{
+  /** Mount-time only; standalone callers retain the fixed starter. */
+  generateOnMount?: boolean;
   enabledExerciseTypes: ReadonlySet<PracticeExerciseType>;
   enabledNoteCategories: ReadonlySet<PracticeNoteCategory>;
   enabledTriadPositions: ReadonlySet<PracticeTriadPosition>;
@@ -33,6 +35,7 @@ type UseFlashcardTargetOptions = Readonly<{
 }>;
 
 export function useFlashcardTarget({
+  generateOnMount = false,
   enabledExerciseTypes,
   enabledNoteCategories,
   enabledTriadPositions,
@@ -40,10 +43,12 @@ export function useFlashcardTarget({
   mode,
 }: UseFlashcardTargetOptions) {
   const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(
-    INITIAL_PRACTICE_TARGET,
+    () => generateOnMount
+      ? generatePracticeTarget(mode, enabledExerciseTypes, enabledNoteCategories, enabledTriadQualities, enabledTriadPositions)
+      : INITIAL_PRACTICE_TARGET,
   );
 
-  const [startedAt, setStartedAt] = useState(0);
+  const [startedAt, setStartedAt] = useState(() => generateOnMount ? Date.now() : 0);
 
   const practiceTargetRef = useRef(practiceTarget);
   const answerLockedRef = useRef(false);

@@ -1,3 +1,4 @@
+import type { FlashcardConfig } from "../flashcard-config";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
@@ -53,11 +54,15 @@ type LastAnswer = Readonly<{
 type AnswerSource = "midi" | "virtual" | "simulation";
 
 type FlashcardSessionProps = Readonly<{
+  initialConfig?: FlashcardConfig;
+  onPracticeUnitCompleted?: () => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
 }>;
 
 export default function FlashcardSession({
+  initialConfig,
+  onPracticeUnitCompleted,
   isFocusMode,
   onToggleFocusMode,
 }: FlashcardSessionProps) {
@@ -79,7 +84,7 @@ export default function FlashcardSession({
     toggleNoteCategory,
     toggleTriadPosition,
     toggleTriadQuality,
-  } = useFlashcardSettings();
+  } = useFlashcardSettings(initialConfig);
 
   const generationSettingsRef = useRef({
     enabledExerciseTypes,
@@ -98,6 +103,7 @@ export default function FlashcardSession({
     practiceTarget,
     startedAt,
   } = useFlashcardTarget({
+    generateOnMount: initialConfig !== undefined,
     enabledExerciseTypes,
     enabledNoteCategories,
     enabledTriadPositions,
@@ -109,6 +115,8 @@ export default function FlashcardSession({
   const [virtualHeldNotes, setVirtualHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
   );
+
+  const virtualHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
 
   const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(
     new Set(),
@@ -145,6 +153,7 @@ export default function FlashcardSession({
     (nextMode?: PracticeClefMode) => {
       clearMidiAttempt();
 
+      virtualHeldNotesRef.current = new Set();
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
       setFeedback("idle");
@@ -231,6 +240,7 @@ export default function FlashcardSession({
         }, VIRTUAL_CHORD_REPLAY_DELAY_MS);
       }
 
+      virtualHeldNotesRef.current = new Set();
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
 
@@ -248,8 +258,10 @@ export default function FlashcardSession({
         successChirpDelayMs,
         waitForMidiRelease: source === "midi",
       });
+      onPracticeUnitCompleted?.();
     },
     [
+      onPracticeUnitCompleted,
       clearCorrectAnswerSequence,
       clearMidiAttempt,
       lockFlashcardTarget,
@@ -328,6 +340,7 @@ export default function FlashcardSession({
 
   const handleStartMidiAttempt = useCallback(
     (midiNumber: number) => {
+      virtualHeldNotesRef.current = new Set();
       setVirtualHeldNotes(new Set());
       setLastFailedAttemptNotes(new Set());
       setLastAnswer(null);
@@ -417,27 +430,23 @@ export default function FlashcardSession({
       setLastAnswer(null);
       setFeedback("idle");
 
-      setVirtualHeldNotes((currentNotes) => {
-        if (currentNotes.size === 0) {
-          setLastFailedAttemptNotes(new Set());
-        }
-
-        const nextNotes = new Set(currentNotes);
-
-        if (nextNotes.has(midiNumber)) {
-          nextNotes.delete(midiNumber);
-        } else {
-          nextNotes.add(midiNumber);
-
-          playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
-        }
-
-        if (notesMatchTarget(nextNotes, currentTarget)) {
-          handleCorrectAnswer(nextNotes, "virtual");
-        }
-
-        return nextNotes;
-      });
+      const currentNotes = virtualHeldNotesRef.current;
+      if (currentNotes.size === 0) {
+        setLastFailedAttemptNotes(new Set());
+      }
+      const nextNotes = new Set(currentNotes);
+      if (nextNotes.has(midiNumber)) {
+        nextNotes.delete(midiNumber);
+      } else {
+        nextNotes.add(midiNumber);
+        playGrandPianoNote(midiNumber, PIANO_NOTE_DURATION_MS);
+      }
+      virtualHeldNotesRef.current = nextNotes;
+      setVirtualHeldNotes(nextNotes);
+      // Success can notify a parent; never grade inside a React state updater.
+      if (notesMatchTarget(nextNotes, currentTarget)) {
+        handleCorrectAnswer(nextNotes, "virtual");
+      }
     },
     [
       clearMidiAttempt,
@@ -485,6 +494,7 @@ export default function FlashcardSession({
 
     simulatedAttempt.add(incorrectMidiNumber);
 
+    virtualHeldNotesRef.current = new Set();
     setVirtualHeldNotes(new Set());
     clearMidiAttempt();
 

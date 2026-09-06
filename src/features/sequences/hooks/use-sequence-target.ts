@@ -60,6 +60,8 @@ const DEFAULT_ARPEGGIO_DIRECTIONS = new Set<SequenceArpeggioDirection>([
 ]);
 
 type UseSequenceTargetOptions = Readonly<{
+  /** Mount-time only; standalone callers retain the fixed starter. */
+  generateOnMount?: boolean;
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
   enabledArpeggioDirections?: ReadonlySet<SequenceArpeggioDirection>;
   enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
@@ -74,6 +76,7 @@ type UseSequenceTargetOptions = Readonly<{
 }>;
 
 export function useSequenceTarget({
+  generateOnMount = false,
   enabledArpeggios,
   enabledArpeggioDirections = DEFAULT_ARPEGGIO_DIRECTIONS,
   enabledChordProgressionKeyIds,
@@ -87,10 +90,22 @@ export function useSequenceTarget({
   mode,
 }: UseSequenceTargetOptions) {
   const [sequenceTarget, setSequenceTarget] = useState<SequenceTarget>(
-    INITIAL_SEQUENCE_TARGET,
+    () => generateOnMount ? generateSequenceTarget({
+      exerciseType,
+      clef: getClefForMode(mode),
+      enabledArpeggios,
+      enabledArpeggioDirections,
+      enabledChordProgressionKeyIds,
+      enabledChordProgressionTemplateIds,
+      enabledDirections,
+      enabledIntervals,
+      enabledNoteCategories,
+      enabledScaleDirections,
+      enabledScales,
+    }) : INITIAL_SEQUENCE_TARGET,
   );
 
-  const [startedAt, setStartedAt] = useState(0);
+  const [startedAt, setStartedAt] = useState(() => generateOnMount ? Date.now() : 0);
 
   const sequenceTargetRef = useRef(sequenceTarget);
   const sequenceLockedRef = useRef(false);

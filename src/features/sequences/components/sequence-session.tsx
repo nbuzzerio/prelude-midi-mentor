@@ -1,3 +1,4 @@
+import type { SequenceConfig } from "../sequence-config";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
@@ -52,11 +53,15 @@ type LastStepAnswer = Readonly<{
 }>;
 
 type SequenceSessionProps = Readonly<{
+  initialConfig?: SequenceConfig;
+  onPracticeUnitCompleted?: () => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
 }>;
 
 export default function SequenceSession({
+  initialConfig,
+  onPracticeUnitCompleted,
   isFocusMode,
   onToggleFocusMode,
 }: SequenceSessionProps) {
@@ -88,7 +93,7 @@ export default function SequenceSession({
     toggleNoteCategory,
     toggleScale,
     toggleScaleDirection,
-  } = useSequenceSettings();
+  } = useSequenceSettings(initialConfig);
 
   const generationSettingsRef = useRef({
     enabledArpeggios,
@@ -113,6 +118,7 @@ export default function SequenceSession({
     sequenceTarget,
     startedAt,
   } = useSequenceTarget({
+    generateOnMount: initialConfig !== undefined,
     enabledArpeggios,
     enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
@@ -315,8 +321,10 @@ export default function SequenceSession({
         successChirpDelayMs: SUCCESS_CHIRP_DELAY_MS,
         waitForMidiRelease: source === "midi",
       });
+      onPracticeUnitCompleted?.();
     },
     [
+      onPracticeUnitCompleted,
       clearTransition,
       lockSequenceTarget,
       startSequenceCompletionTransition,
