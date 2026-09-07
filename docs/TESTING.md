@@ -560,6 +560,13 @@ The Flashcard, Sequence, and Ear Training `*-session-contract.test.tsx` suites e
 For manual regression QA, open Flashcards normally and check its starter, settings, and reset. Exercise each Sequence subtype and check settings, completion, and reset. In Ear Training check explicit playback, guesses, replay, and reset. No Practice Session entry point should appear. Existing session/input suites continue covering MIDI, virtual keyboard, audio, and Mobile Play behavior. Configured launch is currently an API contract rather than a new user-facing workflow.
 
 
+### Practice Session preset coverage
+
+The focused Practice Session validation suite covers every engine/config/target family, nested feature-parser delegation, independent schema versions, corrupt and unsupported data, positive and missing numeric targets, Scale Repertoire mode compatibility, timed Melody compatibility, preset-local exercise ID uniqueness, library-wide preset ID uniqueness, ordered and detached parsing, duplicate labels, and stale last-used normalization. Runnable validation coverage distinguishes structurally valid drafts from launch-ready prescriptions and checks concise issues for zero exercises, missing counts, empty repertoires, and non-continuous Melody.
+
+The Practice Session library suite covers immutable create, rename, add, update, remove, reorder, duplicate, delete, and last-used operations. Duplication tests require fresh IDs and detached config snapshots. Storage tests cover the empty default, explicit JSON save/load, order preservation, no writes during load, stale-preference normalization without rewriting, corrupt/unsupported preservation, unavailable storage, failed writes, and refusal to save invalid libraries. There is no Practice Session UI or runtime manual QA in P4.
+
+
 ### Scale Repertoire coverage and manual checks
 
 `scale-repertoire.test.ts` checks all 28 catalog identities, exactly 26 selectable entries, disabled G-sharp altered-minor forms, exact 15-note C major and A natural/harmonic/melodic minor sequences, E major and C-sharp melodic minor spelling, and realization of every selectable scale in both clefs. Finite traversal tests check explicit order, deterministic shuffle permutations, no repeats, one completion boundary, fresh cycles, and no advancement from realization.
