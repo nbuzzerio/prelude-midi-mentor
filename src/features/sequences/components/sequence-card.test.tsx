@@ -246,3 +246,11 @@ describe("SequenceCard", () => {
     expect(screen.queryByText("I")).toBeNull();
   });
 });
+
+it("keeps repertoire status inside the existing card in Mobile Play", () => {
+  const { container } = renderCard({ repertoireStatus: "Repertoire complete", isMobilePlayMode: true });
+  const status = screen.getByRole("status");
+  expect(status.textContent).toBe("Repertoire complete");
+  expect(status.closest("section")).toBe(container.firstElementChild);
+  expect(screen.getByText("Music staff")).toBeTruthy();
+});

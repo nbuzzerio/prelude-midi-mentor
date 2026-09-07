@@ -1,3 +1,4 @@
+import { createScaleRepertoireTraversal, completeScaleRepertoireEntry, realizeRepertoireScale, type ScalePracticeMode, type ScaleRepertoireId, type ScaleRepertoireTraversal } from "../scale-repertoire";
 import { useCallback, useRef, useState } from "react";
 
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
@@ -59,9 +60,19 @@ const DEFAULT_ARPEGGIO_DIRECTIONS = new Set<SequenceArpeggioDirection>([
   "ascending-descending",
 ]);
 
+const EMPTY_REPERTOIRE: readonly ScaleRepertoireId[] = Object.freeze([]);
+function repertoireTarget(traversal: ScaleRepertoireTraversal, clef: "bass" | "treble"): SequenceTarget {
+  const id = traversal.order[traversal.completed];
+  return id ? realizeRepertoireScale(id, clef) : {
+    clef, name: { primary: "Select at least one scale" }, steps: [], timing: SEQUENCE_DEFAULT_TIMING,
+  };
+}
+
 type UseSequenceTargetOptions = Readonly<{
   /** Mount-time only; standalone callers retain the fixed starter. */
   generateOnMount?: boolean;
+  scalePracticeMode?: ScalePracticeMode;
+  scaleRepertoire?: readonly ScaleRepertoireId[];
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
   enabledArpeggioDirections?: ReadonlySet<SequenceArpeggioDirection>;
   enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
@@ -77,6 +88,8 @@ type UseSequenceTargetOptions = Readonly<{
 
 export function useSequenceTarget({
   generateOnMount = false,
+  scalePracticeMode = "random",
+  scaleRepertoire = EMPTY_REPERTOIRE,
   enabledArpeggios,
   enabledArpeggioDirections = DEFAULT_ARPEGGIO_DIRECTIONS,
   enabledChordProgressionKeyIds,
@@ -89,8 +102,12 @@ export function useSequenceTarget({
   exerciseType,
   mode,
 }: UseSequenceTargetOptions) {
-  const [sequenceTarget, setSequenceTarget] = useState<SequenceTarget>(
-    () => generateOnMount ? generateSequenceTarget({
+  const isRepertoire = exerciseType === "scales" && scalePracticeMode !== "random";
+  const [initial] = useState(() => {
+    const traversal = isRepertoire ? createScaleRepertoireTraversal(scaleRepertoire, scalePracticeMode) : null;
+    const target = !generateOnMount ? INITIAL_SEQUENCE_TARGET
+      : traversal ? repertoireTarget(traversal, getClefForMode(mode))
+      : generateSequenceTarget({
       exerciseType,
       clef: getClefForMode(mode),
       enabledArpeggios,
@@ -102,19 +119,34 @@ export function useSequenceTarget({
       enabledNoteCategories,
       enabledScaleDirections,
       enabledScales,
-    }) : INITIAL_SEQUENCE_TARGET,
-  );
+    });
+    return { target, traversal };
+  });
+  const [sequenceTarget, setSequenceTarget] = useState(initial.target);
+  const [repertoireTraversal, setRepertoireTraversal] = useState(initial.traversal);
+  const traversalRef = useRef(initial.traversal);
 
   const [startedAt, setStartedAt] = useState(() => generateOnMount ? Date.now() : 0);
 
   const sequenceTargetRef = useRef(sequenceTarget);
   const sequenceLockedRef = useRef(false);
+  const repertoireTargetCompletedRef = useRef(false);
 
   const generateNextTarget = useCallback(
-    (nextMode: PracticeClefMode = mode) => {
+    (nextMode: PracticeClefMode = mode, restartRepertoire = false) => {
       const clef = getClefForMode(nextMode);
 
-      const nextTarget = generateSequenceTarget({
+      let traversal = traversalRef.current;
+      if (isRepertoire) {
+        if (restartRepertoire || !traversal || traversal.completed >= traversal.order.length) {
+          traversal = createScaleRepertoireTraversal(scaleRepertoire, scalePracticeMode);
+        }
+      } else {
+        traversal = null;
+      }
+      traversalRef.current = traversal;
+      setRepertoireTraversal(traversal);
+      const nextTarget = traversal ? repertoireTarget(traversal, clef) : generateSequenceTarget({
         exerciseType,
         clef,
         enabledArpeggios,
@@ -130,11 +162,15 @@ export function useSequenceTarget({
 
       sequenceTargetRef.current = nextTarget;
       sequenceLockedRef.current = false;
+      repertoireTargetCompletedRef.current = false;
 
       setSequenceTarget(nextTarget);
       setStartedAt(Date.now());
     },
     [
+      isRepertoire,
+      scalePracticeMode,
+      scaleRepertoire,
       enabledArpeggios,
       enabledArpeggioDirections,
       enabledChordProgressionKeyIds,
@@ -152,12 +188,12 @@ export function useSequenceTarget({
   const getCurrentTarget = useCallback(() => sequenceTargetRef.current, []);
 
   const isSequenceTargetLocked = useCallback(
-    () => sequenceLockedRef.current,
+    () => sequenceLockedRef.current || sequenceTargetRef.current.steps.length === 0,
     [],
   );
 
   const lockSequenceTarget = useCallback(() => {
-    if (sequenceLockedRef.current) {
+    if (sequenceLockedRef.current || sequenceTargetRef.current.steps.length === 0) {
       return false;
     }
 
@@ -166,7 +202,19 @@ export function useSequenceTarget({
     return true;
   }, []);
 
+  const completeRepertoireTarget = useCallback(() => {
+    const traversal = traversalRef.current;
+    if (!traversal || !sequenceLockedRef.current || repertoireTargetCompletedRef.current) return false;
+    repertoireTargetCompletedRef.current = true;
+    const completion = completeScaleRepertoireEntry(traversal);
+    traversalRef.current = completion.traversal;
+    setRepertoireTraversal(completion.traversal);
+    return completion.traversalCompleted;
+  }, []);
+
   return {
+    completeRepertoireTarget,
+    repertoireTraversal,
     generateNextTarget,
     getCurrentTarget,
     isSequenceTargetLocked,

@@ -113,6 +113,8 @@ vi.mock("../hooks/use-sequence-target", () => ({
       isSequenceTargetLocked: mocks.isSequenceTargetLocked,
       lockSequenceTarget: mocks.lockSequenceTarget,
       sequenceTarget: target,
+      completeRepertoireTarget: () => false,
+      repertoireTraversal: null,
       startedAt: 0,
     };
   },

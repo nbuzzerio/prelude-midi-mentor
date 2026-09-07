@@ -1,3 +1,5 @@
+import ScaleRepertoireControls from "./scale-repertoire-controls";
+import type { ScalePracticeMode, ScaleRepertoireId } from "../scale-repertoire";
 import {
   CHORD_PROGRESSION_TEMPLATES,
   SUPPORTED_CHORD_PROGRESSION_KEYS,
@@ -19,6 +21,10 @@ import type {
 } from "@/types/practice";
 
 type SequenceControlsProps = Readonly<{
+  scalePracticeMode?: ScalePracticeMode;
+  scaleRepertoire?: readonly ScaleRepertoireId[];
+  onScalePracticeModeChange?: (mode: ScalePracticeMode) => void;
+  onScaleRepertoireChange?: (selection: readonly ScaleRepertoireId[]) => void;
   enabledArpeggios: ReadonlySet<SequenceArpeggio>;
   enabledArpeggioDirections: ReadonlySet<SequenceArpeggioDirection>;
   enabledChordProgressionKeyIds: ReadonlySet<ChordProgressionKeyId>;
@@ -295,6 +301,10 @@ function ToggleButton({
 }
 
 export default function SequenceControls({
+  scalePracticeMode = "random",
+  scaleRepertoire = [],
+  onScalePracticeModeChange,
+  onScaleRepertoireChange,
   enabledArpeggios,
   enabledArpeggioDirections,
   enabledChordProgressionKeyIds,
@@ -321,6 +331,7 @@ export default function SequenceControls({
   onShowTargetNameChange,
   showTargetName,
 }: SequenceControlsProps) {
+  const isRepertoire = exerciseType === "scales" && scalePracticeMode !== "random";
   const targetNameLabel =
     exerciseType === "intervals"
       ? "Show interval name"
@@ -381,6 +392,15 @@ export default function SequenceControls({
         </div>
       </fieldset>
 
+      {exerciseType === "scales" && <label className="mt-5 block text-sm font-semibold">
+        Scale Practice Mode
+        <select aria-label="Scale Practice Mode" className="mt-2 block w-full rounded border border-white/20 bg-zinc-900 p-2" value={scalePracticeMode} onChange={(event) => onScalePracticeModeChange?.(event.target.value as ScalePracticeMode)}>
+          <option value="random">Random</option>
+          <option value="repertoire-in-order">Repertoire - In Order</option>
+          <option value="repertoire-shuffle">Repertoire - Shuffle</option>
+        </select>
+      </label>}
+
       <fieldset className="mt-5">
         <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
           Clef
@@ -400,7 +420,7 @@ export default function SequenceControls({
         </div>
       </fieldset>
 
-      {exerciseType !== "chord-progressions" ? (
+      {exerciseType !== "chord-progressions" && !isRepertoire ? (
       <fieldset className="mt-5">
         <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
           Direction
@@ -438,7 +458,7 @@ export default function SequenceControls({
       </fieldset>
       ) : null}
 
-      {exerciseType !== "chord-progressions" ? (
+      {exerciseType !== "chord-progressions" && !isRepertoire ? (
       <fieldset className="mt-5">
         <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
           Starting notes
@@ -478,7 +498,9 @@ export default function SequenceControls({
             ))}
           </div>
         </fieldset>
-      ) : exerciseType === "scales" ? (
+      ) : exerciseType === "scales" ? isRepertoire ? (
+        <ScaleRepertoireControls selection={scaleRepertoire} onChange={(selection) => onScaleRepertoireChange?.(selection)} />
+      ) : (
         <fieldset className="mt-5">
           <legend className="text-xs font-semibold uppercase tracking-wider text-white/50">
             Scales

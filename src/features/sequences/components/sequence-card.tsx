@@ -9,6 +9,7 @@ import type {
 import { getSequenceMeasureWindow } from "../sequence-measure-window";
 
 type SequenceCardProps = Readonly<{
+  repertoireStatus?: string;
   completedCount: number;
   currentStepIndex: number;
   exerciseType: SequenceExerciseType;
@@ -32,6 +33,7 @@ const FEEDBACK_MESSAGES: Record<FeedbackState, string> = {
 };
 
 export default function SequenceCard({
+  repertoireStatus,
   completedCount,
   currentStepIndex,
   exerciseType,
@@ -64,6 +66,7 @@ export default function SequenceCard({
       aria-label="Current sequence exercise"
       className="relative flex min-h-0 flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:gap-4 sm:p-5"
     >
+      {repertoireStatus && <p role="status" className="text-sm text-sky-100">{repertoireStatus}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-white/60">
         <div className="flex flex-wrap gap-2 uppercase tracking-wider">
           <span className="rounded-full bg-zinc-900 px-2.5 py-1">

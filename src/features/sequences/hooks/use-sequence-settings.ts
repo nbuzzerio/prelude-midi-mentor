@@ -1,3 +1,4 @@
+import { isSelectableRepertoire, type ScalePracticeMode, type ScaleRepertoireId } from "../scale-repertoire";
 import { DEFAULT_SEQUENCE_CONFIG, sequenceConfigToSettings, type SequenceConfig, hasCompatibleProgressionSelection } from "../sequence-config";
 import { useCallback, useState } from "react";
 
@@ -26,6 +27,12 @@ export function useSequenceSettings(initialConfig: SequenceConfig = DEFAULT_SEQU
     useState<SequenceExerciseType>(initial.exerciseType);
 
   const [mode, setMode] = useState<PracticeClefMode>(initial.mode);
+
+  const [scalePracticeMode, setScalePracticeMode] = useState<ScalePracticeMode>(initial.scalePracticeMode);
+  const [scaleRepertoire, setScaleRepertoire] = useState(initial.scaleRepertoire);
+  const changeScaleRepertoire = useCallback((selection: readonly ScaleRepertoireId[]) => {
+    if (isSelectableRepertoire(selection)) setScaleRepertoire([...selection]);
+  }, []);
 
   const [showTargetName, setShowTargetName] = useState(initial.showTargetName);
 
@@ -167,6 +174,10 @@ export function useSequenceSettings(initialConfig: SequenceConfig = DEFAULT_SEQU
   );
 
   return {
+    scalePracticeMode,
+    setScalePracticeMode,
+    scaleRepertoire,
+    changeScaleRepertoire,
     enabledArpeggios,
     enabledArpeggioDirections,
     enabledChordProgressionKeyIds,

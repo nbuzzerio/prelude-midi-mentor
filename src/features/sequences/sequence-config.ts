@@ -1,11 +1,14 @@
+import { isSelectableRepertoire, type ScalePracticeMode, type ScaleRepertoireId } from "./scale-repertoire";
 import { booleanField, enumField, parseConfig, requireConfig, selectionField } from "@/lib/config-validation";
 import type { SequenceExerciseType, PracticeClefMode, SequenceDirection, SequenceInterval, SequenceNoteCategory, SequenceScale, SequenceScaleDirection, SequenceArpeggio, SequenceArpeggioDirection } from "@/types/practice";
 import { MUSICAL_INTERVALS } from "@/lib/music/intervals";
 import { CHORD_PROGRESSION_TEMPLATES, SUPPORTED_CHORD_PROGRESSION_KEYS, type ChordProgressionKeyId, type ChordProgressionTemplateId } from "@/lib/music/chord-progressions";
 
 export type SequenceConfig = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   exerciseType: SequenceExerciseType;
+  scalePracticeMode: ScalePracticeMode;
+  scaleRepertoire: readonly ScaleRepertoireId[];
   mode: PracticeClefMode;
   showTargetName: boolean;
   enabledDirections: readonly SequenceDirection[];
@@ -20,8 +23,10 @@ export type SequenceConfig = Readonly<{
 }>;
 
 export const DEFAULT_SEQUENCE_CONFIG: SequenceConfig = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 2,
   exerciseType: "intervals",
+  scalePracticeMode: "random",
+  scaleRepertoire: Object.freeze([]),
   mode: "treble",
   showTargetName: false,
   enabledDirections: Object.freeze(["ascending"] as SequenceDirection[]),
@@ -37,7 +42,9 @@ export const DEFAULT_SEQUENCE_CONFIG: SequenceConfig = Object.freeze({
 
 export function parseSequenceConfig(value: unknown) {
   const parsed = parseConfig<SequenceConfig>(value, {
-    schemaVersion: enumField([1]),
+    schemaVersion: enumField([2]),
+    scalePracticeMode: enumField(["random", "repertoire-in-order", "repertoire-shuffle"]),
+    scaleRepertoire: isSelectableRepertoire,
     exerciseType: enumField(["intervals", "scales", "arpeggios", "chord-progressions"]),
     mode: enumField(["bass", "treble", "mixed"]),
     showTargetName: booleanField,
@@ -50,7 +57,7 @@ export function parseSequenceConfig(value: unknown) {
     enabledArpeggioDirections: selectionField(["ascending", "descending", "ascending-descending"]),
     enabledChordProgressionKeyIds: selectionField(SUPPORTED_CHORD_PROGRESSION_KEYS.map(({ id }) => id)),
     enabledChordProgressionTemplateIds: selectionField(CHORD_PROGRESSION_TEMPLATES.map(({ id }) => id)),
-  });
+  }, 2);
   if (parsed.ok && !hasCompatibleProgressionSelection(new Set(parsed.value.enabledChordProgressionKeyIds), new Set(parsed.value.enabledChordProgressionTemplateIds))) return { ok: false as const, reason: "corrupt" as const };
   return parsed;
 }
@@ -71,6 +78,8 @@ export function sequenceConfigToSettings(input: SequenceConfig): SequenceRuntime
   const config = requireConfig(parseSequenceConfig(input));
   return {
     exerciseType: config.exerciseType,
+    scalePracticeMode: config.scalePracticeMode,
+    scaleRepertoire: [...config.scaleRepertoire],
     mode: config.mode,
     showTargetName: config.showTargetName,
     enabledDirections: new Set(config.enabledDirections),
@@ -87,8 +96,10 @@ export function sequenceConfigToSettings(input: SequenceConfig): SequenceRuntime
 
 export function sequenceSettingsToConfig(settings: SequenceRuntimeSettings): SequenceConfig {
   return requireConfig(parseSequenceConfig({
-    schemaVersion: 1,
+    schemaVersion: 2,
     exerciseType: settings.exerciseType,
+    scalePracticeMode: settings.scalePracticeMode,
+    scaleRepertoire: [...settings.scaleRepertoire],
     mode: settings.mode,
     showTargetName: settings.showTargetName,
     enabledDirections: [...settings.enabledDirections],

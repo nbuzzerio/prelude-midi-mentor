@@ -473,6 +473,17 @@ function generateScaleTarget({
       ? startingMidiNumber - 12
       : startingMidiNumber;
 
+  return realizeScaleTarget({ clef, lowerTonicMidiNumber, scale, direction });
+}
+
+/** Realize a written scale with the same patterns used by random scale generation. */
+export function realizeScaleTarget({ clef, lowerTonicMidiNumber, scale, direction, rootLetter }: Readonly<{
+  clef: Clef;
+  lowerTonicMidiNumber: number;
+  scale: SequenceScale;
+  direction: SequenceScaleDirection;
+  rootLetter?: NoteLetter;
+}>): SequenceTarget {
   const ascendingScale =
     scale === "melodic-minor" && direction === "descending"
       ? "natural-minor"
@@ -483,6 +494,7 @@ function generateScaleTarget({
     semitonePattern: SCALE_SEMITONE_PATTERNS[ascendingScale],
     diatonicPattern: SCALE_DIATONIC_PATTERNS[ascendingScale],
     direction: "ascending",
+    rootLetter,
   });
 
   const ascendingRootNote = ascendingNotes[0];

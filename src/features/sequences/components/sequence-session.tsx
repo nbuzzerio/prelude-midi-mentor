@@ -55,6 +55,7 @@ type LastStepAnswer = Readonly<{
 type SequenceSessionProps = Readonly<{
   initialConfig?: SequenceConfig;
   onPracticeUnitCompleted?: () => void;
+  onScaleRepertoireCompleted?: () => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
 }>;
@@ -62,6 +63,7 @@ type SequenceSessionProps = Readonly<{
 export default function SequenceSession({
   initialConfig,
   onPracticeUnitCompleted,
+  onScaleRepertoireCompleted,
   isFocusMode,
   onToggleFocusMode,
 }: SequenceSessionProps) {
@@ -69,6 +71,8 @@ export default function SequenceSession({
     useMobilePlay();
   // Sequence configuration
   const {
+    scalePracticeMode,
+    scaleRepertoire,
     enabledArpeggios,
     enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
@@ -93,9 +97,13 @@ export default function SequenceSession({
     toggleNoteCategory,
     toggleScale,
     toggleScaleDirection,
+    setScalePracticeMode,
+    changeScaleRepertoire,
   } = useSequenceSettings(initialConfig);
 
   const generationSettingsRef = useRef({
+    scalePracticeMode,
+    scaleRepertoire,
     enabledArpeggios,
     enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
@@ -117,8 +125,12 @@ export default function SequenceSession({
     lockSequenceTarget,
     sequenceTarget,
     startedAt,
+    completeRepertoireTarget,
+    repertoireTraversal,
   } = useSequenceTarget({
     generateOnMount: initialConfig !== undefined,
+    scalePracticeMode,
+    scaleRepertoire,
     enabledArpeggios,
     enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
@@ -209,7 +221,7 @@ export default function SequenceSession({
 
   // Sequence target transitions
   const generateNextSequence = useCallback(
-    (nextMode?: PracticeClefMode) => {
+    (nextMode?: PracticeClefMode, restartRepertoire = false) => {
       clearInputAttempts();
       resetAttempt();
 
@@ -220,9 +232,13 @@ export default function SequenceSession({
       setFeedback("idle");
       setAllowedLingeringMidiNumbers(new Set());
 
-      generateSequenceTarget(nextMode);
+      if (restartRepertoire && exerciseType === "scales" && scalePracticeMode !== "random") {
+        generateSequenceTarget(nextMode, true);
+      } else {
+        generateSequenceTarget(nextMode);
+      }
     },
-    [clearInputAttempts, generateSequenceTarget, resetAttempt],
+    [clearInputAttempts, generateSequenceTarget, resetAttempt, exerciseType, scalePracticeMode],
   );
 
   const prepareSequenceRetry = useCallback(() => {
@@ -248,6 +264,8 @@ export default function SequenceSession({
     const previousSettings = generationSettingsRef.current;
 
     const settingsChanged =
+      previousSettings.scalePracticeMode !== scalePracticeMode ||
+      previousSettings.scaleRepertoire !== scaleRepertoire ||
       previousSettings.mode !== mode ||
       previousSettings.exerciseType !== exerciseType ||
       previousSettings.enabledDirections !== enabledDirections ||
@@ -263,6 +281,8 @@ export default function SequenceSession({
         enabledChordProgressionTemplateIds;
 
     generationSettingsRef.current = {
+      scalePracticeMode,
+      scaleRepertoire,
       enabledArpeggios,
       enabledArpeggioDirections,
       enabledChordProgressionKeyIds,
@@ -281,9 +301,11 @@ export default function SequenceSession({
     }
 
     clearTransition();
-    generateNextSequence();
+    generateNextSequence(undefined, true);
   }, [
     clearTransition,
+    scalePracticeMode,
+    scaleRepertoire,
     enabledArpeggios,
     enabledArpeggioDirections,
     enabledChordProgressionKeyIds,
@@ -307,6 +329,7 @@ export default function SequenceSession({
 
       clearTransition();
 
+      const repertoireCompleted = completeRepertoireTarget();
       const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
 
       setFeedback("correct");
@@ -322,9 +345,12 @@ export default function SequenceSession({
         waitForMidiRelease: source === "midi",
       });
       onPracticeUnitCompleted?.();
+      if (repertoireCompleted) onScaleRepertoireCompleted?.();
     },
     [
       onPracticeUnitCompleted,
+      onScaleRepertoireCompleted,
+      completeRepertoireTarget,
       clearTransition,
       lockSequenceTarget,
       startSequenceCompletionTransition,
@@ -637,7 +663,7 @@ export default function SequenceSession({
   const handleReset = () => {
     clearTransition();
     setStats(INITIAL_SEQUENCE_STATS);
-    generateNextSequence();
+    generateNextSequence(undefined, true);
   };
 
   const handleToggleFocusMode = () => {
@@ -684,6 +710,14 @@ export default function SequenceSession({
     currentStepIndex,
   );
   const isMobilePlayActive = isMobilePlayMode && !isFocusMode;
+  const isScaleRepertoire = exerciseType === "scales" && scalePracticeMode !== "random";
+  const isRepertoireEmpty = isScaleRepertoire && scaleRepertoire.length === 0;
+  const repertoireStatus = !isScaleRepertoire ? undefined : isRepertoireEmpty
+    ? "Select at least one scale in the repertoire below to begin."
+    : repertoireTraversal && repertoireTraversal.completed === repertoireTraversal.order.length
+      ? "Repertoire complete"
+      : `${sequenceTarget.name.primary} - Repertoire: ${repertoireTraversal?.completed ?? 0} of ${scaleRepertoire.length} scales completed`;
+
 
   return (
     <div
@@ -741,8 +775,13 @@ export default function SequenceSession({
         </>
       ) : null}
 
-      <div className="practice-stage">
+      <div className={isRepertoireEmpty ? "" : "practice-stage"}>
+        {isRepertoireEmpty ? <section className="rounded-lg border border-white/10 p-4">
+          <p role="status">{repertoireStatus}</p>
+          {isFocusMode && <button type="button" onClick={onToggleFocusMode}>Exit Focus Staff to select scales</button>}
+        </section> : <>
         <SequenceCard
+          repertoireStatus={repertoireStatus}
           completedCount={stats.completed}
           currentStepIndex={currentStepIndex}
           exerciseType={exerciseType}
@@ -768,6 +807,7 @@ export default function SequenceSession({
             targetMidiNumbers={currentStepMidiNumbers}
           />
         </div>
+        </>}
       </div>
 
       <section
@@ -787,6 +827,10 @@ export default function SequenceSession({
           </div>
 
           <SequenceControls
+            scalePracticeMode={scalePracticeMode}
+            scaleRepertoire={scaleRepertoire}
+            onScalePracticeModeChange={setScalePracticeMode}
+            onScaleRepertoireChange={changeScaleRepertoire}
             enabledArpeggios={enabledArpeggios}
             enabledArpeggioDirections={enabledArpeggioDirections}
             enabledChordProgressionKeyIds={enabledChordProgressionKeyIds}

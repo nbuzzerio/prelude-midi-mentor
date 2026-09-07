@@ -4,7 +4,7 @@ import { DEFAULT_SEQUENCE_CONFIG, parseSequenceConfig, sequenceConfigToSettings,
 const defaults = DEFAULT_SEQUENCE_CONFIG;
 describe("Sequence configuration", () => {
   it("preserves the exact standalone defaults", () => {
-    expect(defaults).toEqual({"schemaVersion": 1, "exerciseType": "intervals", "mode": "treble", "showTargetName": false, "enabledDirections": ["ascending"], "enabledIntervals": ["minor-second", "major-second", "minor-third", "major-third"], "enabledNoteCategories": ["naturals"], "enabledScales": ["major"], "enabledScaleDirections": ["ascending"], "enabledArpeggios": ["major"], "enabledArpeggioDirections": ["ascending-descending"], "enabledChordProgressionKeyIds": ["c-major"], "enabledChordProgressionTemplateIds": ["major-1451"]});
+    expect(defaults).toEqual({"schemaVersion": 2, "scalePracticeMode": "random", "scaleRepertoire": [], "exerciseType": "intervals", "mode": "treble", "showTargetName": false, "enabledDirections": ["ascending"], "enabledIntervals": ["minor-second", "major-second", "minor-third", "major-third"], "enabledNoteCategories": ["naturals"], "enabledScales": ["major"], "enabledScaleDirections": ["ascending"], "enabledArpeggios": ["major"], "enabledArpeggioDirections": ["ascending-descending"], "enabledChordProgressionKeyIds": ["c-major"], "enabledChordProgressionTemplateIds": ["major-1451"]});
   });
   it("round trips JSON through detached runtime Sets without callbacks", () => {
     const runtime = sequenceConfigToSettings(defaults);
@@ -28,7 +28,7 @@ describe("Sequence configuration", () => {
     }
   });
   it("distinguishes unsupported versions from malformed configuration", () => {
-    expect(parseSequenceConfig({ ...defaults, schemaVersion: 2 })).toEqual({ ok: false, reason: "unsupported" });
+    expect(parseSequenceConfig({ ...defaults, schemaVersion: 3 })).toEqual({ ok: false, reason: "unsupported" });
     for (const value of [null, [], {}, { ...defaults, schemaVersion: "1" }, { ...defaults, quota: 10 }]) {
       expect(parseSequenceConfig(value)).toEqual({ ok: false, reason: "corrupt" });
     }
@@ -49,4 +49,25 @@ it.each(["intervals", "scales", "arpeggios", "chord-progressions"] as const)("va
 it("rejects incompatible progressions and preserves the existing at-least-one-compatible-pair rule", () => {
   expect(parseSequenceConfig({ ...defaults, exerciseType: "chord-progressions", enabledChordProgressionKeyIds: ["a-minor"] }).ok).toBe(false);
   expect(parseSequenceConfig({ ...defaults, enabledChordProgressionKeyIds: ["a-minor", "c-major"] }).ok).toBe(true);
+});
+
+it("round trips written repertoire order without sharing arrays", () => {
+  const config = { ...defaults, exerciseType: "scales" as const, scalePracticeMode: "repertoire-in-order" as const, scaleRepertoire: ["c-sharp-harmonic-minor", "e-major", "g-sharp-natural-minor"] as const };
+  const runtime = sequenceConfigToSettings(config);
+  const plain = sequenceSettingsToConfig(runtime);
+  expect(JSON.parse(JSON.stringify(plain))).toEqual(config);
+  expect(runtime.scaleRepertoire).not.toBe(config.scaleRepertoire);
+  expect(plain.scaleRepertoire).not.toBe(runtime.scaleRepertoire);
+  expect(parseSequenceConfig(plain)).toEqual({ ok: true, value: config });
+});
+it("rejects unsupported schema versions and unsupported written scales without substitution", () => {
+  expect(parseSequenceConfig({ ...defaults, schemaVersion: 1 })).toEqual({ ok: false, reason: "unsupported" });
+  for (const scaleRepertoire of [["g-sharp-harmonic-minor"], ["g-sharp-melodic-minor"], ["d-flat-natural-minor"], ["c-natural-minor"], ["c-major", "c-major"]]) {
+    expect(parseSequenceConfig({ ...defaults, scaleRepertoire })).toEqual({ ok: false, reason: "corrupt" });
+  }
+  expect(parseSequenceConfig({ ...defaults, scalePracticeMode: "invalid" }).ok).toBe(false);
+});
+it("accepts an empty repertoire prescription as non-playable setup, including the default Random configuration", () => {
+  expect(parseSequenceConfig(defaults).ok).toBe(true);
+  expect(parseSequenceConfig({ ...defaults, exerciseType: "scales", scalePracticeMode: "repertoire-in-order" }).ok).toBe(true);
 });

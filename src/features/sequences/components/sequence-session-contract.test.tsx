@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useSequenceTarget } from "../hooks/use-sequence-target";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { StrictMode, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type PianoKeyboard from "@/components/notation/piano-keyboard";
@@ -20,7 +21,7 @@ import SequenceSession from "./sequence-session";
 import type SequenceCard from "./sequence-card";
 import { DEFAULT_SEQUENCE_CONFIG, sequenceConfigToSettings, type SequenceConfig } from "../sequence-config";
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
-vi.mock("./sequence-card", () => ({ default: (props: unknown) => { observed.card(props); return null; } }));
+vi.mock("./sequence-card", () => ({ default: (props: ComponentProps<typeof SequenceCard>) => { observed.card(props); return props.repertoireStatus ? <p role="status">{props.repertoireStatus}</p> : null; } }));
 vi.mock("@/lib/music/generators/sequences", async (original) => {
   const actual = await original<typeof import("@/lib/music/generators/sequences")>();
   return { ...actual, generateSequenceTarget: vi.fn(actual.generateSequenceTarget) };
@@ -39,7 +40,9 @@ describe("Sequence engine contract", () => {
     const view = render(<SequenceSession {...focusProps} initialConfig={config} />);
     const first = target();
     const runtime = sequenceConfigToSettings(config);
-    const { showTargetName, mode, ...settings } = runtime;
+    const { showTargetName, mode, scalePracticeMode, scaleRepertoire, ...settings } = runtime;
+    expect(scalePracticeMode).toBe("random");
+    expect(scaleRepertoire).toEqual([]);
     expect(showTargetName).toBe(false);
     expect(generateSequenceTarget).toHaveBeenCalledExactlyOnceWith({ ...settings, clef: mode });
     expect(observed.card.mock.calls.every(([props]) => props.sequenceTarget === first)).toBe(true);
@@ -97,4 +100,128 @@ describe("Sequence engine contract", () => {
     expect(target().steps.map((step) => step.notes[0].midiNumber)).toEqual([60, 64]);
     expect(generateSequenceTarget).not.toHaveBeenCalled();
   });
+});
+
+const repertoireConfig: SequenceConfig = { ...DEFAULT_SEQUENCE_CONFIG, exerciseType: "scales", scalePracticeMode: "repertoire-in-order", scaleRepertoire: ["c-major", "a-natural-minor", "g-major"] };
+
+describe("Scale repertoire session contract", () => {
+  it("launches the first written scale immediately, completes each once, and reports traversal only at the end", () => {
+    const unit = vi.fn(); const traversal = vi.fn();
+    const view = render(<SequenceSession {...focusProps} initialConfig={repertoireConfig} onPracticeUnitCompleted={unit} onScaleRepertoireCompleted={traversal} />);
+    const first = target();
+    expect(first.name.primary).toBe("C Major");
+    expect(first.steps).toHaveLength(15);
+    expect(observed.card.mock.calls.every(([props]) => props.sequenceTarget === first)).toBe(true);
+    expect(generateSequenceTarget).not.toHaveBeenCalled();
+    view.rerender(<SequenceSession {...focusProps} initialConfig={{ ...repertoireConfig }} onPracticeUnitCompleted={unit} onScaleRepertoireCompleted={traversal} />);
+    view.rerender(<SequenceSession {...focusProps} initialConfig={DEFAULT_SEQUENCE_CONFIG} onPracticeUnitCompleted={unit} onScaleRepertoireCompleted={traversal} />);
+    expect(target()).toBe(first);
+    for (const [index, name] of ["C Major", "A Natural Minor", "G Major"].entries()) {
+      expect(target().name.primary).toBe(name);
+      complete();
+      expect(unit).toHaveBeenCalledTimes(index + 1);
+      expect(traversal).toHaveBeenCalledTimes(index === 2 ? 1 : 0);
+      if (index < 2) act(() => vi.advanceTimersByTime(1300));
+    }
+    expect(screen.getByRole("status").textContent).toBe("Repertoire complete");
+    act(() => vi.advanceTimersByTime(1300));
+    expect(target().name.primary).toBe("C Major");
+    expect(traversal).toHaveBeenCalledTimes(1);
+  });
+  it("does not advance for partial/wrong attempts, reset, reorder, or mode changes", () => {
+    const unit = vi.fn(); const traversal = vi.fn();
+    render(<SequenceSession {...focusProps} initialConfig={repertoireConfig} onPracticeUnitCompleted={unit} onScaleRepertoireCompleted={traversal} />);
+    play(target().steps[0].notes[0].midiNumber);
+    midi(1); act(() => vi.advanceTimersByTime(1000));
+    expect(target().name.primary).toBe("C Major");
+    expect(unit).not.toHaveBeenCalled();
+    complete(); act(() => vi.advanceTimersByTime(1300));
+    expect(target().name.primary).toBe("A Natural Minor");
+    fireEvent.click(screen.getByRole("button", { name: /reset session/i }));
+    expect(target().name.primary).toBe("C Major");
+    fireEvent.click(screen.getByRole("button", { name: "Move G Major up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move G Major up" }));
+    expect(target().name.primary).toBe("G Major");
+    expect(unit).toHaveBeenCalledTimes(1);
+    expect(traversal).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Scale Practice Mode"), { target: { value: "random" } });
+    expect(generateSequenceTarget).toHaveBeenCalled();
+    expect(unit).toHaveBeenCalledTimes(1);
+    expect(traversal).not.toHaveBeenCalled();
+  });
+  it("shuffles a whole cycle without replacement and reset starts a fresh shuffle", () => {
+    const traversal = vi.fn();
+    render(<SequenceSession {...focusProps} initialConfig={{ ...repertoireConfig, scalePracticeMode: "repertoire-shuffle" }} onScaleRepertoireCompleted={traversal} />);
+    const visited: string[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      visited.push(target().name.primary);
+      complete();
+      expect(traversal).toHaveBeenCalledTimes(index === 2 ? 1 : 0);
+      act(() => vi.advanceTimersByTime(1300));
+    }
+    expect(visited).toEqual(["A Natural Minor", "G Major", "C Major"]);
+    expect(target().name.primary).toBe("A Natural Minor");
+    vi.mocked(Math.random).mockReturnValue(0.99);
+    fireEvent.click(screen.getByRole("button", { name: /reset session/i }));
+    expect(target().name.primary).toBe("C Major");
+    expect(traversal).toHaveBeenCalledTimes(1);
+  });
+  it("switches from Random into empty setup safely, hides random-only settings, and starts after selection", () => {
+    const unit = vi.fn(); const traversal = vi.fn();
+    render(<SequenceSession {...focusProps} onPracticeUnitCompleted={unit} onScaleRepertoireCompleted={traversal} />);
+    fireEvent.click(screen.getByRole("button", { name: "Scales" }));
+    expect((screen.getByLabelText("Scale Practice Mode") as HTMLSelectElement).value).toBe("random");
+    expect(screen.getByRole("group", { name: "Direction" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Scale Practice Mode"), { target: { value: "repertoire-in-order" } });
+    const calls = observed.card.mock.calls.length;
+    expect(screen.getByRole("status").textContent).toMatch(/Select at least one scale/);
+    expect(screen.queryByRole("group", { name: "Direction" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Starting notes" })).toBeNull();
+    midi(60); play(60); act(() => vi.runAllTimers());
+    expect(observed.card.mock.calls.length).toBe(calls);
+    expect(unit).not.toHaveBeenCalled(); expect(traversal).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "C Major" }));
+    expect(target().name.primary).toBe("C Major");
+    complete();
+    expect(unit).toHaveBeenCalledTimes(1); expect(traversal).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Remove C Major" }));
+    act(() => vi.advanceTimersByTime(1300));
+    expect(screen.getByRole("status").textContent).toMatch(/Select at least one scale/);
+    expect(unit).toHaveBeenCalledTimes(1); expect(traversal).toHaveBeenCalledTimes(1);
+  });
+  it("mounts an empty repertoire without a random or default target", () => {
+    render(<SequenceSession {...focusProps} initialConfig={{ ...repertoireConfig, scaleRepertoire: [] }} />);
+    expect(observed.card).not.toHaveBeenCalled();
+    expect(observed.keyboard).not.toHaveBeenCalled();
+    expect(generateSequenceTarget).not.toHaveBeenCalled();
+  });
+  it("emits once in Strict Mode and permits immediate unmount at traversal completion", () => {
+    const traversal = vi.fn();
+    const view = render(<StrictMode><SequenceSession {...focusProps} initialConfig={{ ...repertoireConfig, scaleRepertoire: ["c-major"] }} onScaleRepertoireCompleted={traversal} /></StrictMode>);
+    complete(); play(60);
+    expect(traversal).toHaveBeenCalledExactlyOnceWith();
+    view.unmount(); act(() => vi.runAllTimers());
+    expect(traversal).toHaveBeenCalledTimes(1);
+  });
+});
+
+it("does not advance repertoire from regeneration and rejects duplicate completion of a locked target", () => {
+  const settings = sequenceConfigToSettings(repertoireConfig);
+  const { result } = renderHook(() => useSequenceTarget({ ...settings, generateOnMount: true }));
+  expect(result.current.sequenceTarget.name.primary).toBe("C Major");
+  act(() => { result.current.generateNextTarget(); result.current.generateNextTarget(); });
+  expect(result.current.sequenceTarget.name.primary).toBe("C Major");
+  expect(result.current.repertoireTraversal?.completed).toBe(0);
+  act(() => {
+    expect(result.current.completeRepertoireTarget()).toBe(false);
+    result.current.lockSequenceTarget();
+    result.current.completeRepertoireTarget();
+    result.current.completeRepertoireTarget();
+  });
+  expect(result.current.repertoireTraversal?.completed).toBe(1);
+  act(() => result.current.generateNextTarget());
+  expect(result.current.sequenceTarget.name.primary).toBe("A Natural Minor");
+  act(() => result.current.generateNextTarget());
+  expect(result.current.sequenceTarget.name.primary).toBe("A Natural Minor");
+  expect(result.current.repertoireTraversal?.completed).toBe(1);
 });

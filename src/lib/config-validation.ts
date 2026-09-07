@@ -12,14 +12,15 @@ export const selectionField = (values: readonly string[]): ConfigFieldValidator 
     && new Set(value).size === value.length;
 
 /** Reject extra/missing fields and duplicates rather than silently changing a prescription. */
-export function parseConfig<T extends { schemaVersion: 1 }>(
+export function parseConfig<T extends { schemaVersion: number }>(
   value: unknown,
   fields: Readonly<Record<keyof T, ConfigFieldValidator>>,
+  schemaVersion: T["schemaVersion"] = 1 as T["schemaVersion"],
 ): ConfigParseResult<T> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return { ok: false, reason: "corrupt" };
   const record = value as Record<string, unknown>;
   if (typeof record.schemaVersion === "number" && Number.isInteger(record.schemaVersion)
-    && record.schemaVersion > 0 && record.schemaVersion !== 1) return { ok: false, reason: "unsupported" };
+    && record.schemaVersion > 0 && record.schemaVersion !== schemaVersion) return { ok: false, reason: "unsupported" };
   const entries = Object.entries(fields) as [string, ConfigFieldValidator][];
   if (Object.keys(record).length !== entries.length || entries.some(([key, validate]) => !Object.hasOwn(record, key) || !validate(record[key]))) {
     return { ok: false, reason: "corrupt" };
