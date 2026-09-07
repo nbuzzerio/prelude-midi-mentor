@@ -1,9 +1,12 @@
+import { createRef, StrictMode, useState } from "react";
+import * as melodyGenerator from "../melody-generator";
+import { DEFAULT_MELODY_CONFIG, melodyConfigToSettings, type MelodyConfig } from "../melody-config";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateMelodyExercise } from "../melody-generator";
 import { getMelodyTimedExpectedAttacks } from "../melody-timing";
 import { DEFAULT_MELODY_SETTINGS } from "../melody-types";
-import MelodySession from "./melody-session";
+import MelodySession, { type MelodySessionHandle } from "./melody-session";
 
 vi.mock("@/hooks/use-mobile-play", async () => {
   const { useState } = await import("react");
@@ -45,6 +48,8 @@ describe("MelodySession", () => {
     cleanup();
     document.body.replaceChildren();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
   beforeEach(() => {
     midi.options = null;
@@ -56,8 +61,265 @@ describe("MelodySession", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   });
 
+  const timedConfig: MelodyConfig = { ...DEFAULT_MELODY_CONFIG, continuousPractice: true, continuousDurationMinutes: 1 };
+  const frame = () => act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
+  const startTimed = () => act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+
+  it("generates only the configured first material and consumes configuration only at mount", () => {
+    const config: MelodyConfig = { ...timedConfig, staff: "bass", keyId: "d-minor", tempoBpm: 50, measureCount: 2, continuousDurationMinutes: 3 };
+    const generate = vi.spyOn(melodyGenerator, "generateMelodyExercise");
+    const seedFactory = vi.fn(() => "configured");
+    const view = render(<MelodySession initialConfig={config} seedFactory={seedFactory} />);
+    expect(generate).toHaveBeenCalledExactlyOnceWith(melodyConfigToSettings(config), "configured");
+    for (const [name, value] of [["Staff", "bass"], ["Key", "d-minor"], ["Tempo", "50"], ["Length", "2"], ["Session duration", "3"]]) {
+      expect((screen.getByRole("combobox", { name }) as HTMLSelectElement).value).toBe(value);
+    }
+    expect((screen.getByRole("checkbox", { name: "Continuous Practice" }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
+    expect(screen.getByText("Keyboard 48-60")).toBeTruthy();
+    const score = screen.getByText("Score measure 1");
+    view.rerender(<MelodySession initialConfig={{ ...config }} seedFactory={seedFactory} />);
+    view.rerender(<MelodySession initialConfig={DEFAULT_MELODY_CONFIG} seedFactory={seedFactory} />);
+    expect(screen.getByText("Score measure 1")).toBe(score);
+    expect(generate).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByRole("combobox", { name: "Tempo" }), { target: { value: "70" } });
+    view.rerender(<MelodySession initialConfig={config} seedFactory={seedFactory} />);
+    expect((screen.getByRole("combobox", { name: "Tempo" }) as HTMLSelectElement).value).toBe("70");
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not start configured timing/audio until Start and the successful count-in", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    const createAudioContext = vi.fn(() => audio.context);
+    const completed = vi.fn();
+    let now = 0;
+    render(<MelodySession initialConfig={timedConfig} createAudioContext={createAudioContext} nowMs={() => now} onPracticeTargetReached={completed} />);
+    now = 600_000;
+    act(() => vi.advanceTimersByTime(600_000));
+    expect(createAudioContext).not.toHaveBeenCalled();
+    expect(completed).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Time remaining:/)).toBeNull();
+    await startTimed();
+    expect(screen.getByText(/Time remaining: 1:00/)).toBeTruthy();
+    expect(completed).not.toHaveBeenCalled();
+  });
+
+  it("commits final in-flight evidence before notifying the latest callback exactly once in Strict Mode", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    let now = 0;
+    const oldCallback = vi.fn();
+    const latest = vi.fn(() => {
+      expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
+      expect(screen.getByText("Diagnostic trial 1 of 1")).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "Original Sight Read" })).toBeTruthy();
+    });
+    const props = { initialConfig: timedConfig, createAudioContext: () => audio.context, nowMs: () => now };
+    const view = render(<StrictMode><MelodySession {...props} onPracticeTargetReached={oldCallback} /></StrictMode>);
+    await startTimed();
+    view.rerender(<StrictMode><MelodySession {...props} initialConfig={{ ...DEFAULT_MELODY_CONFIG }} onPracticeTargetReached={latest} /></StrictMode>);
+    now = 60_000;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(latest).not.toHaveBeenCalled();
+    expect(screen.getByText("Lead-in")).toBeTruthy();
+    audio.setNow(2.1);
+    frame();
+    expect(screen.getByText("Play")).toBeTruthy();
+    expect(latest).not.toHaveBeenCalled();
+    audio.setNow(20);
+    frame();
+    frame();
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(oldCallback).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledTimes(1);
+    view.rerender(<StrictMode><MelodySession {...props} onPracticeTargetReached={oldCallback} /></StrictMode>);
+    expect(oldCallback).not.toHaveBeenCalled();
+  });
+
+  it("notifies once when the deadline expires between phrases without generating another", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    let now = 0;
+    const completed = vi.fn();
+    const seeds = vi.fn(() => "between");
+    render(<MelodySession initialConfig={timedConfig} createAudioContext={() => audio.context} nowMs={() => now} seedFactory={seeds} onPracticeTargetReached={completed} />);
+    await startTimed();
+    audio.setNow(20);
+    frame();
+    expect(completed).not.toHaveBeenCalled();
+    now = 60_000;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByText("Diagnostic trial 1 of 1")).toBeTruthy();
+    expect(completed).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(completed).toHaveBeenCalledTimes(1);
+    expect(seeds).toHaveBeenCalledTimes(1);
+  });
+
+  it("supports synchronous continuation from notification and retains original and repair evidence", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    let now = 0;
+    const ref = createRef<MelodySessionHandle>();
+    const completed = vi.fn(() => {
+      expect(screen.getByText("Diagnostic trial 1 of 1")).toBeTruthy();
+      expect(ref.current?.continuePractice()).toBe(true);
+      expect(ref.current?.continuePractice()).toBe(false);
+    });
+    render(<MelodySession ref={ref} initialConfig={timedConfig} createAudioContext={() => audio.context} nowMs={() => now} seedFactory={() => "continuation"} onPracticeTargetReached={completed} />);
+    expect(ref.current?.continuePractice()).toBe(false);
+    await startTimed();
+    now = 60_000;
+    audio.setNow(20);
+    await act(async () => { frame(); });
+    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.queryByText(/Time remaining:/)).toBeNull();
+    now = 600_000;
+    act(() => vi.advanceTimersByTime(120_000));
+    audio.setNow(40);
+    frame();
+    expect(screen.getByText("Diagnostic trial 2 complete")).toBeTruthy();
+    expect(screen.queryByText(/Time remaining:/)).toBeNull();
+    // Existing continuous-practice interaction advances without host intervention.
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Try Another" })); });
+    audio.setNow(60);
+    frame();
+    expect(screen.getByText("Diagnostic trial 3 complete")).toBeTruthy();
+    expect(completed).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Try Another" })); });
+    // Existing interruption returns to Review, preserving completed trials.
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    expect(screen.getByText("Diagnostic trial 1 of 3")).toBeTruthy();
+    const original = screen.getByRole("heading", { name: "Original Sight Read" }).parentElement!.textContent;
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" })); });
+    expect(ref.current?.continuePractice()).toBe(false);
+    audio.setNow(80);
+    frame();
+    expect(screen.getByText("Diagnostic trial 1 of 3")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Original Sight Read" }).parentElement!.textContent).toBe(original);
+    expect(screen.getByRole("heading", { name: "Repair" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Original" }));
+    fireEvent.click(screen.getByRole("button", { name: "Latest" }));
+    await act(async () => { expect(ref.current?.continuePractice()).toBe(true); });
+    audio.setNow(100);
+    frame();
+    expect(screen.getByText("Diagnostic trial 4 complete")).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Try Another" })); });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(screen.getByText("Diagnostic trial 1 of 4")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Repair" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Original Sight Read" }).parentElement!.textContent).toBe(original);
+    expect(completed).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidates old timers on Settings and grants a genuinely new timed run one notification", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    let now = 0;
+    const completed = vi.fn();
+    render(<MelodySession initialConfig={timedConfig} createAudioContext={() => audio.context} nowMs={() => now} onPracticeTargetReached={completed} />);
+    await startTimed();
+    audio.setNow(20);
+    frame();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    now = 60_000;
+    act(() => vi.advanceTimersByTime(60_000));
+    frame();
+    expect(completed).not.toHaveBeenCalled();
+    await startTimed();
+    audio.setNow(40);
+    frame();
+    now = 119_999;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(completed).not.toHaveBeenCalled();
+    now = 120_000;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(completed).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "New Timed Session" })); });
+    expect(screen.getByText(/Time remaining: 1:00/)).toBeTruthy();
+    now = 180_000;
+    audio.setNow(60);
+    frame();
+    expect(completed).toHaveBeenCalledTimes(2);
+  });
+
+  it("safely lets notification unmount the engine after committed evidence", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    let now = 0;
+    const ref = createRef<MelodySessionHandle>();
+    const completed = vi.fn();
+    function Host() {
+      const [active, setActive] = useState(true);
+      return active ? <MelodySession ref={ref} initialConfig={timedConfig} createAudioContext={() => audio.context} nowMs={() => now} onPracticeTargetReached={() => {
+        expect(screen.getByText("Diagnostic trial 1 of 1")).toBeTruthy();
+        completed();
+        setActive(false);
+      }} /> : <p>Host moved on</p>;
+    }
+    render(<Host />);
+    const handle = ref.current!;
+    await startTimed();
+    now = 60_000;
+    audio.setNow(20);
+    frame();
+    expect(screen.getByText("Host moved on")).toBeTruthy();
+    expect(handle.continuePractice()).toBe(false);
+    act(() => vi.advanceTimersByTime(120_000));
+    frame();
+    expect(completed).toHaveBeenCalledTimes(1);
+    expect(audio.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not notify after unmounting an unfinished run or from non-continuous results", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    let now = 0;
+    const completed = vi.fn();
+    const view = render(<MelodySession initialConfig={timedConfig} createAudioContext={() => audio.context} nowMs={() => now} onPracticeTargetReached={completed} />);
+    await startTimed();
+    view.unmount();
+    now = 60_000;
+    audio.setNow(20);
+    act(() => vi.advanceTimersByTime(60_000));
+    frame();
+    expect(completed).not.toHaveBeenCalled();
+    const singleAudio = fakeAudio();
+    render(<MelodySession initialConfig={DEFAULT_MELODY_CONFIG} createAudioContext={() => singleAudio.context} nowMs={() => now} onPracticeTargetReached={completed} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    singleAudio.setNow(20);
+    now = 600_000;
+    frame();
+    expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
+    expect(completed).not.toHaveBeenCalled();
+  });
+
+  it("does not start a deadline from an audio startup that resolves after unmount", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio();
+    audio.context.state = "suspended";
+    let resume!: (value: undefined) => void;
+    audio.context.resume.mockImplementation(() => new Promise<undefined>((resolve) => { resume = resolve; }));
+    const completed = vi.fn();
+    const view = render(<MelodySession initialConfig={timedConfig} createAudioContext={() => audio.context} onPracticeTargetReached={completed} />);
+    await startTimed();
+    expect(screen.queryByText(/Time remaining:/)).toBeNull();
+    view.unmount();
+    await act(async () => { resume(undefined); });
+    act(() => vi.advanceTimersByTime(600_000));
+    frame();
+    expect(completed).not.toHaveBeenCalled();
+    expect(audio.nodes.every((node) => node.stop.mock.calls.length > 0)).toBe(true);
+  });
+
   it("shows defaults, generated notation, one keyboard, and changes settings", () => {
+    const generate = vi.spyOn(melodyGenerator, "generateMelodyExercise");
     render(<MelodySession seedFactory={() => "seed"} />);
+    expect(generate).toHaveBeenCalledExactlyOnceWith(DEFAULT_MELODY_SETTINGS, "seed");
     expect((screen.getByRole("combobox", { name: "Staff" }) as HTMLSelectElement).value).toBe("treble");
     expect((screen.getByRole("combobox", { name: "Tempo" }) as HTMLSelectElement).value).toBe("60");
     expect(screen.getAllByText(/Score measure/)).toHaveLength(1);
@@ -172,7 +434,8 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     let nowMs = 0;
     const seedFactory = vi.fn(() => "seed");
-    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={seedFactory} />);
+    const completed = vi.fn();
+    render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={seedFactory} onPracticeTargetReached={completed} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
@@ -182,6 +445,7 @@ describe("MelodySession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
     expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
     expect(seedFactory).toHaveBeenCalledTimes(1);
+    expect(completed).toHaveBeenCalledTimes(1);
   });
 
   it("gives a new timed session a fresh deadline based on its own first count-in", async () => {
