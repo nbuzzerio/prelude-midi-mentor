@@ -7,7 +7,7 @@ This document defines Prelude's release discipline and records the assumptions o
 Prelude uses Semantic Versioning and annotated Git tags named `vX.Y.Z`.
 
 - `package.json` is the authoritative source for the version displayed in the application UI.
-- A released package version must match its Git tag: package version `2.5.0` corresponds to tag `v2.5.0`.
+- A released package version must match its Git tag: package version `2.6.0` corresponds to tag `v2.6.0`.
 - Backward-compatible feature additions generally require a minor version.
 - Backward-compatible fixes generally require a patch version unless the release context warrants a different choice.
 - Breaking product or compatibility changes require explicit review before selecting a major version.
@@ -41,7 +41,7 @@ The repository owner performs Git and release operations:
 5. Create an annotated tag matching the package version, for example:
 
    ```bash
-   git tag -a v2.5.0 -m "Prelude v2.5.0"
+   git tag -a v2.6.0 -m "Prelude v2.6.0"
    ```
 
 6. Push the release commit and annotated tag.

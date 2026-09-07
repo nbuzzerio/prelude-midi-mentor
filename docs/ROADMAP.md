@@ -2,7 +2,7 @@
 
 > This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
 >
-> **Current checkpoint:** September 3, 2026 — the repository, application version, and release notes are prepared for the v2.5.0 release candidate containing the completed feature work since the v2.4.0 Staff Builder tag. Owner review, final sanity checks, the manual tag, and deployment verification remain.
+> **Current checkpoint:** September 7, 2026 — the repository, application version, and release notes are prepared for the v2.6.0 Practice Sessions release candidate. Owner review, the manual tag, deployment verification, and final Chromebook/tablet interaction QA remain.
 
 ---
 
@@ -168,14 +168,22 @@ Container-driven responsive VexFlow sizing is deferred to the later UI/UX overha
 
 Future Free Play ideas such as chord analysis, phrase history, last-measure display, rhythm, zoom controls, and automatic key detection remain unimplemented.
 
-## Completed v2.5.0 Release-Candidate Scope
+## Completed v2.6.0 Practice Sessions Scope
 
-Chord Progressions, key-aware Free Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, Piece Practice, Melody, and the coordinated Mobile Play stream are complete in code. The v2.5.0 release candidate also includes annotations and Study View, timed Melody diagnostics and review, piece duplication, and authored and practiced rolled chords. Development now pauses for final release preparation:
+- [x] Reusable named presets with ordered stable exercise entries and explicit browser-local Save
+- [x] Draft-capable editing with Ready / Needs setup launch validation
+- [x] Configured Flashcard, Sequence, Ear Training, and timed Melody exercises using their native settings and completion semantics
+- [x] Scale Repertoire with ordered and shuffled finite traversal
+- [x] Practice Complete, Keep Playing / Bonus, Skip for Today, End Session, and entered-only summary flow
+- [x] Immutable in-memory run snapshots, stale-callback protection, and exactly one mounted exercise engine
+- [x] Stable host-owned Mobile Play across prescribed exercise transitions with standalone modes unchanged
+- [x] Focused domain, persistence, builder, runtime, engine-contract, and hosted-presentation automated coverage
 
-1. Perform the final owner sanity check across application startup, MIDI, Melody, Staff Builder to Piece Practice, persistence, and the installed PWA.
-2. Review and commit the prepared v2.5.0 version and release documentation, then create the annotated tag manually.
-3. Verify deployment and the installed-PWA update after pushing the release commit and tag.
-4. Review the completed product checkpoint before selecting the next feature milestone. Melody duration/hold grading and Piece Practice Accuracy remain separate future work.
+Practice Session presets are local prescriptions, not persisted run history. Scheduling, analytics, evidence storage, cloud accounts, active-run recovery, quick start, and real-use presentation polish remain outside this release. Final viewport, fullscreen/orientation, physical-keyboard, and installed-PWA behavior will be evaluated after deployment on the actual Chromebook/tablet.
+
+## Completed v2.5.0 Scope
+
+Chord Progressions, key-aware Free Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, Piece Practice, Melody, and the coordinated Mobile Play stream shipped in v2.5.0. That release also includes annotations and Study View, timed Melody diagnostics and review, piece duplication, and authored and practiced rolled chords. Melody duration/hold grading and Piece Practice Accuracy remain separate future work.
 
 Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
 

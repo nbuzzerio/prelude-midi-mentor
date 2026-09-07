@@ -1,10 +1,10 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Latest Repository Tag:** v2.4.0 — Staff Builder
-> **Last Updated:** September 3, 2026
-> **Current Milestone:** v2.5.0 release candidate prepared; owner review and manual tag pending
+> **Latest Repository Tag:** v2.5.0
+> **Last Updated:** September 7, 2026
+> **Current Milestone:** v2.6.0 Practice Sessions release candidate prepared; owner review and manual tag pending
 >
-> Final release sanity checks, owner review, the manual tag, and deployment verification are next. Do not begin Piece Practice Accuracy or expand Melody scope without a new approved plan.
+> Automated release preparation is complete after verification. Final Practice Session interaction and presentation QA follows deployment on the Chromebook/tablet; do not expand the feature before that real-use checkpoint.
 
 ---
 
@@ -75,6 +75,7 @@ Users should be able to:
 5. Receive immediate feedback in graded modes.
 6. Track session performance in Flashcards and Sequences.
 7. Practice anywhere using an installable Progressive Web App.
+8. Build and run reusable Practice Session presets across Flashcards, Sequences, Ear Training, and timed Melody practice.
 
 ---
 
@@ -199,6 +200,13 @@ Completed features include:
 - Explicit Mobile Play preserves the generated exercise, AudioContext, clock, recorder, source lock, keyboard, and results
 - No duration/hold grading, richer meters, rests, chords, or persisted analytics in Phase 1
 
+## Practice Sessions
+
+- `src/features/practice-session/` owns browser-local preset types, validation, immutable library operations, the controlled builder, runtime reducer, summary, and hosted Mobile Play shell
+- Presets contain ordered stable exercise entries and feature-owned configuration snapshots for Flashcards, Sequences, Ear Training, and Melody
+- Explicit Save persists the complete preset library; active runs, progress, evidence, and summaries remain memory-only
+- One keyed exercise engine mounts at a time while the stable Practice Session host preserves Mobile Play across transitions
+
 ## Quality
 
 - Vitest test runner
@@ -214,13 +222,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's latest repository tag remains v2.4.0 until the repository owner completes the manual release steps. The package version and release notes are prepared for the backward-compatible v2.5.0 release candidate, including Piece Practice, automatic same-staff polyphony, import/export, annotations and Study View, Melody and its timed review workflow, coordinated Mobile Play, duplication, and rolled-chord authoring/practice.
+Prelude's latest repository tag remains v2.5.0 until the repository owner completes the manual release steps. The package version and release notes are prepared for the backward-compatible v2.6.0 release candidate centered on reusable Practice Session presets, native completion orchestration, and stable hosted Mobile Play continuity.
 
-The next step is the repository owner's final application sanity check, review and commit of the prepared release metadata, manual annotated tag, deployment verification, and installed-PWA smoke check. Fix only confirmed defects before tagging. Melody duration/hold grading, persistent practice evidence, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
+The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 
 Staff Builder owns its schema v3 score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, annotations, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Historical local-storage keys retain `-v1` names for compatibility and must not be renamed merely because the current schema is v3. Piece Practice owns transient projection, check-based blocking state, input, and read-only presentation without copying the score or coupling back into the editor.
 
-The current automated baseline is 137 passing test files and 1,548 passing tests. Physical Web MIDI, installed-PWA behavior, real offline behavior, and representative browser/device behavior still require manual validation where relevant.
+The current automated baseline is established by `pnpm verify`; exact passing test-file and test counts are recorded in the v2.6.0 release handoff. Physical Web MIDI, installed-PWA behavior, real offline behavior, and representative browser/device behavior still require manual validation where relevant.
 
 ---
 

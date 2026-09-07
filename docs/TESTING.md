@@ -1,11 +1,11 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** v2.5.0 release candidate prepared, ahead of the repository owner's manual tag
+> **Status:** v2.6.0 Practice Sessions release candidate prepared, ahead of the repository owner's manual tag
 
-The current automated baseline is 1,548 passing tests across 137 test files. The complete release-candidate checkpoint passes ESLint, TypeScript, the automated suite, and the production build. A lightweight owner sanity check remains before tagging, including representative physical MIDI, core practice flows, persistence, and installed-PWA behavior. Broader device, responsive, accessibility, fullscreen/orientation, and offline validation remain useful ongoing QA rather than release-blocking certification.
+The current automated baseline is 1,770 passing tests across 157 test files. The complete `pnpm verify` workflow passes ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session interaction and presentation QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
 
-> **Latest repository tag:** v2.4.0 — Staff Builder
-> **Last updated:** September 3, 2026
+> **Latest repository tag:** v2.5.0
+> **Last updated:** September 7, 2026
 
 ## Purpose
 
@@ -557,7 +557,7 @@ For changes to these boundaries, manually check Flashcard defaults and settings;
 
 The Flashcard, Sequence, and Ear Training `*-session-contract.test.tsx` suites exercise real settings, generators, locks, and grading with deterministic randomness. Presentation/audio/input boundaries are substituted so the tests can inspect the first presented target and invoke input without browser MIDI/audio. Coverage includes configured first targets, all Sequence subtypes, stable mount-time config, unchanged standalone starters, no Ear Training autoplay, partial and incorrect input, eventual success, exactly-once notifications, callback replacement, Strict Mode, reset/settings changes, delayed advancement, and unmount. Flashcards also exercises a host replacing a keyed engine directly from triad completion.
 
-For manual regression QA, open Flashcards normally and check its starter, settings, and reset. Exercise each Sequence subtype and check settings, completion, and reset. In Ear Training check explicit playback, guesses, replay, and reset. No Practice Session entry point should appear. Existing session/input suites continue covering MIDI, virtual keyboard, audio, and Mobile Play behavior. Configured launch is currently an API contract rather than a new user-facing workflow.
+For standalone manual regression QA, open Flashcards normally and check its starter, settings, and reset. Exercise each Sequence subtype and check settings, completion, and reset. In Ear Training check explicit playback, guesses, replay, and reset. Existing session/input suites continue covering MIDI, virtual keyboard, audio, and engine-owned Mobile Play behavior; Practice Sessions exercise the configured launch contract through their own host.
 
 
 ### Practice Session preset coverage
@@ -574,7 +574,7 @@ P6 pure reducer coverage checks detached snapshots, deterministic externally sup
 
 Builder start tests cover Ready-only launch, current unsaved working presets, clean preference-only persistence, dirty no-write behavior, failed preference writes that do not cancel practice, and recovery-authorized no-write behavior. Engine contract tests verify hosted settings/reset suppression alongside unchanged standalone controls and retained performance actions. Melody review coverage separately preserves repair interactions while hiding Settings and New Timed Session in hosted presentation.
 
-Manual QA: create a short Ready preset with count, Scale Repertoire, Ear Training, and one-minute Reading Flow entries. Start without an intervening configuration screen; reach one target, use Bonus, then advance. Confirm repertoire progress includes its final scale, Melody waits for its own timed Review, Skip advances neutrally, End produces an entered-only summary, and Back restores unsaved builder state. Briefly verify standalone settings/reset remain present. Mobile Play transfer between prescribed exercises remains a P7 concern.
+After deployment, create a short Ready preset with count, Scale Repertoire, Ear Training, and one-minute Reading Flow entries on the Chromebook/tablet. Start without an intervening configuration screen; reach one target, use Bonus, then advance. Confirm repertoire progress includes its final scale, Melody waits for its own timed Review, Skip advances neutrally, End produces an entered-only summary, Back restores unsaved builder state, and hosted Mobile Play remains continuous across prescribed exercises. Briefly verify standalone settings/reset and engine-owned Mobile Play remain present.
 
 P7 hosted Mobile Play coverage verifies that the stable Practice Session runtime acquires fullscreen/orientation once, exposes one Exit action, remains the only fixed `.mobile-play-mode` shell, and retains that lifecycle across every four-engine transition. Tests keep one keyed child mounted, distinguish embedded hosted layouts from standalone fixed engine ownership, keep Skip/End/completion/Bonus controls reachable, preserve count and Melody Bonus without remounting, and confirm End/Finish/final Skip cleanup plus summary focus and Back behavior. Explicit Exit retains the active engine and restores focus to the host entry action. Existing hook and engine suites remain responsible for standalone acquisition, cleanup, Focus Staff interaction, Melody audio/timer continuity, Ear Training prompts, and local entry/exit behavior.
 
@@ -596,4 +596,4 @@ Manual QA: open Sequences - Scales and verify Random first. Switch to Repertoire
 
 Runtime-ref continuation tests retain original and Repair evidence across fresh phrases and Review retries, reject concurrent continuation calls, and confirm that no new countdown or notification appears. Non-continuous results do not notify. Existing review, interval-analytics, recorder, audio, and Mobile Play suites continue guarding their respective feature behavior. Reusable settings controls remain tested independently of the performance engine.
 
-Manual QA: open Melody and check standalone defaults; change staff/key/tempo/length and start a phrase (pitch/rhythm difficulty remain the existing easy-only settings). Enable Continuous Practice with a one-minute duration and confirm the countdown starts with the normal Start/count-in. Let the deadline expire during or between phrases; confirm the final phrase/result is retained in Review. Retry a reviewed phrase and check Original versus Latest results. Return to Settings and start again; also try New Timed Session. Briefly check Mobile Play. No Practice Session entry point or continuation button should appear: configured launch and continuation are API contracts covered by automated host tests.
+Manual QA: open Melody directly and check standalone defaults; change staff/key/tempo/length and start a phrase (pitch/rhythm difficulty remain the existing easy-only settings). Enable Continuous Practice with a one-minute duration and confirm the countdown starts with the normal Start/count-in. Let the deadline expire during or between phrases; confirm the final phrase/result is retained in Review. Retry a reviewed phrase and check Original versus Latest results. Return to Settings and start again; also try New Timed Session and standalone Mobile Play. Standalone Melody exposes no host continuation button; Practice Session invokes that API through its own Bonus action, as covered by automated host tests.

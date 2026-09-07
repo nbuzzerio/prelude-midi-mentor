@@ -1,10 +1,28 @@
 # Dev Log
 
-A high-level release history and record of significant milestones in Prelude's development. The Unreleased section records work after the prepared release, while dated sections preserve finalized release notes. The v2.5.0 section is prepared for the repository owner's manual release commit and annotated tag; it does not claim that tag already exists.
+A high-level release history and record of significant milestones in Prelude's development. The Unreleased section records work after the prepared release, while dated sections preserve finalized release notes. The v2.6.0 section is prepared for the repository owner's manual release commit and annotated tag; it does not claim that tag already exists.
 
 ## Unreleased
 
-No changes recorded after v2.5.0 release preparation.
+No changes recorded after v2.6.0 release preparation.
+
+---
+
+## v2.6.0 — September 7, 2026
+
+### Practice Sessions
+
+- Added reusable named presets with ordered exercises, feature-owned configuration snapshots, explicit local Save, and Ready / Needs setup validation.
+- Added direct configured launches across Flashcards, Sequences, Ear Training, and timed Melody practice, including Scale Repertoire in ordered or shuffled traversal.
+- Added native completion targets, Practice Complete actions, Keep Playing / Bonus, Skip for Today, End Session, and an entered-only neutral summary.
+- Added one-at-a-time exercise orchestration with immutable run snapshots while keeping active-run state and practice evidence memory-only.
+- Added stable hosted Mobile Play continuity across prescribed exercise transitions while preserving standalone engine behavior.
+- Expanded automated coverage across preset validation and persistence, builder recovery and editing, runtime transitions, stale-callback protection, engine contracts, and hosted Mobile Play lifecycle.
+
+### Release Readiness
+
+- Synchronized the visible application version and release documentation for v2.6.0 preparation.
+- Kept Practice Session prescriptions browser-local with no accounts, cloud dependency, analytics, or persisted run history.
 
 ---
 

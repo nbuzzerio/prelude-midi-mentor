@@ -119,6 +119,15 @@ Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It do
 
 Melody is monophonic 4/4 without rests, chords, two-hand material, hold-duration grading, latency calibration, or server-side/persisted analytics. Timed diagnostic and repair evidence lasts only for the current in-memory session.
 
+### Practice Sessions
+
+- Build reusable named presets from Flashcards, Sequences, Ear Training, and timed Melody exercises
+- Configure an ordered practice prescription once, then start and advance without reopening each mode's settings
+- Use native completion targets, including Scale Repertoire traversal and Melody-owned timed practice
+- Continue with Bonus practice, Skip for Today, End Session, and an entered-only session summary
+- Save presets explicitly in the current browser with no account or cloud dependency
+- Keep Mobile Play active across exercise transitions on tablet and Chromebook
+
 ### Practice Statistics
 
 - Accuracy
@@ -166,7 +175,7 @@ The goal is to connect three ideas:
 
 ## How It Works
 
-Prelude currently provides six complementary top-level modes:
+Prelude currently provides seven complementary top-level modes:
 
 ```text
 Flashcards
@@ -186,13 +195,18 @@ Melody
 
 Staff Builder
     |-- Transcribe and edit practice material directly on a score
+
+Practice Sessions
+    |-- Build and run reusable ordered practice prescriptions
 ```
 
 Flashcards and Sequences generate musical targets, render them using standard notation, validate MIDI or virtual-piano input, and provide immediate feedback.
 
 Free Play removes the target and grading layers. Physical MIDI and virtual-piano notes share the same live held-note state and key-aware spelling pipeline before appearing on a persistent grand staff. Players can use No Key or one of the supported major and minor keys, choose a chromatic spelling preference, and change notation settings without clearing or replaying held notes.
 
-Staff Builder is a separate learning-focused score editor. It combines beginner-oriented capture, direct score correction, validation, deterministic playback, Study View, annotations, duplication, and local projects without turning Prelude into a professional notation editor or a Guided Lesson engine. Structurally valid saved pieces can launch Piece Practice, which reads a transient projection of that authoritative score and advances only after all checks at the current score position are complete. Piece Practice is not a seventh top-level mode.
+Staff Builder is a separate learning-focused score editor. It combines beginner-oriented capture, direct score correction, validation, deterministic playback, Study View, annotations, duplication, and local projects without turning Prelude into a professional notation editor or a Guided Lesson engine. Structurally valid saved pieces can launch Piece Practice, which reads a transient projection of that authoritative score and advances only after all checks at the current score position are complete. Piece Practice is launched from Staff Builder rather than exposed as a separate top-level mode.
+
+Practice Sessions compose the existing Flashcard, Sequence, Ear Training, and Melody engines into reusable local presets. A Ready preset starts from its current configuration, advances directly between exercises, and keeps one hosted Mobile Play presentation active across the playlist without merging the engines' grading or input state.
 
 Shared MIDI, notation, keyboard, audio, interval-domain, and musical-event playback systems keep the experience consistent while each mode retains its own state machine.
 
@@ -351,6 +365,7 @@ src/
 │   ├── freeplay/
 │   ├── melody/
 │   ├── piece-practice/
+│   ├── practice-session/
 │   ├── sequences/
 │   └── staff-builder/
 │
@@ -377,7 +392,7 @@ src/
 - **lib/** — Reusable audio, music, practice, MIDI, and platform logic that is independent of React.
 - **types/** — Shared TypeScript models used throughout the application.
 
-Current feature domains under `features/` include `ear-training`, `flashcards`, `freeplay`, `melody`, `sequences`, `staff-builder`, and the Sequence-adjacent `piece-practice` workflow. Piece Practice is launched from Staff Builder rather than exposed as a permanent top-level mode.
+Current feature domains under `features/` include `ear-training`, `flashcards`, `freeplay`, `melody`, `practice-session`, `sequences`, `staff-builder`, and the Sequence-adjacent `piece-practice` workflow. Piece Practice is launched from Staff Builder rather than exposed as a permanent top-level mode.
 
 For a more detailed technical explanation, see
 [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
@@ -386,9 +401,9 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Prelude's latest repository tag remains **v2.4.0 — Staff Builder** until the repository owner completes the manual release steps. The repository and application metadata are prepared for the backward-compatible **v2.5.0** release candidate.
+Prelude's latest repository tag remains **v2.5.0** until the repository owner completes the manual release steps. The repository and application metadata are prepared for the backward-compatible **v2.6.0** release candidate.
 
-The application now supports six complementary top-level modes:
+The application now supports seven complementary top-level modes:
 
 - Flashcards for isolated notes and triads
 - Sequences for intervals, scales, arpeggios, and chord progressions
@@ -396,10 +411,11 @@ The application now supports six complementary top-level modes:
 - Ear Training for melodic interval identification by sound
 - Melody for continuous one- or two-measure sight-reading and independent Pitch, Movement, and Timing results
 - Staff Builder for beginner-friendly score transcription and editing
+- Practice Sessions for reusable ordered prescriptions across the existing exercise engines
 
-The release candidate includes Piece Practice, automatic same-staff polyphony, import/export, coordinated Mobile Play, annotations and Study View, Melody timed diagnostics and repair review, interval analytics, preparatory lead-in, piece duplication, and authored/graded rolled chords. A final owner sanity check, manual tag, deployment verification, and representative device/PWA smoke checks remain before release completion. Melody duration/hold grading, persisted practice evidence, and Piece Practice Accuracy remain future work.
+The release candidate adds browser-local Practice Session presets, native completion targets, Scale Repertoire traversal, timed Melody orchestration, Bonus/Skip/End/summary flow, and stable hosted Mobile Play continuity across exercises. Final interaction and presentation QA is intentionally deferred to the deployed Chromebook/tablet. Practice evidence persistence, analytics, scheduling, cloud accounts, and active-run recovery remain future considerations rather than current capabilities.
 
-`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is set to `2.5.0`, so the prepared release candidate displays `v2.5.0`; the matching annotated tag is still created manually by the repository owner.
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is set to `2.6.0`, so the prepared release candidate displays `v2.6.0`; the matching annotated tag is still created manually by the repository owner.
 
 Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
 
@@ -488,7 +504,7 @@ Future lesson-based features can build on these existing primitives without forc
 - [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Current structure and technical direction
 - [`DECISIONS.md`](./docs/DECISIONS.md) — Important product and architectural decisions
 - [`TESTING.md`](./docs/TESTING.md) — Testing philosophy and coverage
-- [`DEVLOG.md`](./docs/DEVLOG.md) — Release history and prepared v2.5.0 notes
+- [`DEVLOG.md`](./docs/DEVLOG.md) — Release history and prepared v2.6.0 notes
 - [`RELEASING.md`](./docs/RELEASING.md) — Versioning, validation, tagging, and deployment process
 
 ---
