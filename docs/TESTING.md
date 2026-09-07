@@ -566,6 +566,10 @@ The focused Practice Session validation suite covers every engine/config/target 
 
 The Practice Session library suite covers immutable create, rename, add, update, remove, reorder, duplicate, delete, and last-used operations. Duplication tests require fresh IDs and detached config snapshots. Storage tests cover the empty default, explicit JSON save/load, order preservation, no writes during load, stale-preference normalization without rewriting, corrupt/unsupported preservation, unavailable storage, failed writes, and refusal to save invalid libraries. There is no Practice Session UI or runtime manual QA in P4.
 
+P5 builder option tests cover all eight human-facing concepts, parser-valid default entries, null numeric targets, Scale Repertoire's marker target, and Melody's config-owned duration. Presenter tests cover concise concept, configuration, and target language. Exercise-editor tests verify direct reuse of controlled Flashcard, Sequence, Ear Training, and Melody settings, temporary numeric draft input, and atomic numeric/repertoire Sequence target transitions.
+
+Builder integration tests cover empty and valid loading, create/edit/reorder/duplicate/remove flows, readiness text, explicit single-write saves, save failure, preset deletion confirmation, and corrupt-storage recovery. Start Fresh coverage requires an absent saved baseline, an enabled empty replacement save, and unchanged original bytes until Save. App coverage keeps Practice Sessions in the local mode navigation, verifies that its builder remains mounted but inaccessible while hidden, and confirms that no practice engine replaces it. P6 runtime, MIDI execution, progress, completion, and analytics remain outside this coverage.
+
 
 ### Scale Repertoire coverage and manual checks
 

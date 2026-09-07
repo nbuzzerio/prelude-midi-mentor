@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 
 import App from "./App";
 import { useAppMidiInput } from "./hooks/use-app-midi-input";
@@ -62,6 +63,13 @@ vi.mock("./features/melody/components/melody-session", () => ({
   default: () => <TestSession isFocusMode={false} label="Melody session" onToggleFocusMode={() => undefined} />,
 }));
 
+vi.mock("./features/practice-session/components/practice-session-builder", () => ({
+  default: function MockPracticeSessionBuilder({ active }: { active: boolean }) {
+    const [edited, setEdited] = useState(false);
+    return <div><span>Practice Sessions builder</span><button onClick={() => setEdited(true)} type="button">{edited ? "Unsaved edit retained" : "Unsaved builder control"}</button><span>{active ? "Builder active" : "Builder inactive"}</span></div>;
+  },
+}));
+
 describe("App focus mode", () => {
   it("keeps one connected MIDI lifecycle while routing attacks only to the active top-level mode", async () => {
     appMidiNotes.length = 0;
@@ -106,7 +114,7 @@ describe("App focus mode", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
     expect(within(navigation).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
-      "Free Play", "Staff Builder", "Flashcards", "Sequences", "Ear Training", "Melody",
+      "Free Play", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody",
     ]);
     expect(within(screen.getByRole("button", { name: "Staff Builder" })).getByText("Staff")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: "Ear Training" })).getByText("Ear")).toBeTruthy();
@@ -193,5 +201,22 @@ describe("App focus mode", () => {
     expect(screen.getByText("Melody session")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Sequences" }));
     expect(screen.getByText("Sequence session")).toBeTruthy();
+  });
+
+  it("shows a persistently mounted but accessibility-hidden Practice Sessions builder", () => {
+    render(<App />);
+    expect(screen.queryByRole("button", { name: "Unsaved builder control" })).toBeNull();
+    expect(screen.getByText("Practice Sessions builder")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    expect(screen.getByRole("button", { name: "Unsaved builder control" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Unsaved builder control" }));
+    expect(screen.getByText("Builder active")).toBeTruthy();
+    expect(screen.queryByText("Free Play session")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sequences" }));
+    expect(screen.queryByRole("button", { name: "Unsaved builder control" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Unsaved edit retained" })).toBeNull();
+    expect(screen.getByText("Builder inactive")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    expect(screen.getByRole("button", { name: "Unsaved edit retained" })).toBeTruthy();
   });
 });

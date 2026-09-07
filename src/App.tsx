@@ -8,15 +8,16 @@ import StaffBuilderSession from "./features/staff-builder/components/staff-build
 import { useFocusMode } from "./hooks/use-focus-mode";
 import { MidiProvider } from "./components/midi/midi-provider";
 import MelodySession from "./features/melody/components/melody-session";
+import PracticeSessionBuilder from "./features/practice-session/components/practice-session-builder";
 import { version } from "../package.json";
 
-type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody";
+type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session";
 
 export default function App() {
   const [practiceSection, setPracticeSection] =
     useState<PracticeSection>("freeplay");
   const { exitFocusMode, isFocusMode, toggleFocusMode } = useFocusMode(
-    practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody",
+    practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody" && practiceSection !== "practice-session",
   );
 
   let content;
@@ -59,6 +60,10 @@ export default function App() {
 
     case "melody":
       content = <MelodySession />;
+      break;
+
+    case "practice-session":
+      content = null;
       break;
 
     default:
@@ -105,6 +110,17 @@ export default function App() {
         >
           <span className="sm:hidden">Staff</span>
           <span className="hidden sm:inline">Staff Builder</span>
+        </button>
+
+        <button
+          aria-pressed={practiceSection === "practice-session"}
+          aria-label="Practice Sessions"
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "practice-session" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+          onClick={() => { exitFocusMode(); setPracticeSection("practice-session"); }}
+          type="button"
+        >
+          <span className="sm:hidden">Sessions</span>
+          <span className="hidden sm:inline">Practice Sessions</span>
         </button>
 
         <button
@@ -169,6 +185,9 @@ export default function App() {
         </span>
       </nav>
 
+      <div hidden={practiceSection !== "practice-session"}>
+        <PracticeSessionBuilder active={practiceSection === "practice-session"} />
+      </div>
       {content}
     </main></MidiProvider>
   );
