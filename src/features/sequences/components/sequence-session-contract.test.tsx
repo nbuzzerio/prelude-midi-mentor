@@ -106,6 +106,19 @@ describe("Sequence engine contract", () => {
     view.rerender(<SequenceSession {...focusProps} initialConfig={configs[0]} practiceSessionMode />);
     expect(screen.queryByRole("button", { name: "Treble" })).toBeNull();
   });
+  it("keeps standalone viewport ownership and embeds hosted Mobile Play", () => {
+    const standalone = render(<SequenceSession {...focusProps} initialConfig={configs[0]} />);
+    act(() => (observed.card.mock.lastCall![0] as ComponentProps<typeof SequenceCard>).onEnterMobilePlay?.());
+    expect(standalone.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(true);
+    expect(standalone.container.firstElementChild?.classList.contains("fixed")).toBe(true);
+    cleanup();
+    const hosted = render(<SequenceSession {...focusProps} hostedMobilePlay={{ active: true }} initialConfig={configs[0]} practiceSessionMode />);
+    expect(hosted.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(false);
+    expect(hosted.container.firstElementChild?.classList.contains("fixed")).toBe(false);
+    expect((observed.card.mock.lastCall![0] as ComponentProps<typeof SequenceCard>).isMobilePlayMode).toBe(true);
+    expect((observed.card.mock.lastCall![0] as ComponentProps<typeof SequenceCard>).onEnterMobilePlay).toBeUndefined();
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+  });
 });
 
 const repertoireConfig: SequenceConfig = { ...DEFAULT_SEQUENCE_CONFIG, exerciseType: "scales", scalePracticeMode: "repertoire-in-order", scaleRepertoire: ["c-major", "a-natural-minor", "g-major"] };

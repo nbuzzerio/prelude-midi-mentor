@@ -6,7 +6,7 @@ import InstrumentVolumeControl from "@/components/audio/instrument-volume-contro
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
-import { useMobilePlay } from "@/hooks/use-mobile-play";
+import { useMobilePlay, type HostedMobilePlayState } from "@/hooks/use-mobile-play";
 import {
   CHORD_ATTEMPT_GRACE_MS,
   useChordAttempt,
@@ -59,6 +59,7 @@ type SequenceSessionProps = Readonly<{
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
   practiceSessionMode?: boolean;
+  hostedMobilePlay?: HostedMobilePlayState;
 }>;
 
 export default function SequenceSession({
@@ -68,9 +69,12 @@ export default function SequenceSession({
   isFocusMode,
   onToggleFocusMode,
   practiceSessionMode = false,
+  hostedMobilePlay,
 }: SequenceSessionProps) {
-  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
+  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode: localMobilePlayMode } =
     useMobilePlay();
+  const isHostedMobilePlay = hostedMobilePlay !== undefined;
+  const isMobilePlayMode = hostedMobilePlay?.active ?? localMobilePlayMode;
   // Sequence configuration
   const {
     scalePracticeMode,
@@ -725,7 +729,9 @@ export default function SequenceSession({
     <div
       className={
         isMobilePlayActive
-          ? "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
+          ? isHostedMobilePlay
+            ? "grid h-full min-h-0 w-full overflow-hidden bg-zinc-950"
+            : "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
           : isFocusMode
           ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
           : "mx-auto flex w-full max-w-7xl flex-col gap-6"
@@ -764,7 +770,7 @@ export default function SequenceSession({
         />
       </header>
 
-      {isMobilePlayActive ? (
+      {isMobilePlayActive && !isHostedMobilePlay ? (
         <>
           <button
             className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
@@ -790,7 +796,7 @@ export default function SequenceSession({
           feedback={feedback}
           isFocusMode={isFocusMode}
           isMobilePlayMode={isMobilePlayActive}
-          onEnterMobilePlay={handleEnterMobilePlay}
+          onEnterMobilePlay={isHostedMobilePlay ? undefined : handleEnterMobilePlay}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
           onToggleFocusMode={handleToggleFocusMode}

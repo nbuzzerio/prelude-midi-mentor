@@ -576,6 +576,10 @@ Builder start tests cover Ready-only launch, current unsaved working presets, cl
 
 Manual QA: create a short Ready preset with count, Scale Repertoire, Ear Training, and one-minute Reading Flow entries. Start without an intervening configuration screen; reach one target, use Bonus, then advance. Confirm repertoire progress includes its final scale, Melody waits for its own timed Review, Skip advances neutrally, End produces an entered-only summary, and Back restores unsaved builder state. Briefly verify standalone settings/reset remain present. Mobile Play transfer between prescribed exercises remains a P7 concern.
 
+P7 hosted Mobile Play coverage verifies that the stable Practice Session runtime acquires fullscreen/orientation once, exposes one Exit action, remains the only fixed `.mobile-play-mode` shell, and retains that lifecycle across every four-engine transition. Tests keep one keyed child mounted, distinguish embedded hosted layouts from standalone fixed engine ownership, keep Skip/End/completion/Bonus controls reachable, preserve count and Melody Bonus without remounting, and confirm End/Finish/final Skip cleanup plus summary focus and Back behavior. Explicit Exit retains the active engine and restores focus to the host entry action. Existing hook and engine suites remain responsible for standalone acquisition, cleanup, Focus Staff interaction, Melody audio/timer continuity, Ear Training prompts, and local entry/exit behavior.
+
+Final viewport, safe-area, browser chrome, physical keyboard, and orientation behavior is verified after deployment on the actual Chromebook/tablet. P7 intentionally adds no broad browser/device matrix and preserves the established browser-Escape behavior.
+
 
 ### Scale Repertoire coverage and manual checks
 

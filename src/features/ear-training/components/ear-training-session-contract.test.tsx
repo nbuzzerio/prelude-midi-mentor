@@ -115,4 +115,13 @@ describe("Ear Training engine contract", () => {
     expect(screen.queryByRole("button", { name: "Reset Session" })).toBeNull();
     expect(screen.getByRole("button", { name: "Play Prompt" })).toBeTruthy();
   });
+  it("renders hosted Mobile Play as an embedded presentation without local controls", () => {
+    const { container } = render(<EarTrainingSession hostedMobilePlay={{ active: true }} initialConfig={config} practiceSessionMode />);
+    expect(container.firstElementChild?.classList.contains("ear-training-mobile-play")).toBe(true);
+    expect(container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(false);
+    expect(container.firstElementChild?.classList.contains("fixed")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Mobile Play" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Play Prompt" })).toBeTruthy();
+  });
 });

@@ -24,7 +24,7 @@ import {
 } from "@/features/flashcards/flashcard-timing";
 
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
-import { useMobilePlay } from "@/hooks/use-mobile-play";
+import { useMobilePlay, type HostedMobilePlayState } from "@/hooks/use-mobile-play";
 
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import {
@@ -59,6 +59,7 @@ type FlashcardSessionProps = Readonly<{
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
   practiceSessionMode?: boolean;
+  hostedMobilePlay?: HostedMobilePlayState;
 }>;
 
 export default function FlashcardSession({
@@ -67,9 +68,12 @@ export default function FlashcardSession({
   isFocusMode,
   onToggleFocusMode,
   practiceSessionMode = false,
+  hostedMobilePlay,
 }: FlashcardSessionProps) {
-  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
+  const { enterMobilePlay, exitMobilePlay, isMobilePlayMode: localMobilePlayMode } =
     useMobilePlay();
+  const isHostedMobilePlay = hostedMobilePlay !== undefined;
+  const isMobilePlayMode = hostedMobilePlay?.active ?? localMobilePlayMode;
   // Practice configuration
   const {
     enabledExerciseTypes,
@@ -554,7 +558,9 @@ export default function FlashcardSession({
     <div
       className={
         isMobilePlayActive
-          ? "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
+          ? isHostedMobilePlay
+            ? "flashcard-session grid h-full min-h-0 w-full overflow-hidden bg-zinc-950"
+            : "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
           : isFocusMode
           ? "focus-staff-mode fixed inset-0 z-50 flex w-full flex-col gap-4 overflow-auto bg-zinc-950 p-2 sm:p-5"
           : "flashcard-session mx-auto flex w-full max-w-7xl flex-col gap-3 sm:gap-6"
@@ -585,7 +591,7 @@ export default function FlashcardSession({
         />
       </header>
 
-      {isMobilePlayActive ? (
+      {isMobilePlayActive && !isHostedMobilePlay ? (
         <>
           <button
             className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
@@ -604,7 +610,7 @@ export default function FlashcardSession({
           feedback={feedback}
           isFocusMode={isFocusMode}
           isMobilePlayMode={isMobilePlayActive}
-          onEnterMobilePlay={handleEnterMobilePlay}
+          onEnterMobilePlay={isHostedMobilePlay ? undefined : handleEnterMobilePlay}
           practiceTarget={practiceTarget}
           showTargetName={showTargetName}
           onCorrect={handleSimulateCorrect}

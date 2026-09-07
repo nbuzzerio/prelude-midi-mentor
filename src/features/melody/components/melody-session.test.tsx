@@ -73,6 +73,17 @@ describe("MelodySession", () => {
     expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
   });
 
+  it("renders hosted Mobile Play inside its owner without local entry or exit controls", () => {
+    const { container } = render(<MelodySession hostedMobilePlay={{ active: true }} initialConfig={timedConfig} practiceSessionMode seedFactory={() => "hosted-mobile"} />);
+    const session = container.querySelector("[data-testid='melody-session']")!;
+    expect(session.classList.contains("melody-mobile-play")).toBe(true);
+    expect(session.classList.contains("mobile-play-mode")).toBe(false);
+    expect(session.classList.contains("fixed")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Mobile Play" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
+  });
+
   it("generates only the configured first material and consumes configuration only at mount", () => {
     const config: MelodyConfig = { ...timedConfig, staff: "bass", keyId: "d-minor", tempoBpm: 50, measureCount: 2, continuousDurationMinutes: 3 };
     const generate = vi.spyOn(melodyGenerator, "generateMelodyExercise");

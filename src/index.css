@@ -565,6 +565,26 @@ button {
     max(0.25rem, env(safe-area-inset-left));
 }
 
+.practice-session-mobile-play {
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.25rem;
+}
+
+.practice-session-mobile-play-strip {
+  max-height: min(44dvh, 13rem);
+  overflow-y: auto;
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+  padding-right: max(0.5rem, env(safe-area-inset-right));
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+}
+
+.practice-session-mobile-play-engine,
+.practice-session-mobile-play-engine > * {
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+}
+
 .mobile-play-mode .practice-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

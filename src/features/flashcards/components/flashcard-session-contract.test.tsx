@@ -97,6 +97,19 @@ describe("Flashcard engine contract", () => {
     expect(screen.queryByText("Practice Settings")).toBeNull();
     expect(screen.queryByText("Replay completed chords")).toBeNull();
   });
+  it("keeps standalone viewport ownership and embeds hosted Mobile Play", () => {
+    const standalone = render(<FlashcardSession {...focusProps} initialConfig={noteConfig} />);
+    act(() => (observed.card.mock.lastCall![0] as ComponentProps<typeof FlashcardCard>).onEnterMobilePlay?.());
+    expect(standalone.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(true);
+    expect(standalone.container.firstElementChild?.classList.contains("fixed")).toBe(true);
+    cleanup();
+    const hosted = render(<FlashcardSession {...focusProps} hostedMobilePlay={{ active: true }} initialConfig={noteConfig} practiceSessionMode />);
+    expect(hosted.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(false);
+    expect(hosted.container.firstElementChild?.classList.contains("fixed")).toBe(false);
+    expect((observed.card.mock.lastCall![0] as ComponentProps<typeof FlashcardCard>).isMobilePlayMode).toBe(true);
+    expect((observed.card.mock.lastCall![0] as ComponentProps<typeof FlashcardCard>).onEnterMobilePlay).toBeUndefined();
+    expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+  });
 });
 
 it("allows a host to replace consecutive Flashcard entries directly from triad completion", () => {
