@@ -5,7 +5,7 @@ import {
 } from "../practice-session-library";
 import { PRACTICE_SESSION_BUILDER_OPTIONS } from "../practice-session-builder-options";
 import { getPracticeExerciseConfigurationSummary, getPracticeExerciseTargetSummary } from "../practice-session-presenters";
-import type { PracticeExerciseEntry, PracticeSessionIdFactory, PracticeSessionLibrary } from "../practice-session-types";
+import type { PracticeExerciseEntry, PracticeSessionIdFactory, PracticeSessionLibrary, PracticeSessionPreset } from "../practice-session-types";
 import { validateRunnablePracticeSessionPreset } from "../practice-session-validation";
 import PracticeSessionExerciseEditor from "./practice-session-exercise-editor";
 
@@ -14,10 +14,10 @@ function PresetNameInput({ name, onRename }: Readonly<{ name: string; onRename: 
   return <label className="min-w-56 flex-1 font-semibold">Preset name<input className="mt-1 block w-full rounded border border-white/20 bg-zinc-900 p-2" value={text} onBlur={() => { if (!text.trim()) setText(name); }} onChange={(event) => { setText(event.target.value); if (event.target.value.trim()) onRename(event.target.value); }} /></label>;
 }
 
-export default function PracticeSessionPresetEditor({ library, selectedPresetId, selectedExerciseId, onLibraryChange, onSelectPreset, onSelectExercise, createId, announce }: Readonly<{
+export default function PracticeSessionPresetEditor({ library, selectedPresetId, selectedExerciseId, onLibraryChange, onSelectPreset, onSelectExercise, createId, announce, onStartPractice }: Readonly<{
   library: PracticeSessionLibrary; selectedPresetId: string | null; selectedExerciseId: string | null;
   onLibraryChange: (library: PracticeSessionLibrary) => void; onSelectPreset: (id: string | null) => void; onSelectExercise: (id: string | null) => void;
-  createId: PracticeSessionIdFactory; announce: (message: string) => void;
+  createId: PracticeSessionIdFactory; announce: (message: string) => void; onStartPractice: (preset: PracticeSessionPreset) => void;
 }>) {
   const labelRef = useRef<HTMLInputElement>(null);
   const rowRefs = useRef(new Map<string, HTMLLIElement>());
@@ -41,6 +41,7 @@ export default function PracticeSessionPresetEditor({ library, selectedPresetId,
         <div className="flex flex-wrap items-end gap-3">
           <PresetNameInput key={selected.id} name={selected.name} onRename={(name) => apply(renamePracticeSessionPreset(library, selected.id, name))} />
           <span className={readiness?.ok ? "text-emerald-300" : "text-amber-300"}>{readiness?.ok ? "Ready" : "Needs setup"}</span>
+          {readiness?.ok && <button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={() => onStartPractice(selected)} type="button">Start Practice</button>}
           <button className="min-h-11 rounded bg-zinc-800 px-3" onClick={() => { const result = duplicatePracticeSessionPreset(library, selected.id, createId); if (result.ok) { const copy = result.value.presets.find((preset) => !library.presets.some(({ id }) => id === preset.id))!; onLibraryChange(result.value); onSelectPreset(copy.id); onSelectExercise(null); announce(`Duplicated ${selected.name}.`); } }} type="button">Duplicate preset</button>
           <button className="min-h-11 rounded border border-red-400/40 px-3 text-red-200" onClick={() => { if (!window.confirm(`Delete “${selected.name}” from this working library? The deletion becomes permanent when you save.`)) return; const result = deletePracticeSessionPreset(library, selected.id); if (result.ok) { selectAfterDelete(selected.id); onLibraryChange(result.value); announce(`Removed ${selected.name}.`); } }} type="button">Delete preset</button>
         </div>

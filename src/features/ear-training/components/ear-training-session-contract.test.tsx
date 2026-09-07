@@ -108,4 +108,11 @@ describe("Ear Training engine contract", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset Session" }));
     expect(completed).toHaveBeenCalledTimes(1);
   });
+  it("suppresses prescription controls but preserves Play Prompt when hosted", () => {
+    const view = render(<EarTrainingSession initialConfig={config} />);
+    expect(screen.getByRole("button", { name: "Reset Session" })).toBeTruthy();
+    view.rerender(<EarTrainingSession initialConfig={config} practiceSessionMode />);
+    expect(screen.queryByRole("button", { name: "Reset Session" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Play Prompt" })).toBeTruthy();
+  });
 });

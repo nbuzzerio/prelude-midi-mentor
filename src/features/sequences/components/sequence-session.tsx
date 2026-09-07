@@ -58,6 +58,7 @@ type SequenceSessionProps = Readonly<{
   onScaleRepertoireCompleted?: () => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
+  practiceSessionMode?: boolean;
 }>;
 
 export default function SequenceSession({
@@ -66,6 +67,7 @@ export default function SequenceSession({
   onScaleRepertoireCompleted,
   isFocusMode,
   onToggleFocusMode,
+  practiceSessionMode = false,
 }: SequenceSessionProps) {
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
     useMobilePlay();
@@ -826,7 +828,7 @@ export default function SequenceSession({
             />
           </div>
 
-          <SequenceControls
+          {!practiceSessionMode && <SequenceControls
             scalePracticeMode={scalePracticeMode}
             scaleRepertoire={scaleRepertoire}
             onScalePracticeModeChange={setScalePracticeMode}
@@ -860,7 +862,7 @@ export default function SequenceSession({
             onScaleDirectionToggle={toggleScaleDirection}
             onShowTargetNameChange={setShowTargetName}
             showTargetName={showTargetName}
-          />
+          />}
         </div>
 
         <SequenceStats stats={stats} />

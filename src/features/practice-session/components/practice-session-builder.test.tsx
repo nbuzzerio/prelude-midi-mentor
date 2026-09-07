@@ -1,7 +1,13 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRACTICE_SESSION_LIBRARY_STORAGE_KEY, type PracticeSessionStorage } from "../practice-session-library";
+import { PRACTICE_SESSION_BUILDER_OPTIONS } from "../practice-session-builder-options";
 import PracticeSessionBuilder from "./practice-session-builder";
+
+vi.mock("./practice-session-runtime", () => ({
+  PracticeSessionRuntime: ({ run }: { run: { snapshot: { presetName: string } } }) => <p>Running {run.snapshot.presetName}</p>,
+  PracticeSessionSummary: () => <p>Summary</p>,
+}));
 
 afterEach(cleanup);
 class MemoryStorage implements PracticeSessionStorage {
@@ -10,6 +16,11 @@ class MemoryStorage implements PracticeSessionStorage {
   setItem = vi.fn((key: string, value: string) => { this.values.set(key, value); });
 }
 const ids = (...values: string[]) => vi.fn(() => values.shift() ?? `id-${Math.random()}`);
+const readyLibrary = (lastUsedPresetId: string | null = null) => ({
+  schemaVersion: 1 as const,
+  presets: [{ schemaVersion: 1 as const, id: "p1", name: "Daily", exercises: [{ ...PRACTICE_SESSION_BUILDER_OPTIONS[0]!.createEntry("e1"), target: { kind: "correct-answers" as const, count: 2 } }] }],
+  lastUsedPresetId,
+});
 
 describe("Practice Session builder", () => {
   it("restores a blank preset name from the committed library on blur", () => {
@@ -30,6 +41,7 @@ describe("Practice Session builder", () => {
     expect(screen.getByText("Saved")).toBeTruthy(); expect(storage.setItem).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "New Preset" }));
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start Practice" })).toBeNull();
     fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "Week 3" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(storage.setItem).toHaveBeenCalledTimes(1); expect(screen.getByText("Saved")).toBeTruthy();
@@ -80,5 +92,48 @@ describe("Practice Session builder", () => {
     view.rerender(<PracticeSessionBuilder active createId={ids()} storage={storage} />);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByRole("status").textContent).toContain("unsaved changes remain"); expect(screen.getByText("Unsaved changes")).toBeTruthy();
+  });
+
+  it("starts a ready preset immediately and persists last-used from a clean baseline", () => {
+    const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify(readyLibrary()));
+    render(<PracticeSessionBuilder createExerciseToken={() => "token"} createRunId={() => "run"} now={() => 1} storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    expect(screen.getByText("Running Daily")).toBeTruthy();
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)!).lastUsedPresetId).toBe("p1");
+  });
+
+  it("starts the current unsaved ready preset without writing unrelated edits", () => {
+    const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify(readyLibrary()));
+    render(<PracticeSessionBuilder createExerciseToken={() => "token"} createRunId={() => "run"} now={() => 1} storage={storage} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "Unsaved Daily" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    expect(screen.getByText("Running Unsaved Daily")).toBeTruthy();
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(JSON.parse(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)!).presets[0].name).toBe("Daily");
+  });
+
+  it("does not cancel start when a clean last-used preference write fails", () => {
+    const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify(readyLibrary()));
+    storage.setItem.mockImplementation(() => { throw new Error(); });
+    render(<PracticeSessionBuilder createExerciseToken={() => "token"} createRunId={() => "run"} now={() => 1} storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    expect(screen.getByText("Running Daily")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("could not be saved");
+  });
+
+  it("does not write storage when starting after authorized recovery", () => {
+    const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, "not-json");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<PracticeSessionBuilder createExerciseToken={() => "token"} createId={ids("p1", "e1")} createRunId={() => "run"} now={() => 1} storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Fresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "New Preset" }));
+    fireEvent.click(screen.getByRole("button", { name: /Note Recognition/ }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: /^Target/ }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    expect(screen.getByText("Running New Practice Session")).toBeTruthy();
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)).toBe("not-json");
+    confirm.mockRestore();
   });
 });

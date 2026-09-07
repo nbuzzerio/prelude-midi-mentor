@@ -65,6 +65,14 @@ describe("MelodySession", () => {
   const frame = () => act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
   const startTimed = () => act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
 
+  it("suppresses setup controls but preserves the hosted Start action", () => {
+    const view = render(<MelodySession initialConfig={timedConfig} seedFactory={() => "hosted"} />);
+    expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
+    view.rerender(<MelodySession initialConfig={timedConfig} practiceSessionMode seedFactory={() => "hosted"} />);
+    expect(screen.queryByRole("combobox", { name: "Tempo" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
+  });
+
   it("generates only the configured first material and consumes configuration only at mount", () => {
     const config: MelodyConfig = { ...timedConfig, staff: "bass", keyId: "d-minor", tempoBpm: 50, measureCount: 2, continuousDurationMinutes: 3 };
     const generate = vi.spyOn(melodyGenerator, "generateMelodyExercise");

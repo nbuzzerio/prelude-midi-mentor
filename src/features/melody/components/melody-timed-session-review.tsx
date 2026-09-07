@@ -42,6 +42,7 @@ type MelodyTimedSessionReviewProps = Readonly<{
   onReviewMistakes: () => void;
   onSelectTrial: (trialId: string) => void;
   onSettings: () => void;
+  showSessionActions?: boolean;
 }>;
 
 function formatMovement(result: MelodyAttemptResult): string {
@@ -138,6 +139,7 @@ export const MelodyTimedSessionReview = forwardRef<
   onReviewMistakes,
   onSelectTrial,
   onSettings,
+  showSessionActions = true,
 }, ref) {
   const orderedTrials = [...trials].sort(
     (left, right) => left.originalOrder - right.originalOrder,
@@ -262,10 +264,10 @@ export const MelodyTimedSessionReview = forwardRef<
           </section>
           : <p>No selected diagnostic trial is available.</p>}
 
-      <div className="melody-review-session-actions flex flex-wrap gap-2">
+      {showSessionActions && <div className="melody-review-session-actions flex flex-wrap gap-2">
         <button className="min-h-11 rounded-lg bg-sky-400 px-4 py-2 font-bold text-zinc-950" onClick={onNewTimedSession} type="button">New Timed Session</button>
         <button className="min-h-11 rounded-lg border border-zinc-600 px-3 py-2" onClick={onSettings} type="button">Settings</button>
-      </div>
+      </div>}
     </section>
   );
 });

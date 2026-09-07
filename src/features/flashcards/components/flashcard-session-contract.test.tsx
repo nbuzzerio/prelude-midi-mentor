@@ -90,6 +90,13 @@ describe("Flashcard engine contract", () => {
     act(() => vi.advanceTimersByTime(3000));
     expect(completed).toHaveBeenCalledTimes(1);
   });
+  it("suppresses prescription controls only when hosted", () => {
+    const view = render(<FlashcardSession {...focusProps} initialConfig={noteConfig} />);
+    expect(screen.getByText("Practice Settings")).toBeTruthy();
+    view.rerender(<FlashcardSession {...focusProps} initialConfig={noteConfig} practiceSessionMode />);
+    expect(screen.queryByText("Practice Settings")).toBeNull();
+    expect(screen.queryByText("Replay completed chords")).toBeNull();
+  });
 });
 
 it("allows a host to replace consecutive Flashcard entries directly from triad completion", () => {

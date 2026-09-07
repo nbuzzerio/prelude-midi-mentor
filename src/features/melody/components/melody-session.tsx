@@ -67,11 +67,13 @@ export type MelodySessionHandle = Readonly<{
 
 export default function MelodySession({
   initialConfig = DEFAULT_MELODY_CONFIG, onPracticeTargetReached, ref,
+  practiceSessionMode = false,
   seedFactory = defaultSeedFactory, createAudioContext = createMelodyBrowserAudioContext, nowMs = defaultNowMs,
 }: Readonly<{
   initialConfig?: MelodyConfig;
   /** Timed practice only: delivered after final evidence and achievement commit. */
   onPracticeTargetReached?: () => void;
+  practiceSessionMode?: boolean;
   ref?: Ref<MelodySessionHandle>;
   seedFactory?: () => MelodySeed;
   createAudioContext?: MelodyAudioFactory;
@@ -578,7 +580,7 @@ export default function MelodySession({
     <header className="melody-header flex flex-wrap items-center justify-between gap-3" hidden={isMobilePlayMode}><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><div className="flex items-center gap-2"><button className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15" onClick={enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div></header>
     {isMobilePlayMode ? <><p className="melody-mobile-play-context">Melody · {settings.tempoBpm} BPM · {settings.measureCount} {settings.measureCount === 1 ? "measure" : "measures"}</p><button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg" onClick={handleExitMobilePlay} type="button">Exit Mobile Play</button></> : null}
     <p aria-live="polite" className="sr-only">{statusMessage}</p>
-    {presentation === "setup" && <MelodySettingsControls settings={settings} onChange={changeSetting}>
+    {presentation === "setup" && !practiceSessionMode && <MelodySettingsControls settings={settings} onChange={changeSetting}>
       <MelodyPracticeOptions continuousPractice={continuousPractice} continuousDurationMinutes={continuousDurationMinutes} onContinuousPracticeChange={setContinuousPractice} onDurationChange={setContinuousDurationMinutes} />
     </MelodySettingsControls>}
     {presentation !== "results" && presentation !== "review" && <div className="melody-practice">
@@ -591,7 +593,7 @@ export default function MelodySession({
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
       <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></div>}
-    {presentation === "results" && result && <MelodyResults continuousProgress={continuousSessionActive ? `Diagnostic trial ${continuousHistory.length} complete${continuousDeadlineMs === null ? "" : ` · Time remaining: ${formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))}`}` : undefined} exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} showRetrySame={!continuousSessionActive} />}
-    {presentation === "review" && <MelodyTimedSessionReview durationMinutes={continuousDurationMinutes} filter={reviewFilter} interrupted={continuousInterrupted} onFilterChange={changeReviewFilter} onNewTimedSession={() => startContinuousSession(true)} onNextNeedsReview={nextNeedsReview} onResultViewChange={setReviewResultView} onRetryTrial={retryReviewTrial} onReviewMistakes={reviewMistakes} onSelectTrial={selectReviewTrial} onSettings={returnSettings} pinnedTrialId={reviewPinnedTrialId} ref={reviewHeadingRef} resultView={reviewResultView} selectedTrialId={reviewTrialId} trialHeadingRef={reviewTrialHeadingRef} trials={continuousHistory} />}
+    {presentation === "results" && result && <div className={practiceSessionMode ? "[&_.melody-result-settings]:hidden" : undefined}><MelodyResults continuousProgress={continuousSessionActive ? `Diagnostic trial ${continuousHistory.length} complete${continuousDeadlineMs === null ? "" : ` · Time remaining: ${formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))}`}` : undefined} exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} showRetrySame={!continuousSessionActive} /></div>}
+    {presentation === "review" && <MelodyTimedSessionReview durationMinutes={continuousDurationMinutes} filter={reviewFilter} interrupted={continuousInterrupted} onFilterChange={changeReviewFilter} onNewTimedSession={() => startContinuousSession(true)} onNextNeedsReview={nextNeedsReview} onResultViewChange={setReviewResultView} onRetryTrial={retryReviewTrial} onReviewMistakes={reviewMistakes} onSelectTrial={selectReviewTrial} onSettings={returnSettings} pinnedTrialId={reviewPinnedTrialId} ref={reviewHeadingRef} resultView={reviewResultView} selectedTrialId={reviewTrialId} showSessionActions={!practiceSessionMode} trialHeadingRef={reviewTrialHeadingRef} trials={continuousHistory} />}
   </section>;
 }

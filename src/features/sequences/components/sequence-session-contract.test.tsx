@@ -100,6 +100,12 @@ describe("Sequence engine contract", () => {
     expect(target().steps.map((step) => step.notes[0].midiNumber)).toEqual([60, 64]);
     expect(generateSequenceTarget).not.toHaveBeenCalled();
   });
+  it("suppresses prescription controls only when hosted", () => {
+    const view = render(<SequenceSession {...focusProps} initialConfig={configs[0]} />);
+    expect(screen.getByRole("button", { name: "Treble" })).toBeTruthy();
+    view.rerender(<SequenceSession {...focusProps} initialConfig={configs[0]} practiceSessionMode />);
+    expect(screen.queryByRole("button", { name: "Treble" })).toBeNull();
+  });
 });
 
 const repertoireConfig: SequenceConfig = { ...DEFAULT_SEQUENCE_CONFIG, exerciseType: "scales", scalePracticeMode: "repertoire-in-order", scaleRepertoire: ["c-major", "a-natural-minor", "g-major"] };

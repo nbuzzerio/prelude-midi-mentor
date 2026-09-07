@@ -58,6 +58,7 @@ type FlashcardSessionProps = Readonly<{
   onPracticeUnitCompleted?: () => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
+  practiceSessionMode?: boolean;
 }>;
 
 export default function FlashcardSession({
@@ -65,6 +66,7 @@ export default function FlashcardSession({
   onPracticeUnitCompleted,
   isFocusMode,
   onToggleFocusMode,
+  practiceSessionMode = false,
 }: FlashcardSessionProps) {
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } =
     useMobilePlay();
@@ -630,14 +632,13 @@ export default function FlashcardSession({
             <div className="flex flex-col gap-3 sm:gap-4">
             <FeedbackVolumeControl />
 
-            <InstrumentVolumeControl
-              replayCorrectVirtualChords={replayCorrectVirtualChords}
-              onReplayCorrectVirtualChordsChange={setReplayCorrectVirtualChords}
-            />
+            {practiceSessionMode
+              ? <InstrumentVolumeControl showReplayCompletedChords={false} />
+              : <InstrumentVolumeControl replayCorrectVirtualChords={replayCorrectVirtualChords} onReplayCorrectVirtualChordsChange={setReplayCorrectVirtualChords} />}
             </div>
           </MobileDisclosure>
 
-          <MobileDisclosure title="Practice Settings">
+          {!practiceSessionMode && <MobileDisclosure title="Practice Settings">
             <PracticeControls
               enabledExerciseTypes={enabledExerciseTypes}
               enabledNoteCategories={enabledNoteCategories}
@@ -653,7 +654,7 @@ export default function FlashcardSession({
               onTriadPositionToggle={toggleTriadPosition}
               onTriadQualityToggle={toggleTriadQuality}
             />
-          </MobileDisclosure>
+          </MobileDisclosure>}
         </div>
 
         <PracticeStats stats={stats} />

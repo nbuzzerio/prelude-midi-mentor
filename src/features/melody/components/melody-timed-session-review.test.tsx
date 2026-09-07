@@ -52,6 +52,7 @@ function renderReview(options: Partial<Readonly<{
   resultView: MelodyReviewResultView;
   selectedTrialId: string | null;
   trials: readonly typeof firstWeak[];
+  showSessionActions: boolean;
 }>> = {}) {
   const callbacks = {
     onFilterChange: vi.fn(),
@@ -71,12 +72,23 @@ function renderReview(options: Partial<Readonly<{
     resultView={options.resultView ?? "original"}
     selectedTrialId={options.selectedTrialId === undefined ? firstWeak.id : options.selectedTrialId}
     trials={options.trials ?? [firstWeak, secondPerfect, thirdWeak]}
+    showSessionActions={options.showSessionActions}
     {...callbacks}
   />);
   return callbacks;
 }
 
 describe("MelodyTimedSessionReview", () => {
+  it("suppresses only session-replacing actions when hosted", () => {
+    const view = renderReview();
+    expect(screen.getByRole("button", { name: "New Timed Session" })).toBeTruthy();
+    cleanup();
+    renderReview({ showSessionActions: false });
+    expect(screen.queryByRole("button", { name: "New Timed Session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Settings" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry This Melody" })).toBeTruthy();
+    expect(view).toBeTruthy();
+  });
   it("renders completion heading, original overview metrics, and trial identity", () => {
     renderReview();
     expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();

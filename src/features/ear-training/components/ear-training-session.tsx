@@ -11,9 +11,10 @@ import EarTrainingCard from "./ear-training-card";
 import EarTrainingControls from "./ear-training-controls";
 import EarTrainingStatsView from "./ear-training-stats";
 
-export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted }: Readonly<{
+export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, practiceSessionMode = false }: Readonly<{
   initialConfig?: EarTrainingConfig;
   onPracticeUnitCompleted?: () => void;
+  practiceSessionMode?: boolean;
 }> = {}) {
   const settings = useEarTrainingSettings(initialConfig);
   const targetOptions = useMemo(() => ({ enabledDirections: settings.enabledDirections, enabledIntervals: settings.enabledIntervals }), [settings.enabledDirections, settings.enabledIntervals]);
@@ -74,7 +75,7 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
     </main>
 
     <section className="grid gap-4 md:grid-cols-2" hidden={isMobilePlayActive}>
-      <EarTrainingControls {...settings} onDirectionToggle={settings.toggleDirection} onIntervalToggle={settings.toggleInterval} onReset={resetSession} />
+      {!practiceSessionMode && <EarTrainingControls {...settings} onDirectionToggle={settings.toggleDirection} onIntervalToggle={settings.toggleInterval} onReset={resetSession} />}
       <div className="grid gap-4"><FeedbackVolumeControl /><InstrumentVolumeControl showReplayCompletedChords={false} /></div>
     </section>
     <div hidden={isMobilePlayActive}><EarTrainingStatsView stats={stats} /></div>
