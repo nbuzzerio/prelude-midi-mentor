@@ -7,11 +7,12 @@ import type { PracticeExerciseEntry } from "../practice-session-types";
 import { PracticeSessionRuntime, PracticeSessionSummary } from "./practice-session-runtime";
 
 const observed = vi.hoisted(() => ({ melodyContinue: vi.fn(() => true), props: new Map<string, unknown>() }));
+type Hosted = { isFocusMode: boolean; isMobilePlayMode: boolean; showVirtualKeyboard: boolean };
 
-vi.mock("@/features/flashcards/components/flashcard-session", () => ({ default: (props: { onPracticeUnitCompleted?: () => void; initialConfig: unknown; hostedMobilePlay?: { active: boolean } }) => { observed.props.set("flashcards", props); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedMobilePlay?.active)} data-testid="flashcards"><button onClick={props.onPracticeUnitCompleted}>unit</button></div>; } }));
-vi.mock("@/features/sequences/components/sequence-session", () => ({ default: (props: { onPracticeUnitCompleted?: () => void; onScaleRepertoireCompleted?: () => void; initialConfig: unknown; hostedMobilePlay?: { active: boolean } }) => { observed.props.set("sequences", props); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedMobilePlay?.active)} data-testid="sequences"><button onClick={props.onPracticeUnitCompleted}>unit</button><button onClick={props.onScaleRepertoireCompleted}>repertoire</button></div>; } }));
-vi.mock("@/features/ear-training/components/ear-training-session", () => ({ default: (props: { onPracticeUnitCompleted?: () => void; initialConfig: unknown; hostedMobilePlay?: { active: boolean } }) => { observed.props.set("ear-training", props); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedMobilePlay?.active)} data-testid="ear-training"><button onClick={props.onPracticeUnitCompleted}>unit</button></div>; } }));
-vi.mock("@/features/melody/components/melody-session", () => ({ default: forwardRef(function MockMelody(props: { onPracticeTargetReached?: () => void; initialConfig: unknown; hostedMobilePlay?: { active: boolean } }, ref) { observed.props.set("melody", props); useImperativeHandle(ref, () => ({ continuePractice: observed.melodyContinue })); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedMobilePlay?.active)} data-testid="melody"><button onClick={props.onPracticeTargetReached}>target</button></div>; }) }));
+vi.mock("@/features/flashcards/components/flashcard-session", () => ({ default: (props: { onPracticeUnitCompleted?: () => void; initialConfig: unknown; hostedPracticePresentation?: Hosted }) => { observed.props.set("flashcards", props); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedPracticePresentation?.isMobilePlayMode)} data-hosted-focus={String(props.hostedPracticePresentation?.isFocusMode)} data-hosted-keyboard={String(props.hostedPracticePresentation?.showVirtualKeyboard)} data-testid="flashcards"><button onClick={props.onPracticeUnitCompleted}>unit</button></div>; } }));
+vi.mock("@/features/sequences/components/sequence-session", () => ({ default: (props: { onPracticeUnitCompleted?: () => void; onScaleRepertoireCompleted?: () => void; initialConfig: unknown; hostedPracticePresentation?: Hosted }) => { observed.props.set("sequences", props); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedPracticePresentation?.isMobilePlayMode)} data-hosted-focus={String(props.hostedPracticePresentation?.isFocusMode)} data-hosted-keyboard={String(props.hostedPracticePresentation?.showVirtualKeyboard)} data-testid="sequences"><button onClick={props.onPracticeUnitCompleted}>unit</button><button onClick={props.onScaleRepertoireCompleted}>repertoire</button></div>; } }));
+vi.mock("@/features/ear-training/components/ear-training-session", () => ({ default: (props: { onPracticeUnitCompleted?: () => void; initialConfig: unknown; hostedPracticePresentation?: Hosted }) => { observed.props.set("ear-training", props); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedPracticePresentation?.isMobilePlayMode)} data-hosted-focus={String(props.hostedPracticePresentation?.isFocusMode)} data-hosted-keyboard={String(props.hostedPracticePresentation?.showVirtualKeyboard)} data-testid="ear-training"><button onClick={props.onPracticeUnitCompleted}>unit</button></div>; } }));
+vi.mock("@/features/melody/components/melody-session", () => ({ default: forwardRef(function MockMelody(props: { onPracticeTargetReached?: () => void; initialConfig: unknown; hostedPracticePresentation?: Hosted }, ref) { observed.props.set("melody", props); useImperativeHandle(ref, () => ({ continuePractice: observed.melodyContinue })); return <div data-config={JSON.stringify(props.initialConfig)} data-hosted-active={String(props.hostedPracticePresentation?.isMobilePlayMode)} data-hosted-focus={String(props.hostedPracticePresentation?.isFocusMode)} data-hosted-keyboard={String(props.hostedPracticePresentation?.showVirtualKeyboard)} data-testid="melody"><button onClick={props.onPracticeTargetReached}>target</button></div>; }) }));
 
 afterEach(() => { cleanup(); observed.melodyContinue.mockReset(); observed.melodyContinue.mockReturnValue(true); observed.props.clear(); vi.restoreAllMocks(); Reflect.deleteProperty(document.documentElement, "requestFullscreen"); Reflect.deleteProperty(document, "exitFullscreen"); Reflect.deleteProperty(document, "fullscreenElement"); Reflect.deleteProperty(window.screen, "orientation"); });
 
@@ -31,6 +32,50 @@ function Harness({ exercises }: Readonly<{ exercises: readonly PracticeExerciseE
 }
 
 describe("Practice Session runtime", () => {
+  it("keeps Focus and keyboard intent independent without remounting, and carries both through Next and Skip", () => {
+    render(<Harness exercises={[readyEntry(0, "e1"), readyEntry(6, "e2"), readyEntry(0, "e3")]} />);
+    const first = screen.getByTestId("flashcards");
+    expect(first.dataset.hostedFocus).toBe("false");
+    expect(first.dataset.hostedKeyboard).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Focus" }));
+    expect(screen.getByTestId("flashcards")).toBe(first);
+    expect(first.dataset.hostedFocus).toBe("true");
+    expect(first.dataset.hostedKeyboard).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Hide Keyboard" }));
+    expect(screen.getByTestId("flashcards")).toBe(first);
+    expect(first.dataset.hostedFocus).toBe("true");
+    expect(first.dataset.hostedKeyboard).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Exit Focus" }));
+    expect(first.dataset.hostedFocus).toBe("false");
+    expect(first.dataset.hostedKeyboard).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Focus" }));
+    fireEvent.click(screen.getByRole("button", { name: "unit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next Exercise" }));
+    expect(screen.getByTestId("ear-training").dataset).toMatchObject({ hostedFocus: "true", hostedKeyboard: "false" });
+    fireEvent.click(screen.getByRole("button", { name: "Skip for Today" }));
+    expect(screen.getByTestId("flashcards").dataset).toMatchObject({ hostedFocus: "true", hostedKeyboard: "false" });
+  });
+
+  it("presents an inescapable labelled completion dialog and traps focus until a decision", () => {
+    render(<Harness exercises={[readyEntry(0, "e1"), readyEntry(6, "e2")]} />);
+    const engine = screen.getByTestId("flashcards");
+    fireEvent.click(screen.getByRole("button", { name: "unit" }));
+    const dialog = screen.getByRole("dialog", { name: "Practice Complete" });
+    const next = screen.getByRole("button", { name: "Next Exercise" });
+    const keepPlaying = screen.getByRole("button", { name: "Keep Playing" });
+    expect(document.activeElement).toBe(next);
+    expect(engine).toBeTruthy();
+    expect(dialog.parentElement?.previousElementSibling?.getAttribute("inert")).not.toBeNull();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: "Practice Complete" })).toBeTruthy();
+    keepPlaying.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(next);
+    next.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(keepPlaying);
+  });
+
   it("mounts only the active engine with its exact config and advances immediately", () => {
     const first = readyEntry(0, "e1"); const second = readyEntry(6, "e2");
     render(<Harness exercises={[first, second]} />);
@@ -46,7 +91,7 @@ describe("Practice Session runtime", () => {
     render(<Harness exercises={[readyEntry(0, "e1")]} />);
     const engine = screen.getByTestId("flashcards");
     fireEvent.click(screen.getByRole("button", { name: "unit" }));
-    fireEvent.click(screen.getByRole("button", { name: "unit" }));
+    fireEvent.click(engine.querySelector("button")!);
     expect(screen.getByText("1 / 1 correct")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Keep Playing" }));
     fireEvent.click(screen.getByRole("button", { name: "unit" }));
@@ -103,6 +148,10 @@ describe("Practice Session runtime", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
     await waitFor(() => expect(lock).toHaveBeenCalledTimes(1));
     expect(screen.getByLabelText("Active Practice Session").classList.contains("mobile-play-mode")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Focus" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide Keyboard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Focus" }));
+    expect(requestFullscreen).toHaveBeenCalledTimes(1); expect(lock).toHaveBeenCalledTimes(1);
     for (const testId of ["flashcards", "sequences", "ear-training"]) {
       expect(screen.getByTestId(testId).dataset.hostedActive).toBe("true");
       fireEvent.click(screen.getByRole("button", { name: "unit" }));

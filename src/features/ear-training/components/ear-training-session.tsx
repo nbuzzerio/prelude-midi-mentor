@@ -2,7 +2,8 @@ import type { EarTrainingConfig } from "../ear-training-config";
 import { useEffect, useMemo, useRef } from "react";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
-import { useMobilePlay, type HostedMobilePlayState } from "@/hooks/use-mobile-play";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
+import type { HostedPracticePresentation } from "@/types/hosted-practice-presentation";
 import { useEarTrainingAttempt } from "../hooks/use-ear-training-attempt";
 import { useEarTrainingPrompt } from "../hooks/use-ear-training-prompt";
 import { useEarTrainingSettings } from "../hooks/use-ear-training-settings";
@@ -11,11 +12,11 @@ import EarTrainingCard from "./ear-training-card";
 import EarTrainingControls from "./ear-training-controls";
 import EarTrainingStatsView from "./ear-training-stats";
 
-export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, practiceSessionMode = false, hostedMobilePlay }: Readonly<{
+export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, practiceSessionMode = false, hostedPracticePresentation }: Readonly<{
   initialConfig?: EarTrainingConfig;
   onPracticeUnitCompleted?: () => void;
   practiceSessionMode?: boolean;
-  hostedMobilePlay?: HostedMobilePlayState;
+  hostedPracticePresentation?: HostedPracticePresentation;
 }> = {}) {
   const settings = useEarTrainingSettings(initialConfig);
   const targetOptions = useMemo(() => ({ enabledDirections: settings.enabledDirections, enabledIntervals: settings.enabledIntervals }), [settings.enabledDirections, settings.enabledIntervals]);
@@ -61,25 +62,26 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
     prepareNextTarget();
   }, [prepareNextTarget, targetOptions]);
 
-  const isHostedMobilePlay = hostedMobilePlay !== undefined;
-  const isMobilePlayActive = hostedMobilePlay?.active ?? mobilePlay.isMobilePlayMode;
+  const isHostedPresentation = hostedPracticePresentation !== undefined;
+  const isMobilePlayActive = hostedPracticePresentation?.isMobilePlayMode ?? mobilePlay.isMobilePlayMode;
+  const isHostedFocus = hostedPracticePresentation?.isFocusMode ?? false;
 
-  return <div className={isMobilePlayActive ? isHostedMobilePlay ? "ear-training-mobile-play grid h-full min-h-0 w-full overflow-hidden bg-zinc-950" : "mobile-play-mode ear-training-mobile-play fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950" : "mx-auto flex w-full max-w-7xl flex-col gap-6"}>
-    <header className="ear-training-header flex items-center justify-between gap-2" hidden={isMobilePlayActive}>
+  return <div className={isMobilePlayActive ? isHostedPresentation ? "ear-training-mobile-play grid h-full min-h-0 w-full overflow-hidden bg-zinc-950" : "mobile-play-mode ear-training-mobile-play fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950" : isHostedFocus ? "ear-training-mobile-play grid h-full min-h-0 w-full overflow-hidden bg-zinc-950" : "mx-auto flex w-full max-w-7xl flex-col gap-6"}>
+    <header className="ear-training-header flex items-center justify-between gap-2" hidden={isMobilePlayActive || isHostedFocus}>
       <div className="min-w-0"><p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">Ear Training</p><h1 className="truncate text-lg font-bold sm:text-3xl"><span className="sm:hidden">Prelude · Ear Training</span><span className="hidden sm:inline">Prelude: MIDI Mentor</span></h1></div>
-      {!isHostedMobilePlay && <button className="practice-mobile-play-entry shrink-0 rounded-lg border border-sky-400/50 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} type="button">Mobile Play</button>}
+      {!isHostedPresentation && <button className="practice-mobile-play-entry shrink-0 rounded-lg border border-sky-400/50 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} type="button">Mobile Play</button>}
     </header>
 
-    {isMobilePlayActive && !isHostedMobilePlay ? <button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.exitMobilePlay} type="button">Exit Mobile Play</button> : null}
+    {isMobilePlayActive && !isHostedPresentation ? <button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.exitMobilePlay} type="button">Exit Mobile Play</button> : null}
 
     <main className="ear-training-stage min-h-0">
       <EarTrainingCard answerIntervals={settings.enabledIntervals} canReplay={canReplay} feedback={feedback} onAnswer={answer} onPlayPrompt={() => { void playPrompt(getCurrentTarget()); }} promptState={promptState} target={target} wrongAnswers={wrongAnswers} />
     </main>
 
-    <section className="grid gap-4 md:grid-cols-2" hidden={isMobilePlayActive}>
+    <section className="grid gap-4 md:grid-cols-2" hidden={isMobilePlayActive || isHostedFocus}>
       {!practiceSessionMode && <EarTrainingControls {...settings} onDirectionToggle={settings.toggleDirection} onIntervalToggle={settings.toggleInterval} onReset={resetSession} />}
       <div className="grid gap-4"><FeedbackVolumeControl /><InstrumentVolumeControl showReplayCompletedChords={false} /></div>
     </section>
-    <div hidden={isMobilePlayActive}><EarTrainingStatsView stats={stats} /></div>
+    <div hidden={isMobilePlayActive || isHostedFocus}><EarTrainingStatsView stats={stats} /></div>
   </div>;
 }

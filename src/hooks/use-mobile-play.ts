@@ -6,8 +6,6 @@ type LockableScreenOrientation = ScreenOrientation &
     unlock?: () => void;
   }>;
 
-export type HostedMobilePlayState = Readonly<{ active: boolean }>;
-
 async function requestFullscreen(): Promise<boolean> {
   if (
     document.fullscreenElement !== null ||

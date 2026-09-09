@@ -112,12 +112,25 @@ describe("Sequence engine contract", () => {
     expect(standalone.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(true);
     expect(standalone.container.firstElementChild?.classList.contains("fixed")).toBe(true);
     cleanup();
-    const hosted = render(<SequenceSession {...focusProps} hostedMobilePlay={{ active: true }} initialConfig={configs[0]} practiceSessionMode />);
+    const hosted = render(<SequenceSession {...focusProps} hostedPracticePresentation={{ isFocusMode: false, isMobilePlayMode: true, showVirtualKeyboard: true }} initialConfig={configs[0]} practiceSessionMode />);
     expect(hosted.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(false);
     expect(hosted.container.firstElementChild?.classList.contains("fixed")).toBe(false);
     expect((observed.card.mock.lastCall![0] as ComponentProps<typeof SequenceCard>).isMobilePlayMode).toBe(true);
     expect((observed.card.mock.lastCall![0] as ComponentProps<typeof SequenceCard>).onEnterMobilePlay).toBeUndefined();
     expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+  });
+  it("hides only the hosted virtual keyboard while physical MIDI grading remains active", () => {
+    const completed = vi.fn();
+    const presentation = { isFocusMode: false, isMobilePlayMode: false, showVirtualKeyboard: false } as const;
+    const { container, rerender } = render(<SequenceSession {...focusProps} hostedPracticePresentation={presentation} initialConfig={configs[0]} onPracticeUnitCompleted={completed} practiceSessionMode />);
+    expect(container.querySelector(".mobile-play-keyboard-region")?.hasAttribute("hidden")).toBe(true);
+    const firstTarget = target();
+    midi(firstTarget.steps[0]!.notes[0]!.midiNumber);
+    act(() => vi.runOnlyPendingTimers());
+    expect((observed.card.mock.lastCall![0] as ComponentProps<typeof SequenceCard>).currentStepIndex).toBe(1);
+    expect(completed).not.toHaveBeenCalled();
+    rerender(<SequenceSession {...focusProps} hostedPracticePresentation={{ ...presentation, showVirtualKeyboard: true }} initialConfig={configs[0]} onPracticeUnitCompleted={completed} practiceSessionMode />);
+    expect(container.querySelector(".mobile-play-keyboard-region")?.hasAttribute("hidden")).toBe(false);
   });
 });
 

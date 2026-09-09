@@ -116,7 +116,7 @@ describe("Ear Training engine contract", () => {
     expect(screen.getByRole("button", { name: "Play Prompt" })).toBeTruthy();
   });
   it("renders hosted Mobile Play as an embedded presentation without local controls", () => {
-    const { container } = render(<EarTrainingSession hostedMobilePlay={{ active: true }} initialConfig={config} practiceSessionMode />);
+    const { container } = render(<EarTrainingSession hostedPracticePresentation={{ isFocusMode: false, isMobilePlayMode: true, showVirtualKeyboard: true }} initialConfig={config} practiceSessionMode />);
     expect(container.firstElementChild?.classList.contains("ear-training-mobile-play")).toBe(true);
     expect(container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(false);
     expect(container.firstElementChild?.classList.contains("fixed")).toBe(false);

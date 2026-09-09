@@ -74,7 +74,7 @@ describe("MelodySession", () => {
   });
 
   it("renders hosted Mobile Play inside its owner without local entry or exit controls", () => {
-    const { container } = render(<MelodySession hostedMobilePlay={{ active: true }} initialConfig={timedConfig} practiceSessionMode seedFactory={() => "hosted-mobile"} />);
+    const { container } = render(<MelodySession hostedPracticePresentation={{ isFocusMode: false, isMobilePlayMode: true, showVirtualKeyboard: true }} initialConfig={timedConfig} practiceSessionMode seedFactory={() => "hosted-mobile"} />);
     const session = container.querySelector("[data-testid='melody-session']")!;
     expect(session.classList.contains("melody-mobile-play")).toBe(true);
     expect(session.classList.contains("mobile-play-mode")).toBe(false);
@@ -82,6 +82,18 @@ describe("MelodySession", () => {
     expect(screen.queryByRole("button", { name: "Mobile Play" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
     expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
+  });
+
+  it("hides and restores the hosted keyboard without remounting Melody", () => {
+    const presentation = { isFocusMode: true, isMobilePlayMode: false, showVirtualKeyboard: false } as const;
+    const seedFactory = vi.fn(() => "hosted-keyboard");
+    const view = render(<MelodySession hostedPracticePresentation={presentation} initialConfig={timedConfig} practiceSessionMode seedFactory={seedFactory} />);
+    const session = view.container.querySelector("[data-testid='melody-session']")!;
+    expect(view.container.querySelector(".melody-keyboard")?.hasAttribute("hidden")).toBe(true);
+    view.rerender(<MelodySession hostedPracticePresentation={{ ...presentation, showVirtualKeyboard: true }} initialConfig={timedConfig} practiceSessionMode seedFactory={seedFactory} />);
+    expect(view.container.querySelector("[data-testid='melody-session']")).toBe(session);
+    expect(view.container.querySelector(".melody-keyboard")?.hasAttribute("hidden")).toBe(false);
+    expect(seedFactory).toHaveBeenCalledTimes(1);
   });
 
   it("generates only the configured first material and consumes configuration only at mount", () => {

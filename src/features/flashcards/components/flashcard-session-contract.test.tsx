@@ -103,12 +103,22 @@ describe("Flashcard engine contract", () => {
     expect(standalone.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(true);
     expect(standalone.container.firstElementChild?.classList.contains("fixed")).toBe(true);
     cleanup();
-    const hosted = render(<FlashcardSession {...focusProps} hostedMobilePlay={{ active: true }} initialConfig={noteConfig} practiceSessionMode />);
+    const hosted = render(<FlashcardSession {...focusProps} hostedPracticePresentation={{ isFocusMode: false, isMobilePlayMode: true, showVirtualKeyboard: true }} initialConfig={noteConfig} practiceSessionMode />);
     expect(hosted.container.firstElementChild?.classList.contains("mobile-play-mode")).toBe(false);
     expect(hosted.container.firstElementChild?.classList.contains("fixed")).toBe(false);
     expect((observed.card.mock.lastCall![0] as ComponentProps<typeof FlashcardCard>).isMobilePlayMode).toBe(true);
     expect((observed.card.mock.lastCall![0] as ComponentProps<typeof FlashcardCard>).onEnterMobilePlay).toBeUndefined();
     expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
+  });
+  it("hides only the hosted virtual keyboard while physical MIDI grading remains active", () => {
+    const completed = vi.fn();
+    const presentation = { isFocusMode: false, isMobilePlayMode: false, showVirtualKeyboard: false } as const;
+    const { container, rerender } = render(<FlashcardSession {...focusProps} hostedPracticePresentation={presentation} initialConfig={noteConfig} onPracticeUnitCompleted={completed} practiceSessionMode />);
+    expect(container.querySelector(".mobile-play-keyboard-region")?.hasAttribute("hidden")).toBe(true);
+    midi(target().notes[0].midiNumber);
+    expect(completed).toHaveBeenCalledTimes(1);
+    rerender(<FlashcardSession {...focusProps} hostedPracticePresentation={{ ...presentation, showVirtualKeyboard: true }} initialConfig={noteConfig} onPracticeUnitCompleted={completed} practiceSessionMode />);
+    expect(container.querySelector(".mobile-play-keyboard-region")?.hasAttribute("hidden")).toBe(false);
   });
 });
 

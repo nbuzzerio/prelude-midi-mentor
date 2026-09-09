@@ -570,19 +570,72 @@ button {
   gap: 0.25rem;
 }
 
-.practice-session-mobile-play-strip {
-  max-height: min(44dvh, 13rem);
+.practice-session-shell {
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  min-height: calc(100dvh - 7rem);
+}
+
+.practice-session-strip {
+  max-height: min(32dvh, 9rem);
   overflow-y: auto;
+}
+
+.practice-session-mobile-play .practice-session-strip,
+.practice-session-focus .practice-session-strip {
   padding-top: max(0.5rem, env(safe-area-inset-top));
   padding-right: max(0.5rem, env(safe-area-inset-right));
   padding-left: max(0.5rem, env(safe-area-inset-left));
 }
 
-.practice-session-mobile-play-engine,
-.practice-session-mobile-play-engine > * {
+.practice-session-focus {
+  height: 100dvh;
+  min-height: 0;
+  padding-right: max(0.25rem, env(safe-area-inset-right));
+  padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
+  padding-left: max(0.25rem, env(safe-area-inset-left));
+}
+
+.practice-session-mobile-play .practice-session-engine,
+.practice-session-mobile-play .practice-session-engine > *,
+.practice-session-focus .practice-session-engine,
+.practice-session-focus .practice-session-engine > * {
   height: 100%;
   min-height: 0;
   max-width: none;
+}
+
+.practice-session-shell .practice-stage {
+  height: 100%;
+  min-height: 0;
+}
+
+.practice-session-focus .practice-stage {
+  grid-template-rows: minmax(0, 1fr) minmax(10rem, 38%);
+}
+
+.practice-session-shell .practice-stage:has(.mobile-play-keyboard-region[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.practice-session-focus .music-staff {
+  height: 100%;
+  min-height: 0;
+}
+
+.practice-session-focus .music-staff svg {
+  height: 100% !important;
+  max-height: calc(100dvh - 7rem) !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+.practice-session-completion-backdrop {
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
 }
 
 .mobile-play-mode .practice-stage {
@@ -592,6 +645,10 @@ button {
   gap: 0.25rem;
   height: 100%;
   min-height: 0;
+}
+
+.mobile-play-mode .practice-stage:has(.mobile-play-keyboard-region[hidden]) {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .mobile-play-mode .practice-stage > section {
@@ -638,6 +695,10 @@ button {
   height: 100%;
   min-height: 0;
   padding: 2.75rem 0.25rem 0.25rem;
+}
+
+.practice-session-focus .ear-training-stage {
+  padding: 0.25rem;
 }
 
 .ear-training-mobile-play .ear-training-card {

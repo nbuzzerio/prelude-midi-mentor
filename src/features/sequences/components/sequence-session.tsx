@@ -6,7 +6,8 @@ import InstrumentVolumeControl from "@/components/audio/instrument-volume-contro
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
-import { useMobilePlay, type HostedMobilePlayState } from "@/hooks/use-mobile-play";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
+import type { HostedPracticePresentation } from "@/types/hosted-practice-presentation";
 import {
   CHORD_ATTEMPT_GRACE_MS,
   useChordAttempt,
@@ -59,7 +60,7 @@ type SequenceSessionProps = Readonly<{
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
   practiceSessionMode?: boolean;
-  hostedMobilePlay?: HostedMobilePlayState;
+  hostedPracticePresentation?: HostedPracticePresentation;
 }>;
 
 export default function SequenceSession({
@@ -69,12 +70,14 @@ export default function SequenceSession({
   isFocusMode,
   onToggleFocusMode,
   practiceSessionMode = false,
-  hostedMobilePlay,
+  hostedPracticePresentation,
 }: SequenceSessionProps) {
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode: localMobilePlayMode } =
     useMobilePlay();
-  const isHostedMobilePlay = hostedMobilePlay !== undefined;
-  const isMobilePlayMode = hostedMobilePlay?.active ?? localMobilePlayMode;
+  const isHostedPresentation = hostedPracticePresentation !== undefined;
+  const isMobilePlayMode = hostedPracticePresentation?.isMobilePlayMode ?? localMobilePlayMode;
+  const presentationFocusMode = hostedPracticePresentation?.isFocusMode ?? isFocusMode;
+  const showVirtualKeyboard = hostedPracticePresentation?.showVirtualKeyboard ?? !isFocusMode;
   // Sequence configuration
   const {
     scalePracticeMode,
@@ -716,6 +719,7 @@ export default function SequenceSession({
     currentStepIndex,
   );
   const isMobilePlayActive = isMobilePlayMode && !isFocusMode;
+  const isHostedCompact = isHostedPresentation && (isMobilePlayMode || presentationFocusMode);
   const isScaleRepertoire = exerciseType === "scales" && scalePracticeMode !== "random";
   const isRepertoireEmpty = isScaleRepertoire && scaleRepertoire.length === 0;
   const repertoireStatus = !isScaleRepertoire ? undefined : isRepertoireEmpty
@@ -728,8 +732,10 @@ export default function SequenceSession({
   return (
     <div
       className={
-        isMobilePlayActive
-          ? isHostedMobilePlay
+        isHostedCompact
+          ? "grid h-full min-h-0 w-full overflow-hidden bg-zinc-950"
+          : isMobilePlayActive
+          ? isHostedPresentation
             ? "grid h-full min-h-0 w-full overflow-hidden bg-zinc-950"
             : "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
           : isFocusMode
@@ -740,7 +746,7 @@ export default function SequenceSession({
       {import.meta.env.DEV ? (
         <div
           className="rounded bg-zinc-900 px-3 py-2 text-xs text-zinc-300"
-          hidden={isFocusMode || isMobilePlayActive}
+          hidden={presentationFocusMode || isMobilePlayActive}
         >
           State: {sequenceAttemptState} | Step: {currentStepIndex + 1}
         </div>
@@ -770,7 +776,7 @@ export default function SequenceSession({
         />
       </header>
 
-      {isMobilePlayActive && !isHostedMobilePlay ? (
+      {isMobilePlayActive && !isHostedPresentation ? (
         <>
           <button
             className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
@@ -794,9 +800,9 @@ export default function SequenceSession({
           currentStepIndex={currentStepIndex}
           exerciseType={exerciseType}
           feedback={feedback}
-          isFocusMode={isFocusMode}
+          isFocusMode={presentationFocusMode}
           isMobilePlayMode={isMobilePlayActive}
-          onEnterMobilePlay={isHostedMobilePlay ? undefined : handleEnterMobilePlay}
+          onEnterMobilePlay={isHostedPresentation ? undefined : handleEnterMobilePlay}
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
           onToggleFocusMode={handleToggleFocusMode}
@@ -806,7 +812,7 @@ export default function SequenceSession({
           showTargetName={showTargetName}
         />
 
-        <div className="mobile-play-keyboard-region" hidden={isFocusMode}>
+        <div className="mobile-play-keyboard-region" hidden={!showVirtualKeyboard}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
             failedMidiNumbers={lastFailedAttemptNotes}
@@ -820,7 +826,7 @@ export default function SequenceSession({
 
       <section
         className="flex flex-col gap-6"
-        hidden={isFocusMode || isMobilePlayActive}
+        hidden={presentationFocusMode || isMobilePlayActive}
       >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
           <div className="flex flex-col gap-4">

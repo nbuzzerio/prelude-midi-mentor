@@ -7,7 +7,8 @@ import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { StaffBuilderScoreView } from "@/features/staff-builder/components/staff-builder-score-view";
 import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-builder-time";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
-import { useMobilePlay, type HostedMobilePlayState } from "@/hooks/use-mobile-play";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
+import type { HostedPracticePresentation } from "@/types/hosted-practice-presentation";
 import { createMelodyBrowserAudioContext, type MelodyOwnedAudioContext } from "../melody-browser-audio";
 import { createMelodyPerformanceClock, type MelodyPerformanceClock } from "../melody-clock";
 import {
@@ -68,14 +69,14 @@ export type MelodySessionHandle = Readonly<{
 export default function MelodySession({
   initialConfig = DEFAULT_MELODY_CONFIG, onPracticeTargetReached, ref,
   practiceSessionMode = false,
-  hostedMobilePlay,
+  hostedPracticePresentation,
   seedFactory = defaultSeedFactory, createAudioContext = createMelodyBrowserAudioContext, nowMs = defaultNowMs,
 }: Readonly<{
   initialConfig?: MelodyConfig;
   /** Timed practice only: delivered after final evidence and achievement commit. */
   onPracticeTargetReached?: () => void;
   practiceSessionMode?: boolean;
-  hostedMobilePlay?: HostedMobilePlayState;
+  hostedPracticePresentation?: HostedPracticePresentation;
   ref?: Ref<MelodySessionHandle>;
   seedFactory?: () => MelodySeed;
   createAudioContext?: MelodyAudioFactory;
@@ -135,8 +136,10 @@ export default function MelodySession({
   const reviewFocusTargetRef = useRef<"review" | "trial">("review");
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode: localMobilePlayMode } = useMobilePlay();
-  const isHostedMobilePlay = hostedMobilePlay !== undefined;
-  const isMobilePlayMode = hostedMobilePlay?.active ?? localMobilePlayMode;
+  const isHostedPresentation = hostedPracticePresentation !== undefined;
+  const isMobilePlayMode = hostedPracticePresentation?.isMobilePlayMode ?? localMobilePlayMode;
+  const isHostedFocus = hostedPracticePresentation?.isFocusMode ?? false;
+  const showVirtualKeyboard = hostedPracticePresentation?.showVirtualKeyboard ?? true;
   const score = useMemo(() => projectMelodyExerciseToPracticeDisplayScore(exercise), [exercise]);
   const preparatoryLeadIn = getMelodyPreparatoryLeadIn(MELODY_PHASE_ONE_METER.timeSignature);
   const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -580,9 +583,9 @@ export default function MelodySession({
       : activeTick - targetMeasureIndex * MELODY_PHASE_ONE_METER.capacityTicks;
   const range = settings.staff === "treble" ? { min: 60, max: 72 } : { min: 48, max: 60 };
 
-  return <section className={isMobilePlayMode ? isHostedMobilePlay ? `melody-session melody-session-${presentation} melody-mobile-play grid h-full min-h-0 w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} melody-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} mx-auto max-w-6xl space-y-5 text-zinc-100`} data-testid="melody-session">
-    <header className="melody-header flex flex-wrap items-center justify-between gap-3" hidden={isMobilePlayMode}><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><div className="flex items-center gap-2">{!isHostedMobilePlay && <button className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15" onClick={enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>}<MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div></header>
-    {isMobilePlayMode ? <><p className="melody-mobile-play-context">Melody · {settings.tempoBpm} BPM · {settings.measureCount} {settings.measureCount === 1 ? "measure" : "measures"}</p>{!isHostedMobilePlay && <button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg" onClick={handleExitMobilePlay} type="button">Exit Mobile Play</button>}</> : null}
+  return <section className={isMobilePlayMode || isHostedFocus ? isHostedPresentation ? `melody-session melody-session-${presentation} melody-mobile-play grid h-full min-h-0 w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} melody-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} mx-auto max-w-6xl space-y-5 text-zinc-100`} data-testid="melody-session">
+    <header className="melody-header flex flex-wrap items-center justify-between gap-3" hidden={isMobilePlayMode || isHostedFocus}><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><div className="flex items-center gap-2">{!isHostedPresentation && <button className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15" onClick={enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>}<MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div></header>
+    {isMobilePlayMode ? <><p className="melody-mobile-play-context">Melody · {settings.tempoBpm} BPM · {settings.measureCount} {settings.measureCount === 1 ? "measure" : "measures"}</p>{!isHostedPresentation && <button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg" onClick={handleExitMobilePlay} type="button">Exit Mobile Play</button>}</> : null}
     <p aria-live="polite" className="sr-only">{statusMessage}</p>
     {presentation === "setup" && !practiceSessionMode && <MelodySettingsControls settings={settings} onChange={changeSetting}>
       <MelodyPracticeOptions continuousPractice={continuousPractice} continuousDurationMinutes={continuousDurationMinutes} onContinuousPracticeChange={setContinuousPractice} onDurationChange={setContinuousDurationMinutes} />
@@ -596,7 +599,7 @@ export default function MelodySession({
       {presentation === "performing" && <p className="text-xl"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
-      <div className="melody-keyboard"><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></div>}
+      <div className="melody-keyboard" hidden={!showVirtualKeyboard}><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></div>}
     {presentation === "results" && result && <div className={practiceSessionMode ? "[&_.melody-result-settings]:hidden" : undefined}><MelodyResults continuousProgress={continuousSessionActive ? `Diagnostic trial ${continuousHistory.length} complete${continuousDeadlineMs === null ? "" : ` · Time remaining: ${formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))}`}` : undefined} exercise={exercise} onRetrySame={retrySame} onSettings={returnSettings} onTryAnother={tryAnother} ref={resultsHeadingRef} result={result} showRetrySame={!continuousSessionActive} /></div>}
     {presentation === "review" && <MelodyTimedSessionReview durationMinutes={continuousDurationMinutes} filter={reviewFilter} interrupted={continuousInterrupted} onFilterChange={changeReviewFilter} onNewTimedSession={() => startContinuousSession(true)} onNextNeedsReview={nextNeedsReview} onResultViewChange={setReviewResultView} onRetryTrial={retryReviewTrial} onReviewMistakes={reviewMistakes} onSelectTrial={selectReviewTrial} onSettings={returnSettings} pinnedTrialId={reviewPinnedTrialId} ref={reviewHeadingRef} resultView={reviewResultView} selectedTrialId={reviewTrialId} showSessionActions={!practiceSessionMode} trialHeadingRef={reviewTrialHeadingRef} trials={continuousHistory} />}
   </section>;

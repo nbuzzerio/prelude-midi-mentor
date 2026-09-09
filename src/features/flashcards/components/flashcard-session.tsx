@@ -24,7 +24,8 @@ import {
 } from "@/features/flashcards/flashcard-timing";
 
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
-import { useMobilePlay, type HostedMobilePlayState } from "@/hooks/use-mobile-play";
+import { useMobilePlay } from "@/hooks/use-mobile-play";
+import type { HostedPracticePresentation } from "@/types/hosted-practice-presentation";
 
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import {
@@ -59,7 +60,7 @@ type FlashcardSessionProps = Readonly<{
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
   practiceSessionMode?: boolean;
-  hostedMobilePlay?: HostedMobilePlayState;
+  hostedPracticePresentation?: HostedPracticePresentation;
 }>;
 
 export default function FlashcardSession({
@@ -68,12 +69,14 @@ export default function FlashcardSession({
   isFocusMode,
   onToggleFocusMode,
   practiceSessionMode = false,
-  hostedMobilePlay,
+  hostedPracticePresentation,
 }: FlashcardSessionProps) {
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode: localMobilePlayMode } =
     useMobilePlay();
-  const isHostedMobilePlay = hostedMobilePlay !== undefined;
-  const isMobilePlayMode = hostedMobilePlay?.active ?? localMobilePlayMode;
+  const isHostedPresentation = hostedPracticePresentation !== undefined;
+  const isMobilePlayMode = hostedPracticePresentation?.isMobilePlayMode ?? localMobilePlayMode;
+  const presentationFocusMode = hostedPracticePresentation?.isFocusMode ?? isFocusMode;
+  const showVirtualKeyboard = hostedPracticePresentation?.showVirtualKeyboard ?? !isFocusMode;
   // Practice configuration
   const {
     enabledExerciseTypes,
@@ -553,12 +556,15 @@ export default function FlashcardSession({
     ...midiHeldNotes,
   ]);
   const isMobilePlayActive = isMobilePlayMode && !isFocusMode;
+  const isHostedCompact = isHostedPresentation && (isMobilePlayMode || presentationFocusMode);
 
   return (
     <div
       className={
-        isMobilePlayActive
-          ? isHostedMobilePlay
+        isHostedCompact
+          ? "flashcard-session grid h-full min-h-0 w-full overflow-hidden bg-zinc-950"
+          : isMobilePlayActive
+          ? isHostedPresentation
             ? "flashcard-session grid h-full min-h-0 w-full overflow-hidden bg-zinc-950"
             : "mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950"
           : isFocusMode
@@ -568,7 +574,7 @@ export default function FlashcardSession({
     >
       <header
         className="flashcard-header flex items-center justify-between gap-2 sm:gap-4"
-        hidden={isMobilePlayActive}
+        hidden={isMobilePlayActive || (isHostedPresentation && presentationFocusMode)}
       >
         <div className="min-w-0">
           <p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">
@@ -591,7 +597,7 @@ export default function FlashcardSession({
         />
       </header>
 
-      {isMobilePlayActive && !isHostedMobilePlay ? (
+      {isMobilePlayActive && !isHostedPresentation ? (
         <>
           <button
             className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg"
@@ -608,9 +614,9 @@ export default function FlashcardSession({
         <FlashcardCard
           completedCount={stats.correct}
           feedback={feedback}
-          isFocusMode={isFocusMode}
+          isFocusMode={presentationFocusMode}
           isMobilePlayMode={isMobilePlayActive}
-          onEnterMobilePlay={isHostedMobilePlay ? undefined : handleEnterMobilePlay}
+          onEnterMobilePlay={isHostedPresentation ? undefined : handleEnterMobilePlay}
           practiceTarget={practiceTarget}
           showTargetName={showTargetName}
           onCorrect={handleSimulateCorrect}
@@ -618,7 +624,7 @@ export default function FlashcardSession({
           onToggleFocusMode={handleToggleFocusMode}
         />
 
-        <div className="mobile-play-keyboard-region" hidden={isFocusMode}>
+        <div className="mobile-play-keyboard-region" hidden={!showVirtualKeyboard}>
           <PianoKeyboard
             activeMidiNumbers={activeMidiNumbers}
             failedMidiNumbers={lastFailedAttemptNotes}
@@ -631,7 +637,7 @@ export default function FlashcardSession({
 
       <section
         className="flashcard-secondary flex flex-col gap-3 sm:gap-6"
-        hidden={isFocusMode || isMobilePlayActive}
+        hidden={presentationFocusMode || isMobilePlayActive}
       >
         <div className="grid items-start gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-[1fr_2.4fr]">
           <MobileDisclosure className="flashcard-sound-disclosure" title="Sound & Feedback">
