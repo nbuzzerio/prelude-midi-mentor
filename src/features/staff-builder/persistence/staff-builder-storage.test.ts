@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
-import { readStaffBuilderDraft, readStaffBuilderIntroductionDismissed, readStaffBuilderLibrary, removeStaffBuilderValue, STAFF_BUILDER_STORAGE_KEYS, writeStaffBuilderValue, type StaffBuilderStorage } from "./staff-builder-storage";
+import { readStaffBuilderDraft, readStaffBuilderIntroductionDismissed, readStaffBuilderLibrary, readStaffBuilderSustainPedalLocksInput, removeStaffBuilderValue, STAFF_BUILDER_STORAGE_KEYS, writeStaffBuilderValue, type StaffBuilderStorage } from "./staff-builder-storage";
 
 class MemoryStorage implements StaffBuilderStorage {
   values = new Map<string, string>();
@@ -15,6 +15,23 @@ describe("Staff Builder guarded storage", () => {
     expect(readStaffBuilderLibrary(storage)).toEqual({ ok: true, value: { schemaVersion: 3, pieces: [] } });
     expect(readStaffBuilderDraft(storage)).toEqual({ ok: true, value: null });
     expect(readStaffBuilderIntroductionDismissed(storage)).toEqual({ ok: true, value: false });
+    expect(readStaffBuilderSustainPedalLocksInput(storage)).toEqual({ ok: true, value: false });
+  });
+
+  it("round-trips the browser-local sustain-pedal Lock In preference", () => {
+    const storage = new MemoryStorage();
+    expect(writeStaffBuilderValue(storage, "sustainPedalLocksInput", true)).toMatchObject({ ok: true });
+    expect(readStaffBuilderSustainPedalLocksInput(storage)).toEqual({ ok: true, value: true });
+    expect(writeStaffBuilderValue(storage, "sustainPedalLocksInput", false)).toMatchObject({ ok: true });
+    expect(readStaffBuilderSustainPedalLocksInput(storage)).toEqual({ ok: true, value: false });
+  });
+
+  it("handles malformed and unavailable sustain-pedal preferences without overwriting them", () => {
+    const storage = new MemoryStorage();
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput, "invalid");
+    expect(readStaffBuilderSustainPedalLocksInput(storage)).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput)).toBe("invalid");
+    expect(readStaffBuilderSustainPedalLocksInput({ getItem: () => { throw new Error(); }, setItem: vi.fn(), removeItem: vi.fn() })).toMatchObject({ ok: false, reason: "unavailable" });
   });
 
   it("writes, reads, and removes versioned values", () => {

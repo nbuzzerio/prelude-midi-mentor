@@ -456,7 +456,7 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.captureState.cursor.offsetTicks).toBe(480);
   });
 
-  it("replaces an existing staff event as a unit and empty lock behaves as Next Position", () => {
+  it("replaces an existing staff event as a unit and empty Lock behaves as Next Position", () => {
     const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
     act(() => { result.current.addMidiPitch(60); result.current.addMidiPitch(64); });
     act(() => result.current.lockAndContinue());
@@ -467,6 +467,17 @@ describe("useStaffBuilderEditor", () => {
     expect(note?.kind === "notes" ? note.pitches.map(({ midiNumber }) => midiNumber) : []).toEqual([67]);
     act(() => result.current.lockAndContinue());
     expect(result.current.captureState.cursor.offsetTicks).toBe(960);
+  });
+
+  it("rejects invalid pending MIDI without mutating the score or cursor", () => {
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: score(), initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange }));
+    act(() => result.current.addMidiPitch(128));
+    expect(result.current.canLockIn).toBe(false);
+    expect(result.current.pending).toEqual({ treble: [], bass: [] });
+    expect(result.current.score.measures[0]?.events).toEqual([]);
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 0 });
+    expect(onDraftChange).not.toHaveBeenCalled();
   });
 
   it("protects dirty navigation and clears pending without moving or deleting committed events", () => {

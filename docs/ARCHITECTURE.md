@@ -534,6 +534,8 @@ The playback projection derives one half-open sounding span for each attack-orig
 
 Staff Builder remains frontend-only. Draft autosave continuously preserves work and editor position in local browser storage. Validated Save has a distinct product meaning: the score has passed structural validation and is ready for later playback or use. Guided correction mode provides learner-facing fixes such as exact overflow durations and atomic gap filling without conflating validation with input collection.
 
+Staff Builder also owns a browser-local `sustainPedalLocksInput` authoring preference, stored separately from scores, drafts, and piece files. When enabled during valid Capture Notes input, the existing active MIDI consumer maps a normalized CC64 pedal-down edge to the same `editor.lockAndContinue` action as the Lock button. Pedal-up and repeated controller values do not trigger authoring. This workflow preference does not add pedal data to the score and does not change the score schema.
+
 Saved library pieces can be downloaded individually as human-readable `.prelude.json` score files and imported later. Import requires schema validity but intentionally permits structurally incomplete musical content so it can be repaired through the normal editor; existing structural validation continues to control Piece Practice eligibility.
 
 ## Responsive Presentation

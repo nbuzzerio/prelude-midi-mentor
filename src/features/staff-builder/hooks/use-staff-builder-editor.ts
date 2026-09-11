@@ -31,6 +31,14 @@ function hasPending(pending: StaffBuilderPendingCapture): boolean {
   return pending.treble.length > 0 || pending.bass.length > 0;
 }
 
+function hasValidPending(pending: StaffBuilderPendingCapture): boolean {
+  return hasPending(pending) && [...pending.treble, ...pending.bass].every((midiNumber) => Number.isInteger(midiNumber) && midiNumber >= 0 && midiNumber <= 127);
+}
+
+function hasInvalidPending(pending: StaffBuilderPendingCapture): boolean {
+  return [...pending.treble, ...pending.bass].some((midiNumber) => !Number.isInteger(midiNumber) || midiNumber < 0 || midiNumber > 127);
+}
+
 function toggleSorted(values: readonly number[], midiNumber: number): readonly number[] {
   if (values.includes(midiNumber)) return values.filter((value) => value !== midiNumber);
   return [...values, midiNumber].sort((a, b) => a - b);
@@ -158,6 +166,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, confirmDiscardPending, editorPass, pending, persist, score, validationActive]);
 
   const addMidiPitch = useCallback((midiNumber: number) => {
+    if (!Number.isInteger(midiNumber) || midiNumber < 0 || midiNumber > 127) return;
     setPending((current) => {
       const staff = routeStaffBuilderCapturePitch(captureState.inputMode, midiNumber);
       if (current[staff].includes(midiNumber)) return current;
@@ -189,10 +198,12 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, confirmDiscardPending, pending, persistOutsideRhythmHistory, score]);
 
   const lockAndContinue = useCallback(() => {
+    if (hasInvalidPending(pending)) return false;
     const committed = commitStaffBuilderPendingCapture(score, captureState.cursor, pending);
     const moved = moveStaffBuilderCaptureForward(committed, captureState.cursor, captureState.stepDuration);
     setPending(EMPTY_PENDING);
     persistOutsideRhythmHistory(moved.score, { ...captureState, cursor: moved.cursor });
+    return true;
   }, [captureState, pending, persistOutsideRhythmHistory, score]);
 
   const addRestAndContinue = useCallback(() => {
@@ -412,6 +423,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     undo,
     redo,
     hasPending: hasPending(pending),
+    canLockIn: hasValidPending(pending),
     setInputMode,
     setStepDuration,
     setCapturePosition,

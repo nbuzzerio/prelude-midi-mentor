@@ -7,7 +7,7 @@ import StaffBuilderSession from "./staff-builder-session";
 
 const { fileBoundary, midiBoundary, practiceBoundary } = vi.hoisted(() => ({
   fileBoundary: { download: vi.fn(), read: vi.fn() },
-  midiBoundary: { onNote: null as ((midiNumber: number) => void) | null },
+  midiBoundary: { onNote: null as ((midiNumber: number) => void) | null, onSustain: null as ((isDown: boolean) => void) | null, registrations: 0 },
   practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, projectionScores: [] as import("../staff-builder-types").StaffBuilderScore[], forceFailure: false },
 }));
 vi.mock("../persistence/staff-builder-piece-file-browser", () => ({
@@ -15,8 +15,10 @@ vi.mock("../persistence/staff-builder-piece-file-browser", () => ({
   readStaffBuilderPieceFile: fileBoundary.read,
 }));
 vi.mock("../hooks/use-staff-builder-input", () => ({
-  useStaffBuilderInput: (onNote: (midiNumber: number) => void) => {
+  useStaffBuilderInput: (onNote: (midiNumber: number) => void, onSustain: (isDown: boolean) => void) => {
     midiBoundary.onNote = onNote;
+    midiBoundary.onSustain = onSustain;
+    midiBoundary.registrations += 1;
     return { connectMidi: vi.fn(), deviceName: "Test MIDI", error: null, status: "connected" as const };
   },
 }));
@@ -45,6 +47,9 @@ beforeEach(() => {
   practiceBoundary.piece = null;
   practiceBoundary.projectionScores = [];
   practiceBoundary.forceFailure = false;
+  midiBoundary.onNote = null;
+  midiBoundary.onSustain = null;
+  midiBoundary.registrations = 0;
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
     measureText: (text: string) => ({ width: text.length * 8, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2, actualBoundingBoxLeft: 0, actualBoundingBoxRight: text.length * 8 }),
   } as CanvasRenderingContext2D);
@@ -636,6 +641,103 @@ describe("Staff Builder session", () => {
     expect(screen.getByLabelText(/Pending treble preview: note .* at tick 0/)).toBeTruthy();
     const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events).toEqual([]);
+  });
+
+  it("uses pedal-down to run the same enabled Lock In path exactly once", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Pedal Capture");
+    expect((screen.getByRole("button", { name: "Lock pitches and continue" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    act(() => midiBoundary.onSustain?.(true));
+    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+
+    act(() => midiBoundary.onNote?.(60));
+    expect((screen.getByRole("button", { name: "Lock pitches and continue" }) as HTMLButtonElement).disabled).toBe(false);
+    act(() => midiBoundary.onSustain?.(true));
+    expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
+    expect(screen.getByText(/Beat 2 .*tick 480/)).toBeTruthy();
+    let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.score.measures[0].events).toHaveLength(1);
+    expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 480 });
+    expect(draft.score).not.toHaveProperty("sustainPedalLocksInput");
+
+    act(() => midiBoundary.onNote?.(60));
+    fireEvent.click(screen.getByRole("button", { name: "Lock pitches and continue" }));
+    draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    const [pedalEvent, buttonEvent] = draft.score.measures[0].events;
+    expect(buttonEvent).toMatchObject({
+      ...pedalEvent,
+      id: expect.any(String),
+      startTick: 480,
+      pitches: pedalEvent.pitches.map((pitch: { id: string }) => ({ ...pitch, id: expect.any(String) })),
+    });
+    expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 960 });
+  });
+
+  it("does not let pedal-down advance an invalid pending capture", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Invalid Pedal Capture");
+    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    act(() => midiBoundary.onNote?.(128));
+    act(() => midiBoundary.onSustain?.(true));
+    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
+    expect(draft.score.measures[0].events).toEqual([]);
+    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+  });
+
+  it("ignores pedal-up, disabled, empty, stale-enabling, and non-capture pedal events", () => {
+    const storage = new MemoryStorage();
+    render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Guarded Pedal");
+    act(() => midiBoundary.onNote?.(60));
+    act(() => midiBoundary.onSustain?.(true));
+    act(() => midiBoundary.onSustain?.(false));
+    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+    act(() => midiBoundary.onSustain?.(false));
+    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Study View" }));
+    act(() => midiBoundary.onSustain?.(true));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Study View" }));
+    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+  });
+
+  it("persists pedal preference across reload without placing it in score data", () => {
+    const storage = new MemoryStorage();
+    const first = render(<StaffBuilderSession storage={storage} />);
+    dismissIntroduction();
+    createPiece("Persistent Pedal");
+    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput)).toBe("true");
+    first.unmount();
+
+    render(<StaffBuilderSession storage={storage} />);
+    expect((screen.getByLabelText("Sustain pedal locks in input") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput)).toBe("false");
+  });
+
+  it("surfaces pedal preference write failure while leaving score storage untouched", () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, [savedValidScore("Protected Score")]);
+    const originalLibrary = storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library);
+    storage.setItem = (key, value) => {
+      if (key === STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput) throw new Error("blocked");
+      storage.values.set(key, value);
+    };
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Protected Score" }));
+    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    expect(screen.getByRole("alert").textContent).toContain("Staff Builder changes could not be saved in this browser.");
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(originalLibrary);
+    expect((screen.getByLabelText("Sustain pedal locks in input") as HTMLInputElement).checked).toBe(true);
   });
 
   it("routes MIDI and virtual pitches through Grand Staff previews and commits both staffs", () => {

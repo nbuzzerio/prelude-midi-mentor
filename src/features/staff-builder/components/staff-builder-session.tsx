@@ -7,7 +7,7 @@ import { StaffBuilderLibrary } from "./staff-builder-library";
 import { StaffBuilderPieceSetup } from "./staff-builder-piece-setup";
 import { StaffBuilderWorkspacePlaceholder } from "./staff-builder-workspace-placeholder";
 import { useStaffBuilderLibrary } from "../hooks/use-staff-builder-library";
-import type { StaffBuilderStorage } from "../persistence/staff-builder-storage";
+import { readStaffBuilderSustainPedalLocksInput, writeStaffBuilderValue, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import { downloadStaffBuilderPiece, readStaffBuilderPieceFile } from "../persistence/staff-builder-piece-file-browser";
 
 const unavailableStorage: StaffBuilderStorage = {
@@ -21,6 +21,9 @@ function browserStorage(): StaffBuilderStorage {
 }
 
 export default function StaffBuilderSession({ storage = browserStorage() }: Readonly<{ storage?: StaffBuilderStorage }>) {
+  const [initialPedalPreference] = useState(() => readStaffBuilderSustainPedalLocksInput(storage));
+  const [sustainPedalLocksInput, setSustainPedalLocksInput] = useState(initialPedalPreference.ok ? initialPedalPreference.value : false);
+  const [preferenceError, setPreferenceError] = useState(initialPedalPreference.ok ? null : initialPedalPreference.message);
   const state = useStaffBuilderLibrary(storage);
   const [practicePiece, setPracticePiece] = useState<PiecePracticePiece | null>(null);
   const [practiceLaunchError, setPracticeLaunchError] = useState<string | null>(null);
@@ -43,6 +46,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
       <div aria-live="polite" className="space-y-2">
         {pieceFileStatus && <div className={pieceFileStatus.kind === "error" ? "staff-builder-storage-error" : "text-emerald-300"} role={pieceFileStatus.kind === "error" ? "alert" : "status"}>{pieceFileStatus.message}</div>}
         {practiceLaunchError && <div className="staff-builder-storage-error" role="alert">{practiceLaunchError}</div>}
+        {preferenceError && <div className="staff-builder-storage-error" role="alert">{preferenceError} Changes remain available in memory, but may not be saved.</div>}
         {state.issues.map((issue, index) => <div className="staff-builder-storage-error" key={`${issue.area}-${index}`}>
           <span>{issue.message} Changes remain available in memory, but may not be saved.</span>
           {issue.clearable && <button className="staff-builder-danger-button" onClick={() => {
@@ -67,6 +71,12 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
               onValidatedSave={state.validateAndSave}
               savingAvailable={!state.issues.some(({ area }) => area === "library" || area === "draft")}
               score={state.activeScore}
+              sustainPedalLocksInput={sustainPedalLocksInput}
+              onSustainPedalLocksInputChange={(enabled) => {
+                setSustainPedalLocksInput(enabled);
+                const result = writeStaffBuilderValue(storage, "sustainPedalLocksInput", enabled);
+                setPreferenceError(result.ok ? null : result.message);
+              }}
             /></div>
         : <div className="staff-builder-columns">
             <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onDownload={(score) => {

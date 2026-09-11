@@ -11,6 +11,7 @@ export const STAFF_BUILDER_STORAGE_KEYS = {
   draft: "prelude-staff-builder-draft-v1",
   lastPieceId: "prelude-staff-builder-last-piece-id",
   introductionDismissed: "prelude-staff-builder-introduction-dismissed",
+  sustainPedalLocksInput: "prelude-staff-builder-sustain-pedal-locks-input",
 } as const;
 
 export type StaffBuilderStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -50,6 +51,15 @@ export function readStaffBuilderIntroductionDismissed(storage: StaffBuilderStora
     return value === null || value === "true" || value === "false"
       ? { ok: true, value: value === "true" }
       : { ok: false, reason: "corrupt", message: "The Staff Builder introduction preference is invalid." };
+  } catch { return unavailable("Staff Builder preferences could not be read."); }
+}
+
+export function readStaffBuilderSustainPedalLocksInput(storage: StaffBuilderStorage): StaffBuilderStorageResult<boolean> {
+  try {
+    const value = storage.getItem(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput);
+    return value === null || value === "true" || value === "false"
+      ? { ok: true, value: value === "true" }
+      : { ok: false, reason: "corrupt", message: "The Staff Builder sustain-pedal preference is invalid." };
   } catch { return unavailable("Staff Builder preferences could not be read."); }
 }
 
