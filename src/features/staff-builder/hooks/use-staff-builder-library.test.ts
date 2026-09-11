@@ -64,13 +64,14 @@ describe("useStaffBuilderLibrary", () => {
 
   it("duplicates a library piece and opens the independent copy with fresh editor state", () => {
     const storage = new MemoryStorage();
-    const original = createStaffBuilderScore({
+    const originalBase = createStaffBuilderScore({
       title: "Source",
       tempoBpm: 100,
       initialKeySignatureId: "c-major",
       initialTimeSignature: "4/4",
       factories: { createId: () => "source-id", now: () => "2026-08-01T12:00:00.000Z" },
     });
+    const original = { ...originalBase, measures: [{ ...originalBase.measures[0]!, events: [{ id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "pitch", midiNumber: 61, letter: "D" as const, accidental: "flat" as const, octave: 4 }] }] }] };
     storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [original] }));
     const { result } = renderHook(() => useStaffBuilderLibrary(storage));
     let nextId = 0;
@@ -83,6 +84,7 @@ describe("useStaffBuilderLibrary", () => {
     expect(result.current.library.pieces).toHaveLength(2);
     expect(result.current.library.pieces[0]).toEqual(original);
     expect(result.current.activeScore?.title).toBe("Source — Copy");
+    expect(result.current.activeScore?.measures[0]?.events[0]).toMatchObject({ pitches: [{ midiNumber: 61, letter: "D", accidental: "flat", octave: 4 }] });
     expect(result.current.activeSavedPieceId).toBe(result.current.activeScore?.id);
     expect(result.current.activeCaptureState).toEqual(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
     expect(result.current.activeEditorPass).toBe("capture");

@@ -19,7 +19,7 @@ function score(): StaffBuilderScore {
     initialTimeSignature: "4/4",
     measures: [
       { id: "m1", events: [
-        { id: "long", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "long-c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+        { id: "long", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "long-c", midiNumber: 61, letter: "C", accidental: "sharp", octave: 4 }] },
         { id: "later-chord", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, arpeggiation: "up", pitches: [
           { id: "e4", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 },
           { id: "g4", midiNumber: 67, letter: "G", accidental: "natural", octave: 4 },
@@ -27,7 +27,7 @@ function score(): StaffBuilderScore {
         { id: "bass-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
       ] },
       { id: "m2", keySignatureChange: "g-major", timeSignatureChange: "6/8", events: [
-        { id: "destination", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-half" }, pitches: [{ id: "destination-c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+        { id: "destination", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-half" }, pitches: [{ id: "destination-c", midiNumber: 61, letter: "D", accidental: "flat", octave: 4 }] },
         { id: "bass-rest-2", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "dotted-half" } },
       ] },
     ],
@@ -49,6 +49,8 @@ describe("Staff Builder piece files", () => {
   it("round trips ties, polyphony, chords, rests, spelling, durations, and measure overrides exactly", () => {
     const source = score();
     expect(parseStaffBuilderPieceFileText(serializeStaffBuilderPiece(source))).toEqual({ ok: true, score: source });
+    expect(source.measures[0]?.events[0]).toMatchObject({ pitches: [{ midiNumber: 61, letter: "C", accidental: "sharp" }] });
+    expect(source.measures[1]?.events[0]).toMatchObject({ pitches: [{ midiNumber: 61, letter: "D", accidental: "flat" }] });
   });
 
   it.each([

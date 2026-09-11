@@ -30,11 +30,35 @@ describe("StaffBuilderRhythmControls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assign Duration" }));
     fireEvent.click(screen.getByRole("button", { name: "Convert to Rest" }));
     fireEvent.click(screen.getByRole("button", { name: "Bass" }));
-    fireEvent.change(screen.getByLabelText("MIDI 61"), { target: { value: "D" } });
+    fireEvent.click(screen.getByRole("button", { name: "Respell C sharp 4 as D flat 4" }));
     fireEvent.click(screen.getByRole("button", { name: "Previous Event" })); fireEvent.click(screen.getByRole("button", { name: "Next Event" }));
     fireEvent.click(screen.getByRole("button", { name: "Undo" })); fireEvent.click(screen.getByRole("button", { name: "Redo" })); fireEvent.click(screen.getByRole("button", { name: "Delete Event" }));
     expect(actions.duration).toHaveBeenCalledWith("dotted-quarter"); expect(actions.rest).toHaveBeenCalledWith("dotted-quarter"); expect(actions.staff).toHaveBeenCalledWith("bass"); expect(actions.spell).toHaveBeenCalledWith("pitch", "D"); expect(actions.delete).toHaveBeenCalledOnce();
     expect(document.activeElement).toBe(screen.getByText("Selected event description"));
+  });
+
+  it("shows discoverable musical-name choices and targets chord pitches independently", () => {
+    const onRespellPitch = vi.fn();
+    const chord = { ...selectedEvent, pitches: [
+      selectedEvent.pitches[0]!,
+      { id: "f-sharp", midiNumber: 66, letter: "F" as const, accidental: "sharp" as const, octave: 4 },
+      { id: "a-sharp", midiNumber: 70, letter: "A" as const, accidental: "sharp" as const, octave: 4 },
+      { id: "natural", midiNumber: 64, letter: "E" as const, accidental: "natural" as const, octave: 4 },
+    ] };
+    render(<StaffBuilderRhythmControls canNext={false} canPrevious={false} canRedo={false} canUndo={false} eventCount={1} onAssignDuration={vi.fn()} onConvertToRest={vi.fn()} onDelete={vi.fn()} onMoveToStaff={vi.fn()} onNext={vi.fn()} onPrevious={vi.fn()} onRedo={vi.fn()} onRespellPitch={onRespellPitch} onUndo={vi.fn()} selectedDescription="Selected chord" selectedEvent={chord} selectedIndex={0} status={null} />);
+
+    expect(screen.getByRole("heading", { name: "Enharmonic spelling" })).toBeTruthy();
+    expect(screen.getByLabelText("Enharmonic choices for C sharp 4")).toBeTruthy();
+    expect(screen.queryByLabelText("Enharmonic choices for E 4")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Respell F sharp 4 as G flat 4" }));
+    fireEvent.click(screen.getByRole("button", { name: "Respell A sharp 4 as B flat 4" }));
+    expect(onRespellPitch.mock.calls).toEqual([["f-sharp", "G"], ["a-sharp", "B"]]);
+  });
+
+  it("does not show a respelling control for a natural note without an alternative", () => {
+    const natural = { ...selectedEvent, pitches: [{ id: "natural", midiNumber: 64, letter: "E" as const, accidental: "natural" as const, octave: 4 }] };
+    render(<StaffBuilderRhythmControls canNext={false} canPrevious={false} canRedo={false} canUndo={false} eventCount={1} onAssignDuration={vi.fn()} onConvertToRest={vi.fn()} onDelete={vi.fn()} onMoveToStaff={vi.fn()} onNext={vi.fn()} onPrevious={vi.fn()} onRedo={vi.fn()} onRespellPitch={vi.fn()} onUndo={vi.fn()} selectedDescription="Selected E4" selectedEvent={natural} selectedIndex={0} status={null} />);
+    expect(screen.queryByRole("heading", { name: "Enharmonic spelling" })).toBeNull();
   });
 
   it("announces restrictions and disables boundaries and unavailable history", () => {

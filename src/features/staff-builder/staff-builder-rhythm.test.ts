@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderEvent, StaffBuilderScore } from "./staff-builder-types";
 import { convertStaffBuilderEventToRest, deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, getStaffBuilderEventSelections, getStaffBuilderPitchSpellingCandidates, moveStaffBuilderEventSelection, moveStaffBuilderEventToStaff, respellStaffBuilderPitch, setStaffBuilderEventArpeggiation, setStaffBuilderEventDuration } from "./staff-builder-rhythm";
+import { setStaffBuilderInitialKey } from "./staff-builder-corrections";
 import { deriveStaffBuilderVoices } from "./staff-builder-voices";
 import { validateStaffBuilderScore } from "./staff-builder-validation";
 
@@ -125,6 +126,33 @@ describe("Staff Builder rhythm operations", () => {
     expect(getStaffBuilderPitchSpellingCandidates(pitch("p")).map(({ letter }) => letter)).toEqual(["C", "D"]);
     const result = respellStaffBuilderPitch(current, { measureIndex: 0, eventId: "selected" }, "selected-pitch", "D", now);
     expect(result.ok && result.score.measures[0]?.events[0]).toMatchObject({ pitches: [{ id: "selected-pitch", midiNumber: 61, letter: "D", accidental: "flat", octave: 4 }] });
+  });
+
+  it.each([
+    [61, "C", "D", "flat", 4],
+    [61, "D", "C", "sharp", 4],
+    [66, "F", "G", "flat", 4],
+    [66, "G", "F", "sharp", 4],
+    [70, "A", "B", "flat", 4],
+    [70, "B", "A", "sharp", 4],
+  ] as const)("respells MIDI %i from %s to %s without changing sounding pitch or octave", (midiNumber, fromLetter, toLetter, accidental, octave) => {
+    const selected = { ...event("selected", "treble", 0), pitches: [{ id: "target", midiNumber, letter: fromLetter, accidental: fromLetter < toLetter ? "sharp" as const : "flat" as const, octave }] } as StaffBuilderEvent;
+    const result = respellStaffBuilderPitch(score([selected]), { measureIndex: 0, eventId: "selected" }, "target", toLetter, now);
+    expect(result.ok && result.score.measures[0]?.events[0]).toMatchObject({ pitches: [{ id: "target", midiNumber, letter: toLetter, accidental, octave }] });
+  });
+
+  it("respells only the selected chord pitch while preserving rhythm, arpeggiation, siblings, ties, and later key changes", () => {
+    const selected = { ...event("selected", "treble", 0, { status: "final", duration: "quarter" }), arpeggiation: "up" as const, pitches: [pitch("target", 61), { id: "sibling", midiNumber: 64, letter: "E" as const, accidental: "natural" as const, octave: 4 }] } as StaffBuilderEvent;
+    const tied = score([selected], [{ id: "tie", fromEventId: "selected", fromPitchId: "target", toEventId: "later", toPitchId: "later-pitch" }]);
+    const result = respellStaffBuilderPitch(tied, { measureIndex: 0, eventId: "selected" }, "target", "D", now);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const keyChanged = setStaffBuilderInitialKey(result.score, "g-major");
+    expect(keyChanged.measures[0]?.events[0]).toMatchObject({ id: "selected", rhythm: { status: "final", duration: "quarter" }, arpeggiation: "up", pitches: [
+      { id: "target", midiNumber: 61, letter: "D", accidental: "flat", octave: 4 },
+      { id: "sibling", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 },
+    ] });
+    expect(keyChanged.ties).toEqual(tied.ties);
   });
 
   it("deletes and selects next, then previous, without removing the measure", () => {

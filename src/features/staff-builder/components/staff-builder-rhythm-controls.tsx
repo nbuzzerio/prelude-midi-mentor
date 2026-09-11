@@ -7,6 +7,8 @@ import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderTieControls } from "./staff-builder-tie-controls";
 
 const durationLabel = (duration: StaffBuilderDuration) => duration.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
+const pitchSymbol = (pitch: Readonly<{ letter: NoteLetter; accidental: "natural" | "sharp" | "flat"; octave: number }>) => `${pitch.letter}${pitch.accidental === "sharp" ? "♯" : pitch.accidental === "flat" ? "♭" : ""}${pitch.octave}`;
+const pitchAccessibleName = (pitch: Readonly<{ letter: NoteLetter; accidental: "natural" | "sharp" | "flat"; octave: number }>) => `${pitch.letter}${pitch.accidental === "sharp" ? " sharp" : pitch.accidental === "flat" ? " flat" : ""} ${pitch.octave}`;
 
 export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, selectedEvent, selectedDescription, selectedIndex, eventCount, canPrevious, canNext, canUndo, canRedo, status, onPrevious, onNext, onAssignDuration, onSetArpeggiation, onConvertToRest, onMoveToStaff, onRespellPitch, onDelete, onUndo, onRedo, onCreateTies, onRemoveTie, onSplitAndTie }: Readonly<{
   score?: StaffBuilderScore;
@@ -40,8 +42,31 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
   const targetDuration = targetSelection.rhythmSignature === rhythmSignature ? targetSelection.duration : defaultDuration;
   const selectedStatusRef = useRef<HTMLParagraphElement>(null);
   const hasDuration = targetDuration !== "";
+  const respellablePitches = selectedEvent?.kind === "notes"
+    ? [...selectedEvent.pitches]
+      .sort((left, right) => left.midiNumber - right.midiNumber || left.id.localeCompare(right.id))
+      .map((pitch) => ({ pitch, candidates: getStaffBuilderPitchSpellingCandidates(pitch) }))
+      .filter(({ candidates }) => candidates.length >= 2)
+    : [];
   return (
     <section className="staff-builder-rhythm-controls">
+      {respellablePitches.length > 0 && <section aria-labelledby="staff-builder-enharmonic-spelling-title" className="staff-builder-spelling-controls">
+        <h3 className="font-semibold" id="staff-builder-enharmonic-spelling-title">Enharmonic spelling</h3>
+        <p className="text-sm text-zinc-300">Respell a note without changing its sounding pitch.</p>
+        {respellablePitches.map(({ pitch, candidates }) => <fieldset key={pitch.id}>
+          <legend>Respell note <strong>{pitchSymbol(pitch)}</strong></legend>
+          <div aria-label={`Enharmonic choices for ${pitchAccessibleName(pitch)}`} className="flex flex-wrap gap-2">
+            {candidates.map((candidate) => <button
+              aria-label={candidate.letter === pitch.letter ? `Current spelling ${pitchAccessibleName(candidate)}` : `Respell ${pitchAccessibleName(pitch)} as ${pitchAccessibleName(candidate)}`}
+              aria-pressed={candidate.letter === pitch.letter}
+              className="staff-builder-secondary-button"
+              key={candidate.letter}
+              onClick={() => onRespellPitch(pitch.id, candidate.letter)}
+              type="button"
+            >{pitchSymbol(candidate)}</button>)}
+          </div>
+        </fieldset>)}
+      </section>}
       <details>
       <summary>Rhythm Correction controls</summary>
       <div className="staff-builder-rhythm-controls-content">
@@ -56,10 +81,6 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
         </div>
         <fieldset><legend>Staff</legend><div className="flex gap-2">{(["treble", "bass"] as const).map((staff) => <button aria-pressed={selectedEvent.staff === staff} className="staff-builder-secondary-button" key={staff} onClick={() => onMoveToStaff(staff)} type="button">{staff === "treble" ? "Treble" : "Bass"}</button>)}</div></fieldset>
         {selectedEvent.kind === "notes" && selectedEvent.pitches.length >= 2 && onSetArpeggiation && <label>Arpeggiation<select aria-label={`Arpeggiation: ${selectedEvent.arpeggiation === "up" ? "Rolled upward" : "None"}`} className="staff-builder-input" onChange={(event) => onSetArpeggiation(event.target.value === "up" ? "up" : null)} value={selectedEvent.arpeggiation ?? ""}><option value="">None</option><option value="up">Rolled upward</option></select></label>}
-        {selectedEvent.kind === "notes" && <div className="staff-builder-spelling-controls"><strong>Pitch spelling</strong>{[...selectedEvent.pitches].sort((left, right) => left.midiNumber - right.midiNumber || left.id.localeCompare(right.id)).map((pitch) => {
-          const candidates = getStaffBuilderPitchSpellingCandidates(pitch);
-          return <label key={pitch.id}>MIDI {pitch.midiNumber}<select className="staff-builder-input" disabled={candidates.length < 2} onChange={(event) => onRespellPitch(pitch.id, event.target.value as NoteLetter)} value={pitch.letter}>{candidates.map((candidate) => <option key={candidate.letter} value={candidate.letter}>{candidate.letter}{candidate.accidental === "sharp" ? "♯" : candidate.accidental === "flat" ? "♭" : ""}{candidate.octave}</option>)}</select></label>;
-        })}</div>}
         {score && onCreateTies && onRemoveTie && onSplitAndTie && <StaffBuilderTieControls event={selectedEvent} measureIndex={selectedMeasureIndex ?? 0} onCreateTies={onCreateTies} onRemoveTie={onRemoveTie} onSplitAndTie={onSplitAndTie} score={score} />}
         <button className="staff-builder-danger-button" onClick={() => { selectedStatusRef.current?.focus(); onDelete(); }} type="button">Delete Event</button>
       </>}
