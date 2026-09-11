@@ -3,6 +3,7 @@ import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
 import { getExactStaffBuilderFittingDuration } from "./staff-builder-corrections";
 import { deriveStaffBuilderVoices, getStaffBuilderSamePositionConflicts, getStaffBuilderStaffCoverageGaps } from "./staff-builder-voices";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff, StaffBuilderTie } from "./staff-builder-types";
+import { getStaffBuilderTieCycleIds, locateStaffBuilderPitches, staffBuilderPitchEndpointKey } from "./staff-builder-sounding-spans";
 
 export type StaffBuilderIssueCode =
   | "unresolved-rhythm"
@@ -13,13 +14,14 @@ export type StaffBuilderIssueCode =
   | "same-position-conflict"
   | "gap"
   | "tie-endpoint-missing"
-  | "tie-not-cross-measure"
-  | "tie-not-adjacent"
+  | "tie-not-later"
+  | "tie-not-contiguous"
   | "tie-staff-mismatch"
   | "tie-pitch-mismatch"
   | "duplicate-tie"
   | "conflicting-incoming-tie"
-  | "conflicting-outgoing-tie";
+  | "conflicting-outgoing-tie"
+  | "tie-cycle";
 
 export type StaffBuilderIssueTarget = Readonly<{
   measureIndex: number;
@@ -60,14 +62,15 @@ const ISSUE_RANK: Readonly<Record<StaffBuilderIssueCode, number>> = {
   "event-overflow": 4,
   "invalid-arpeggiation": 5,
   "tie-endpoint-missing": 6,
-  "tie-not-cross-measure": 7,
-  "tie-not-adjacent": 8,
+  "tie-not-later": 7,
+  "tie-not-contiguous": 8,
   "tie-staff-mismatch": 9,
   "tie-pitch-mismatch": 10,
   "duplicate-tie": 11,
   "conflicting-incoming-tie": 12,
   "conflicting-outgoing-tie": 13,
-  gap: 14,
+  "tie-cycle": 14,
+  gap: 15,
 };
 
 function issue(code: StaffBuilderIssueCode, target: StaffBuilderIssueTarget, identity: string, message: string, corrections: readonly StaffBuilderCorrection[]): StaffBuilderIssue {
@@ -83,10 +86,6 @@ function compareIssues(left: StaffBuilderIssue, right: StaffBuilderIssue): numbe
     || ISSUE_RANK[left.code] - ISSUE_RANK[right.code]
     || (left.target.eventId ?? left.target.tieId ?? left.id).localeCompare(right.target.eventId ?? right.target.tieId ?? right.id)
     || left.id.localeCompare(right.id);
-}
-
-function pitchIdentity(pitch: StaffBuilderPitch): string {
-  return `${pitch.midiNumber}:${pitch.letter}:${pitch.accidental}:${pitch.octave}`;
 }
 
 function tieKey(tie: StaffBuilderTie): string {
@@ -159,10 +158,11 @@ export function validateStaffBuilderScore(score: StaffBuilderScore): readonly St
   const logicalTies = new Map<string, StaffBuilderTie[]>();
   const incoming = new Map<string, StaffBuilderTie[]>();
   const outgoing = new Map<string, StaffBuilderTie[]>();
+  const locatedPitches = locateStaffBuilderPitches(score);
   for (const tie of score.ties) {
     logicalTies.set(tieKey(tie), [...(logicalTies.get(tieKey(tie)) ?? []), tie]);
-    const fromKey = `${tie.fromEventId}:${tie.fromPitchId}`;
-    const toKey = `${tie.toEventId}:${tie.toPitchId}`;
+    const fromKey = staffBuilderPitchEndpointKey(tie.fromEventId, tie.fromPitchId);
+    const toKey = staffBuilderPitchEndpointKey(tie.toEventId, tie.toPitchId);
     outgoing.set(fromKey, [...(outgoing.get(fromKey) ?? []), tie]);
     incoming.set(toKey, [...(incoming.get(toKey) ?? []), tie]);
     const fromEvent = events.get(tie.fromEventId);
@@ -176,21 +176,19 @@ export function validateStaffBuilderScore(score: StaffBuilderScore): readonly St
       issues.push(issue("tie-endpoint-missing", target, `tie:${tie.id}`, `Tie ${tie.id} has a missing event or pitch endpoint.`, remove));
       continue;
     }
-    if (fromEvent.measureIndex === toEvent.measureIndex) {
-      issues.push(issue("tie-not-cross-measure", target, `tie:${tie.id}`, `Tie ${tie.id} does not cross a measure boundary.`, remove));
-    } else if (toEvent.measureIndex !== fromEvent.measureIndex + 1) {
-      issues.push(issue("tie-not-adjacent", target, `tie:${tie.id}`, `Tie ${tie.id} must connect immediately adjacent measures.`, remove));
-    }
     if (fromEvent.event.staff !== toEvent.event.staff) {
       issues.push(issue("tie-staff-mismatch", target, `tie:${tie.id}`, `Tie ${tie.id} connects different staves.`, remove));
     }
-    const sourceEndsAtBoundary = fromEvent.event.rhythm.status === "final"
-      && fromEvent.event.startTick + durationToTicks(fromEvent.event.rhythm.duration) === resolveStaffBuilderMeasureContext(score, fromEvent.measureIndex).capacityTicks;
-    if (!sourceEndsAtBoundary || toEvent.event.startTick !== 0) {
-      issues.push(issue("tie-not-adjacent", target, `timing:${tie.id}`, `Tie ${tie.id} must connect a source ending at the barline to tick 0 of the next measure.`, remove));
+    const locatedFrom = locatedPitches.get(fromKey);
+    const locatedTo = locatedPitches.get(toKey);
+    if (locatedFrom && locatedTo && locatedTo.absoluteStartTick <= locatedFrom.absoluteStartTick) {
+      issues.push(issue("tie-not-later", target, `timing:${tie.id}`, `Tie ${tie.id} must connect to a later note.`, remove));
     }
-    if (pitchIdentity(fromPitch.pitch) !== pitchIdentity(toPitch.pitch)) {
-      issues.push(issue("tie-pitch-mismatch", target, `tie:${tie.id}`, `Tie ${tie.id} connects pitches with different sounding or written identities.`, remove));
+    if (locatedFrom && locatedTo && locatedFrom.absoluteEndTick !== locatedTo.absoluteStartTick) {
+      issues.push(issue("tie-not-contiguous", target, `timing:${tie.id}`, `Tie ${tie.id} must connect temporally contiguous notes.`, remove));
+    }
+    if (fromPitch.pitch.midiNumber !== toPitch.pitch.midiNumber) {
+      issues.push(issue("tie-pitch-mismatch", target, `tie:${tie.id}`, `Tie ${tie.id} connects different sounding pitches.`, remove));
     }
   }
   for (const ties of logicalTies.values()) {
@@ -211,5 +209,10 @@ export function validateStaffBuilderScore(score: StaffBuilderScore): readonly St
   };
   addConflicts(incoming, "conflicting-incoming-tie");
   addConflicts(outgoing, "conflicting-outgoing-tie");
+  for (const tieId of getStaffBuilderTieCycleIds(score.ties)) {
+    const tie = score.ties.find(({ id }) => id === tieId)!;
+    const located = events.get(tie.fromEventId);
+    issues.push(issue("tie-cycle", { measureIndex: located?.measureIndex ?? 0, staff: located?.event.staff, positionTicks: located?.event.startTick, eventId: tie.fromEventId, pitchId: tie.fromPitchId, tieId }, `tie:${tieId}`, `Tie ${tieId} participates in a cycle.`, [{ kind: "remove-tie", tieId }]));
+  }
   return issues.sort(compareIssues);
 }

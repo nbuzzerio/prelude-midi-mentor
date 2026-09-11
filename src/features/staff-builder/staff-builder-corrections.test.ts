@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createStaffBuilderContinuationAndTies, createStaffBuilderTies, decomposeStaffBuilderGap, fillAllStaffBuilderGapsWithRests, fillStaffBuilderGapWithRests, getExactStaffBuilderFittingDuration, removeStaffBuilderTie, splitStaffBuilderEventAcrossBarline } from "./staff-builder-corrections";
+import { createStaffBuilderContinuationAndTies, createStaffBuilderTies, decomposeStaffBuilderGap, fillAllStaffBuilderGapsWithRests, fillStaffBuilderGapWithRests, getExactStaffBuilderFittingDuration, getStaffBuilderTieDestinationCandidates, removeStaffBuilderTie, splitStaffBuilderEventAcrossBarline } from "./staff-builder-corrections";
 import type { StaffBuilderScore } from "./staff-builder-types";
 
 const factories = () => { let id = 0; return { createId: () => `new-${++id}`, now: () => "2026-01-02T00:00:00.000Z" }; };
@@ -103,6 +103,21 @@ describe("Staff Builder corrections", () => {
     const removed = created.ok ? removeStaffBuilderTie(created.score, created.score.ties[0]!.id, factories()) : created;
     expect(removed.ok && removed.score.ties).toEqual([]);
     expect(removed.ok && removed.score.measures).toEqual(withDestination.measures);
+  });
+
+  it("finds only contiguous sounding-compatible destinations and permits enharmonic chains", () => {
+    const a = { id: "a", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "ap", midiNumber: 61, letter: "C" as const, accidental: "sharp" as const, octave: 4 }] };
+    const b = { ...a, id: "b", startTick: 480, pitches: [{ id: "bp", midiNumber: 61, letter: "D" as const, accidental: "flat" as const, octave: 4 }] };
+    const c = { ...a, id: "c", startTick: 960, pitches: [{ ...a.pitches[0], id: "cp" }] };
+    const gap = { ...a, id: "gap", startTick: 1440, pitches: [{ ...a.pitches[0], id: "gp" }] };
+    const source: StaffBuilderScore = { ...base(), measures: [{ id: "m1", events: [a, b, c, gap] }] };
+    expect(getStaffBuilderTieDestinationCandidates(source, "a", ["ap"]).map(({ id }) => id)).toEqual(["b"]);
+    const first = createStaffBuilderTies(source, { fromEventId: "a", toEventId: "b", fromPitchIds: ["ap"], factories: factories() });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const second = createStaffBuilderTies(first.score, { fromEventId: "b", toEventId: "c", fromPitchIds: ["bp"], factories: factories() });
+    expect(second.ok && second.score.ties).toHaveLength(2);
+    expect(createStaffBuilderTies(source, { fromEventId: "a", toEventId: "gap", fromPitchIds: ["ap"], factories: factories() })).toMatchObject({ ok: false, error: "invalid-timing" });
   });
 
   it("creates a continuation with new pitch and tie IDs", () => {

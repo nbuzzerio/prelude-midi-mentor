@@ -2,6 +2,7 @@ import { resolveStaffBuilderMeasureContext } from "@/features/staff-builder/staf
 import { durationToTicks } from "@/features/staff-builder/staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff } from "@/features/staff-builder/staff-builder-types";
 import { validateStaffBuilderScore } from "@/features/staff-builder/staff-builder-validation";
+import { deriveStaffBuilderSoundingSpans } from "@/features/staff-builder/staff-builder-sounding-spans";
 import type {
   PiecePracticeAttackedPitch,
   PiecePracticeMeasure,
@@ -164,6 +165,7 @@ export function projectStaffBuilderPieceForPractice(score: StaffBuilderScore): P
       title: score.title,
       tempoBpm: score.tempoBpm,
       measures,
+      soundingSpans: deriveStaffBuilderSoundingSpans(score),
     },
   };
 }

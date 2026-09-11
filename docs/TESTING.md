@@ -344,7 +344,7 @@ Automated coverage includes:
 
 - canonical schema v3 score-domain invariants, v1/v2 migration, unsupported/corrupt data, measure context, meter capacity, notes, chords, rests, ties, annotations, and upward arpeggiation
 - Capture Notes routing, rhythmic cursor movement, pending input, replacement, and rest insertion
-- Rhythm Correction selection, duration, event type, staff, spelling, ties, deletion, and score history
+- Rhythm Correction selection, duration, event type, staff, spelling, temporally contiguous pitch-level ties and chains, deletion, and score history
 - validation, guided corrections, draft persistence, validated Save, and local project recovery
 - direct-score `.prelude.json` serialization, schema-validated import, round trips, collision-safe insertion, and accessible library file actions
 - full-piece, treble-range, and bass-range duplication with fresh copy identity and source immutability
@@ -367,7 +367,7 @@ Automated coverage includes:
 - one aggregated normal check plus independent rolled checks, including mixed and multiple-roll same-onset targets
 - exact normal pitch-set grading, tempo-relative upward-roll order/window grading, blocking retries, measure/piece completion, targetless measures, start-at-measure, and restarts
 - physical single-note and ordinary 225 millisecond block-chord input, rolled-check expiry scheduling, stale-attempt cleanup, and stable MIDI ownership
-- held/lingering and incoming-tie allowances without allowing held notes to satisfy missing attacks
+- duration-aware authored sounding-span allowances without allowing held notes to satisfy missing attacks; a run started or measure restarted inside a tie chain requires a practice-only boundary reattack while full-piece progression does not
 - persistent virtual chord selection and strict MIDI/VKB attempt separation
 - read-only score presentation, authoritative multi-event highlighting, feedback, accessibility, and one responsive keyboard
 - Staff Builder library eligibility, launch/failure/exit flow, updated-save relaunch, and source/storage immutability
@@ -469,7 +469,7 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - full-piece, treble-range, and bass-range duplication with the source left unchanged
 - authored upward rolled-chord creation, save/reload, export/import, playback, and accessible notation
 - Blocking Piece Practice launch from a saved valid piece and disabled-reason behavior for invalid pieces
-- physical MIDI single notes, block chords, slightly rolled chords, rapid retries, held previous notes, and tied destinations
+- physical MIDI single notes, block chords, slightly rolled chords, rapid retries, held tied/sustained notes across later opposite-hand targets, and practice start/restart inside a multi-measure tie chain
 - MIDI hotplug/disconnect during practice and clean Staff Builder ownership after exit
 - desktop VKB and Chromebook touch chord selection, toggle removal, restart, and source switching
 - Android portrait/landscape score readability, keyboard reach, target feedback, safe areas, and exactly one keyboard

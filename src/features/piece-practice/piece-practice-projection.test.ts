@@ -245,7 +245,7 @@ describe("Staff Builder piece-practice projection", () => {
     expect(piece.measures[0]?.targets[0]?.attackedPitches[0]?.outgoingTieIds).toEqual(["tie"]);
   });
 
-  it("rejects a same-measure tie through existing Staff Builder validation", () => {
+  it("projects a contiguous same-measure tie as one sounding span without a continuation attack", () => {
     const source = score({
       events: [
         notes("from", "treble", 0, "quarter", [pitch("from-p", 60)]),
@@ -254,8 +254,11 @@ describe("Staff Builder piece-practice projection", () => {
       ties: [{ id: "invalid", fromEventId: "from", fromPitchId: "from-p", toEventId: "to", toPitchId: "to-p" }],
     });
     const result = projectStaffBuilderPieceForPractice(source);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.issues.map(({ code }) => code)).toContain("tie-not-cross-measure");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.piece.measures[0]?.targets.map(({ expectedMidiNumbers }) => expectedMidiNumbers)).toEqual([[60]]);
+      expect(result.piece.soundingSpans).toEqual([expect.objectContaining({ midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["from:from-p", "to:to-p"] })]);
+    }
   });
 
   it("rejects unresolved, same-position-conflicting, and overflowing source material through Staff Builder validation", () => {

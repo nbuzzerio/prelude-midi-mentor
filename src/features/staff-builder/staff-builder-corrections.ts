@@ -3,6 +3,7 @@ import { resolveStaffBuilderMeasureContext, type StaffBuilderFactories } from ".
 import { durationToTicks, getMeasureCapacityTicks, STAFF_BUILDER_DURATIONS, STAFF_BUILDER_TICKS_PER_QUARTER, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "./staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff, StaffBuilderTie } from "./staff-builder-types";
 import { getStaffBuilderEventInterval, getStaffBuilderSamePositionConflicts, getStaffBuilderStaffCoverageGaps } from "./staff-builder-voices";
+import { getStaffBuilderTieCycleIds, locateStaffBuilderPitches, staffBuilderPitchEndpointKey } from "./staff-builder-sounding-spans";
 
 export type StaffBuilderCorrectionError = "event-missing" | "pitch-missing" | "invalid-timing" | "conflict" | "tie-conflict" | "incompatible-pitch" | "unsupported-span" | "stale-correction";
 export type StaffBuilderCorrectionResult = Readonly<{ ok: true; score: StaffBuilderScore }> | Readonly<{ ok: false; error: StaffBuilderCorrectionError; score: StaffBuilderScore }>;
@@ -32,8 +33,30 @@ function findEvent(score: StaffBuilderScore, eventId: string): Readonly<{ event:
   return null;
 }
 
-function sameWrittenPitch(left: StaffBuilderPitch, right: StaffBuilderPitch): boolean {
-  return left.midiNumber === right.midiNumber && left.letter === right.letter && left.accidental === right.accidental && left.octave === right.octave;
+function sameSoundingPitch(left: StaffBuilderPitch, right: StaffBuilderPitch): boolean {
+  return left.midiNumber === right.midiNumber;
+}
+
+export function getStaffBuilderTieDestinationCandidates(score: StaffBuilderScore, fromEventId: string, fromPitchIds: readonly string[]): readonly StaffBuilderEvent[] {
+  const from = findEvent(score, fromEventId);
+  if (!from || from.event.kind !== "notes" || from.event.rhythm.status !== "final") return [];
+  const selected = [...new Set(fromPitchIds)].map((id) => from.event.kind === "notes" ? from.event.pitches.find((pitch) => pitch.id === id) : undefined);
+  if (selected.length === 0 || selected.some((pitch) => !pitch)) return [];
+  const located = locateStaffBuilderPitches(score);
+  const source = located.get(staffBuilderPitchEndpointKey(from.event.id, (selected[0] as StaffBuilderPitch).id));
+  if (!source) return [];
+  return score.measures.flatMap((measure) => measure.events).filter((candidate) => {
+    if (candidate.kind !== "notes" || candidate.staff !== from.event.staff) return false;
+    const destination = candidate.pitches[0] && located.get(staffBuilderPitchEndpointKey(candidate.id, candidate.pitches[0].id));
+    return destination?.absoluteStartTick === source.absoluteEndTick
+      && selected.every((pitch) => {
+        const sourcePitch = pitch as StaffBuilderPitch;
+        const candidatePitch = candidate.pitches.find((item) => sameSoundingPitch(sourcePitch, item));
+        return candidatePitch
+          && !score.ties.some((tie) => tie.fromEventId === from.event.id && tie.fromPitchId === sourcePitch.id)
+          && !score.ties.some((tie) => tie.toEventId === candidate.id && tie.toPitchId === candidatePitch.id);
+      });
+  });
 }
 
 export function decomposeStaffBuilderGap(timeSignature: StaffBuilderTimeSignature, capacityTicks: number, startTick: number, endTick: number): readonly Readonly<{ startTick: number; duration: StaffBuilderDuration }>[] | null {
@@ -132,8 +155,8 @@ export function createStaffBuilderTies(score: StaffBuilderScore, options: Readon
   const from = findEvent(score, options.fromEventId);
   const to = findEvent(score, options.toEventId);
   if (!from || !to || from.event.kind !== "notes" || to.event.kind !== "notes") return { ok: false, error: "event-missing", score };
-  if (from.event.rhythm.status !== "final" || from.measureIndex + 1 !== to.measureIndex || to.event.startTick !== 0 || from.event.staff !== to.event.staff
-    || from.event.startTick + durationToTicks(from.event.rhythm.duration) !== resolveStaffBuilderMeasureContext(score, from.measureIndex).capacityTicks) {
+  if (from.event.rhythm.status !== "final" || to.event.rhythm.status !== "final" || from.event.staff !== to.event.staff
+    || !getStaffBuilderTieDestinationCandidates(score, from.event.id, options.fromPitchIds).some(({ id }) => id === to.event.id)) {
     return { ok: false, error: "invalid-timing", score };
   }
   const selected = [...new Set(options.fromPitchIds)];
@@ -142,7 +165,7 @@ export function createStaffBuilderTies(score: StaffBuilderScore, options: Readon
   for (const pitchId of selected) {
     const fromPitch = from.event.pitches.find(({ id }) => id === pitchId);
     if (!fromPitch) return { ok: false, error: "pitch-missing", score };
-    const toPitch = to.event.pitches.find((candidate) => sameWrittenPitch(fromPitch, candidate));
+    const toPitch = to.event.pitches.find((candidate) => sameSoundingPitch(fromPitch, candidate));
     if (!toPitch) return { ok: false, error: "incompatible-pitch", score };
     if (score.ties.some((tie) => (tie.fromEventId === from.event.id && tie.fromPitchId === fromPitch.id) || (tie.toEventId === to.event.id && tie.toPitchId === toPitch.id))) {
       return { ok: false, error: "tie-conflict", score };
@@ -151,6 +174,7 @@ export function createStaffBuilderTies(score: StaffBuilderScore, options: Readon
   }
   const factories = options.factories ?? defaultFactories;
   const ties: StaffBuilderTie[] = pairs.map((pair) => ({ id: factories.createId(), fromEventId: from.event.id, fromPitchId: pair.from.id, toEventId: to.event.id, toPitchId: pair.to.id }));
+  if (getStaffBuilderTieCycleIds([...score.ties, ...ties]).size > 0) return { ok: false, error: "tie-conflict", score };
   return { ok: true, score: update(score, factories, { ties: [...score.ties, ...ties] }) };
 }
 

@@ -171,6 +171,16 @@ describe("Staff Builder playback projection", () => {
     expect(projectStaffBuilderPlayback(score, { kind: "from-position", position: { measureIndex: 1, offsetTicks: 480 } }).events).toEqual([{ notes: [60], startTimeMs: 0, durationMs: 2000 }]);
   });
 
+  it("flattens a within-measure enharmonic tie and clips playback begun inside its span", () => {
+    const source = baseScore([{ id: "m", events: [
+      note("from", "treble", 0, "quarter", [{ id: "from-p", midiNumber: 61, letter: "C", accidental: "sharp", octave: 4 }]),
+      note("to", "treble", 480, "half", [{ id: "to-p", midiNumber: 61, letter: "D", accidental: "flat", octave: 4 }]),
+      rest("tail", "treble", 1440, "quarter"), fullRest("bass", "bass"),
+    ] }], { ties: [{ id: "tie", fromEventId: "from", fromPitchId: "from-p", toEventId: "to", toPitchId: "to-p" }] });
+    expect(projectStaffBuilderPlayback(source, { kind: "entire-piece" }).events).toEqual([{ notes: [61], startTimeMs: 0, durationMs: 1500 }]);
+    expect(projectStaffBuilderPlayback(source, { kind: "from-position", position: { measureIndex: 0, offsetTicks: 720 } }).events).toEqual([{ notes: [61], startTimeMs: 0, durationMs: 750 }]);
+  });
+
   it("preserves partial chord ties and attacks untied destination pitches", () => {
     const score = tiedScore(false, true);
     expect(projectStaffBuilderPlayback(score, { kind: "entire-piece" }).events).toEqual([

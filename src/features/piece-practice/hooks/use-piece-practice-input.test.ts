@@ -179,8 +179,9 @@ describe("usePiecePracticeInput", () => {
     expect(view.onSessionStateChange).not.toHaveBeenCalled();
   });
 
-  it("allows only the immediately previous successful target as held context", () => {
-    const view = setup(piece([[[60], [64], [67]]]));
+  it("allows a pitch only while its authored sounding span covers the later target", () => {
+    const source = { ...piece([[[60], [64], [67]]]), soundingSpans: [{ originEventId: "event-0-0", originPitchId: "p-0", staff: "treble" as const, midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["event-0-0:p-0"] }] };
+    const view = setup(source);
     midiHeld(60);
     midiNote(60);
     view.sync();
@@ -203,10 +204,11 @@ describe("usePiecePracticeInput", () => {
   it("allows an incoming tied pitch only as held while requiring every new chord attack", () => {
     const source = piece([[[64, 67]]]);
     const currentTarget = source.measures[0]!.targets[0]!;
-    const tiedSource: PiecePracticePiece = { ...source, measures: [{ ...source.measures[0]!, sourceEvents: [{
+    const laterTarget = { ...currentTarget, startTick: 480, absoluteStartTick: 480 };
+    const tiedSource: PiecePracticePiece = { ...source, soundingSpans: [{ originEventId: "origin", originPitchId: "origin-p", staff: "treble", midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["origin:origin-p", "destination:c"] }], measures: [{ ...source.measures[0]!, sourceEvents: [{
       sourceEventId: "destination", kind: "notes", staff: "treble", startTick: 0, absoluteStartTick: 0,
       duration: "quarter", durationTicks: 480, pitches: [{ sourcePitchId: "c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4, incomingTieIds: ["tie"], outgoingTieIds: [], requiresAttack: false }],
-    }], targets: [{ ...currentTarget, sourceEventIds: ["destination", ...currentTarget.sourceEventIds] }] }] };
+    }], targets: [{ ...laterTarget, sourceEventIds: ["destination", ...currentTarget.sourceEventIds] }] }] };
     const view = setup(tiedSource);
     midiHeld(60, 64, 67); midiNote(64); midiNote(67); act(() => vi.advanceTimersByTime(225));
     expect(view.getState().status).toBe("piece-complete");
@@ -215,10 +217,11 @@ describe("usePiecePracticeInput", () => {
   it("still rejects a missing untied chord pitch and unrelated held pitch beside a tie", () => {
     const source = piece([[[64, 67]]]);
     const currentTarget = source.measures[0]!.targets[0]!;
-    const tiedSource: PiecePracticePiece = { ...source, measures: [{ ...source.measures[0]!, sourceEvents: [{
+    const laterTarget = { ...currentTarget, startTick: 480, absoluteStartTick: 480 };
+    const tiedSource: PiecePracticePiece = { ...source, soundingSpans: [{ originEventId: "origin", originPitchId: "origin-p", staff: "treble", midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["origin:origin-p", "destination:c"] }], measures: [{ ...source.measures[0]!, sourceEvents: [{
       sourceEventId: "destination", kind: "notes", staff: "treble", startTick: 0, absoluteStartTick: 0,
       duration: "quarter", durationTicks: 480, pitches: [{ sourcePitchId: "c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4, incomingTieIds: ["tie"], outgoingTieIds: [], requiresAttack: false }],
-    }], targets: [{ ...currentTarget, sourceEventIds: ["destination"] }] }] };
+    }], targets: [{ ...laterTarget, sourceEventIds: ["destination"] }] }] };
     const view = setup(tiedSource);
     midiHeld(48, 60, 64); midiNote(64); act(() => vi.advanceTimersByTime(225));
     expect(view.result.current.feedback.grade).toMatchObject({ correct: false, missingMidiNumbers: [67], unexpectedHeldMidiNumbers: [48] });
@@ -323,6 +326,23 @@ describe("usePiecePracticeInput", () => {
   it("allows held parallel-roll pitches while completing a multi-note normal MIDI chord", () => {
     const view = setup(rolledPiece([72, 76]));
     midiHeld(48, 72, 76);
+    midiNote(48); view.sync();
+    midiNote(72); midiNote(76);
+    act(() => vi.advanceTimersByTime(225));
+    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 0, status: "practicing" });
+    expect(view.getState().currentCheckProgress[0]?.completed).toBe(true);
+  });
+
+  it("allows an authored tied sounding span beside parallel rolled and normal checks", () => {
+    const base = rolledPiece([72, 76]);
+    const original = base.measures[0]!.targets[0]!;
+    const source: PiecePracticePiece = {
+      ...base,
+      soundingSpans: [{ originEventId: "tied-origin", originPitchId: "tied-pitch", staff: "bass", midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["tied-origin:tied-pitch"] }],
+      measures: [{ ...base.measures[0]!, targets: [{ ...original, startTick: 480, absoluteStartTick: 480 }] }],
+    };
+    const view = setup(source);
+    midiHeld(48, 60, 72, 76);
     midiNote(48); view.sync();
     midiNote(72); midiNote(76);
     act(() => vi.advanceTimersByTime(225));

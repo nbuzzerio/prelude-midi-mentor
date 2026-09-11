@@ -117,7 +117,7 @@ describe("Staff Builder structural validation", () => {
     expect(validateStaffBuilderScore(score([{ id: "m", events: [malformed as never, note("bass", "bass", 0)] }])).some(({ code }) => code === "invalid-arpeggiation")).toBe(true);
   });
 
-  it("validates dangling, duplicate, conflicting, adjacent, staff, and written tie identity", () => {
+  it("validates dangling, duplicate, conflicting, staff, and sounding tie identity", () => {
     const source = note("from", "treble", 1440, "quarter");
     const destination = note("to", "bass", 0, "whole", [{ ...pitch("to-p"), letter: "B", accidental: "sharp", octave: 3 }]);
     const current = score([{ id: "m1", events: [source, note("b1", "bass", 0)] }, { id: "m2", events: [destination, note("t2", "treble", 0)] }], "4/4", [
@@ -126,6 +126,45 @@ describe("Staff Builder structural validation", () => {
       { id: "z", fromEventId: "missing", fromPitchId: "p", toEventId: "to", toPitchId: "to-p" },
     ]);
     const codes = validateStaffBuilderScore(current).map(({ code }) => code);
-    expect(codes).toEqual(expect.arrayContaining(["tie-staff-mismatch", "tie-pitch-mismatch", "duplicate-tie", "conflicting-incoming-tie", "conflicting-outgoing-tie", "tie-endpoint-missing"]));
+    expect(codes).toEqual(expect.arrayContaining(["tie-staff-mismatch", "duplicate-tie", "conflicting-incoming-tie", "conflicting-outgoing-tie", "tie-endpoint-missing"]));
+  });
+
+  it("accepts contiguous within-measure and cross-measure ties with enharmonic endpoint spelling", () => {
+    const cSharp = { id: "cs", midiNumber: 61, letter: "C" as const, accidental: "sharp" as const, octave: 4 };
+    const dFlat = { id: "db", midiNumber: 61, letter: "D" as const, accidental: "flat" as const, octave: 4 };
+    const current = score([
+      { id: "m1", events: [note("cover1", "treble", 0), note("a", "treble", 0, "quarter", [cSharp]), note("b", "treble", 480, "dotted-half", [dFlat]), note("bass1", "bass", 0)] },
+      { id: "m2", events: [note("c", "treble", 0, "whole", [{ ...cSharp, id: "cs2" }]), note("bass2", "bass", 0)] },
+    ], "4/4", [
+      { id: "within", fromEventId: "a", fromPitchId: "cs", toEventId: "b", toPitchId: "db" },
+      { id: "across", fromEventId: "b", fromPitchId: "db", toEventId: "c", toPitchId: "cs2" },
+    ]);
+    expect(validateStaffBuilderScore(current).filter(({ code }) => code.startsWith("tie-"))).toEqual([]);
+  });
+
+  it.each([
+    ["different-midi", note("to", "treble", 480, "quarter", [pitch("to-p", 62)]), "tie-pitch-mismatch"],
+    ["gap", note("to", "treble", 960, "quarter"), "tie-not-contiguous"],
+    ["overlap", note("to", "treble", 240, "quarter"), "tie-not-contiguous"],
+    ["backward", note("to", "treble", 0, "quarter"), "tie-not-later"],
+  ] as const)("rejects a %s tie", (_name, destination, expectedCode) => {
+    const current = score([{ id: "m", events: [note("from", "treble", 0, "quarter"), destination, note("cover", "treble", 0), note("bass", "bass", 0)] }], "4/4", [
+      { id: "tie", fromEventId: "from", fromPitchId: "from-p", toEventId: "to", toPitchId: "to-p" },
+    ]);
+    expect(validateStaffBuilderScore(current).map(({ code }) => code).filter((code) => code.startsWith("tie-"))).toContain(expectedCode);
+  });
+
+  it("allows one incoming and one outgoing edge at a chain middle while rejecting branches and cycles", () => {
+    const events = [note("a", "treble", 0, "quarter"), note("b", "treble", 480, "quarter"), note("c", "treble", 960, "quarter"), note("d", "treble", 1440, "quarter"), note("bass", "bass", 0)];
+    const chain = [
+      { id: "ab", fromEventId: "a", fromPitchId: "a-p", toEventId: "b", toPitchId: "b-p" },
+      { id: "bc", fromEventId: "b", fromPitchId: "b-p", toEventId: "c", toPitchId: "c-p" },
+      { id: "cd", fromEventId: "c", fromPitchId: "c-p", toEventId: "d", toPitchId: "d-p" },
+    ];
+    expect(validateStaffBuilderScore(score([{ id: "m", events }], "4/4", chain)).filter(({ code }) => code.startsWith("tie-"))).toEqual([]);
+    const branched = [...chain, { id: "branch", fromEventId: "b", fromPitchId: "b-p", toEventId: "d", toPitchId: "d-p" }];
+    expect(validateStaffBuilderScore(score([{ id: "m", events }], "4/4", branched)).map(({ code }) => code)).toEqual(expect.arrayContaining(["conflicting-incoming-tie", "conflicting-outgoing-tie"]));
+    const cyclic = [...chain, { id: "cycle", fromEventId: "d", fromPitchId: "d-p", toEventId: "a", toPitchId: "a-p" }];
+    expect(validateStaffBuilderScore(score([{ id: "m", events }], "4/4", cyclic)).map(({ code }) => code)).toContain("tie-cycle");
   });
 });

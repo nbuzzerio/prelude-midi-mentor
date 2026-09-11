@@ -87,6 +87,17 @@ export type PiecePracticePiece = Readonly<{
   title: string;
   tempoBpm: number;
   measures: readonly PiecePracticeMeasure[];
+  soundingSpans?: readonly PiecePracticeSoundingSpan[];
+}>;
+
+export type PiecePracticeSoundingSpan = Readonly<{
+  originEventId: string;
+  originPitchId: string;
+  staff: StaffBuilderStaff;
+  midiNumber: number;
+  attackTick: number;
+  endTick: number;
+  endpointKeys: readonly string[];
 }>;
 
 export type PiecePracticeProjectionResult =

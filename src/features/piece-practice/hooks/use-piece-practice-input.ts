@@ -11,7 +11,7 @@ import {
 } from "../piece-practice-session";
 import type { PiecePracticeGrade } from "../piece-practice-validation";
 import type { PiecePracticePiece } from "../piece-practice-types";
-import { getPiecePracticeAllowedHeldMidiNumbers, getPiecePracticeIncomingTiedMidiNumbers } from "../piece-practice-input";
+import { getPiecePracticeAllowedHeldMidiNumbers } from "../piece-practice-input";
 
 export type PiecePracticeInputSource = "midi" | "virtual";
 export type PiecePracticeInputFeedback = Readonly<{
@@ -36,8 +36,6 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   const sessionStateRef = useRef(sessionState);
   const midiHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
   const virtualSelectionRef = useRef<Set<number>>(new Set());
-  const previousSuccessfulTargetMidiNumbersRef = useRef<readonly number[]>([]);
-  const lingeringAllowanceOriginTargetIdRef = useRef<string | null>(null);
   const chordTargetIdRef = useRef<string | null>(null);
   const finalizeMidiChordAttemptRef = useRef<(midiNumbers: ReadonlySet<number>) => void>(() => undefined);
 
@@ -69,8 +67,6 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
 
   const resetInput = useCallback(() => {
     clearTransientAttempts();
-    previousSuccessfulTargetMidiNumbersRef.current = [];
-    lingeringAllowanceOriginTargetIdRef.current = null;
     setFeedback(IDLE_FEEDBACK);
   }, [clearTransientAttempts]);
 
@@ -79,11 +75,9 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     const target = getCurrentPiecePracticeTarget(piece, currentState);
     if (!target) return;
     const allowedHeldMidiNumbers = getPiecePracticeAllowedHeldMidiNumbers({
-      incomingTiedMidiNumbers: getPiecePracticeIncomingTiedMidiNumbers(piece, target),
-      previousSuccessfulTargetMidiNumbers: [
-        ...previousSuccessfulTargetMidiNumbersRef.current,
-        ...target.checks.filter(({ kind }) => kind === "rolled-chord").flatMap(({ expectedMidiNumbers }) => expectedMidiNumbers),
-      ],
+      piece,
+      target,
+      additionalAllowedMidiNumbers: target.checks.filter(({ kind }) => kind === "rolled-chord").flatMap(({ expectedMidiNumbers }) => expectedMidiNumbers),
     });
     const result = submitPiecePracticeAttempt(piece, currentState, {
       targetId: target.id,
@@ -92,10 +86,6 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     if (!result.accepted) return;
     sessionStateRef.current = result.state;
     const advanced = getCurrentPiecePracticeTarget(piece, result.state)?.id !== target.id;
-    if (result.grade.correct && advanced) {
-      previousSuccessfulTargetMidiNumbersRef.current = target.expectedMidiNumbers;
-      lingeringAllowanceOriginTargetIdRef.current = target.id;
-    }
     setFeedback({ status: !result.grade.correct ? "incorrect" : advanced ? "correct" : "idle", source: advanced || !result.grade.correct ? source : null, grade: result.grade });
     clearTransientAttempts();
     onSessionStateChange(result.state);
@@ -112,8 +102,6 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     if (result.state !== currentState) onSessionStateChange(result.state);
     if (result.incorrect) setFeedback({ status: "incorrect", source, grade: null });
     else if (advanced) {
-      previousSuccessfulTargetMidiNumbersRef.current = target.expectedMidiNumbers;
-      lingeringAllowanceOriginTargetIdRef.current = target.id;
       setFeedback({ status: "correct", source, grade: null });
       clearTransientAttempts();
     }
@@ -221,10 +209,6 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     const previousTargetId = previousTargetIdRef.current;
     if (previousTargetId === targetId) return;
     clearTransientAttempts();
-    if (lingeringAllowanceOriginTargetIdRef.current !== previousTargetId) {
-      previousSuccessfulTargetMidiNumbersRef.current = [];
-      lingeringAllowanceOriginTargetIdRef.current = null;
-    }
     previousTargetIdRef.current = targetId;
   }, [clearTransientAttempts, targetId]);
 

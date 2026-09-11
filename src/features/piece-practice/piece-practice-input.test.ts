@@ -31,7 +31,8 @@ describe("Piece Practice input allowances", () => {
     expect(getPiecePracticeIncomingTiedMidiNumbers(piece, { ...target, startTick: 480 })).toEqual([]);
   });
 
-  it("combines and deterministically deduplicates tied and previous-target held allowances", () => {
-    expect(getPiecePracticeAllowedHeldMidiNumbers({ incomingTiedMidiNumbers: [60], previousSuccessfulTargetMidiNumbers: [67, 60] })).toEqual([60, 67]);
+  it("returns the sounding MIDI pitches active at the target onset plus explicit parallel allowances", () => {
+    const targetAt480 = { ...target, absoluteStartTick: 480 };
+    expect(getPiecePracticeAllowedHeldMidiNumbers({ piece: { ...piece, soundingSpans: [{ originEventId: "origin", originPitchId: "p", staff: "treble", midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["origin:p"] }] }, target: targetAt480, additionalAllowedMidiNumbers: [67, 60] })).toEqual([60, 67]);
   });
 });

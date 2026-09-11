@@ -86,6 +86,23 @@ function projectedPolyphonicPiece(): PiecePracticePiece {
   return result.piece;
 }
 
+function projectedTiedBoundaryPiece(withTickZeroAttack = false): PiecePracticePiece {
+  const note = (id: string, startTick: number, duration: "quarter" | "whole", midiNumber: number) => ({ id, kind: "notes" as const, staff: "treble" as const, startTick, rhythm: { status: "final" as const, duration }, pitches: [{ id: `${id}p`, midiNumber, letter: midiNumber === 67 ? "G" as const : "C" as const, accidental: "natural" as const, octave: midiNumber === 72 ? 5 : 4 }] });
+  const fullBassRest = (id: string) => ({ id, kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } });
+  const source: StaffBuilderScore = {
+    schemaVersion: 3, annotations: [], id: "tied-score", title: "Tied boundary", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    tempoBpm: 96, initialKeySignatureId: "c-major", initialTimeSignature: "4/4",
+    measures: [
+      { id: "m1", events: [note("cover1", 0, "whole", 72), note("origin", 1440, "quarter", 60), fullBassRest("bass1")] },
+      { id: "m2", events: [note("continuation", 0, "whole", 60), ...(withTickZeroAttack ? [note("tick-zero", 0, "quarter", 72)] : []), note("later", 480, "quarter", 67), fullBassRest("bass2")] },
+    ],
+    ties: [{ id: "tie", fromEventId: "origin", fromPitchId: "originp", toEventId: "continuation", toPitchId: "continuationp" }],
+  };
+  const result = projectStaffBuilderPieceForPractice(source);
+  if (!result.ok) throw new Error(result.issues.map(({ code }) => code).join(", "));
+  return result.piece;
+}
+
 function initialized(source = piece(), startMeasureIndex = 0, startedAtMs = 1_000): PiecePracticeSessionState {
   const result = createPiecePracticeSession(source, { startMeasureIndex, startedAtMs });
   if (!result.ok) throw new Error(result.reason);
@@ -365,6 +382,61 @@ describe("Piece Practice blocking session", () => {
       return advanced.advanced ? advanced.state : advanced;
     };
     expect(run()).toEqual(run());
+  });
+
+  it("requires an inherited tie reattack only at a selected or restarted measure boundary", () => {
+    const source = projectedTiedBoundaryPiece();
+    const boundaryStart = initialized(source, 1);
+    expect(getCurrentPiecePracticeTarget(source, boundaryStart)).toMatchObject({ startTick: 0, expectedMidiNumbers: [60] });
+    const afterBoundary = accepted(source, boundaryStart, [60]);
+    expect(getCurrentPiecePracticeTarget(source, afterBoundary)).toMatchObject({ startTick: 480, expectedMidiNumbers: [67] });
+
+    let fullRun = initialized(source, 0);
+    fullRun = accepted(source, fullRun);
+    fullRun = accepted(source, fullRun);
+    expect(getCurrentPiecePracticeTarget(source, fullRun)).toMatchObject({ startTick: 480, expectedMidiNumbers: [67] });
+
+    const restartedMeasure = restartCurrentPiecePracticeMeasure(source, fullRun);
+    expect(getCurrentPiecePracticeTarget(source, restartedMeasure)).toMatchObject({ startTick: 0, expectedMidiNumbers: [60] });
+    const restartedPiece = restartPiecePractice(source, fullRun, 5_000);
+    expect(getCurrentPiecePracticeTarget(source, restartedPiece)).toMatchObject({ measureIndex: 0, expectedMidiNumbers: [72] });
+  });
+
+  it("does not count a boundary-only reattack as an authored target", () => {
+    const source = projectedTiedBoundaryPiece();
+    const afterBoundary = accepted(source, initialized(source, 1), [60]);
+
+    expect(afterBoundary).toMatchObject({ currentTargetIndex: 0, completedTargetCount: 0, completedMeasureCount: 0, boundaryReattackPending: false });
+  });
+
+  it("counts a tick-zero authored target merged with an inherited reattack exactly once", () => {
+    const source = projectedTiedBoundaryPiece(true);
+    const start = initialized(source, 1);
+    expect(getCurrentPiecePracticeTarget(source, start)).toMatchObject({ startTick: 0, expectedMidiNumbers: [60, 72] });
+
+    const afterMergedTarget = accepted(source, start, [60, 72]);
+    expect(afterMergedTarget).toMatchObject({ currentTargetIndex: 1, completedTargetCount: 1, completedMeasureCount: 0, boundaryReattackPending: false });
+  });
+
+  it("counts only the first authored target after completing a boundary-only reattack", () => {
+    const source = projectedTiedBoundaryPiece();
+    const afterBoundary = accepted(source, initialized(source, 1), [60]);
+    const afterFirstAuthoredTarget = accepted(source, afterBoundary, [67]);
+
+    expect(afterFirstAuthoredTarget).toMatchObject({ status: "piece-complete", completedTargetCount: 1, completedMeasureCount: 1 });
+  });
+
+  it("rolls back only authored targets when restarting a boundary measure", () => {
+    const boundaryOnlySource = projectedTiedBoundaryPiece();
+    const afterBoundary = accepted(boundaryOnlySource, initialized(boundaryOnlySource, 1), [60]);
+    expect(restartCurrentPiecePracticeMeasure(boundaryOnlySource, afterBoundary)).toMatchObject({ currentTargetIndex: -1, completedTargetCount: 0, completedMeasureCount: 0 });
+
+    const afterFirstAuthoredTarget = accepted(boundaryOnlySource, afterBoundary, [67]);
+    expect(restartCurrentPiecePracticeMeasure(boundaryOnlySource, afterFirstAuthoredTarget)).toMatchObject({ currentTargetIndex: -1, completedTargetCount: 0, completedMeasureCount: 0 });
+
+    const mergedSource = projectedTiedBoundaryPiece(true);
+    const afterMergedTarget = accepted(mergedSource, initialized(mergedSource, 1), [60, 72]);
+    expect(restartCurrentPiecePracticeMeasure(mergedSource, afterMergedTarget)).toMatchObject({ currentTargetIndex: 0, completedTargetCount: 0, completedMeasureCount: 0 });
   });
 });
 

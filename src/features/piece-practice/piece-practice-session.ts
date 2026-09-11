@@ -1,5 +1,6 @@
 import { gradePiecePracticeTarget, type PiecePracticeAttempt, type PiecePracticeGrade } from "./piece-practice-validation";
 import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
+import { getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
 
 export const PIECE_PRACTICE_ROLLED_WINDOW_QUARTER_BEATS = 1.5;
 
@@ -27,6 +28,7 @@ export type PiecePracticeSessionState = Readonly<{
   incorrectAttemptCount: number;
   currentTargetIncorrectAttemptCount: number;
   currentCheckProgress: readonly PiecePracticeCheckProgress[];
+  boundaryReattackPending: boolean;
   status: PiecePracticeSessionStatus;
   startedAtMs: number;
 }>;
@@ -58,20 +60,53 @@ function requireTimestamp(timestampMs: number): void {
   if (!Number.isFinite(timestampMs) || timestampMs < 0) throw new Error("Piece Practice timestamps must be finite non-negative numbers.");
 }
 
-function progressForTarget(target: PiecePracticeTarget | undefined): readonly PiecePracticeCheckProgress[] {
+function progressForTarget(target: PiecePracticeTarget | null | undefined): readonly PiecePracticeCheckProgress[] {
   return target?.checks.map(({ id }) => ({ checkId: id, completed: false, accumulatedMidiNumbers: [], startedAtMs: null })) ?? [];
 }
 
-function stateForMeasure(base: Omit<PiecePracticeSessionState, "currentMeasureIndex" | "currentTargetIndex" | "status" | "currentTargetIncorrectAttemptCount" | "currentCheckProgress">, measure: PiecePracticeMeasure): PiecePracticeSessionState {
-  const hasTargets = measure.targets.length > 0;
+function addBoundaryReattacks(piece: PiecePracticePiece, measure: PiecePracticeMeasure, target: PiecePracticeTarget | undefined): PiecePracticeTarget | null {
+  const boundaryPitches = getPiecePracticeBoundaryReattackPitches(piece, measure.measureIndex);
+  if (boundaryPitches.length === 0) return target ?? null;
+  const base = target?.startTick === 0 ? target : undefined;
+  const normal = base?.checks.find(({ kind }) => kind === "normal");
+  const attackedPitches = [...(normal?.attackedPitches ?? []), ...boundaryPitches]
+    .filter((pitch, index, all) => all.findIndex((candidate) => candidate.sourceEventId === pitch.sourceEventId && candidate.sourcePitchId === pitch.sourcePitchId) === index);
+  const normalCheck: PiecePracticeCheck = {
+    id: `${measure.sourceMeasureId}:boundary-attack`, kind: "normal",
+    sourceEventIds: [...new Set(attackedPitches.map(({ sourceEventId }) => sourceEventId))].sort(),
+    expectedMidiNumbers: [...new Set(attackedPitches.map(({ midiNumber }) => midiNumber))].sort((left, right) => left - right),
+    attackedPitches,
+  };
   return {
+    id: `${measure.sourceMeasureId}:boundary-target`, measureIndex: measure.measureIndex, sourceMeasureId: measure.sourceMeasureId,
+    startTick: 0, absoluteStartTick: measure.absoluteStartTick,
+    checks: [normalCheck, ...(base?.checks.filter(({ kind }) => kind !== "normal") ?? [])],
+    sourceEventIds: [...new Set([...(base?.sourceEventIds ?? []), ...normalCheck.sourceEventIds])].sort(),
+    expectedMidiNumbers: [...new Set([...(base?.expectedMidiNumbers ?? []), ...normalCheck.expectedMidiNumbers])].sort((left, right) => left - right),
+    attackedPitches: [...(base?.attackedPitches ?? []), ...boundaryPitches],
+  };
+}
+
+function targetForState(piece: PiecePracticePiece, state: Pick<PiecePracticeSessionState, "currentMeasureIndex" | "currentTargetIndex" | "boundaryReattackPending">): PiecePracticeTarget | null {
+  const measure = piece.measures[state.currentMeasureIndex];
+  if (!measure) return null;
+  const target = state.currentTargetIndex === null || state.currentTargetIndex < 0 ? undefined : measure.targets[state.currentTargetIndex];
+  return state.boundaryReattackPending ? addBoundaryReattacks(piece, measure, target) : target ?? null;
+}
+
+function stateForMeasure(piece: PiecePracticePiece, base: Omit<PiecePracticeSessionState, "currentMeasureIndex" | "currentTargetIndex" | "status" | "currentTargetIncorrectAttemptCount" | "currentCheckProgress" | "boundaryReattackPending">, measure: PiecePracticeMeasure, boundaryReattack: boolean): PiecePracticeSessionState {
+  const boundaryPitches = boundaryReattack ? getPiecePracticeBoundaryReattackPitches(piece, measure.measureIndex) : [];
+  const boundaryBeforeFirstTarget = boundaryPitches.length > 0 && (measure.targets[0]?.startTick ?? Number.POSITIVE_INFINITY) > 0;
+  const hasTargets = measure.targets.length > 0 || boundaryPitches.length > 0;
+  const partial = {
     ...base,
     currentMeasureIndex: measure.measureIndex,
-    currentTargetIndex: hasTargets ? 0 : null,
+    currentTargetIndex: hasTargets ? boundaryBeforeFirstTarget ? -1 : 0 : null,
+    boundaryReattackPending: boundaryPitches.length > 0,
     currentTargetIncorrectAttemptCount: 0,
-    currentCheckProgress: progressForTarget(measure.targets[0]),
-    status: hasTargets ? "practicing" : "awaiting-explicit-measure-advance",
+    status: hasTargets ? "practicing" as const : "awaiting-explicit-measure-advance" as const,
   };
+  return { ...partial, currentCheckProgress: progressForTarget(targetForState(piece, partial)) };
 }
 
 export function createPiecePracticeSession(piece: PiecePracticePiece, options: Readonly<{ startMeasureIndex: number; startedAtMs: number }>): CreatePiecePracticeSessionResult {
@@ -82,20 +117,20 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
   }
   return {
     ok: true,
-    state: stateForMeasure({
+    state: stateForMeasure(piece, {
       startMeasureIndex: options.startMeasureIndex,
       completedTargetCount: 0,
       completedMeasureCount: 0,
       completedMeasureIndexes: [],
       incorrectAttemptCount: 0,
       startedAtMs: options.startedAtMs,
-    }, measure),
+    }, measure, true),
   };
 }
 
 export function getCurrentPiecePracticeTarget(piece: PiecePracticePiece, state: PiecePracticeSessionState): PiecePracticeTarget | null {
   if (state.status !== "practicing" || state.currentTargetIndex === null) return null;
-  return piece.measures[state.currentMeasureIndex]?.targets[state.currentTargetIndex] ?? null;
+  return targetForState(piece, state);
 }
 
 function completeCurrentMeasure(piece: PiecePracticePiece, state: PiecePracticeSessionState): PiecePracticeSessionState {
@@ -113,7 +148,7 @@ function completeCurrentMeasure(piece: PiecePracticePiece, state: PiecePracticeS
   if (!nextMeasure) {
     return { ...completedBase, currentTargetIndex: null, status: "piece-complete" };
   }
-  return stateForMeasure(completedBase, nextMeasure);
+  return stateForMeasure(piece, completedBase, nextMeasure, false);
 }
 
 export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: PiecePracticeSessionState, input: Readonly<{
@@ -140,14 +175,7 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
 
   const currentCheckProgress = state.currentCheckProgress.map((progress) => progress.checkId === normalCheck.id ? { ...progress, completed: true } : progress);
   if (!currentCheckProgress.every(({ completed }) => completed)) return { accepted: true, grade, state: { ...state, currentCheckProgress } };
-  const measure = piece.measures[state.currentMeasureIndex];
-  if (!measure) return { accepted: false, reason: "not-practicing", state };
-  const completedTargetCount = state.completedTargetCount + 1;
-  const nextTargetIndex = (state.currentTargetIndex ?? 0) + 1;
-  const advancedState = nextTargetIndex < measure.targets.length
-    ? { ...state, completedTargetCount, currentTargetIndex: nextTargetIndex, currentTargetIncorrectAttemptCount: 0, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
-    : completeCurrentMeasure(piece, { ...state, completedTargetCount });
-  return { accepted: true, grade, state: advancedState };
+  return { accepted: true, grade, state: advanceCompletedTarget(piece, { ...state, currentCheckProgress }) };
 }
 
 export type SubmitPiecePracticePitchResult = Readonly<{
@@ -160,11 +188,13 @@ export type SubmitPiecePracticePitchResult = Readonly<{
 function advanceCompletedTarget(piece: PiecePracticePiece, state: PiecePracticeSessionState): PiecePracticeSessionState {
   const measure = piece.measures[state.currentMeasureIndex];
   if (!measure) return state;
-  const completedTargetCount = state.completedTargetCount + 1;
-  const nextTargetIndex = (state.currentTargetIndex ?? 0) + 1;
+  const completedBoundaryOnly = state.boundaryReattackPending && state.currentTargetIndex === -1;
+  const completedTargetCount = state.completedTargetCount + (completedBoundaryOnly ? 0 : 1);
+  const nextTargetIndex = completedBoundaryOnly ? 0 : (state.currentTargetIndex ?? 0) + 1;
+  const withoutBoundary = { ...state, boundaryReattackPending: false };
   return nextTargetIndex < measure.targets.length
-    ? { ...state, completedTargetCount, currentTargetIndex: nextTargetIndex, currentTargetIncorrectAttemptCount: 0, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
-    : completeCurrentMeasure(piece, { ...state, completedTargetCount });
+    ? { ...withoutBoundary, completedTargetCount, currentTargetIndex: nextTargetIndex, currentTargetIncorrectAttemptCount: 0, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
+    : completeCurrentMeasure(piece, { ...withoutBoundary, completedTargetCount });
 }
 
 export function submitPiecePracticePitch(piece: PiecePracticePiece, state: PiecePracticeSessionState, input: Readonly<{
@@ -245,28 +275,28 @@ export function restartCurrentPiecePracticeMeasure(piece: PiecePracticePiece, st
     : state.completedMeasureIndexes;
   const completedInCurrentMeasure = wasCompleted
     ? measure.targets.length
-    : state.status === "practicing" ? state.currentTargetIndex ?? 0 : 0;
+    : state.status === "practicing" ? Math.max(0, state.currentTargetIndex ?? 0) : 0;
   const completedTargetCount = Math.max(0, state.completedTargetCount - completedInCurrentMeasure);
-  return stateForMeasure({
+  return stateForMeasure(piece, {
     ...state,
     completedTargetCount,
     completedMeasureCount: completedMeasureIndexes.length,
     completedMeasureIndexes,
-  }, measure);
+  }, measure, true);
 }
 
 export function restartPiecePractice(piece: PiecePracticePiece, state: PiecePracticeSessionState, startedAtMs: number): PiecePracticeSessionState {
   requireTimestamp(startedAtMs);
   const measure = piece.measures[state.startMeasureIndex];
   if (!measure) return state;
-  return stateForMeasure({
+  return stateForMeasure(piece, {
     startMeasureIndex: state.startMeasureIndex,
     completedTargetCount: 0,
     completedMeasureCount: 0,
     completedMeasureIndexes: [],
     incorrectAttemptCount: 0,
     startedAtMs,
-  }, measure);
+  }, measure, true);
 }
 
 export function getPiecePracticeElapsedMs(state: PiecePracticeSessionState, nowMs: number): number {
