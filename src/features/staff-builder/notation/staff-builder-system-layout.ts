@@ -2,6 +2,7 @@ import { getMusicKeyDefinition } from "@/lib/music/keys";
 import { resolveStaffBuilderMeasureContext } from "../staff-builder-score";
 import { STAFF_BUILDER_TICKS_PER_QUARTER, durationToTicks } from "../staff-builder-time";
 import type { StaffBuilderAccidental, StaffBuilderEvent, StaffBuilderMeasure, StaffBuilderScore } from "../staff-builder-types";
+import { getStaffBuilderVerticalGeometry } from "./staff-builder-vertical-geometry";
 
 export type StaffBuilderVerticalLayoutReservations = Readonly<{
   aboveStaff: number;
@@ -234,16 +235,20 @@ export function layoutStaffBuilderScoreSystems(score: StaffBuilderScore, constra
   }
   if (current.length > 0) packed.push(current);
 
-  const systemHeight = reservations.aboveStaff + constraints.baseMusicHeight + reservations.betweenStaves + reservations.belowStaff;
   let documentY = 0;
   const systems = packed.map((estimates, systemIndex): StaffBuilderSystemLayout => {
+    const pitchSources = estimates.flatMap(({ measureIndex }) => score.measures[measureIndex]?.events.flatMap((event) => event.kind === "notes" ? [{ staff: event.staff, pitches: event.pitches }] : []) ?? []);
+    const range = getStaffBuilderVerticalGeometry({ pitchSources, baseHeight: constraints.baseMusicHeight, trebleStaveY: 15, bassStaveY: constraints.baseMusicHeight - 105 });
+    const aboveStaff = reservations.aboveStaff + range.topReservation;
+    const belowStaff = reservations.belowStaff + range.bottomReservation;
+    const systemHeight = aboveStaff + constraints.baseMusicHeight + reservations.betweenStaves + belowStaff;
     const requestedTotal = estimates.reduce((sum, estimate) => sum + estimate.requestedWidth, 0);
     const allocationTarget = Math.max(constraints.contentWidth, requestedTotal);
     const widths = distributeWidths(estimates, allocationTarget, constraints.maximumMeasureWidth);
     let measureX = 0;
     const measures = estimates.map((estimate, index): StaffBuilderMeasurePlacement => {
       const width = widths[index] ?? estimate.requestedWidth;
-      const placement = { measureId: estimate.measureId, measureIndex: estimate.measureIndex, x: measureX, y: reservations.aboveStaff, width, height: constraints.baseMusicHeight + reservations.betweenStaves };
+      const placement = { measureId: estimate.measureId, measureIndex: estimate.measureIndex, x: measureX, y: aboveStaff, width, height: constraints.baseMusicHeight + reservations.betweenStaves };
       measureX += width;
       return placement;
     });

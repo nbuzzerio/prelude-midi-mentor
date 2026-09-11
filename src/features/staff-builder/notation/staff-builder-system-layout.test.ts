@@ -185,6 +185,20 @@ describe("Staff Builder system layout", () => {
     expect(reserved.height - zero.height).toBe(60 * reserved.systems.length);
   });
 
+  it("adds range reservations per system while ordinary systems remain compact", () => {
+    const ordinary = measure("ordinary", [note("middle", 0)]);
+    const low = { ...measure("low"), events: [{ ...note("low-d", 0), staff: "bass" as const, pitches: [{ id: "low-p", midiNumber: 26, letter: "D" as const, accidental: "natural" as const, octave: 1 }] }] };
+    const high = { ...measure("high"), events: [{ ...note("high-g", 0), pitches: [{ id: "high-p", midiNumber: 127, letter: "G" as const, accidental: "natural" as const, octave: 9 }] }] };
+    const layout = layoutStaffBuilderScoreSystems(score([ordinary, low, high]), { ...constraints, contentWidth: 300 });
+    expect(layout.systems[0]?.height).toBe(constraints.baseMusicHeight);
+    expect(layout.systems[1]?.height).toBeGreaterThan(constraints.baseMusicHeight);
+    expect(layout.systems[2]?.height).toBeGreaterThan(constraints.baseMusicHeight);
+    expect(layout.systems[1]?.measures[0]?.y).toBe(0);
+    expect(layout.systems[2]?.measures[0]?.y).toBeGreaterThan(0);
+    expect(layout.systems[1]?.y).toBe((layout.systems[0]?.height ?? 0) + constraints.systemGap);
+    expect(layout.systems[2]?.y).toBe((layout.systems[1]?.y ?? 0) + (layout.systems[1]?.height ?? 0) + constraints.systemGap);
+  });
+
   it("translates local points and bounds through measure, system, and document spaces", () => {
     const layout = layoutStaffBuilderScoreSystems(score([measure("m1"), measure("m2"), measure("m3")]), { ...constraints, contentWidth: 300, verticalReservations: { aboveStaff: 12, betweenStaves: 0, belowStaff: 0 } });
     const system = layout.systems[1]!;

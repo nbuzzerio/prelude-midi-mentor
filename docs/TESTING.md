@@ -459,6 +459,7 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - Ear Training answer-grid touch targets, keyboard focus, and screen-reader announcements
 - Staff Builder physical MIDI capture and same-position replacement in treble, bass, and grand routing
 - Staff Builder’s browser-local pedal Lock In preference: default/read/write/error handling, normalized pedal-down capture, pedal-up suppression, authoring guards, and unchanged score/draft schemas
+- range-aware Staff Builder notation geometry across ordinary and MIDI-endpoint written pitches, single/grand staves, editor SVG bounds, per-system Study View offsets, ties, and the shared Piece Practice score view
 - Staff Builder on Chromebook mouse and touch, including direct notation targets and tap-versus-swipe behavior
 - Android portrait and landscape layout, folded/unfolded devices where available, and the mobile keyboard sheet
 - radial Duration, Key, and Time control reachability, touch ergonomics, focus return, and edge clamping

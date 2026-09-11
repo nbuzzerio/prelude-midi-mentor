@@ -506,6 +506,8 @@ History is score history, not a universal command log. Rhythm and context mutati
 
 VexFlow renders decorative notation. Its SVG remains hidden from assistive technology and is not queried for editor behavior. The Staff Builder renderer instead returns public render-only geometry for rendered and authoritative events, rhythmic timeline positions, and notation controls covering the clefs, grand-staff region, key signature, and time signature. Playback-follow geometry is derived from the public rhythmic-position geometry rather than a separate renderer-owned playback-anchor family.
 
+Editor measures and multi-system Study View use one deterministic, range-aware vertical geometry policy. The policy derives diatonic stave position from each authored written letter and octave, reserves only the additional top or bottom space needed for noteheads, ledger lines, stems, accidentals, and ties, then shifts staves and expands the SVG coordinate space together. Ordinary-range notation retains its compact baseline height. Piece Practice receives the same behavior through its shared `StaffBuilderScoreView`; score data and schema remain unchanged.
+
 React owns semantic controls, focus, hover, highlights, hit testing, and pointer orchestration. Cross-domain pointer ownership is deterministic:
 
 1. original notation-control geometry;

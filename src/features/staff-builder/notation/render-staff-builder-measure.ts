@@ -17,6 +17,7 @@ import {
   type StaffBuilderPositionAnchor,
   type StaffBuilderTemporalGeometry,
 } from "./staff-builder-vexflow-rendering";
+import { getStaffBuilderVerticalGeometry } from "./staff-builder-vertical-geometry";
 
 export type { StaffBuilderEventAnchor, StaffBuilderPositionAnchor, StaffBuilderTemporalGeometry } from "./staff-builder-vexflow-rendering";
 
@@ -57,7 +58,7 @@ export type StaffBuilderMeasureRenderResult = Readonly<{
 }>;
 
 const RENDER_WIDTH = 760;
-const RENDER_HEIGHT = 300;
+const BASE_RENDER_HEIGHT = 300;
 const STAVE_X = 20;
 const TREBLE_Y = 55;
 const BASS_Y = 155;
@@ -66,15 +67,24 @@ const FORMAT_PADDING = 155;
 
 export function renderStaffBuilderMeasure(container: HTMLDivElement, score: StaffBuilderScore, measureIndex: number, options?: StaffBuilderMeasureRenderOptions): StaffBuilderMeasureRenderResult {
   const projection = projectStaffBuilderMeasure(score, measureIndex, options);
-  container.replaceChildren();
-  const renderer = new Renderer(container, Renderer.Backends.SVG);
-  renderer.resize(RENDER_WIDTH, RENDER_HEIGHT);
-  const context = renderer.getContext();
-  const staveWidth = RENDER_WIDTH - STAVE_X - STAVE_RIGHT_PADDING;
   const visibleStaff = options?.visibleStaff ?? "grand";
   const singleStaff = visibleStaff !== "grand";
-  const trebleStave = new Stave(STAVE_X, singleStaff ? 95 : TREBLE_Y, staveWidth).addClef("treble");
-  const bassStave = new Stave(STAVE_X, singleStaff ? 95 : BASS_Y, staveWidth).addClef("bass");
+  const baseTrebleY = singleStaff ? 95 : TREBLE_Y;
+  const baseBassY = singleStaff ? 95 : BASS_Y;
+  const vertical = getStaffBuilderVerticalGeometry({
+    pitchSources: [...projection.staves.treble, ...projection.staves.bass].flatMap((item) => item.kind === "notes" ? [{ staff: item.staff, pitches: item.pitches }] : []),
+    baseHeight: BASE_RENDER_HEIGHT,
+    trebleStaveY: baseTrebleY,
+    bassStaveY: baseBassY,
+    visibleStaff,
+  });
+  container.replaceChildren();
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(RENDER_WIDTH, vertical.height);
+  const context = renderer.getContext();
+  const staveWidth = RENDER_WIDTH - STAVE_X - STAVE_RIGHT_PADDING;
+  const trebleStave = new Stave(STAVE_X, vertical.trebleStaveY, staveWidth).addClef("treble");
+  const bassStave = new Stave(STAVE_X, vertical.bassStaveY, staveWidth).addClef("bass");
   const clefEndX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
   trebleStave.addKeySignature(projection.vexflowKeySignature);
   bassStave.addKeySignature(projection.vexflowKeySignature);
@@ -122,7 +132,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     new StaveTie({ firstNote, lastNote, firstIndexes: [tie.fromPitchIndex], lastIndexes: [tie.toPitchIndex] }).setContext(context).draw();
   });
 
-  configureStaffBuilderSvg(container, RENDER_WIDTH, RENDER_HEIGHT);
+  configureStaffBuilderSvg(container, RENDER_WIDTH, vertical.height);
   const eventAnchors = createStaffBuilderEventAnchors([...(visibleStaff === "bass" ? [] : trebleRendered), ...(visibleStaff === "treble" ? [] : bassRendered)]);
   const trebleTop = trebleStave.getTopLineTopY() - 28;
   const trebleBottom = trebleStave.getBottomLineBottomY() + 28;
@@ -149,7 +159,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     },
     projection,
     width: RENDER_WIDTH,
-    height: RENDER_HEIGHT,
-    coordinateSpace: { width: RENDER_WIDTH, height: RENDER_HEIGHT },
+    height: vertical.height,
+    coordinateSpace: { width: RENDER_WIDTH, height: vertical.height },
   };
 }

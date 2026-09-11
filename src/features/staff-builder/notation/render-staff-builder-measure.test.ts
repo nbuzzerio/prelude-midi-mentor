@@ -207,6 +207,31 @@ describe("renderStaffBuilderMeasure", () => {
     expect(result.coordinateSpace).toEqual({ width: result.width, height: result.height });
   });
 
+  it.each([
+    ["bass", 26, "D", 1],
+    ["bass", 38, "D", 2],
+    ["treble", 127, "G", 9],
+  ] as const)("keeps an extreme %s MIDI %i event inside its expanded SVG", (staff, midiNumber, letter, octave) => {
+    const current: StaffBuilderScore = { ...score(), measures: [{ id: "measure", events: [{ id: "extreme", kind: "notes", staff, startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [{ id: "extreme-p", midiNumber, letter, accidental: "natural", octave }] }] }], ties: [] };
+    const container = document.createElement("div");
+    const result = renderStaffBuilderMeasure(container, current, 0, { visibleStaff: staff });
+    const anchor = result.anchors.events.get("extreme")!;
+    expect(anchor.y).toBeGreaterThanOrEqual(0);
+    expect(anchor.y + anchor.height).toBeLessThanOrEqual(result.height);
+    expect(container.querySelector("svg")?.getAttribute("viewBox")).toBe(`0 0 760 ${result.height}`);
+  });
+
+  it("keeps extreme tied endpoints and their anchors inside the expanded coordinate space", () => {
+    const current: StaffBuilderScore = { ...score(), measures: [{ id: "measure", events: [
+      { id: "from", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "from-p", midiNumber: 127, letter: "G", accidental: "natural", octave: 9 }] },
+      { id: "to", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "to-p", midiNumber: 127, letter: "G", accidental: "natural", octave: 9 }] },
+    ] }], ties: [{ id: "extreme-tie", fromEventId: "from", fromPitchId: "from-p", toEventId: "to", toPitchId: "to-p" }] };
+    const tieDraw = vi.spyOn(StaveTie.prototype, "draw");
+    const result = renderStaffBuilderMeasure(document.createElement("div"), current, 0);
+    expect(tieDraw).toHaveBeenCalledTimes(1);
+    expect([...result.anchors.events.values()].every(({ y, height }) => y >= 0 && y + height <= result.height)).toBe(true);
+  });
+
   it.each(["c-major", "a-minor"] as const)("returns five usable public notation-control anchors for %s", (initialKeySignatureId) => {
     const result = renderStaffBuilderMeasure(document.createElement("div"), { ...score(), initialKeySignatureId }, 0);
     const controls = result.anchors.notationControls;

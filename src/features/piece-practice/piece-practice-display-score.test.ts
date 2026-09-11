@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PiecePracticePiece } from "./piece-practice-types";
 import { createPiecePracticeDisplayScore } from "./piece-practice-display-score";
 import { projectStaffBuilderMeasure } from "@/features/staff-builder/notation/staff-builder-notation";
+import { getStaffBuilderVerticalGeometry } from "@/features/staff-builder/notation/staff-builder-vertical-geometry";
 
 const piece: PiecePracticePiece = {
   sourceScoreId: "score", sourceScoreUpdatedAt: "2026-08-10T12:00:00.000Z", title: "Display", tempoBpm: 88,
@@ -33,5 +34,19 @@ describe("Piece Practice display score", () => {
   it("preserves authored rolled notation and its accessible meaning", () => {
     const display = createPiecePracticeDisplayScore(piece);
     expect(projectStaffBuilderMeasure(display, 0).summary.treble).toContain("arpeggiated chord C4, E4, rolled upward");
+  });
+
+  it("preserves extreme written pitches for the shared range-aware score renderer", () => {
+    const sourceEvent = piece.measures[0]?.sourceEvents[0];
+    if (!sourceEvent || sourceEvent.kind !== "notes") throw new Error("Expected note source event.");
+    const extreme: PiecePracticePiece = {
+      ...piece,
+      measures: [{ ...piece.measures[0]!, sourceEvents: [{ ...sourceEvent, pitches: [{ ...sourceEvent.pitches[0]!, midiNumber: 127, letter: "G", octave: 9 }] }] }],
+    };
+    const display = createPiecePracticeDisplayScore(extreme);
+    const event = display.measures[0]?.events[0];
+    expect(event?.kind).toBe("notes");
+    const pitchSources = event?.kind === "notes" ? [{ staff: event.staff, pitches: event.pitches }] : [];
+    expect(getStaffBuilderVerticalGeometry({ pitchSources, baseHeight: 300, trebleStaveY: 55, bassStaveY: 155 }).topReservation).toBeGreaterThan(0);
   });
 });
