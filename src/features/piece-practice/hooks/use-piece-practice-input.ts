@@ -5,6 +5,7 @@ import {
   getCurrentPiecePracticeTarget,
   expirePiecePracticeRolledChecks,
   getPiecePracticeRolledWindowMs,
+  skipCurrentPiecePracticeTarget,
   submitPiecePracticePitch,
   submitPiecePracticeAttempt,
   type PiecePracticeSessionState,
@@ -69,6 +70,16 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     clearTransientAttempts();
     setFeedback(IDLE_FEEDBACK);
   }, [clearTransientAttempts]);
+
+  const skipCurrentTarget = useCallback(() => {
+    const result = skipCurrentPiecePracticeTarget(piece, sessionStateRef.current);
+    if (!result.skipped) return false;
+    clearTransientAttempts();
+    setFeedback(IDLE_FEEDBACK);
+    sessionStateRef.current = result.state;
+    onSessionStateChange(result.state);
+    return true;
+  }, [clearTransientAttempts, onSessionStateChange, piece]);
 
   const submitAttack = useCallback((source: PiecePracticeInputSource, attackMidiNumbers: Iterable<number>, heldMidiNumbers: Iterable<number> = []) => {
     const currentState = sessionStateRef.current;
@@ -219,6 +230,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     midiHeldNotes,
     onVirtualNoteToggle,
     resetInput,
+    skipCurrentTarget,
     virtualSelectedMidiNumbers,
   };
 }

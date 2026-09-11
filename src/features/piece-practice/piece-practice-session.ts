@@ -23,6 +23,8 @@ export type PiecePracticeSessionState = Readonly<{
   currentMeasureIndex: number;
   currentTargetIndex: number | null;
   completedTargetCount: number;
+  skippedTargetCount: number;
+  currentMeasureCompletedTargetCount: number;
   completedMeasureCount: number;
   completedMeasureIndexes: readonly number[];
   incorrectAttemptCount: number;
@@ -45,12 +47,17 @@ export type AdvancePiecePracticeMeasureResult =
   | Readonly<{ advanced: false; reason: "not-awaiting-explicit-advance"; state: PiecePracticeSessionState }>
   | Readonly<{ advanced: true; state: PiecePracticeSessionState }>;
 
+export type SkipPiecePracticeTargetResult =
+  | Readonly<{ skipped: false; reason: "no-authored-target"; state: PiecePracticeSessionState }>
+  | Readonly<{ skipped: true; state: PiecePracticeSessionState }>;
+
 export type PiecePracticeProgress = Readonly<{
   currentMeasureNumber: number;
   totalPieceMeasures: number;
   practiceMeasureCount: number;
   practicedMeasureCount: number;
   completedTargetCount: number;
+  skippedTargetCount: number;
   incorrectAttemptCount: number;
   elapsedMs: number;
   status: PiecePracticeSessionStatus;
@@ -94,7 +101,7 @@ function targetForState(piece: PiecePracticePiece, state: Pick<PiecePracticeSess
   return state.boundaryReattackPending ? addBoundaryReattacks(piece, measure, target) : target ?? null;
 }
 
-function stateForMeasure(piece: PiecePracticePiece, base: Omit<PiecePracticeSessionState, "currentMeasureIndex" | "currentTargetIndex" | "status" | "currentTargetIncorrectAttemptCount" | "currentCheckProgress" | "boundaryReattackPending">, measure: PiecePracticeMeasure, boundaryReattack: boolean): PiecePracticeSessionState {
+function stateForMeasure(piece: PiecePracticePiece, base: Omit<PiecePracticeSessionState, "currentMeasureIndex" | "currentTargetIndex" | "status" | "currentTargetIncorrectAttemptCount" | "currentCheckProgress" | "boundaryReattackPending" | "currentMeasureCompletedTargetCount">, measure: PiecePracticeMeasure, boundaryReattack: boolean): PiecePracticeSessionState {
   const boundaryPitches = boundaryReattack ? getPiecePracticeBoundaryReattackPitches(piece, measure.measureIndex) : [];
   const boundaryBeforeFirstTarget = boundaryPitches.length > 0 && (measure.targets[0]?.startTick ?? Number.POSITIVE_INFINITY) > 0;
   const hasTargets = measure.targets.length > 0 || boundaryPitches.length > 0;
@@ -104,6 +111,7 @@ function stateForMeasure(piece: PiecePracticePiece, base: Omit<PiecePracticeSess
     currentTargetIndex: hasTargets ? boundaryBeforeFirstTarget ? -1 : 0 : null,
     boundaryReattackPending: boundaryPitches.length > 0,
     currentTargetIncorrectAttemptCount: 0,
+    currentMeasureCompletedTargetCount: 0,
     status: hasTargets ? "practicing" as const : "awaiting-explicit-measure-advance" as const,
   };
   return { ...partial, currentCheckProgress: progressForTarget(targetForState(piece, partial)) };
@@ -120,6 +128,7 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
     state: stateForMeasure(piece, {
       startMeasureIndex: options.startMeasureIndex,
       completedTargetCount: 0,
+      skippedTargetCount: 0,
       completedMeasureCount: 0,
       completedMeasureIndexes: [],
       incorrectAttemptCount: 0,
@@ -189,12 +198,40 @@ function advanceCompletedTarget(piece: PiecePracticePiece, state: PiecePracticeS
   const measure = piece.measures[state.currentMeasureIndex];
   if (!measure) return state;
   const completedBoundaryOnly = state.boundaryReattackPending && state.currentTargetIndex === -1;
-  const completedTargetCount = state.completedTargetCount + (completedBoundaryOnly ? 0 : 1);
-  const nextTargetIndex = completedBoundaryOnly ? 0 : (state.currentTargetIndex ?? 0) + 1;
+  if (!completedBoundaryOnly) return advancePastAuthoredTarget(piece, state, {
+    completedTargetCount: state.completedTargetCount + 1,
+    currentMeasureCompletedTargetCount: state.currentMeasureCompletedTargetCount + 1,
+  });
+  const nextTargetIndex = 0;
   const withoutBoundary = { ...state, boundaryReattackPending: false };
   return nextTargetIndex < measure.targets.length
-    ? { ...withoutBoundary, completedTargetCount, currentTargetIndex: nextTargetIndex, currentTargetIncorrectAttemptCount: 0, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
-    : completeCurrentMeasure(piece, { ...withoutBoundary, completedTargetCount });
+    ? { ...withoutBoundary, currentTargetIndex: nextTargetIndex, currentTargetIncorrectAttemptCount: 0, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
+    : completeCurrentMeasure(piece, withoutBoundary);
+}
+
+function advancePastAuthoredTarget(
+  piece: PiecePracticePiece,
+  state: PiecePracticeSessionState,
+  counters: Partial<Pick<PiecePracticeSessionState, "completedTargetCount" | "skippedTargetCount" | "currentMeasureCompletedTargetCount">>,
+): PiecePracticeSessionState {
+  const measure = piece.measures[state.currentMeasureIndex];
+  if (!measure || state.currentTargetIndex === null || state.currentTargetIndex < 0) return state;
+  const nextTargetIndex = state.currentTargetIndex + 1;
+  const advanced = { ...state, ...counters, boundaryReattackPending: false };
+  return nextTargetIndex < measure.targets.length
+    ? { ...advanced, currentTargetIndex: nextTargetIndex, currentTargetIncorrectAttemptCount: 0, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
+    : completeCurrentMeasure(piece, advanced);
+}
+
+export function skipCurrentPiecePracticeTarget(piece: PiecePracticePiece, state: PiecePracticeSessionState): SkipPiecePracticeTargetResult {
+  const measure = piece.measures[state.currentMeasureIndex];
+  if (state.status !== "practicing" || state.currentTargetIndex === null || state.currentTargetIndex < 0 || !measure?.targets[state.currentTargetIndex]) {
+    return { skipped: false, reason: "no-authored-target", state };
+  }
+  return {
+    skipped: true,
+    state: advancePastAuthoredTarget(piece, state, { skippedTargetCount: state.skippedTargetCount + 1 }),
+  };
 }
 
 export function submitPiecePracticePitch(piece: PiecePracticePiece, state: PiecePracticeSessionState, input: Readonly<{
@@ -273,10 +310,7 @@ export function restartCurrentPiecePracticeMeasure(piece: PiecePracticePiece, st
   const completedMeasureIndexes = wasCompleted
     ? state.completedMeasureIndexes.filter((measureIndex) => measureIndex !== state.currentMeasureIndex)
     : state.completedMeasureIndexes;
-  const completedInCurrentMeasure = wasCompleted
-    ? measure.targets.length
-    : state.status === "practicing" ? Math.max(0, state.currentTargetIndex ?? 0) : 0;
-  const completedTargetCount = Math.max(0, state.completedTargetCount - completedInCurrentMeasure);
+  const completedTargetCount = Math.max(0, state.completedTargetCount - state.currentMeasureCompletedTargetCount);
   return stateForMeasure(piece, {
     ...state,
     completedTargetCount,
@@ -292,6 +326,7 @@ export function restartPiecePractice(piece: PiecePracticePiece, state: PiecePrac
   return stateForMeasure(piece, {
     startMeasureIndex: state.startMeasureIndex,
     completedTargetCount: 0,
+    skippedTargetCount: 0,
     completedMeasureCount: 0,
     completedMeasureIndexes: [],
     incorrectAttemptCount: 0,
@@ -311,6 +346,7 @@ export function getPiecePracticeProgress(piece: PiecePracticePiece, state: Piece
     practiceMeasureCount: piece.measures.length - state.startMeasureIndex,
     practicedMeasureCount: state.completedMeasureCount,
     completedTargetCount: state.completedTargetCount,
+    skippedTargetCount: state.skippedTargetCount,
     incorrectAttemptCount: state.incorrectAttemptCount,
     elapsedMs: getPiecePracticeElapsedMs(state, nowMs),
     status: state.status,

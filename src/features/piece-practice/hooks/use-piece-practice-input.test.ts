@@ -179,6 +179,30 @@ describe("usePiecePracticeInput", () => {
     expect(view.onSessionStateChange).not.toHaveBeenCalled();
   });
 
+  it("skips through the input owner and clears chord, virtual-selection, and feedback state", () => {
+    const physical = setup(piece([[[60, 64], [67]]]));
+    midiHeld(61);
+    midiNote(61);
+    act(() => vi.advanceTimersByTime(225));
+    expect(physical.result.current.feedback.status).toBe("incorrect");
+    midiNote(60);
+    expect([...physical.result.current.midiChordAttemptMidiNumbers]).toEqual([60]);
+    act(() => expect(physical.result.current.skipCurrentTarget()).toBe(true));
+    expect(physical.getState()).toMatchObject({ currentTargetIndex: 1, completedTargetCount: 0, skippedTargetCount: 1 });
+    expect(physical.result.current.feedback.status).toBe("idle");
+    expect(physical.result.current.midiChordAttemptMidiNumbers.size).toBe(0);
+    act(() => vi.advanceTimersByTime(225));
+    expect(physical.onSessionStateChange).toHaveBeenCalledTimes(2);
+    physical.unmount();
+
+    const virtual = setup(piece([[[60, 64, 67], [72]]]));
+    act(() => virtual.result.current.onVirtualNoteToggle(60));
+    expect([...virtual.result.current.virtualSelectedMidiNumbers]).toEqual([60]);
+    act(() => expect(virtual.result.current.skipCurrentTarget()).toBe(true));
+    expect(virtual.result.current.virtualSelectedMidiNumbers.size).toBe(0);
+    expect(virtual.getState()).toMatchObject({ currentTargetIndex: 1, completedTargetCount: 0, skippedTargetCount: 1 });
+  });
+
   it("allows a pitch only while its authored sounding span covers the later target", () => {
     const source = { ...piece([[[60], [64], [67]]]), soundingSpans: [{ originEventId: "event-0-0", originPitchId: "p-0", staff: "treble" as const, midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["event-0-0:p-0"] }] };
     const view = setup(source);

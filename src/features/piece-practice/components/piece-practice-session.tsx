@@ -134,6 +134,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><dt className="text-sm text-zinc-400">Measures practiced</dt><dd className="text-xl font-bold">{progress.practicedMeasureCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Completed targets</dt><dd className="text-xl font-bold">{progress.completedTargetCount}</dd></div>
+        {progress.skippedTargetCount > 0 ? <div><dt className="text-sm text-zinc-400">Skipped targets</dt><dd className="text-xl font-bold">{progress.skippedTargetCount}</dd></div> : null}
         <div><dt className="text-sm text-zinc-400">Mistakes</dt><dd className="text-xl font-bold">{progress.incorrectAttemptCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
@@ -166,6 +167,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} />
         {feedback.status === "correct" ? <p className="rounded-md border border-green-600 bg-green-950 p-3 font-semibold text-green-200">✓ Correct</p> : null}
         {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map((midi) => `MIDI ${midi}`).join(", ")}</p> : null}</div> : null}
+        {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" onClick={input.skipCurrentTarget} type="button">Skip Target</button> : null}
         {sessionState.status === "awaiting-explicit-measure-advance" ? <button className="justify-self-start rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={() => {
           const result = advancePiecePracticeNoAttackMeasure(piece, sessionState);
           if (result.advanced) { input.resetInput(); onSessionStateChange(result.state); }

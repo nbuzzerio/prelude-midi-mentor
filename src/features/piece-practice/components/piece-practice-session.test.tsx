@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
-import { submitPiecePracticeAttempt } from "../piece-practice-session";
+import { skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt } from "../piece-practice-session";
 import type { PiecePracticeInputFeedback } from "../hooks/use-piece-practice-input";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
 import { PiecePracticeSession } from "./piece-practice-session";
@@ -45,6 +45,14 @@ vi.mock("../hooks/use-piece-practice-input", () => ({
       connectMidi: vi.fn(), deviceName: "Test Piano", error: null, status: "connected",
       feedback: mocks.feedback, midiChordAttemptMidiNumbers: new Set<number>(), midiHeldNotes: new Set<number>(),
       virtualSelectedMidiNumbers: new Set<number>(), onVirtualNoteToggle: (midiNumber: number) => submit([midiNumber]), resetInput: mocks.resetInput,
+      skipCurrentTarget: () => {
+        const result = skipCurrentPiecePracticeTarget(options.piece, options.sessionState);
+        if (!result.skipped) return false;
+        mocks.feedback = { status: "idle", source: null, grade: null };
+        mocks.resetInput();
+        options.onSessionStateChange(result.state);
+        return true;
+      },
     };
   },
 }));
@@ -201,9 +209,19 @@ describe("PiecePracticeSession", () => {
       { ...source.measures[2]!, measureIndex: 2 },
     ] };
     start(extraRest);
+    expect(screen.queryByRole("button", { name: "Skip Target" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
     expect(screen.getByText("Measure 2 of 3")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Next Measure" })).toBeTruthy();
+  });
+
+  it("offers Skip Target only for authored attacks and reports neutral skip completion", () => {
+    start(piece(), 3);
+    fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
+    expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
+    expect(screen.getByText("Completed targets").parentElement?.querySelector("dd")?.textContent).toBe("0");
+    expect(screen.getByText("Skipped targets").parentElement?.querySelector("dd")?.textContent).toBe("1");
+    expect(mocks.resetInput).toHaveBeenCalledTimes(1);
   });
 
   it("resets transient input for Restart Measure and Restart Piece, including the same target", () => {

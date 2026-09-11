@@ -12,6 +12,7 @@ import {
   expirePiecePracticeRolledChecks,
   restartCurrentPiecePracticeMeasure,
   restartPiecePractice,
+  skipCurrentPiecePracticeTarget,
   submitPiecePracticeAttempt,
   submitPiecePracticePitch,
   type PiecePracticeSessionState,
@@ -139,6 +140,86 @@ function accepted(source: PiecePracticePiece, state: PiecePracticeSessionState, 
 }
 
 describe("Piece Practice blocking session", () => {
+  it("skips one authored onset without credit and advances through measure and piece completion", () => {
+    const source = piece([2, 1]);
+    let state = initialized(source);
+    const before = structuredClone(source);
+
+    const first = skipCurrentPiecePracticeTarget(source, state);
+    expect(first.skipped).toBe(true);
+    state = first.state;
+    expect(state).toMatchObject({ currentMeasureIndex: 0, currentTargetIndex: 1, completedTargetCount: 0, skippedTargetCount: 1, completedMeasureCount: 0 });
+
+    const measureEnd = skipCurrentPiecePracticeTarget(source, state);
+    expect(measureEnd.skipped).toBe(true);
+    state = measureEnd.state;
+    expect(state).toMatchObject({ currentMeasureIndex: 1, currentTargetIndex: 0, completedTargetCount: 0, skippedTargetCount: 2, completedMeasureCount: 1 });
+
+    const pieceEnd = skipCurrentPiecePracticeTarget(source, state);
+    expect(pieceEnd.skipped).toBe(true);
+    expect(pieceEnd.state).toMatchObject({ status: "piece-complete", completedTargetCount: 0, skippedTargetCount: 3, completedMeasureCount: 2 });
+    expect(source).toEqual(before);
+  });
+
+  it("skips a mixed normal and rolled onset once and discards its partial check progress", () => {
+    const first = checkedPiece([check("normal", "normal", [72]), check("rolled-chord", "roll", [48, 52, 55])]);
+    const next = target(0, 1, [76]);
+    const source = { ...first, measures: [{ ...first.measures[0]!, targets: [first.measures[0]!.targets[0]!, next] }] };
+    let state = submitPiecePracticePitch(source, initialized(source), { targetId: "m1:attack:0", midiNumber: 48, atMs: 10 }).state;
+    expect(state.currentCheckProgress[1]).toMatchObject({ accumulatedMidiNumbers: [48], startedAtMs: 10 });
+
+    const result = skipCurrentPiecePracticeTarget(source, state);
+    expect(result.skipped).toBe(true);
+    state = result.state;
+    expect(state).toMatchObject({ currentTargetIndex: 1, completedTargetCount: 0, skippedTargetCount: 1, currentTargetIncorrectAttemptCount: 0 });
+    expect(state.currentCheckProgress).toEqual([{ checkId: next.checks[0]!.id, completed: false, accumulatedMidiNumbers: [], startedAtMs: null }]);
+  });
+
+  it("retains run-level skips on Restart Measure and resets them on Restart Piece", () => {
+    const source = piece([2]);
+    const skipped = skipCurrentPiecePracticeTarget(source, initialized(source));
+    if (!skipped.skipped) throw new Error("Expected an authored target.");
+    expect(restartCurrentPiecePracticeMeasure(source, skipped.state)).toMatchObject({ currentTargetIndex: 0, completedTargetCount: 0, skippedTargetCount: 1 });
+    expect(restartPiecePractice(source, skipped.state, 2_000)).toMatchObject({ currentTargetIndex: 0, completedTargetCount: 0, skippedTargetCount: 0 });
+  });
+
+  it("rolls back only successful targets from the restarted measure when skips and prior measures coexist", () => {
+    const source = piece([1, 3]);
+    let state = accepted(source, initialized(source));
+    const skipped = skipCurrentPiecePracticeTarget(source, state);
+    if (!skipped.skipped) throw new Error("Expected an authored target.");
+    state = accepted(source, skipped.state);
+    expect(state).toMatchObject({ currentMeasureIndex: 1, currentTargetIndex: 2, completedTargetCount: 2, skippedTargetCount: 1 });
+
+    expect(restartCurrentPiecePracticeMeasure(source, state)).toMatchObject({
+      currentMeasureIndex: 1,
+      currentTargetIndex: 0,
+      completedTargetCount: 1,
+      skippedTargetCount: 1,
+      currentMeasureCompletedTargetCount: 0,
+    });
+  });
+
+  it("does not expose boundary-only reattacks as skippable but skips a merged authored boundary once", () => {
+    const boundaryOnly = projectedTiedBoundaryPiece();
+    const boundaryState = initialized(boundaryOnly, 1);
+    expect(boundaryState).toMatchObject({ currentTargetIndex: -1, boundaryReattackPending: true, completedTargetCount: 0, skippedTargetCount: 0 });
+    expect(skipCurrentPiecePracticeTarget(boundaryOnly, boundaryState)).toEqual({ skipped: false, reason: "no-authored-target", state: boundaryState });
+
+    const merged = projectedTiedBoundaryPiece(true);
+    const mergedState = initialized(merged, 1);
+    const result = skipCurrentPiecePracticeTarget(merged, mergedState);
+    expect(result.skipped).toBe(true);
+    expect(result.state).toMatchObject({ currentTargetIndex: 1, boundaryReattackPending: false, completedTargetCount: 0, skippedTargetCount: 1 });
+  });
+
+  it("leaves authored tied sounding spans unchanged when their onset is skipped", () => {
+    const source = projectedTiedBoundaryPiece(true);
+    const before = structuredClone(source.soundingSpans);
+    const result = skipCurrentPiecePracticeTarget(source, initialized(source, 1));
+    expect(result.skipped).toBe(true);
+    expect(source.soundingSpans).toEqual(before);
+  });
   it("grades and blocks a real polyphonic projection without voice-specific session state", () => {
     const source = projectedPolyphonicPiece();
     const before = structuredClone(source);
@@ -344,6 +425,7 @@ describe("Piece Practice blocking session", () => {
       practiceMeasureCount: 2,
       practicedMeasureCount: 1,
       completedTargetCount: 1,
+      skippedTargetCount: 0,
       incorrectAttemptCount: 0,
       elapsedMs: 1_250,
       status: "practicing",
