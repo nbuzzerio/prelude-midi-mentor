@@ -1,11 +1,11 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** v2.6.0 Practice Sessions release candidate prepared, ahead of the repository owner's manual tag
+> **Status:** v2.6.2 Staff Builder tie/pedal hotfix prepared, ahead of the repository owner's manual deployment and tag
 
-The current automated baseline is 1,770 passing tests across 157 test files. The complete `pnpm verify` workflow passes ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session interaction and presentation QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
+The current automated baseline is 1,853 passing tests across 160 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session interaction and presentation QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
 
 > **Latest repository tag:** v2.5.0
-> **Last updated:** September 7, 2026
+> **Last updated:** September 12, 2026
 
 ## Purpose
 
@@ -344,7 +344,7 @@ Automated coverage includes:
 
 - canonical schema v3 score-domain invariants, v1/v2 migration, unsupported/corrupt data, measure context, meter capacity, notes, chords, rests, ties, annotations, and upward arpeggiation
 - Capture Notes routing, rhythmic cursor movement, pending input, replacement, and rest insertion
-- Rhythm Correction selection, duration, event type, staff, spelling, temporally contiguous pitch-level ties and chains, deletion, and score history
+- Rhythm Correction selection, duration, event type, staff, spelling, independent incoming/outgoing pitch-level ties, long chains, partial chord ties, deletion, and score history
 - validation, guided corrections, draft persistence, validated Save, and local project recovery
 - direct-score `.prelude.json` serialization, schema-validated import, round trips, collision-safe insertion, and accessible library file actions
 - full-piece, treble-range, and bass-range duplication with fresh copy identity and source immutability
@@ -460,7 +460,7 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - rapid Replay replacement, mode switching, reset, and settings changes during playback
 - Ear Training answer-grid touch targets, keyboard focus, and screen-reader announcements
 - Staff Builder physical MIDI capture and same-position replacement in treble, bass, and grand routing
-- Staff Builder’s browser-local pedal Lock In preference: default/read/write/error handling, normalized pedal-down capture, pedal-up suppression, authoring guards, and unchanged score/draft schemas
+- Staff Builder’s browser-local pedal Lock preference: default/read/write/error handling, valid capture commit/advance, empty-position advance, invalid-input suppression, pedal-up/repeated-down/stale-enable suppression, and unchanged score/draft schemas
 - range-aware Staff Builder notation geometry across ordinary and MIDI-endpoint written pitches, single/grand staves, editor SVG bounds, per-system Study View offsets, ties, and the shared Piece Practice score view
 - shared automatic beaming for simple and 6/8 meters, including eighth/sixteenth/mixed runs, beat boundaries, real rests, GhostNote offsets, genuine gaps, and independent derived voices
 - discoverable per-pitch Staff Builder enharmonic controls, musical-name accessibility, sharp/flat round trips, chord/tie isolation, key-change retention, score-file persistence, and MIDI-based Piece Practice grading

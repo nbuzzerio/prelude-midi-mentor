@@ -7,7 +7,8 @@ This document defines Prelude's release discipline and records the assumptions o
 Prelude uses Semantic Versioning and annotated Git tags named `vX.Y.Z`.
 
 - `package.json` is the authoritative source for the version displayed in the application UI.
-- A released package version must match its Git tag: package version `2.6.0` corresponds to tag `v2.6.0`.
+- Every product-code commit includes a version bump so the visible version can confirm deployment and installed-PWA activation. Use a patch bump by default; a minor or major bump requires explicit owner approval. Documentation-only commits are exempt only when the owner explicitly approves the exemption.
+- A released package version must match its Git tag: package version `2.6.2` corresponds to tag `v2.6.2`.
 - Backward-compatible feature additions generally require a minor version.
 - Backward-compatible fixes generally require a patch version unless the release context warrants a different choice.
 - Breaking product or compatibility changes require explicit review before selecting a major version.
@@ -15,7 +16,7 @@ Prelude uses Semantic Versioning and annotated Git tags named `vX.Y.Z`.
 
 ## Pre-Release Validation
 
-Keep the package version and Unreleased history unchanged while a candidate is still being evaluated. Before finalizing them:
+Keep Unreleased history accurate while a candidate is being evaluated. The package version still advances with every product-code commit. Before finalizing a release:
 
 1. Confirm the working tree starts clean and the intended commits are on `master`.
 2. Synchronize the README, architecture, roadmap, onboarding, testing, and release-history documentation with actual behavior.

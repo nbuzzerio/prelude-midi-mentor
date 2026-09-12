@@ -4,6 +4,7 @@ import { createStaffBuilderScore } from "../staff-builder-score";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import StaffBuilderSession from "./staff-builder-session";
+import { shouldSustainPedalLock } from "../staff-builder-capture";
 
 const { fileBoundary, midiBoundary, practiceBoundary } = vi.hoisted(() => ({
   fileBoundary: { download: vi.fn(), read: vi.fn() },
@@ -699,7 +700,7 @@ describe("Staff Builder session", () => {
     expect(draft.score.measures[0].events).toEqual([]);
   });
 
-  it("uses pedal-down to run the same enabled Lock In path exactly once", () => {
+  it("uses pedal-down to advance an empty Lock position and does not retrigger while held", () => {
     const storage = new MemoryStorage();
     render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
@@ -707,16 +708,20 @@ describe("Staff Builder session", () => {
     expect((screen.getByRole("button", { name: "Lock pitches and continue" }) as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
     act(() => midiBoundary.onSustain?.(true));
-    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+    expect(screen.getByText(/Beat 2 .*tick 480/)).toBeTruthy();
+    act(() => midiBoundary.onSustain?.(true));
+    expect(screen.getByText(/Beat 2 .*tick 480/)).toBeTruthy();
+    act(() => midiBoundary.onSustain?.(false));
+    expect(screen.getByText(/Beat 2 .*tick 480/)).toBeTruthy();
 
     act(() => midiBoundary.onNote?.(60));
     expect((screen.getByRole("button", { name: "Lock pitches and continue" }) as HTMLButtonElement).disabled).toBe(false);
     act(() => midiBoundary.onSustain?.(true));
-    expect(screen.getByText(/quarter note C4 at tick 0/)).toBeTruthy();
-    expect(screen.getByText(/Beat 2 .*tick 480/)).toBeTruthy();
+    expect(screen.getByText(/quarter note C4 at tick 480/)).toBeTruthy();
+    expect(screen.getByText(/Beat 3 .*tick 960/)).toBeTruthy();
     let draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.score.measures[0].events).toHaveLength(1);
-    expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 480 });
+    expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 960 });
     expect(draft.score).not.toHaveProperty("sustainPedalLocksInput");
 
     act(() => midiBoundary.onNote?.(60));
@@ -726,26 +731,19 @@ describe("Staff Builder session", () => {
     expect(buttonEvent).toMatchObject({
       ...pedalEvent,
       id: expect.any(String),
-      startTick: 480,
+      startTick: 960,
       pitches: pedalEvent.pitches.map((pitch: { id: string }) => ({ ...pitch, id: expect.any(String) })),
     });
-    expect(draft.captureState.cursor).toEqual({ measureIndex: 0, offsetTicks: 960 });
+    expect(draft.captureState.cursor).toEqual({ measureIndex: 1, offsetTicks: 0 });
   });
 
-  it("does not let pedal-down advance an invalid pending capture", () => {
-    const storage = new MemoryStorage();
-    render(<StaffBuilderSession storage={storage} />);
-    dismissIntroduction();
-    createPiece("Invalid Pedal Capture");
-    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
-    act(() => midiBoundary.onNote?.(128));
-    act(() => midiBoundary.onSustain?.(true));
-    const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
-    expect(draft.score.measures[0].events).toEqual([]);
-    expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
+  it("distinguishes invalid pending input from an empty Lock position", () => {
+    expect(shouldSustainPedalLock(false, false)).toBe(true);
+    expect(shouldSustainPedalLock(true, true)).toBe(true);
+    expect(shouldSustainPedalLock(true, false)).toBe(false);
   });
 
-  it("ignores pedal-up, disabled, empty, stale-enabling, and non-capture pedal events", () => {
+  it("ignores pedal-up, disabled, stale-enabling, and non-capture pedal events", () => {
     const storage = new MemoryStorage();
     render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();

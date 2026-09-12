@@ -331,6 +331,32 @@ describe("Staff Builder piece-practice projection", () => {
     expect(target?.sourceEventIds).toEqual(["cover-2", "destination"]);
   });
 
+  it("keeps Bells-style chained chord pitches held while fresh chord pitches reattack", () => {
+    const chord = (eventId: string, suffix: string) => notes(eventId, "treble", 0, "whole", [
+      pitch(`d-${suffix}`, 74, "D", "natural", 5),
+      pitch(`f-${suffix}`, 77, "F", "natural", 5),
+      pitch(`a-${suffix}`, 81, "A", "natural", 5),
+    ]);
+    const source = score({ measures: [
+      { id: "m1", events: [chord("chord-1", "1"), rest("bass-1", "bass", 0, "whole")] },
+      { id: "m2", events: [chord("chord-2", "2"), rest("bass-2", "bass", 0, "whole")] },
+      { id: "m3", events: [chord("chord-3", "3"), rest("bass-3", "bass", 0, "whole")] },
+    ], ties: [
+      { id: "d-12", fromEventId: "chord-1", fromPitchId: "d-1", toEventId: "chord-2", toPitchId: "d-2" },
+      { id: "f-12", fromEventId: "chord-1", fromPitchId: "f-1", toEventId: "chord-2", toPitchId: "f-2" },
+      { id: "d-23", fromEventId: "chord-2", fromPitchId: "d-2", toEventId: "chord-3", toPitchId: "d-3" },
+      { id: "f-23", fromEventId: "chord-2", fromPitchId: "f-2", toEventId: "chord-3", toPitchId: "f-3" },
+    ] });
+    const piece = projected(source);
+    expect(piece.measures.map((measure) => measure.targets[0]?.expectedMidiNumbers)).toEqual([[74, 77, 81], [81], [81]]);
+    expect(piece.measures[1]?.sourceEvents[0]).toMatchObject({ kind: "notes", pitches: [
+      { midiNumber: 74, requiresAttack: false, incomingTieIds: ["d-12"], outgoingTieIds: ["d-23"] },
+      { midiNumber: 77, requiresAttack: false, incomingTieIds: ["f-12"], outgoingTieIds: ["f-23"] },
+      { midiNumber: 81, requiresAttack: true, incomingTieIds: [], outgoingTieIds: [] },
+    ] });
+    expect(piece.soundingSpans?.filter(({ midiNumber }) => midiNumber === 74 || midiNumber === 77).map(({ attackTick, endTick }) => [attackTick, endTick])).toEqual([[0, 5760], [0, 5760]]);
+  });
+
   it("uses Staff Builder union-gap validation as the polyphonic eligibility gate", () => {
     const valid = score({ timeSignature: "6/8", measures: [{ id: "m1", events: [
       notes("sustain", "treble", 0, "dotted-quarter", [pitch("e", 64, "E")]), notes("c", "treble", 480, "eighth", [pitch("c-p", 60)]),

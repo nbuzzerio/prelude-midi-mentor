@@ -8,6 +8,12 @@ import { getStaffBuilderTieCycleIds, locateStaffBuilderPitches, staffBuilderPitc
 export type StaffBuilderCorrectionError = "event-missing" | "pitch-missing" | "invalid-timing" | "conflict" | "tie-conflict" | "incompatible-pitch" | "unsupported-span" | "stale-correction";
 export type StaffBuilderCorrectionResult = Readonly<{ ok: true; score: StaffBuilderScore }> | Readonly<{ ok: false; error: StaffBuilderCorrectionError; score: StaffBuilderScore }>;
 export type StaffBuilderGapCorrectionTarget = Readonly<{ measureIndex: number; staff: StaffBuilderStaff; startTick: number; endTick: number }>;
+export type StaffBuilderTieDirection = "incoming" | "outgoing";
+export type StaffBuilderTieCandidate = Readonly<{
+  direction: StaffBuilderTieDirection;
+  eventId: string;
+  pitchId: string;
+}>;
 
 const defaultFactories: StaffBuilderFactories = { createId: () => crypto.randomUUID(), now: () => new Date().toISOString() };
 const ORDERED_DURATIONS = [...STAFF_BUILDER_DURATIONS].sort((a, b) => durationToTicks(b) - durationToTicks(a) || a.localeCompare(b));
@@ -35,6 +41,35 @@ function findEvent(score: StaffBuilderScore, eventId: string): Readonly<{ event:
 
 function sameSoundingPitch(left: StaffBuilderPitch, right: StaffBuilderPitch): boolean {
   return left.midiNumber === right.midiNumber;
+}
+
+export function getStaffBuilderPitchTieCandidate(score: StaffBuilderScore, eventId: string, pitchId: string, direction: StaffBuilderTieDirection): StaffBuilderTieCandidate | null {
+  const current = findEvent(score, eventId);
+  if (!current || current.event.kind !== "notes" || current.event.rhythm.status !== "final") return null;
+  const pitch = current.event.pitches.find(({ id }) => id === pitchId);
+  if (!pitch) return null;
+  const endpointKey = staffBuilderPitchEndpointKey(eventId, pitchId);
+  const alreadyTied = score.ties.some((tie) => direction === "incoming"
+    ? staffBuilderPitchEndpointKey(tie.toEventId, tie.toPitchId) === endpointKey
+    : staffBuilderPitchEndpointKey(tie.fromEventId, tie.fromPitchId) === endpointKey);
+  if (alreadyTied) return null;
+  const located = locateStaffBuilderPitches(score);
+  const currentLocation = located.get(endpointKey);
+  if (!currentLocation) return null;
+  const candidates = [...located.values()].filter((candidate) => candidate.event.staff === current.event.staff
+    && candidate.pitch.midiNumber === pitch.midiNumber
+    && (direction === "incoming"
+      ? candidate.absoluteEndTick === currentLocation.absoluteStartTick
+        && !score.ties.some((tie) => tie.toEventId === eventId && tie.toPitchId === pitchId)
+        && !score.ties.some((tie) => tie.fromEventId === candidate.event.id && tie.fromPitchId === candidate.pitch.id)
+      : candidate.absoluteStartTick === currentLocation.absoluteEndTick
+        && !score.ties.some((tie) => tie.fromEventId === eventId && tie.fromPitchId === pitchId)
+        && !score.ties.some((tie) => tie.toEventId === candidate.event.id && tie.toPitchId === candidate.pitch.id)));
+  const candidate = candidates.sort((left, right) => left.measureIndex - right.measureIndex
+    || left.event.startTick - right.event.startTick
+    || left.event.id.localeCompare(right.event.id)
+    || left.pitch.id.localeCompare(right.pitch.id))[direction === "incoming" ? candidates.length - 1 : 0];
+  return candidate ? { direction, eventId: candidate.event.id, pitchId: candidate.pitch.id } : null;
 }
 
 export function getStaffBuilderTieDestinationCandidates(score: StaffBuilderScore, fromEventId: string, fromPitchIds: readonly string[]): readonly StaffBuilderEvent[] {

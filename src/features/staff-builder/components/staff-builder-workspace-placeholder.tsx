@@ -1,4 +1,4 @@
-import type { StaffBuilderCaptureState } from "../staff-builder-capture";
+import { shouldSustainPedalLock, type StaffBuilderCaptureState } from "../staff-builder-capture";
 import { useEffect, useRef, useState } from "react";
 import { ALL_STAFF_BUILDER_ANNOTATION_LAYERS, type StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
 import { useStaffBuilderEditor, type StaffBuilderEditorPass, type StaffBuilderPersistedEditorState } from "../hooks/use-staff-builder-editor";
@@ -42,10 +42,13 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   const playback = useStaffBuilderPlayback(editor.score);
   const stopPlayback = playback.stop;
   const [studyViewOpen, setStudyViewOpen] = useState(false);
+  const sustainPedalDownRef = useRef(false);
   const midi = useStaffBuilderInput(
     (midiNumber) => { if (!studyViewOpen) editor.addMidiPitch(midiNumber); },
     (isDown) => {
-      if (isDown && sustainPedalLocksInput && !studyViewOpen && !editor.validation.active && editor.editorPass === "capture" && editor.canLockIn) editor.lockAndContinue();
+      const isNewDownEdge = isDown && !sustainPedalDownRef.current;
+      sustainPedalDownRef.current = isDown;
+      if (isNewDownEdge && sustainPedalLocksInput && !studyViewOpen && !editor.validation.active && editor.editorPass === "capture" && shouldSustainPedalLock(editor.hasPending, editor.canLockIn)) editor.lockAndContinue();
     },
   );
   const mobilePresentation = useStaffBuilderMobilePresentation();

@@ -31,6 +31,10 @@ export const DEFAULT_STAFF_BUILDER_CAPTURE_STATE: StaffBuilderCaptureState = {
   inputMode: "grand",
 };
 
+export function shouldSustainPedalLock(hasPending: boolean, canLockIn: boolean): boolean {
+  return !hasPending || canLockIn;
+}
+
 export function routeStaffBuilderCapturePitch(inputMode: StaffBuilderCaptureInputMode, midiNumber: number): StaffBuilderStaff {
   if (inputMode === "grand") return midiNumber < 60 ? "bass" : "treble";
   return inputMode;

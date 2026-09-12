@@ -10,6 +10,7 @@
 - Report the exact test-file and test counts after verification.
 - Flag architectural, music-theory, UX, accessibility, or testing risks before proceeding.
 - Do not silently expand the requested scope.
+- Every product-code commit must update the authoritative `package.json` version. Use a semantic patch bump by default unless the owner explicitly approves a minor or major release, and mention the proposed version in the implementation plan. Do not silently skip the bump. A documentation-only commit is exempt only with explicit owner approval. The UI must continue deriving its visible version from `package.json`, tests must derive from or be updated for that version, and Git tagging/releasing remains owner-controlled.
 
 ## Planning and approval
 
