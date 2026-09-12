@@ -7,6 +7,7 @@ import { useStaffBuilderMobilePresentation } from "../hooks/use-staff-builder-mo
 import { useStaffBuilderPlayback } from "../hooks/use-staff-builder-playback";
 import { describeStaffBuilderSelectedEvent, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScore } from "../staff-builder-types";
+import { getStaffBuilderEditorPracticeReadiness, type StaffBuilderValidatedSavedSnapshot } from "../staff-builder-practice-readiness";
 import { StaffBuilderCaptureControls } from "./staff-builder-capture-controls";
 import { StaffBuilderAnnotationsPanel } from "./staff-builder-annotations-panel";
 import { StaffBuilderCaptureStrip } from "./staff-builder-capture-strip";
@@ -23,7 +24,7 @@ import { StaffBuilderTempoControl } from "./staff-builder-tempo-control";
 import { StaffBuilderStudyView } from "./staff-builder-study-view";
 import { StaffBuilderValidationPanel } from "./staff-builder-validation-panel";
 
-export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave, onClose, savingAvailable, sustainPedalLocksInput, onSustainPedalLocksInputChange }: Readonly<{
+export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave, onClose, onPracticePiece, savingAvailable, sustainPedalLocksInput, onSustainPedalLocksInputChange, validatedSavedSnapshot }: Readonly<{
   score: StaffBuilderScore;
   initialCaptureState: StaffBuilderCaptureState;
   initialEditorPass: StaffBuilderEditorPass;
@@ -31,9 +32,11 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   onDraftChange: (score: StaffBuilderScore, editorState: StaffBuilderPersistedEditorState) => unknown;
   onValidatedSave: (score: StaffBuilderScore, editorState: StaffBuilderPersistedEditorState) => Readonly<{ ok: boolean }>;
   onClose: () => void;
+  onPracticePiece: (score: StaffBuilderScore) => void;
   savingAvailable: boolean;
   sustainPedalLocksInput: boolean;
   onSustainPedalLocksInputChange: (enabled: boolean) => void;
+  validatedSavedSnapshot: StaffBuilderValidatedSavedSnapshot | null;
 }>) {
   const editor = useStaffBuilderEditor({ score, initialCaptureState, initialEditorPass, initialRhythmState, onDraftChange, onValidatedSave });
   const playback = useStaffBuilderPlayback(editor.score);
@@ -76,6 +79,14 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   const playFromHere = () => playback.playFromHere(fromHerePosition);
   const rhythmSelectionId = !editor.validation.active && editor.editorPass === "rhythm" ? editor.rhythm.selection?.eventId ?? null : null;
   const selectedAnnotationEventId = rhythmSelectionId && editor.score.measures[visibleMeasureIndex]?.events.some((event) => event.id === rhythmSelectionId) ? rhythmSelectionId : null;
+  const practiceReadiness = getStaffBuilderEditorPracticeReadiness({
+    score: editor.score,
+    validatedSavedSnapshot,
+    issueCount: editor.validation.issues.length,
+    hasPendingCapture: editor.hasPending,
+    savingAvailable,
+  });
+  const practiceReasonId = "staff-builder-editor-practice-reason";
 
   const closeMobileKeyboard = () => {
     setMobileKeyboardState({ ownerAvailable: mobileKeyboardOwnerAvailable, open: false });
@@ -103,7 +114,7 @@ export function StaffBuilderWorkspacePlaceholder({ score, initialCaptureState, i
   if (studyViewOpen) return <StaffBuilderStudyView onExit={() => setStudyViewOpen(false)} onHideAllAnnotationLayers={() => setVisibleAnnotationLayers(new Set())} onLayerVisibilityChange={setAnnotationLayerVisibility} onShowAllAnnotationLayers={() => setVisibleAnnotationLayers(new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS))} score={editor.score} visibleAnnotationLayers={visibleAnnotationLayers} />;
 
   return <section className={`staff-builder-panel${showMobileKeyboard ? " staff-builder-mobile-keyboard-open" : ""}`} aria-labelledby="staff-builder-workspace-title">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold" id="staff-builder-workspace-title" ref={workspaceHeadingRef} tabIndex={-1}>{editor.score.title}</h2><p className={savingAvailable ? "text-sky-300" : "text-amber-300"}>{savingAvailable ? `${editor.validation.issues.length === 0 ? "Ready to save" : "Needs validation"} · Draft saved automatically.` : "In memory · Local saving unavailable"}</p></div><button className="staff-builder-secondary-button" onClick={() => { if (window.confirm("Return to Piece Library?")) onClose(); }} type="button">Piece Library</button></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold" id="staff-builder-workspace-title" ref={workspaceHeadingRef} tabIndex={-1}>{editor.score.title}</h2><p className={savingAvailable ? "text-sky-300" : "text-amber-300"}>{savingAvailable ? `${editor.validation.issues.length === 0 ? "Ready to save" : "Needs validation"} · Draft saved automatically.` : "In memory · Local saving unavailable"}</p></div><div className="flex flex-wrap items-start gap-2"><div><button aria-describedby={!practiceReadiness.ready ? practiceReasonId : undefined} className="staff-builder-primary-button" disabled={!practiceReadiness.ready} onClick={() => onPracticePiece(editor.score)} type="button">Practice Piece</button>{!practiceReadiness.ready ? <p className="mt-1 max-w-xs text-sm text-amber-200" id={practiceReasonId}>{practiceReadiness.reason}</p> : null}</div><button className="staff-builder-secondary-button" onClick={() => { if (window.confirm("Return to Piece Library?")) onClose(); }} type="button">Piece Library</button></div></div>
     <div className="staff-builder-primary-editor-bar">
       <div className="staff-builder-primary-editor-main">
         <StaffBuilderTempoControl onTempoChange={editor.setTempo} tempoBpm={editor.score.tempoBpm} />

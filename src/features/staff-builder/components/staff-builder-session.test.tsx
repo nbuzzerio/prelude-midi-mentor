@@ -632,6 +632,62 @@ describe("Staff Builder session", () => {
     expect(draft.updatedAt).toBe(library.pieces[0].updatedAt);
   });
 
+  it("launches the existing Piece Practice path from a valid opened baseline and tracks edit and Undo equivalence", () => {
+    const storage = new MemoryStorage();
+    const saved = savedValidScore("Editor Practice");
+    seedLibrary(storage, [saved]);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Editor Practice" }));
+
+    const practiceButton = screen.getByRole("button", { name: "Practice Piece" }) as HTMLButtonElement;
+    expect(practiceButton.disabled).toBe(false);
+
+    act(() => midiBoundary.onNote?.(64));
+    expect(practiceButton.disabled).toBe(true);
+    expect(screen.getByText("Lock in or clear pending notes before practicing.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear Current Entry" }));
+    expect(practiceButton.disabled).toBe(false);
+
+    const tempo = screen.getByRole("spinbutton", { name: "Tempo" });
+    fireEvent.change(tempo, { target: { value: "104" } });
+    fireEvent.keyDown(tempo, { key: "Enter" });
+    expect(practiceButton.disabled).toBe(true);
+    expect(screen.getByText("Save before practicing.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Undo last score edit" }));
+    expect(practiceButton.disabled).toBe(false);
+
+    const libraryBeforeLaunch = storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library);
+    const draftBeforeLaunch = storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft);
+    fireEvent.click(practiceButton);
+    expect(screen.getByRole("heading", { name: "Blocking Piece Practice: Editor Practice" })).toBeTruthy();
+    expect(practiceBoundary.projectionScores).toHaveLength(1);
+    expect(practiceBoundary.projectionScores[0]).toMatchObject({ id: saved.id, title: saved.title, tempoBpm: saved.tempoBpm, measures: saved.measures });
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(libraryBeforeLaunch);
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft)).toBe(draftBeforeLaunch);
+  });
+
+  it("does not enable editor practice for invalid persisted or newly created pieces", () => {
+    const persistedStorage = new MemoryStorage();
+    const invalid = createStaffBuilderScore({ title: "Invalid Saved", tempoBpm: 96, initialKeySignatureId: "c-major", initialTimeSignature: "4/4" });
+    seedLibrary(persistedStorage, [invalid]);
+    const persisted = render(<StaffBuilderSession storage={persistedStorage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Invalid Saved" }));
+    expect((screen.getByRole("button", { name: "Practice Piece" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Fix validation issues before practicing.")).toBeTruthy();
+    persisted.unmount();
+
+    const newStorage = new MemoryStorage();
+    render(<StaffBuilderSession storage={newStorage} />);
+    dismissIntroduction();
+    createPiece("New Draft");
+    expect((screen.getByRole("button", { name: "Practice Piece" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Fix validation issues before practicing.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill All Empty Beats With Rests" }));
+    expect((screen.getByRole("button", { name: "Practice Piece" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Save before practicing.")).toBeTruthy();
+  });
+
   it("shows MIDI note-on input immediately as a pending staff preview", () => {
     const storage = new MemoryStorage();
     render(<StaffBuilderSession storage={storage} />);

@@ -9,6 +9,7 @@ import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE, type StaffBuilderCaptureState } fr
 import type { StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 import type { StaffBuilderPersistedEditorState } from "./use-staff-builder-editor";
+import type { StaffBuilderValidatedSavedSnapshot } from "../staff-builder-practice-readiness";
 import { normalizeImportedStaffBuilderPiece, type StaffBuilderImportFactories } from "../persistence/staff-builder-piece-file";
 import {
   readStaffBuilderDraft,
@@ -34,6 +35,7 @@ type InitialState = Readonly<{
   activeEditorPass: StaffBuilderDraft["editorPass"];
   activeRhythmState: StaffBuilderRhythmState;
   activeSavedPieceId: string | null;
+  lastValidatedSavedSnapshot: StaffBuilderValidatedSavedSnapshot | null;
   recoveryDraft: StaffBuilderDraft | null;
   introductionOpen: boolean;
   issues: readonly StaffBuilderStorageIssue[];
@@ -66,14 +68,19 @@ function loadInitialState(storage: StaffBuilderStorage): InitialState {
     ? library.pieces.find(({ id }) => id === lastPieceResult.value) ?? null
     : null;
   const activeSavedPiece = draft?.savedPieceId && savedPiece ? savedPiece : lastPiece;
+  const activeScore = draftIsNewer ? null : draftMatchesSaved ? draft?.score ?? activeSavedPiece : activeSavedPiece;
+  const activeSavedPieceId = draftIsNewer ? null : activeSavedPiece?.id ?? null;
   return {
     library,
     draft,
-    activeScore: draftIsNewer ? null : draftMatchesSaved ? draft?.score ?? activeSavedPiece : activeSavedPiece,
+    activeScore,
     activeCaptureState: draftMatchesSaved ? draft?.captureState ?? DEFAULT_STAFF_BUILDER_CAPTURE_STATE : DEFAULT_STAFF_BUILDER_CAPTURE_STATE,
     activeEditorPass: draftMatchesSaved ? draft?.editorPass ?? "capture" : "capture",
     activeRhythmState: draftMatchesSaved ? draft?.rhythmState ?? { measureIndex: 0, selectedEventId: null } : { measureIndex: 0, selectedEventId: null },
-    activeSavedPieceId: draftIsNewer ? null : activeSavedPiece?.id ?? null,
+    activeSavedPieceId,
+    lastValidatedSavedSnapshot: !draftIsNewer && activeSavedPiece && validateStaffBuilderScore(activeSavedPiece).length === 0
+      ? { pieceId: activeSavedPiece.id, score: activeSavedPiece }
+      : null,
     recoveryDraft: draftIsNewer ? draft : null,
     introductionOpen: !(introResult.ok && introResult.value),
     issues,
@@ -89,6 +96,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
   const [activeEditorPass, setActiveEditorPass] = useState(initial.activeEditorPass);
   const [activeRhythmState, setActiveRhythmState] = useState(initial.activeRhythmState);
   const [activeSavedPieceId, setActiveSavedPieceId] = useState<string | null>(initial.activeSavedPieceId);
+  const [lastValidatedSavedSnapshot, setLastValidatedSavedSnapshot] = useState<StaffBuilderValidatedSavedSnapshot | null>(initial.lastValidatedSavedSnapshot);
   const [recoveryDraft, setRecoveryDraft] = useState(initial.recoveryDraft);
   const [introductionOpen, setIntroductionOpen] = useState(initial.introductionOpen);
   const [issues, setIssues] = useState<readonly StaffBuilderStorageIssue[]>(initial.issues);
@@ -121,6 +129,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setActiveEditorPass("capture");
     setActiveRhythmState({ measureIndex: 0, selectedEventId: null });
     setActiveSavedPieceId(score.id);
+    setLastValidatedSavedSnapshot(null);
     persistLibrary(next);
     persistDraft(score, score.id);
     reportWrite("preferences", writeStaffBuilderValue(storage, "lastPieceId", score.id));
@@ -144,6 +153,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setActiveEditorPass("capture");
     setActiveRhythmState({ measureIndex: 0, selectedEventId: null });
     setActiveSavedPieceId(duplicate.id);
+    setLastValidatedSavedSnapshot(null);
     const libraryPersisted = persistLibrary(next);
     const draftPersisted = persistDraft(duplicate, duplicate.id);
     reportWrite("preferences", writeStaffBuilderValue(storage, "lastPieceId", duplicate.id));
@@ -158,6 +168,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setActiveEditorPass("capture");
     setActiveRhythmState({ measureIndex: 0, selectedEventId: null });
     setActiveSavedPieceId(piece.id);
+    setLastValidatedSavedSnapshot(validateStaffBuilderScore(piece).length === 0 ? { pieceId: piece.id, score: piece } : null);
     persistDraft(piece, piece.id);
     reportWrite("preferences", writeStaffBuilderValue(storage, "lastPieceId", piece.id));
   }, [library.pieces, persistDraft, reportWrite, storage]);
@@ -193,6 +204,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
       setActiveEditorPass("capture");
       setActiveRhythmState({ measureIndex: 0, selectedEventId: null });
       setActiveSavedPieceId(null);
+      setLastValidatedSavedSnapshot(null);
       if (!blockedAreas.has("draft")) reportWrite("draft", removeStaffBuilderValue(storage, "draft"));
       reportWrite("preferences", removeStaffBuilderValue(storage, "lastPieceId"));
     }
@@ -204,6 +216,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setActiveEditorPass("capture");
     setActiveRhythmState({ measureIndex: 0, selectedEventId: null });
     setActiveSavedPieceId(null);
+    setLastValidatedSavedSnapshot(null);
     if (!blockedAreas.has("draft")) reportWrite("draft", removeStaffBuilderValue(storage, "draft"));
     reportWrite("preferences", removeStaffBuilderValue(storage, "lastPieceId"));
   }, [blockedAreas, reportWrite, storage]);
@@ -215,6 +228,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setActiveEditorPass(recoveryDraft.editorPass);
     setActiveRhythmState(recoveryDraft.rhythmState ?? { measureIndex: 0, selectedEventId: null });
     setActiveSavedPieceId(recoveryDraft.savedPieceId);
+    setLastValidatedSavedSnapshot(null);
     setRecoveryDraft(null);
   }, [recoveryDraft]);
 
@@ -225,6 +239,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setActiveEditorPass("capture");
     setActiveRhythmState({ measureIndex: 0, selectedEventId: null });
     setActiveSavedPieceId(saved?.id ?? null);
+    setLastValidatedSavedSnapshot(saved && validateStaffBuilderScore(saved).length === 0 ? { pieceId: saved.id, score: saved } : null);
     setRecoveryDraft(null);
     if (!blockedAreas.has("draft")) reportWrite("draft", removeStaffBuilderValue(storage, "draft"));
   }, [blockedAreas, library.pieces, recoveryDraft, reportWrite, storage]);
@@ -272,6 +287,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     setLibrary(nextLibrary);
     setActiveScore(savedScore);
     setActiveSavedPieceId(pieceId);
+    setLastValidatedSavedSnapshot({ pieceId, score: savedScore });
     const draft: StaffBuilderDraft = { schemaVersion: 3, savedPieceId: pieceId, updatedAt: savedScore.updatedAt, score: savedScore, editorPass: editorState.editorPass, captureState: editorState.captureState, rhythmState: editorState.rhythmState };
     const draftSaved = blockedAreas.has("draft") ? false : reportWrite("draft", writeStaffBuilderValue(storage, "draft", draft));
     return { ok: true as const, score: savedScore, draftSynchronized: draftSaved };
@@ -285,7 +301,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
   }, [reportWrite, storage]);
 
   return {
-    library, activeScore, activeCaptureState, activeEditorPass, activeRhythmState, activeSavedPieceId, recoveryDraft, introductionOpen, issues,
+    library, activeScore, activeCaptureState, activeEditorPass, activeRhythmState, activeSavedPieceId, lastValidatedSavedSnapshot, recoveryDraft, introductionOpen, issues,
     createPiece, importPiece, duplicatePiece, openPiece, renamePiece, deletePiece, closePiece, restoreDraft, declineDraft,
     closeIntroduction, reopenIntroduction: () => setIntroductionOpen(true), clearCorruptArea, updateActiveDraft, validateAndSave,
   };

@@ -32,6 +32,15 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
   if (practicePiece) {
     return <PiecePracticeSession onExit={() => setPracticePiece(null)} piece={practicePiece} />;
   }
+  const launchPiecePractice = (score: Parameters<typeof projectStaffBuilderPieceForPractice>[0]) => {
+    const projection = projectStaffBuilderPieceForPractice(score);
+    if (!projection.ok) {
+      setPracticeLaunchError("This piece could not be opened for practice because it is not structurally valid.");
+      return;
+    }
+    setPracticeLaunchError(null);
+    setPracticePiece(projection.piece);
+  };
   return (
     <div className="staff-builder-shell">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -68,6 +77,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
               key={state.activeScore.id}
               onClose={state.closePiece}
               onDraftChange={state.updateActiveDraft}
+              onPracticePiece={launchPiecePractice}
               onValidatedSave={state.validateAndSave}
               savingAvailable={!state.issues.some(({ area }) => area === "library" || area === "draft")}
               score={state.activeScore}
@@ -77,6 +87,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
                 const result = writeStaffBuilderValue(storage, "sustainPedalLocksInput", enabled);
                 setPreferenceError(result.ok ? null : result.message);
               }}
+              validatedSavedSnapshot={state.lastValidatedSavedSnapshot}
             /></div>
         : <div className="staff-builder-columns">
             <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onDownload={(score) => {
@@ -100,15 +111,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
                     : `Imported "${imported.score.title}" in memory, but it could not be saved in this browser.`,
                 });
               });
-            }} onOpen={state.openPiece} onPractice={(score) => {
-              const projection = projectStaffBuilderPieceForPractice(score);
-              if (!projection.ok) {
-                setPracticeLaunchError("This piece could not be opened for practice because it is not structurally valid.");
-                return;
-              }
-              setPracticeLaunchError(null);
-              setPracticePiece(projection.piece);
-            }} onRename={state.renamePiece} pieces={state.library.pieces} />
+            }} onOpen={state.openPiece} onPractice={launchPiecePractice} onRename={state.renamePiece} pieces={state.library.pieces} />
             <StaffBuilderPieceSetup onCreate={state.createPiece} />
           </div>}
       {state.introductionOpen && <StaffBuilderIntroduction onClose={state.closeIntroduction} returnFocusRef={introductionOpenerRef} />}

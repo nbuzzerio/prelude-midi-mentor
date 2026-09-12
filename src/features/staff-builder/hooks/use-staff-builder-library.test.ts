@@ -4,6 +4,7 @@ import { createStaffBuilderScore, insertUnresolvedStaffBuilderNotes } from "../s
 import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE } from "../staff-builder-capture";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import { useStaffBuilderLibrary } from "./use-staff-builder-library";
+import { getStaffBuilderEditorPracticeReadiness } from "../staff-builder-practice-readiness";
 
 class MemoryStorage implements StaffBuilderStorage {
   values = new Map<string, string>();
@@ -16,6 +17,11 @@ class MemoryStorage implements StaffBuilderStorage {
 afterEach(cleanup);
 
 describe("useStaffBuilderLibrary", () => {
+  function structurallyValid(score: ReturnType<typeof createStaffBuilderScore>) {
+    const fullRest = (id: string, staff: "treble" | "bass") => ({ id, kind: "rest" as const, staff, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } });
+    return { ...score, measures: [{ ...score.measures[0]!, events: [fullRest("treble-rest", "treble"), fullRest("bass-rest", "bass")] }] };
+  }
+
   function seedDraft(storage: MemoryStorage, options: Readonly<{
     draftUpdatedAt: string;
     savedUpdatedAt?: string;
@@ -122,6 +128,53 @@ describe("useStaffBuilderLibrary", () => {
     first.unmount();
     const second = renderHook(() => useStaffBuilderLibrary(storage));
     expect(second.result.current.activeScore?.title).toBe("Saved");
+  });
+
+  it("uses a valid persisted library piece as an opening baseline but never promotes a recovery draft", () => {
+    const storage = new MemoryStorage();
+    const base = createStaffBuilderScore({ title: "Saved", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4" });
+    const saved = structurallyValid(base);
+    const recovered = { ...saved, title: "Recovered edit", updatedAt: new Date(Date.parse(saved.updatedAt) + 1_000).toISOString() };
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [saved] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.lastPieceId, saved.id);
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 3, savedPieceId: saved.id, updatedAt: recovered.updatedAt, score: recovered, editorPass: "capture" }));
+
+    const view = renderHook(() => useStaffBuilderLibrary(storage));
+    expect(view.result.current.recoveryDraft?.score.title).toBe("Recovered edit");
+    expect(view.result.current.lastValidatedSavedSnapshot).toBeNull();
+    act(() => view.result.current.restoreDraft());
+    expect(view.result.current.activeScore?.title).toBe("Recovered edit");
+    expect(view.result.current.lastValidatedSavedSnapshot).toBeNull();
+  });
+
+  it("uses the library object, never a same-ID equal-timestamp draft with different authored content, as the startup baseline", () => {
+    const storage = new MemoryStorage();
+    const base = createStaffBuilderScore({
+      title: "Library version", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4",
+      factories: { createId: () => "saved-id", now: () => "2026-09-01T12:00:00.000Z" },
+    });
+    const persisted = structurallyValid(base);
+    const draftScore = { ...persisted, title: "Different draft content" };
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [persisted] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.lastPieceId, persisted.id);
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({
+      schemaVersion: 3,
+      savedPieceId: persisted.id,
+      updatedAt: persisted.updatedAt,
+      score: draftScore,
+      editorPass: "capture",
+    }));
+
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    expect(result.current.lastValidatedSavedSnapshot).toEqual({ pieceId: persisted.id, score: persisted });
+    expect(result.current.lastValidatedSavedSnapshot?.score).not.toEqual(draftScore);
+    expect(getStaffBuilderEditorPracticeReadiness({
+      score: draftScore,
+      validatedSavedSnapshot: result.current.lastValidatedSavedSnapshot,
+      issueCount: 0,
+      hasPendingCapture: false,
+      savingAvailable: true,
+    })).toEqual({ ready: false, reason: "Save before practicing." });
   });
 
   it.each([
@@ -248,14 +301,37 @@ describe("useStaffBuilderLibrary", () => {
     let invalidResult: ReturnType<typeof result.current.validateAndSave> | undefined;
     act(() => { invalidResult = result.current.validateAndSave(original, editorState); });
     expect(invalidResult).toMatchObject({ ok: false, reason: "invalid" });
+    expect(result.current.lastValidatedSavedSnapshot).toBeNull();
     const fullRest = (id: string, staff: "treble" | "bass") => ({ id, kind: "rest" as const, staff, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } });
     const valid = { ...original, updatedAt: "2026-08-06T14:00:00.000Z", measures: [{ ...original.measures[0]!, events: [fullRest("t", "treble"), fullRest("b", "bass")] }] };
     let saved: ReturnType<typeof result.current.validateAndSave> | undefined;
     act(() => { saved = result.current.validateAndSave(valid, editorState); });
     expect(saved).toMatchObject({ ok: true });
+    expect(result.current.lastValidatedSavedSnapshot).toEqual({ pieceId: original.id, score: valid });
     expect(result.current.library.pieces.find(({ id }) => id === original.id)?.measures[0]?.events).toHaveLength(2);
     const draft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(draft.updatedAt).toBe(valid.updatedAt);
     expect(draft.savedPieceId).toBe(original.id);
+
+    const autosavedEdit = { ...valid, title: "Draft title", updatedAt: "2026-08-06T15:00:00.000Z" };
+    act(() => result.current.updateActiveDraft(autosavedEdit, editorState));
+    expect(result.current.activeScore?.title).toBe("Draft title");
+    expect(result.current.lastValidatedSavedSnapshot).toEqual({ pieceId: original.id, score: valid });
+  });
+
+  it("does not replace the last good opening baseline when a later save write fails", () => {
+    const storage = new MemoryStorage();
+    const base = createStaffBuilderScore({ title: "Persisted", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4" });
+    const persisted = structurallyValid(base);
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [persisted] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.lastPieceId, persisted.id);
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    expect(result.current.lastValidatedSavedSnapshot).toEqual({ pieceId: persisted.id, score: persisted });
+    const edited = { ...persisted, title: "Failed edit" };
+    storage.failWrites = true;
+    let saved: ReturnType<typeof result.current.validateAndSave> | undefined;
+    act(() => { saved = result.current.validateAndSave(edited, { editorPass: "capture", captureState: result.current.activeCaptureState, rhythmState: result.current.activeRhythmState }); });
+    expect(saved).toMatchObject({ ok: false, reason: "storage" });
+    expect(result.current.lastValidatedSavedSnapshot).toEqual({ pieceId: persisted.id, score: persisted });
   });
 });
