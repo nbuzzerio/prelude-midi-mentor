@@ -61,6 +61,70 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it("renders complete and pitch-specific boundary ties, including both segments of a middle chain", () => {
+    const current: StaffBuilderScore = {
+      ...score(),
+      initialKeySignatureId: "c-major",
+      measures: [
+        { id: "m1", events: [
+          { id: "full-from", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "full-from-p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+          { id: "full-to", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "full-to-p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] },
+          { id: "source", kind: "notes", staff: "treble", startTick: 960, rhythm: { status: "final", duration: "half" }, pitches: [
+            { id: "source-c", midiNumber: 61, letter: "C", accidental: "sharp", octave: 4 },
+            { id: "source-e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 },
+          ] },
+        ] },
+        { id: "m2", events: [{ id: "middle", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [
+          { id: "middle-c", midiNumber: 61, letter: "D", accidental: "flat", octave: 4 },
+          { id: "middle-e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 },
+          { id: "middle-g", midiNumber: 67, letter: "G", accidental: "natural", octave: 4 },
+        ] }] },
+        { id: "m3", events: [{ id: "destination", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" }, pitches: [
+          { id: "destination-c", midiNumber: 61, letter: "C", accidental: "sharp", octave: 4 },
+          { id: "destination-e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 },
+        ] }] },
+      ],
+      ties: [
+        { id: "full", fromEventId: "full-from", fromPitchId: "full-from-p", toEventId: "full-to", toPitchId: "full-to-p" },
+        { id: "c-in", fromEventId: "source", fromPitchId: "source-c", toEventId: "middle", toPitchId: "middle-c" },
+        { id: "e-in", fromEventId: "source", fromPitchId: "source-e", toEventId: "middle", toPitchId: "middle-e" },
+        { id: "c-out", fromEventId: "middle", fromPitchId: "middle-c", toEventId: "destination", toPitchId: "destination-c" },
+        { id: "e-out", fromEventId: "middle", fromPitchId: "middle-e", toEventId: "destination", toPitchId: "destination-e" },
+      ],
+    };
+    const setNotes = vi.spyOn(StaveTie.prototype, "setNotes");
+
+    const first = renderStaffBuilderMeasure(document.createElement("div"), current, 0);
+    expect(setNotes.mock.calls.map(([notes]) => notes)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ firstNote: expect.anything(), lastNote: expect.anything(), firstIndexes: [0], lastIndexes: [0] }),
+      expect.objectContaining({ firstNote: expect.anything(), lastNote: null, firstIndexes: [0], lastIndexes: [0] }),
+      expect.objectContaining({ firstNote: expect.anything(), lastNote: null, firstIndexes: [1], lastIndexes: [1] }),
+    ]));
+    expect(first.projection.boundaryTies.every(({ direction }) => direction === "outgoing")).toBe(true);
+
+    setNotes.mockClear();
+    const middle = renderStaffBuilderMeasure(document.createElement("div"), current, 1);
+    expect(setNotes.mock.calls.map(([notes]) => notes)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ firstNote: null, lastNote: expect.anything(), firstIndexes: [0], lastIndexes: [0] }),
+      expect.objectContaining({ firstNote: null, lastNote: expect.anything(), firstIndexes: [1], lastIndexes: [1] }),
+      expect.objectContaining({ firstNote: expect.anything(), lastNote: null, firstIndexes: [0], lastIndexes: [0] }),
+      expect.objectContaining({ firstNote: expect.anything(), lastNote: null, firstIndexes: [1], lastIndexes: [1] }),
+    ]));
+    expect(setNotes).toHaveBeenCalledTimes(4);
+    const middleChord = middle.projection.staves.treble.find((event) => event.kind === "notes");
+    expect(middleChord?.kind === "notes" ? middleChord.pitches : []).toMatchObject([
+      { id: "middle-c", midiNumber: 61, letter: "D", accidental: "flat" },
+      { id: "middle-e", midiNumber: 64 },
+      { id: "middle-g", midiNumber: 67 },
+    ]);
+
+    setNotes.mockClear();
+    const last = renderStaffBuilderMeasure(document.createElement("div"), current, 2);
+    expect(setNotes.mock.calls.every(([notes]) => notes.firstNote === null && notes.lastNote)).toBe(true);
+    expect(setNotes).toHaveBeenCalledTimes(2);
+    expect(last.projection.boundaryTies.every(({ direction }) => direction === "incoming")).toBe(true);
+  });
+
   it("renders a selected single staff without changing the grand-staff default", () => {
     const draws = vi.spyOn(Stave.prototype, "draw");
     const connectors = vi.spyOn(StaveConnector.prototype, "draw");

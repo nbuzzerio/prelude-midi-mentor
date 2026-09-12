@@ -1,4 +1,4 @@
-import { Formatter, Renderer, Stave, StaveConnector, StaveTie, type StemmableNote } from "vexflow";
+import { Formatter, Renderer, Stave, StaveConnector, type StemmableNote } from "vexflow";
 import type { StaffBuilderScore, StaffBuilderStaff } from "../staff-builder-types";
 import {
   projectStaffBuilderMeasure,
@@ -18,6 +18,7 @@ import {
   type StaffBuilderTemporalGeometry,
 } from "./staff-builder-vexflow-rendering";
 import { getStaffBuilderVerticalGeometry } from "./staff-builder-vertical-geometry";
+import { drawStaffBuilderTie } from "./draw-staff-builder-tie";
 
 export type { StaffBuilderEventAnchor, StaffBuilderPositionAnchor, StaffBuilderTemporalGeometry } from "./staff-builder-vexflow-rendering";
 
@@ -129,7 +130,13 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     const firstNote = noteByEventId.get(tie.fromEventId);
     const lastNote = noteByEventId.get(tie.toEventId);
     if (!firstNote || !lastNote) return;
-    new StaveTie({ firstNote, lastNote, firstIndexes: [tie.fromPitchIndex], lastIndexes: [tie.toPitchIndex] }).setContext(context).draw();
+    drawStaffBuilderTie(context, firstNote, lastNote, tie.fromPitchIndex, tie.toPitchIndex);
+  });
+  projection.boundaryTies.forEach((tie) => {
+    const note = noteByEventId.get(tie.eventId);
+    if (!note) return;
+    if (tie.direction === "incoming") drawStaffBuilderTie(context, null, note, tie.pitchIndex, tie.pitchIndex);
+    else drawStaffBuilderTie(context, note, null, tie.pitchIndex, tie.pitchIndex);
   });
 
   configureStaffBuilderSvg(container, RENDER_WIDTH, vertical.height);

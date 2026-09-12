@@ -24,6 +24,33 @@ describe("Piece Practice display score", () => {
     });
   });
 
+  it("preserves boundary-tie directions without changing projected practice targets", () => {
+    const middleEvent = piece.measures[1]!.sourceEvents[0]!;
+    if (middleEvent.kind !== "notes") throw new Error("Expected note source event.");
+    const chained: PiecePracticePiece = {
+      ...piece,
+      measures: [
+        piece.measures[0]!,
+        { ...piece.measures[1]!, sourceEvents: [{ ...middleEvent, pitches: [
+          { ...middleEvent.pitches[0]!, letter: "B", accidental: "sharp", octave: 3, outgoingTieIds: ["tie-out"] },
+          { sourcePitchId: "middle-e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: [], requiresAttack: true },
+        ] }] },
+        { ...piece.measures[1]!, measureIndex: 2, sourceMeasureId: "m3", absoluteStartTick: 3360, sourceEvents: [{ ...middleEvent, sourceEventId: "last", absoluteStartTick: 3360, pitches: [
+          { ...middleEvent.pitches[0]!, sourcePitchId: "last-p", incomingTieIds: ["tie-out"], outgoingTieIds: [] },
+        ] }] },
+      ],
+    };
+    const targetsBefore = structuredClone(chained.measures.map(({ targets }) => targets));
+    const display = createPiecePracticeDisplayScore(chained);
+    expect(projectStaffBuilderMeasure(display, 1).boundaryTies).toEqual([
+      { tieId: "tie", eventId: "to", pitchIndex: 0, direction: "incoming", description: "Tie continues from the adjacent measure." },
+      { tieId: "tie-out", eventId: "to", pitchIndex: 0, direction: "outgoing", description: "Tie continues to the adjacent measure." },
+    ]);
+    const visibleEvent = projectStaffBuilderMeasure(display, 1).staves.treble.find((event) => event.kind === "notes");
+    expect(visibleEvent?.kind === "notes" ? visibleEvent.pitches[0] : undefined).toMatchObject({ midiNumber: 60, letter: "B", accidental: "sharp", octave: 3 });
+    expect(chained.measures.map(({ targets }) => targets)).toEqual(targetsBefore);
+  });
+
   it("does not mutate or retain a mutable reference to the practice projection", () => {
     const before = structuredClone(piece);
     const display = createPiecePracticeDisplayScore(piece);

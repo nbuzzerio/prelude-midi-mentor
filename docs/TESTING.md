@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — Testing
 
-> **Status:** v2.6.2 Staff Builder tie/pedal hotfix prepared, ahead of the repository owner's manual deployment and tag
+> **Status:** v2.6.3 Piece Practice single-measure tie notation prepared, ahead of the repository owner's manual deployment and tag
 
-The current automated baseline is 1,853 passing tests across 160 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session interaction and presentation QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
+The current automated baseline is 1,856 passing tests across 160 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session interaction and presentation QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
 
 > **Latest repository tag:** v2.5.0
 > **Last updated:** September 12, 2026
@@ -462,6 +462,7 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - Staff Builder physical MIDI capture and same-position replacement in treble, bass, and grand routing
 - Staff Builder’s browser-local pedal Lock preference: default/read/write/error handling, valid capture commit/advance, empty-position advance, invalid-input suppression, pedal-up/repeated-down/stale-enable suppression, and unchanged score/draft schemas
 - range-aware Staff Builder notation geometry across ordinary and MIDI-endpoint written pitches, single/grand staves, editor SVG bounds, per-system Study View offsets, ties, and the shared Piece Practice score view
+- complete, incoming, and outgoing single-measure VexFlow ties, including middle-chain notes, independently tied chord pitches, untied siblings, enharmonic visible spelling, and Piece Practice boundary measures without grading changes
 - shared automatic beaming for simple and 6/8 meters, including eighth/sixteenth/mixed runs, beat boundaries, real rests, GhostNote offsets, genuine gaps, and independent derived voices
 - discoverable per-pitch Staff Builder enharmonic controls, musical-name accessibility, sharp/flat round trips, chord/tie isolation, key-change retention, score-file persistence, and MIDI-based Piece Practice grading
 - Staff Builder on Chromebook mouse and touch, including direct notation targets and tap-versus-swipe behavior

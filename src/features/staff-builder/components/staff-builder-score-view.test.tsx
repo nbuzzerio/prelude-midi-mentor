@@ -247,6 +247,21 @@ describe("StaffBuilderScoreView", () => {
     expect(details.open).toBe(true);
   });
 
+  it("keeps boundary ties in accessible semantics without visual text badges", () => {
+    const current = score();
+    const tied: StaffBuilderScore = {
+      ...current,
+      measures: [
+        { id: "m1", events: [{ id: "from", kind: "notes", staff: "treble", startTick: 1440, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "from-p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] }] },
+        { id: "m2", events: [{ id: "to", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "to-p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] }] },
+      ],
+      ties: [{ id: "crossing", fromEventId: "from", fromPitchId: "from-p", toEventId: "to", toPitchId: "to-p" }],
+    };
+    const { container } = render(<StaffBuilderScoreView measureIndex={1} score={tied} />);
+    expect(container.querySelector("#staff-builder-score-semantics")?.getAttribute("aria-label")).toContain("Tie continues from the adjacent measure. Tie crossing, incoming, event to.");
+    expect(container.querySelector(".staff-builder-boundary-tie")).toBeNull();
+  });
+
   it("includes invalid timing once in accessible score semantics while keeping visible details aria-hidden", () => {
     const current = score();
     const invalid = { ...current, measures: [{ ...current.measures[0]!, events: [{ ...current.measures[0]!.events[0]!, startTick: 2040 }] }, current.measures[1]!] };

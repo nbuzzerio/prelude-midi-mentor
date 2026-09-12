@@ -1,7 +1,8 @@
-import { Barline, Formatter, Renderer, Stave, StaveConnector, StaveTie, type StemmableNote } from "vexflow";
+import { Barline, Formatter, Renderer, Stave, StaveConnector, type StemmableNote } from "vexflow";
 import type { StaffBuilderNoteEvent, StaffBuilderScore } from "../staff-builder-types";
 import { projectStaffBuilderMeasure, type StaffBuilderMeasureProjection, type StaffBuilderProjectedEvent } from "./staff-builder-notation";
 import type { StaffBuilderLayoutBounds, StaffBuilderSystemLayout } from "./staff-builder-system-layout";
+import { drawStaffBuilderTie } from "./draw-staff-builder-tie";
 import {
   applyStaffBuilderVexFlowAccidentals,
   configureStaffBuilderSvg,
@@ -83,26 +84,11 @@ function drawSystemTies(
     if ((renderedSource && sourceIndex === undefined) || (renderedDestination && destinationIndex === undefined)) continue;
 
     if (renderedSource && renderedDestination) {
-      new StaveTie({
-        firstNote: renderedSource.note,
-        lastNote: renderedDestination.note,
-        firstIndexes: [sourceIndex!],
-        lastIndexes: [destinationIndex!],
-      }).setContext(context).draw();
+      drawStaffBuilderTie(context, renderedSource.note, renderedDestination.note, sourceIndex!, destinationIndex!);
     } else if (renderedSource) {
-      new StaveTie({
-        firstNote: renderedSource.note,
-        lastNote: null,
-        firstIndexes: [sourceIndex!],
-        lastIndexes: [sourceIndex!],
-      }).setContext(context).draw();
+      drawStaffBuilderTie(context, renderedSource.note, null, sourceIndex!, sourceIndex!);
     } else if (renderedDestination) {
-      new StaveTie({
-        firstNote: null,
-        lastNote: renderedDestination.note,
-        firstIndexes: [destinationIndex!],
-        lastIndexes: [destinationIndex!],
-      }).setContext(context).draw();
+      drawStaffBuilderTie(context, null, renderedDestination.note, destinationIndex!, destinationIndex!);
     }
   }
 }
