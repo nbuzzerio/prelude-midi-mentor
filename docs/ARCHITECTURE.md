@@ -510,6 +510,8 @@ VexFlow renders decorative notation. Its SVG remains hidden from assistive techn
 
 Editor measures and multi-system Study View use one deterministic, range-aware vertical geometry policy. The policy derives diatonic stave position from each authored written letter and octave, reserves only the additional top or bottom space needed for noteheads, ledger lines, stems, accidentals, and ties, then shifts staves and expands the SVG coordinate space together. Ordinary-range notation retains its compact baseline height. Piece Practice receives the same behavior through its shared `StaffBuilderScoreView`; score data and schema remain unchanged.
 
+Automatic beams are derived engraving output in the shared Staff Builder notation layer. Each derived render voice partitions authored eighth-, dotted-eighth-, and sixteenth-note runs by absolute meter group (quarter-note beats in simple meters and dotted-quarter beats in 6/8), real rests, non-beamable durations, and genuine rhythmic gaps before delegating drawing to VexFlow. GhostNote spacers remain in the VexFlow Voice for alignment but are excluded from beam input, so leading layout space does not suppress a valid run. Beams never enter score data, and editor, Study View, and Piece Practice inherit the same rendering behavior without a schema change.
+
 React owns semantic controls, focus, hover, highlights, hit testing, and pointer orchestration. Cross-domain pointer ownership is deterministic:
 
 1. original notation-control geometry;

@@ -462,6 +462,7 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - Staff Builder physical MIDI capture and same-position replacement in treble, bass, and grand routing
 - Staff Builder’s browser-local pedal Lock In preference: default/read/write/error handling, normalized pedal-down capture, pedal-up suppression, authoring guards, and unchanged score/draft schemas
 - range-aware Staff Builder notation geometry across ordinary and MIDI-endpoint written pitches, single/grand staves, editor SVG bounds, per-system Study View offsets, ties, and the shared Piece Practice score view
+- shared automatic beaming for simple and 6/8 meters, including eighth/sixteenth/mixed runs, beat boundaries, real rests, GhostNote offsets, genuine gaps, and independent derived voices
 - discoverable per-pitch Staff Builder enharmonic controls, musical-name accessibility, sharp/flat round trips, chord/tie isolation, key-change retention, score-file persistence, and MIDI-based Piece Practice grading
 - Staff Builder on Chromebook mouse and touch, including direct notation targets and tap-versus-swipe behavior
 - Android portrait and landscape layout, folded/unfolded devices where available, and the mobile keyboard sheet

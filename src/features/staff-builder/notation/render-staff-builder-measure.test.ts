@@ -87,8 +87,7 @@ describe("renderStaffBuilderMeasure", () => {
     expect(draws).toHaveBeenCalledTimes(3);
     expect(joins.mock.calls.map(([voices]) => voices.length)).toEqual([2, 1]);
     expect(accidentals.mock.calls.map(([voices]) => voices.length)).toEqual([2, 1]);
-    expect(beams).toHaveBeenCalledTimes(3);
-    expect(beams.mock.calls.slice(0, 2).every((call) => call[1]?.maintainStemDirections === true)).toBe(true);
+    expect(beams).not.toHaveBeenCalled();
   });
 
   it("alternates stems for three voices while preserving one-voice automatic behavior", () => {
@@ -140,7 +139,7 @@ describe("renderStaffBuilderMeasure", () => {
     expect(container.querySelectorAll("svg")).toHaveLength(1);
     expect(dots).toHaveBeenCalled();
     expect(accidentals).toHaveBeenCalledTimes(2);
-    expect(beams).toHaveBeenCalledTimes(2);
+    expect(beams).toHaveBeenCalledTimes(1);
     expect(beams.mock.calls[0]?.[1]).toMatchObject({ groups: expect.any(Array), beamRests: false });
     expect(tieDraw).toHaveBeenCalledTimes(1);
     expect(keySignatures).toHaveBeenCalledTimes(2);

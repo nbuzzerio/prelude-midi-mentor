@@ -13,12 +13,14 @@ import {
   type StemmableNote,
 } from "vexflow";
 import type { StaffBuilderStaff } from "../staff-builder-types";
+import { STAFF_BUILDER_TICKS_PER_QUARTER } from "../staff-builder-time";
 import type {
   StaffBuilderMeasureProjection,
   StaffBuilderProjectedEvent,
   StaffBuilderProjectedTickable,
   StaffBuilderProjectedVoice,
 } from "./staff-builder-notation";
+import { getStaffBuilderBeamEventIdRuns } from "./staff-builder-notation";
 
 export type StaffBuilderEventAnchor = Readonly<{
   eventId: string;
@@ -58,6 +60,10 @@ export type StaffBuilderRenderedVoice = Readonly<{
   voice: Voice;
 }>;
 
+export function staffBuilderTicksToVexFlowDuration(ticks: number): Fraction {
+  return new Fraction(ticks, STAFF_BUILDER_TICKS_PER_QUARTER * 4);
+}
+
 export function staffBuilderVexFlowPitchKey(event: StaffBuilderProjectedEvent, pitchIndex: number): string {
   const pitch = event.pitches[pitchIndex];
   if (!pitch) throw new Error(`Missing projected pitch ${pitchIndex} for ${event.eventId}.`);
@@ -69,7 +75,7 @@ export function createStaffBuilderVexFlowTickable(item: StaffBuilderProjectedTic
   const duration = item.visualDuration.vexflowDuration;
   if (item.kind === "spacer") {
     const note = new GhostNote({ duration, dots: item.visualDuration.dots });
-    note.setDuration(new Fraction(item.durationTicks * 128, 15));
+    note.setDuration(staffBuilderTicksToVexFlowDuration(item.durationTicks));
     return { projection: item, note };
   }
   const keys = item.kind === "rest"
@@ -79,7 +85,7 @@ export function createStaffBuilderVexFlowTickable(item: StaffBuilderProjectedTic
   if (item.kind === "notes" && item.arpeggiation === "up") {
     note.addModifier(new Stroke(Stroke.Type.ARPEGGIO_DIRECTIONLESS, { allVoices: false }));
   }
-  note.setDuration(new Fraction(item.layoutDurationTicks * 128, 15));
+  note.setDuration(staffBuilderTicksToVexFlowDuration(item.layoutDurationTicks));
   if (item.visualDuration.dots > 0) Dot.buildAndAttach([note], { all: true });
   return { projection: item, note };
 }
@@ -114,14 +120,20 @@ export function applyStaffBuilderVexFlowAccidentals(
 
 export function createStaffBuilderVexFlowBeams(voices: readonly StaffBuilderRenderedVoice[]) {
   const polyphonic = voices.length > 1;
-  return voices.flatMap((renderedVoice) => Beam.generateBeams(renderedVoice.tickables.map(({ note }) => note), {
-    groups: renderedVoice.projection.beam.beatGroups.map((group) => {
-      const [numerator, denominator] = group.split("/").map(Number);
-      return new Fraction(numerator, denominator);
-    }),
-    beamRests: false,
-    maintainStemDirections: polyphonic,
-  }));
+  return voices.flatMap((renderedVoice) => {
+    const noteByEventId = new Map(renderedVoice.tickables.flatMap(({ note, projection }) => projection.kind === "spacer" ? [] : [[projection.eventId, note] as const]));
+    return getStaffBuilderBeamEventIdRuns(renderedVoice.projection).flatMap((eventIds) => Beam.generateBeams(
+      eventIds.flatMap((eventId) => noteByEventId.get(eventId) ?? []),
+      {
+        groups: renderedVoice.projection.beam.beatGroups.map((group) => {
+          const [numerator, denominator] = group.split("/").map(Number);
+          return new Fraction(numerator, denominator);
+        }),
+        beamRests: false,
+        maintainStemDirections: polyphonic,
+      },
+    ));
+  });
 }
 
 export function drawStaffBuilderVexFlowBeams(beams: ReturnType<typeof createStaffBuilderVexFlowBeams>, context: RenderContext): void {

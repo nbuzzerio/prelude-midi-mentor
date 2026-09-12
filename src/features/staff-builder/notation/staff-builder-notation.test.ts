@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { STAFF_BUILDER_DURATIONS, durationToTicks, type StaffBuilderDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore } from "../staff-builder-types";
-import { getStaffBuilderVisualDuration, projectStaffBuilderMeasure, projectStaffBuilderPendingPreview } from "./staff-builder-notation";
+import { getStaffBuilderBeamEventIdRuns, getStaffBuilderVisualDuration, projectStaffBuilderMeasure, projectStaffBuilderPendingPreview } from "./staff-builder-notation";
 
 const pitch = (id: string, letter = "C", accidental: StaffBuilderPitch["accidental"] = "natural", octave = 4, midiNumber = 60): StaffBuilderPitch => ({ id, letter: letter as StaffBuilderPitch["letter"], accidental, octave, midiNumber });
 const note = (id: string, staff: "treble" | "bass", startTick: number, rhythm: StaffBuilderEvent["rhythm"], pitches = [pitch(`${id}-pitch`)]): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm, pitches });
@@ -20,6 +20,61 @@ function score(options: Readonly<{
 }
 
 describe("Staff Builder notation projection", () => {
+  const beamRuns = (events: readonly StaffBuilderEvent[], time: StaffBuilderTimeSignature = "4/4") => {
+    const projection = projectStaffBuilderMeasure(score({ time, measures: [{ id: "m1", events }] }), 0);
+    return projection.voices.treble.map((voice) => getStaffBuilderBeamEventIdRuns(voice));
+  };
+
+  it.each([
+    ["two eighths", [note("a", "treble", 0, { status: "final", duration: "eighth" }), note("b", "treble", 240, { status: "final", duration: "eighth" })], [["a", "b"]]],
+    ["four sixteenths", [0, 120, 240, 360].map((tick, index) => note(`s${index}`, "treble", tick, { status: "final", duration: "sixteenth" })), [["s0", "s1", "s2", "s3"]]],
+    ["mixed dotted eighth and sixteenth", [note("dotted", "treble", 0, { status: "final", duration: "dotted-eighth" }), note("short", "treble", 360, { status: "final", duration: "sixteenth" })], [["dotted", "short"]]],
+  ] as const)("groups %s inside one simple-meter beat", (_name, events, expected) => {
+    expect(beamRuns(events)[0]).toEqual(expected);
+  });
+
+  it("keeps simple-meter beat groups distinct and quarter notes unbeamed", () => {
+    const eighths = [0, 240, 480, 720].map((tick, index) => note(`e${index}`, "treble", tick, { status: "final", duration: "eighth" }));
+    expect(beamRuns(eighths)[0]).toEqual([["e0", "e1"], ["e2", "e3"]]);
+    expect(beamRuns([note("quarter", "treble", 0, { status: "final", duration: "quarter" })])[0]).toEqual([]);
+  });
+
+  it("distinguishes authored rests and genuine gaps from harmless leading GhostNote space", () => {
+    const withRest = [
+      note("a", "treble", 0, { status: "final", duration: "sixteenth" }),
+      note("b", "treble", 120, { status: "final", duration: "sixteenth" }),
+      rest("rest", "treble", 240, "sixteenth"),
+      note("c", "treble", 360, { status: "final", duration: "sixteenth" }),
+    ];
+    expect(beamRuns(withRest)[0]).toEqual([["a", "b"]]);
+    expect(beamRuns([
+      note("offset-a", "treble", 120, { status: "final", duration: "sixteenth" }),
+      note("offset-b", "treble", 240, { status: "final", duration: "sixteenth" }),
+      note("offset-c", "treble", 360, { status: "final", duration: "sixteenth" }),
+    ])[0]).toEqual([["offset-a", "offset-b", "offset-c"]]);
+    expect(beamRuns([
+      note("gap-a", "treble", 0, { status: "final", duration: "sixteenth" }),
+      note("gap-b", "treble", 120, { status: "final", duration: "sixteenth" }),
+      note("after-gap", "treble", 360, { status: "final", duration: "sixteenth" }),
+    ])[0]).toEqual([["gap-a", "gap-b"]]);
+  });
+
+  it("forms two dotted-quarter groups in 6/8", () => {
+    const events = [0, 240, 480, 720, 960, 1200].map((tick, index) => note(`e${index}`, "treble", tick, { status: "final", duration: "eighth" }));
+    expect(beamRuns(events, "6/8")[0]).toEqual([["e0", "e1", "e2"], ["e3", "e4", "e5"]]);
+  });
+
+  it("partitions overlapping derived voices independently", () => {
+    const events = [
+      note("upper-a", "treble", 0, { status: "final", duration: "eighth" }, [pitch("ua", "G", "natural", 5, 79)]),
+      note("lower-a", "treble", 0, { status: "final", duration: "eighth" }, [pitch("la", "C", "natural", 4, 60)]),
+      note("upper-b", "treble", 240, { status: "final", duration: "eighth" }, [pitch("ub", "A", "natural", 5, 81)]),
+      note("lower-b", "treble", 240, { status: "final", duration: "eighth" }, [pitch("lb", "D", "natural", 4, 62)]),
+    ];
+    const projection = projectStaffBuilderMeasure(score({ measures: [{ id: "m1", events }] }), 0);
+    expect(projection.voices.treble).toHaveLength(2);
+    expect(projection.voices.treble.map(getStaffBuilderBeamEventIdRuns)).toEqual([[['upper-a', 'upper-b']], [['lower-a', 'lower-b']]]);
+  });
   it("resolves inherited context while distinguishing explicit changes", () => {
     const current = score({ measures: [
       { id: "m1", events: [] },

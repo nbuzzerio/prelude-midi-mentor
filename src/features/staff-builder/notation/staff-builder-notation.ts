@@ -133,6 +133,39 @@ export function getStaffBuilderVisualDuration(duration: StaffBuilderDuration): S
   return VISUAL_DURATIONS[duration];
 }
 
+function beamGroupTicks(group: string): number {
+  const [numerator, denominator] = group.split("/").map(Number);
+  return STAFF_BUILDER_TICKS_PER_QUARTER * 4 * (numerator ?? 1) / (denominator ?? 4);
+}
+
+function isBeamableEvent(item: StaffBuilderProjectedTickable): item is StaffBuilderProjectedEvent {
+  return item.kind === "notes" && (item.visualDuration.vexflowDuration === "8" || item.visualDuration.vexflowDuration === "16");
+}
+
+export function getStaffBuilderBeamEventIdRuns(voice: StaffBuilderProjectedVoice): readonly (readonly string[])[] {
+  const groupTicks = beamGroupTicks(voice.beam.beatGroups[0] ?? "1/4");
+  const events = voice.tickables.filter((item): item is StaffBuilderProjectedEvent => item.kind !== "spacer");
+  const runs: string[][] = [];
+  let run: StaffBuilderProjectedEvent[] = [];
+  const flush = () => {
+    if (run.length > 1) runs.push(run.map(({ eventId }) => eventId));
+    run = [];
+  };
+  for (const item of events) {
+    const previous = run.at(-1);
+    const sameBeat = previous !== undefined && Math.floor(previous.startTick / groupTicks) === Math.floor(item.startTick / groupTicks);
+    const contiguous = previous !== undefined && previous.startTick + previous.visualDuration.ticks === item.startTick;
+    if (!isBeamableEvent(item)) {
+      flush();
+      continue;
+    }
+    if (previous && (!sameBeat || !contiguous)) flush();
+    run.push(item);
+  }
+  flush();
+  return runs;
+}
+
 function projectEvent(event: StaffBuilderEvent, capacityTicks: number, layoutDurationOverride?: number): StaffBuilderProjectedEvent {
   const unresolved = event.rhythm.status === "unresolved";
   const duration = unresolved ? "quarter" : event.rhythm.duration;
@@ -200,7 +233,7 @@ function projectStaff(events: readonly StaffBuilderEvent[], staff: StaffBuilderS
       tickables,
       beam: {
         beatGroups: BEAT_GROUPS[timeSignature],
-        eventIds: tickables.filter((item): item is StaffBuilderProjectedEvent => item.kind === "notes" && item.visualDuration.ticks <= durationToTicks("eighth")).map(({ eventId }) => eventId),
+        eventIds: tickables.filter(isBeamableEvent).map(({ eventId }) => eventId),
       },
     };
   });
@@ -334,7 +367,7 @@ export function projectStaffBuilderMeasure(score: StaffBuilderScore, measureInde
   );
   const beams = (staff: StaffBuilderStaff): StaffBuilderBeamProjection => ({
     beatGroups: BEAT_GROUPS[context.timeSignature],
-    eventIds: projectedEvents.filter((event) => event.staff === staff && event.kind === "notes" && event.visualDuration.ticks <= durationToTicks("eighth")).map(({ eventId }) => eventId),
+    eventIds: projectedEvents.filter((event) => event.staff === staff && isBeamableEvent(event)).map(({ eventId }) => eventId),
   });
   return {
     measureIndex,
