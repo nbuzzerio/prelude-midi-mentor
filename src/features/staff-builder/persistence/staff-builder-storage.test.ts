@@ -44,6 +44,16 @@ describe("Staff Builder guarded storage", () => {
     expect(readStaffBuilderLibrary(storage)).toEqual({ ok: true, value: { schemaVersion: 3, pieces: [] } });
   });
 
+  it("round-trips lyric cues through library and draft storage", () => {
+    const storage = new MemoryStorage();
+    const empty = createStaffBuilderScore({ title: "Lyrics", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", factories: { createId: vi.fn().mockReturnValueOnce("score").mockReturnValueOnce("measure"), now: () => "2026-08-06T12:00:00.000Z" } });
+    const score = { ...empty, measures: [{ ...empty.measures[0]!, events: [{ id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] }] }], annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" }] };
+    expect(writeStaffBuilderValue(storage, "library", { schemaVersion: 3, pieces: [score] }).ok).toBe(true);
+    expect(writeStaffBuilderValue(storage, "draft", { schemaVersion: 3, savedPieceId: score.id, updatedAt: score.updatedAt, score, editorPass: "rhythm", captureState: { cursor: { measureIndex: 0, offsetTicks: 0 }, inputMode: "grand", stepDuration: "quarter" }, rhythmState: { measureIndex: 0, selectedEventId: "event" } }).ok).toBe(true);
+    expect(readStaffBuilderLibrary(storage)).toMatchObject({ ok: true, value: { pieces: [{ annotations: [{ kind: "lyric-cue", text: "Bells" }] }] } });
+    expect(readStaffBuilderDraft(storage)).toMatchObject({ ok: true, value: { score: { annotations: [{ kind: "lyric-cue", text: "Bells" }] } } });
+  });
+
   it("reports corrupt JSON and unsupported schemas without overwriting them", () => {
     const storage = new MemoryStorage();
     storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, "not json");

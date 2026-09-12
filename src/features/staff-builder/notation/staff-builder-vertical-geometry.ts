@@ -32,6 +32,7 @@ export function getStaffBuilderVerticalGeometry(options: Readonly<{
   trebleStaveY: number;
   bassStaveY: number;
   visibleStaff?: "grand" | StaffBuilderStaff;
+  topLaneReservation?: number;
 }>): StaffBuilderVerticalGeometry {
   const visibleStaff = options.visibleStaff ?? "grand";
   let minimumY = MINIMUM_MARGIN;
@@ -46,7 +47,7 @@ export function getStaffBuilderVerticalGeometry(options: Readonly<{
       maximumY = Math.max(maximumY, noteheadCenterY + GLYPH_AND_STEM_EXTENT);
     }
   }
-  const topReservation = Math.max(0, Math.ceil(MINIMUM_MARGIN - minimumY));
+  const topReservation = (options.topLaneReservation ?? 0) + Math.max(0, Math.ceil(MINIMUM_MARGIN - minimumY));
   const bottomReservation = Math.max(0, Math.ceil(maximumY - (options.baseHeight - MINIMUM_MARGIN)));
   return {
     topReservation,

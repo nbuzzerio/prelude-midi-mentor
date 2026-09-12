@@ -3,6 +3,7 @@ import {
   addStaffBuilderAnnotation,
   deleteStaffBuilderAnnotation,
   updateStaffBuilderAnnotation,
+  STAFF_BUILDER_LYRIC_CUE_MAX_LENGTH,
 } from "../staff-builder-annotations";
 import type { StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
 import { describeStaffBuilderAnnotation, STAFF_BUILDER_ANNOTATION_KIND_LABELS, STAFF_BUILDER_ANNOTATION_LAYER_LABELS, STAFF_BUILDER_BOOKMARK_LABELS, STAFF_BUILDER_PRACTICE_MARK_LABELS } from "../staff-builder-annotation-presentation";
@@ -24,7 +25,14 @@ const LAYER_CONTROLS: readonly Readonly<{ layer: StaffBuilderAnnotationLayer; la
   ...Object.entries(STAFF_BUILDER_ANNOTATION_LAYER_LABELS).map(([layer, label]) => ({ layer: layer as StaffBuilderAnnotationLayer, label })),
 ];
 
-type FormKind = StaffBuilderAnnotation["kind"];
+type FormAnnotation = Exclude<StaffBuilderAnnotation, { kind: "lyric-cue" }>;
+type FormKind = FormAnnotation["kind"];
+
+function StaffBuilderLyricCueEditor({ initialText, onSave }: Readonly<{ initialText: string; onSave: (text: string) => void }>) {
+  const [text, setText] = useState(initialText);
+  return <div className="staff-builder-lyric-cue-editor"><label>Lyric Cue<input maxLength={STAFF_BUILDER_LYRIC_CUE_MAX_LENGTH} onChange={(event) => setText(event.target.value)} placeholder="Optional phrase cue" type="text" value={text} /></label><button className="staff-builder-secondary-button" onClick={() => onSave(text)} type="button">Save Lyric Cue</button></div>;
+}
+
 export function StaffBuilderAnnotationsPanel({
   score,
   measureIndex,
@@ -46,9 +54,9 @@ export function StaffBuilderAnnotationsPanel({
 }>) {
   const measure = score.measures[measureIndex];
   const eventIds = new Set(measure?.events.map(({ id }) => id) ?? []);
-  const relevant = score.annotations.filter(({ anchor }) => anchor.kind === "measure"
-    ? anchor.measureId === measure?.id
-    : eventIds.has(anchor.eventId));
+  const relevant = score.annotations.filter((annotation): annotation is FormAnnotation => annotation.kind !== "lyric-cue" && (annotation.anchor.kind === "measure"
+    ? annotation.anchor.measureId === measure?.id
+    : eventIds.has(annotation.anchor.eventId)));
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [kind, setKind] = useState<FormKind>("study-note");
@@ -58,6 +66,23 @@ export function StaffBuilderAnnotationsPanel({
   const [practiceCategory, setPracticeCategory] = useState<StaffBuilderPracticeMarkCategory>("needs-work");
   const [bookmarkCategory, setBookmarkCategory] = useState<StaffBuilderBookmarkCategory>("interesting");
   const [error, setError] = useState<string | null>(null);
+  const selectedEvent = measure?.events.find(({ id }) => id === selectedEventId);
+  const lyricCue = score.annotations.find((annotation): annotation is Extract<StaffBuilderAnnotation, { kind: "lyric-cue" }> => annotation.kind === "lyric-cue" && annotation.anchor.kind === "event" && annotation.anchor.eventId === selectedEventId);
+  const lyricSourceKey = JSON.stringify([selectedEventId, lyricCue?.id ?? null, lyricCue?.text ?? null]);
+
+  const saveLyricCue = (text: string) => {
+    if (!selectedEvent || selectedEvent.kind !== "notes" || selectedEvent.staff !== "treble") return;
+    const trimmed = text.trim();
+    const factories = now ? { now } : undefined;
+    const next = !trimmed && lyricCue
+      ? deleteStaffBuilderAnnotation(score, lyricCue.id, factories)
+      : lyricCue
+        ? updateStaffBuilderAnnotation(score, { ...lyricCue, text: trimmed }, factories)
+        : trimmed
+          ? addStaffBuilderAnnotation(score, { id: createId(), kind: "lyric-cue", anchor: { kind: "event", eventId: selectedEvent.id }, text: trimmed }, factories)
+          : score;
+    if (next !== score) onScoreMutation(next);
+  };
 
   const resetForm = () => {
     setFormOpen(false);
@@ -75,7 +100,7 @@ export function StaffBuilderAnnotationsPanel({
     setAnchor(selectedEventId ? { kind: "event", eventId: selectedEventId } : measure ? { kind: "measure", measureId: measure.id } : null);
     setFormOpen(true);
   };
-  const beginEdit = (annotation: StaffBuilderAnnotation) => {
+  const beginEdit = (annotation: FormAnnotation) => {
     setEditingId(annotation.id);
     setKind(annotation.kind);
     setAnchor(annotation.anchor);
@@ -110,6 +135,7 @@ export function StaffBuilderAnnotationsPanel({
       <button className="staff-builder-primary-button" onClick={beginAdd} type="button">Add Annotation</button>
     </div>
     <fieldset className="staff-builder-annotation-layers"><legend>Score annotation layers</legend>{LAYER_CONTROLS.map(({ layer, label }) => <label key={layer}><input checked={visibleLayers.has(layer)} onChange={(event) => onLayerVisibilityChange(layer, event.target.checked)} type="checkbox" />{label}</label>)}</fieldset>
+    {selectedEvent?.kind === "notes" && selectedEvent.staff === "treble" && <StaffBuilderLyricCueEditor initialText={lyricCue?.text ?? ""} key={lyricSourceKey} onSave={saveLyricCue} />}
     {formOpen && <div aria-label={editingId ? "Edit annotation" : "Add annotation"} className="staff-builder-annotation-form" role="group">
       <label>Annotation type<select onChange={(event) => { setKind(event.target.value as FormKind); setError(null); }} value={kind}><option value="study-note">Study Note</option><option value="practice-mark">Practice Mark</option><option value="bookmark">Bookmark</option></select></label>
       <fieldset><legend>Attach to</legend><label><input checked={anchor?.kind === "measure" && anchor.measureId === measure?.id} name="annotation-anchor" onChange={() => setAnchor(measure ? { kind: "measure", measureId: measure.id } : null)} type="radio" />Current measure</label>{originalEditAnchor?.kind === "event" && originalEditAnchor.eventId !== selectedEventId && <label><input checked={anchor?.kind === "event" && anchor.eventId === originalEditAnchor.eventId} name="annotation-anchor" onChange={() => setAnchor(originalEditAnchor)} type="radio" />Existing event</label>}{selectedEventId && <label><input checked={anchor?.kind === "event" && anchor.eventId === selectedEventId} name="annotation-anchor" onChange={() => setAnchor({ kind: "event", eventId: selectedEventId })} type="radio" />Selected event</label>}</fieldset>

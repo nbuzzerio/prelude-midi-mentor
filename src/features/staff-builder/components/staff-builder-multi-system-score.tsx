@@ -75,11 +75,14 @@ function StaffBuilderMultiSystemScoreGeneration({ score, layout, onRenderResults
             <ol>
               {system.measures.map((placement) => {
                 const projection = projectStaffBuilderMeasure(score, placement.measureIndex);
+                const eventIds = new Set(score.measures[placement.measureIndex]?.events.map(({ id }) => id) ?? []);
+                const lyricCues = score.annotations.filter((annotation): annotation is Extract<typeof annotation, { kind: "lyric-cue" }> => annotation.kind === "lyric-cue" && annotation.anchor.kind === "event" && eventIds.has(annotation.anchor.eventId));
                 return (
                   <li key={placement.measureId}>
                     <p>Measure {projection.measureNumber}</p>
                     <p>Treble: {projection.summary.treble}</p>
                     <p>Bass: {projection.summary.bass}</p>
+                    {lyricCues.map((cue) => <p key={cue.id}>Lyric cue: {cue.text}</p>)}
                   </li>
                 );
               })}

@@ -19,6 +19,7 @@ import {
 } from "./staff-builder-vexflow-rendering";
 import { getStaffBuilderVerticalGeometry } from "./staff-builder-vertical-geometry";
 import { drawStaffBuilderTie } from "./draw-staff-builder-tie";
+import { drawStaffBuilderLyricCues, getStaffBuilderLyricCues, STAFF_BUILDER_LYRIC_LANE_RESERVATION } from "./staff-builder-lyric-cues";
 
 export type { StaffBuilderEventAnchor, StaffBuilderPositionAnchor, StaffBuilderTemporalGeometry } from "./staff-builder-vexflow-rendering";
 
@@ -68,6 +69,8 @@ const FORMAT_PADDING = 155;
 
 export function renderStaffBuilderMeasure(container: HTMLDivElement, score: StaffBuilderScore, measureIndex: number, options?: StaffBuilderMeasureRenderOptions): StaffBuilderMeasureRenderResult {
   const projection = projectStaffBuilderMeasure(score, measureIndex, options);
+  const measureEventIds = new Set(score.measures[measureIndex]?.events.map(({ id }) => id) ?? []);
+  const lyricCues = getStaffBuilderLyricCues(score, measureEventIds);
   const visibleStaff = options?.visibleStaff ?? "grand";
   const singleStaff = visibleStaff !== "grand";
   const baseTrebleY = singleStaff ? 95 : TREBLE_Y;
@@ -78,6 +81,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     trebleStaveY: baseTrebleY,
     bassStaveY: baseBassY,
     visibleStaff,
+    topLaneReservation: visibleStaff !== "bass" && lyricCues.length > 0 ? STAFF_BUILDER_LYRIC_LANE_RESERVATION : 0,
   });
   container.replaceChildren();
   const renderer = new Renderer(container, Renderer.Backends.SVG);
@@ -138,6 +142,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     if (tie.direction === "incoming") drawStaffBuilderTie(context, null, note, tie.pitchIndex, tie.pitchIndex);
     else drawStaffBuilderTie(context, note, null, tie.pitchIndex, tie.pitchIndex);
   });
+  if (visibleStaff !== "bass") drawStaffBuilderLyricCues(context, lyricCues, noteByEventId, 16, STAVE_X, RENDER_WIDTH - STAVE_RIGHT_PADDING);
 
   configureStaffBuilderSvg(container, RENDER_WIDTH, vertical.height);
   const eventAnchors = createStaffBuilderEventAnchors([...(visibleStaff === "bass" ? [] : trebleRendered), ...(visibleStaff === "treble" ? [] : bassRendered)]);

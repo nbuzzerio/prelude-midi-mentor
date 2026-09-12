@@ -3,6 +3,7 @@ import { resolveStaffBuilderMeasureContext } from "../staff-builder-score";
 import { STAFF_BUILDER_TICKS_PER_QUARTER, durationToTicks } from "../staff-builder-time";
 import type { StaffBuilderAccidental, StaffBuilderEvent, StaffBuilderMeasure, StaffBuilderScore } from "../staff-builder-types";
 import { getStaffBuilderVerticalGeometry } from "./staff-builder-vertical-geometry";
+import { getStaffBuilderLyricCues, STAFF_BUILDER_LYRIC_LANE_RESERVATION } from "./staff-builder-lyric-cues";
 
 export type StaffBuilderVerticalLayoutReservations = Readonly<{
   aboveStaff: number;
@@ -238,7 +239,9 @@ export function layoutStaffBuilderScoreSystems(score: StaffBuilderScore, constra
   let documentY = 0;
   const systems = packed.map((estimates, systemIndex): StaffBuilderSystemLayout => {
     const pitchSources = estimates.flatMap(({ measureIndex }) => score.measures[measureIndex]?.events.flatMap((event) => event.kind === "notes" ? [{ staff: event.staff, pitches: event.pitches }] : []) ?? []);
-    const range = getStaffBuilderVerticalGeometry({ pitchSources, baseHeight: constraints.baseMusicHeight, trebleStaveY: 15, bassStaveY: constraints.baseMusicHeight - 105 });
+    const systemEventIds = new Set(estimates.flatMap(({ measureIndex }) => score.measures[measureIndex]?.events.map(({ id }) => id) ?? []));
+    const hasLyricCues = getStaffBuilderLyricCues(score, systemEventIds).length > 0;
+    const range = getStaffBuilderVerticalGeometry({ pitchSources, baseHeight: constraints.baseMusicHeight, trebleStaveY: 15, bassStaveY: constraints.baseMusicHeight - 105, topLaneReservation: hasLyricCues ? STAFF_BUILDER_LYRIC_LANE_RESERVATION : 0 });
     const aboveStaff = reservations.aboveStaff + range.topReservation;
     const belowStaff = reservations.belowStaff + range.bottomReservation;
     const systemHeight = aboveStaff + constraints.baseMusicHeight + reservations.betweenStaves + belowStaff;

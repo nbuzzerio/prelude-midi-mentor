@@ -18,6 +18,17 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("undoes and redoes a lyric cue through the shared annotation history", () => {
+    const empty = score();
+    const original = { ...empty, measures: [{ ...empty.measures[0]!, events: [{ id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] }] }] };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));
+    const cue = { id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" };
+    act(() => expect(result.current.applyScoreMutation(addStaffBuilderAnnotation(result.current.score, cue))).toBe(true));
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([]);
+    act(() => expect(result.current.redo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([cue]);
+  });
   it("undoes and redoes annotation add, edit, and delete through the real score mutation boundary", () => {
     const original = score();
     const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange: vi.fn() }));

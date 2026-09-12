@@ -38,6 +38,9 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
     initialTimeSignature: piece.measures[0]?.timeSignature ?? "4/4",
     measures,
     ties,
-    annotations: [],
+    annotations: (piece.annotations ?? []).map((annotation) => ({
+      ...annotation,
+      anchor: { ...annotation.anchor },
+    })),
   };
 }

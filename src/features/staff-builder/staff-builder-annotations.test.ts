@@ -46,6 +46,24 @@ const eventNote: StaffBuilderAnnotation = { id: "note", kind: "study-note", anch
 const measureMark: StaffBuilderAnnotation = { id: "mark", kind: "practice-mark", anchor: { kind: "measure", measureId: "measure" }, category: "rhythm" };
 
 describe("Staff Builder annotations", () => {
+  it("adds and edits one trimmed lyric cue per treble note event", () => {
+    const cue = { id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" };
+    const added = addStaffBuilderAnnotation(score(), cue);
+    expect(updateStaffBuilderAnnotation(added, { ...cue, text: "Ring out" }).annotations).toEqual([{ ...cue, text: "Ring out" }]);
+    expect(() => addStaffBuilderAnnotation(added, { ...cue, id: "second" })).toThrow(/already exists/);
+    expect(() => addStaffBuilderAnnotation(score(), { ...cue, text: "x".repeat(61) })).toThrow(/invalid/);
+    expect(() => addStaffBuilderAnnotation(score(), { ...cue, anchor: { kind: "measure", measureId: "measure" } })).toThrow(/event/);
+  });
+
+  it("removes lyric cues when their event becomes a bass event or rest", () => {
+    const cue: StaffBuilderAnnotation = { id: "lyric", kind: "lyric-cue", anchor: { kind: "event", eventId: "event" }, text: "Bells" };
+    const current = score([cue]);
+    const selection = { measureIndex: 0, eventId: "event" };
+    const bass = moveStaffBuilderEventToStaff(current, selection, "bass");
+    const rest = convertStaffBuilderEventToRest(current, selection, "quarter");
+    expect(bass.ok && reconcileStaffBuilderAnnotations(bass.score).annotations).toEqual([]);
+    expect(rest.ok && reconcileStaffBuilderAnnotations(rest.score).annotations).toEqual([]);
+  });
   it("adds, updates, and deletes annotations immutably with authored-score timestamps", () => {
     const original = score();
     const added = addStaffBuilderAnnotation(original, eventNote, { now: () => "2026-01-02T00:00:00.000Z" });

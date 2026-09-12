@@ -77,6 +77,15 @@ function projected(source: StaffBuilderScore) {
 }
 
 describe("Staff Builder piece-practice projection", () => {
+  it("carries existing lyric annotations without changing targets or sounding spans", () => {
+    const original = score({ events: [notes("n1", "treble", 0, "whole", [pitch("p1", 60)])] });
+    const annotated = { ...original, annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "n1" }, text: "Bells" }] };
+    const plainPiece = projected(original);
+    const lyricPiece = projected(annotated);
+    expect(lyricPiece.annotations).toEqual(annotated.annotations);
+    expect(lyricPiece.measures.map(({ targets }) => targets)).toEqual(plainPiece.measures.map(({ targets }) => targets));
+    expect(lyricPiece.soundingSpans).toEqual(plainPiece.soundingSpans);
+  });
   it("projects one note as one attack", () => {
     const piece = projected(score({ events: [notes("n1", "treble", 0, "whole", [pitch("p1", 60)])] }));
     expect(piece.measures[0]?.targets).toHaveLength(1);

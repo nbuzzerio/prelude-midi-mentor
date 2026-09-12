@@ -91,18 +91,25 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   );
   const previewEventIds = preview.previewEventIds;
   const previewLayoutDurationTicksByEventId = preview.layoutDurationTicksByEventId;
+  const notationScore = useMemo(() => visibleAnnotationLayers.has("lyric-cues") ? preview.renderScore : { ...preview.renderScore, annotations: preview.renderScore.annotations.filter(({ kind }) => kind !== "lyric-cue") }, [preview.renderScore, visibleAnnotationLayers]);
+  const semanticLyricCues = notationScore.annotations.filter((annotation): annotation is Extract<typeof annotation, { kind: "lyric-cue" }> => {
+    if (annotation.kind !== "lyric-cue" || annotation.anchor.kind !== "event") return false;
+    const eventId = annotation.anchor.eventId;
+    return score.measures[measureIndex]?.events.some(({ id }) => id === eventId) ?? false;
+  });
   const semanticDescription = [
     `Measure ${projection.measureNumber}. Effective key: ${projection.keySignatureName}. Effective time signature: ${projection.timeSignature}.`,
     `Treble: ${projection.summary.treble}`,
     `Bass: ${projection.summary.bass}`,
     ...(pendingPreview ? [preview.summary.treble, preview.summary.bass] : []),
     ...(projection.boundaryTies ?? []).map((tie) => `${tie.description} Tie ${tie.tieId}, ${tie.direction}, event ${tie.eventId}.`),
+    ...semanticLyricCues.map((cue) => `Lyric cue: ${cue.text}.`),
     ...((projection.invalidEventIds ?? []).length > 0 ? [`Invalid timing: ${projection.invalidEventIds.length} event(s) begin outside this measure and are indicated at the boundary.`] : []),
   ].join(" ");
 
   useLayoutEffect(() => {
     if (!notationRef.current) return;
-    const result = renderStaffBuilderMeasure(notationRef.current, preview.renderScore, measureIndex, {
+    const result = renderStaffBuilderMeasure(notationRef.current, notationScore, measureIndex, {
       excludedEventIds: previewEventIds,
       layoutDurationTicksByEventId: previewLayoutDurationTicksByEventId,
       visibleStaff,
@@ -129,7 +136,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       setIssueGeometry({ x: issuePosition.x, y: issuePosition.y, width: Math.max(issuePosition.width, end - issuePosition.x), height: issuePosition.height });
     } else setIssueGeometry(null);
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, eventHighlights, issue, measureIndex, onRender, preview.renderScore, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId, visibleStaff]);
+  }, [cursorOffsetTicks, cursorStepDuration, eventHighlights, issue, measureIndex, notationScore, onRender, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId, visibleStaff]);
 
   const authoritativeTargets = [...(renderResult?.anchors.authoritativeEvents.values() ?? [])]
     .map((anchor, order) => ({ anchor, order, event: score.measures[measureIndex]?.events.find(({ id }) => id === anchor.eventId) }))
@@ -141,7 +148,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const measureEventIds = new Set(measure?.events.map(({ id }) => id) ?? []);
   const visibleAnnotations = filterStaffBuilderAnnotationsByLayers(score.annotations.filter(({ anchor }) => anchor.kind === "measure"
     ? anchor.measureId === measure?.id
-    : measureEventIds.has(anchor.eventId)), visibleAnnotationLayers);
+    : measureEventIds.has(anchor.eventId)), visibleAnnotationLayers).filter(({ kind }) => kind !== "lyric-cue");
   const annotationTypeLabel = (annotation: StaffBuilderAnnotation) => annotation.kind === "study-note" ? "Study Note" : annotation.kind === "practice-mark" ? "Practice Mark" : "Bookmark";
   const aggregateAnnotations = (annotations: readonly StaffBuilderAnnotation[]) => [...annotations.reduce((groups, annotation) => {
     const layer = getStaffBuilderAnnotationLayer(annotation);

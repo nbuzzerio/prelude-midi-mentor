@@ -9,6 +9,15 @@ describe("Staff Builder vertical notation geometry", () => {
     expect(editor([pitch("treble", "C", 4), pitch("bass", "C", 3)])).toEqual({ topReservation: 0, bottomReservation: 0, height: 300, trebleStaveY: 55, bassStaveY: 155 });
   });
 
+  it("adds an optional lyric lane and composes it with high-note reservation", () => {
+    const ordinary = getStaffBuilderVerticalGeometry({ pitchSources: [pitch("treble", "C", 4)], baseHeight: 300, trebleStaveY: 55, bassStaveY: 155, topLaneReservation: 24 });
+    const highWithoutLyrics = editor([pitch("treble", "G", 9)]);
+    const highWithLyrics = getStaffBuilderVerticalGeometry({ pitchSources: [pitch("treble", "G", 9)], baseHeight: 300, trebleStaveY: 55, bassStaveY: 155, topLaneReservation: 24 });
+    expect(ordinary).toMatchObject({ topReservation: 24, height: 324, trebleStaveY: 79 });
+    expect(highWithLyrics.topReservation).toBe(highWithoutLyrics.topReservation + 24);
+    expect(highWithLyrics.height).toBe(highWithoutLyrics.height + 24);
+  });
+
   it("reserves only the needed edge for extreme treble and bass pitches", () => {
     const high = editor([pitch("treble", "G", 9)]);
     const low = editor([pitch("bass", "D", 1)]);

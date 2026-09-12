@@ -24,6 +24,7 @@ export function StaffBuilderStudyView({ score, visibleAnnotationLayers, onLayerV
   const [contentWidth, setContentWidth] = useState(0);
   const [renderGeometry, setRenderGeometry] = useState<Readonly<{ layout: ReturnType<typeof layoutStaffBuilderScoreSystems>; results: readonly StaffBuilderSystemRenderResult[] }> | null>(null);
   const [selectedAnnotationKey, setSelectedAnnotationKey] = useState<string | null>(null);
+  const notationScore = useMemo(() => visibleAnnotationLayers.has("lyric-cues") ? score : { ...score, annotations: score.annotations.filter(({ kind }) => kind !== "lyric-cue") }, [score, visibleAnnotationLayers]);
 
   useEffect(() => { exitRef.current?.focus(); }, []);
   useEffect(() => {
@@ -53,8 +54,8 @@ export function StaffBuilderStudyView({ score, visibleAnnotationLayers, onLayerV
   }, []);
 
   const layout = useMemo(() => contentWidth > 0
-    ? layoutStaffBuilderScoreSystems(score, getStaffBuilderStudyLayoutConstraints(contentWidth))
-    : null, [contentWidth, score]);
+    ? layoutStaffBuilderScoreSystems(notationScore, getStaffBuilderStudyLayoutConstraints(contentWidth))
+    : null, [contentWidth, notationScore]);
   const receiveRenderResults = useCallback((results: readonly StaffBuilderSystemRenderResult[]) => {
     if (layout) setRenderGeometry({ layout, results });
   }, [layout]);
@@ -72,7 +73,7 @@ export function StaffBuilderStudyView({ score, visibleAnnotationLayers, onLayerV
     <div aria-label={`${score.title} Study View score, scroll to explore`} className="staff-builder-study-view-viewport" ref={viewportRef} tabIndex={0}>
       <div className="staff-builder-study-view-transform">
         <div className="staff-builder-study-view-document">
-          {layout && <><StaffBuilderMultiSystemScore layout={layout} onRenderResultsChange={receiveRenderResults} score={score} /><StaffBuilderStudyAnnotations onSelect={setSelectedAnnotationKey} presentation="markers" projection={annotations} selectedKey={visibleSelectedAnnotationKey} /></>}
+          {layout && <><StaffBuilderMultiSystemScore layout={layout} onRenderResultsChange={receiveRenderResults} score={notationScore} /><StaffBuilderStudyAnnotations onSelect={setSelectedAnnotationKey} presentation="markers" projection={annotations} selectedKey={visibleSelectedAnnotationKey} /></>}
         </div>
       </div>
     </div>

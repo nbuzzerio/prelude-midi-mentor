@@ -262,6 +262,16 @@ describe("StaffBuilderScoreView", () => {
     expect(container.querySelector(".staff-builder-boundary-tie")).toBeNull();
   });
 
+  it("describes each lyric cue once without creating an annotation badge", () => {
+    const current = interactiveScore();
+    const annotated = { ...current, annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "treble-chord" }, text: "Bells" }] };
+    const { container } = render(<StaffBuilderScoreView measureIndex={0} score={annotated} />);
+    const semantics = container.querySelector("#staff-builder-score-semantics")?.getAttribute("aria-label") ?? "";
+    expect(semantics.match(/Lyric cue: Bells/g)).toHaveLength(1);
+    expect(container.querySelector('[data-annotation-layer="lyric-cues"]')).toBeNull();
+    expect(renderMeasure.mock.lastCall?.[1]).toMatchObject({ annotations: [{ kind: "lyric-cue", text: "Bells" }] });
+  });
+
   it("includes invalid timing once in accessible score semantics while keeping visible details aria-hidden", () => {
     const current = score();
     const invalid = { ...current, measures: [{ ...current.measures[0]!, events: [{ ...current.measures[0]!.events[0]!, startTick: 2040 }] }, current.measures[1]!] };

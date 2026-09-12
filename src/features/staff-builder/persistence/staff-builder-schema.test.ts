@@ -114,11 +114,14 @@ describe("Staff Builder schema", () => {
       { id: "mark", kind: "practice-mark", anchor: { kind: "measure", measureId }, category: "rhythm" },
       { id: "other", kind: "practice-mark", anchor: { kind: "event", eventId }, category: "other", text: "Block this chord." },
       { id: "bookmark", kind: "bookmark", anchor: { kind: "measure", measureId }, category: "question" },
+      { id: "lyric", kind: "lyric-cue", anchor: { kind: "event", eventId }, text: "Bells" },
     ];
     expect(parseStaffBuilderScore({ ...current, annotations })).toEqual({ ok: true, value: { ...current, annotations } });
     expect(parseStaffBuilderScore({ ...current, annotations: [...annotations, annotations[0]] })).toMatchObject({ ok: false, reason: "corrupt" });
     expect(parseStaffBuilderScore({ ...current, annotations: [{ ...annotations[0], kind: "fingering" }] })).toMatchObject({ ok: false, reason: "corrupt" });
     expect(parseStaffBuilderScore({ ...current, annotations: [{ id: "orphan", kind: "bookmark", category: "revisit", anchor: { kind: "event", eventId: "missing" } }] })).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderScore({ ...current, annotations: [{ id: "lyric", kind: "lyric-cue", anchor: { kind: "measure", measureId }, text: "Bells" }] })).toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderScore({ ...current, annotations: [{ id: "lyric", kind: "lyric-cue", anchor: { kind: "event", eventId }, text: "x".repeat(61) }] })).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it("hard-rejects duplicate measure, event, and tie IDs", () => {

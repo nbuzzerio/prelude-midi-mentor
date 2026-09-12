@@ -27,6 +27,15 @@ afterEach(() => { cleanup(); resize = null; observed = null; vi.restoreAllMocks(
 
 describe("StaffBuilderStudyView", () => {
   const viewProps = { visibleAnnotationLayers: ALL_STAFF_BUILDER_ANNOTATION_LAYERS, onLayerVisibilityChange: vi.fn(), onShowAllAnnotationLayers: vi.fn(), onHideAllAnnotationLayers: vi.fn() };
+  it("renders lyric cues in Study View without annotation markers", () => {
+    const event = { id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] };
+    const lyricScore = { ...score, measures: [{ id: "m0", events: [event] }], annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" }] };
+    const { container } = render(<StaffBuilderStudyView {...viewProps} onExit={vi.fn()} score={lyricScore} />);
+    act(() => resize?.(700));
+    expect([...container.querySelectorAll("svg text")].some(({ textContent }) => textContent === "Bells")).toBe(true);
+    expect(container.querySelector('[data-annotation-kind="lyric-cue"]')).toBeNull();
+    expect(container.querySelector("[data-staff-builder-score-semantics]")?.textContent?.match(/Lyric cue: Bells/g)).toHaveLength(1);
+  });
   it("owns responsive layout from its labelled scroll viewport and ignores zero width", () => {
     const before = JSON.stringify(score);
     render(<StaffBuilderStudyView {...viewProps} onExit={vi.fn()} score={score} />);

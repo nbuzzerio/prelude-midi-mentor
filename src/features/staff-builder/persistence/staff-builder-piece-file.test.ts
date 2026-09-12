@@ -36,6 +36,11 @@ function score(): StaffBuilderScore {
 }
 
 describe("Staff Builder piece files", () => {
+  it("preserves lyric cues through export and import parsing", () => {
+    const source = { ...score(), annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "long" }, text: "Bells" }] };
+    const parsed = parseStaffBuilderPieceFileText(serializeStaffBuilderPiece(source));
+    expect(parsed).toEqual({ ok: true, score: source });
+  });
   it("serializes one canonical authoritative score as deterministic human-readable JSON", () => {
     const source = { ...score(), editorPass: "rhythm", practiceProgress: { target: 3 } };
     const serialized = serializeStaffBuilderPiece(source);

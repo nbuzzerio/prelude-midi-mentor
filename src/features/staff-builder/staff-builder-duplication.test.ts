@@ -65,6 +65,15 @@ function musicalMeasures(score: StaffBuilderScore) {
 }
 
 describe("duplicateStaffBuilderScore", () => {
+  it("preserves and remaps lyric cues only when their treble event is retained", () => {
+    const annotated = { ...source, annotations: [...source.annotations, { id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "high" }, text: "Bells" }] };
+    const full = duplicateStaffBuilderScore(annotated, "full", factories());
+    const treble = duplicateStaffBuilderScore(annotated, "treble", factories());
+    const bass = duplicateStaffBuilderScore(annotated, "bass", factories());
+    expect(full.annotations.find(({ kind }) => kind === "lyric-cue")).toMatchObject({ text: "Bells", anchor: { kind: "event" } });
+    expect(treble.annotations.find(({ kind }) => kind === "lyric-cue")).toMatchObject({ text: "Bells", anchor: { kind: "event" } });
+    expect(bass.annotations.some(({ kind }) => kind === "lyric-cue")).toBe(false);
+  });
   it("creates a fully independent musical copy and remaps every reference", () => {
     const before = structuredClone(source);
     const copy = duplicateStaffBuilderScore(source, "full", factories());

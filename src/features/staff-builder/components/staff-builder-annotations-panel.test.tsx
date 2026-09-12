@@ -20,6 +20,21 @@ function twoEventScore(): StaffBuilderScore {
   return { ...score, measures: [{ ...score.measures[0], events: [score.measures[0].events[0], { ...score.measures[0].events[0], id: "event-b", startTick: 480 }] }] };
 }
 
+function trebleNoteScore(): StaffBuilderScore {
+  const current = initialScore();
+  return { ...current, measures: [{ ...current.measures[0], events: [{ id: "event", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] }] }] };
+}
+
+function twoTrebleNoteScore(): StaffBuilderScore {
+  const score = trebleNoteScore();
+  const event = score.measures[0].events[0];
+  return { ...score, measures: [{ ...score.measures[0], events: [event, { ...event, id: "event-b", startTick: 480 }] }] };
+}
+
+function lyricPanel(score: StaffBuilderScore, selectedEventId: string) {
+  return <StaffBuilderAnnotationsPanel measureIndex={0} onLayerVisibilityChange={vi.fn()} onScoreMutation={() => true} score={score} selectedEventId={selectedEventId} visibleLayers={new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS)} />;
+}
+
 function Harness({ selectedEventId = "event", source = initialScore(), onScore = vi.fn() }: Readonly<{ selectedEventId?: string | null; source?: StaffBuilderScore; onScore?: (score: StaffBuilderScore) => void }>) {
   const [score, setScore] = useState(source);
   const [visible, setVisible] = useState<ReadonlySet<StaffBuilderAnnotationLayer>>(() => new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS));
@@ -30,6 +45,60 @@ function openForm() { fireEvent.click(screen.getByRole("button", { name: "Add An
 function form() { return screen.getByRole("group", { name: "Add annotation" }); }
 
 describe("StaffBuilderAnnotationsPanel", () => {
+  it("adds, edits, and clears the selected treble note lyric cue", () => {
+    const onScore = vi.fn();
+    render(<Harness onScore={onScore} source={trebleNoteScore()} />);
+    fireEvent.change(screen.getByLabelText("Lyric Cue"), { target: { value: "  Bells  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Lyric Cue" }));
+    expect(onScore.mock.lastCall?.[0].annotations).toEqual([{ id: "annotation-1", kind: "lyric-cue", anchor: { kind: "event", eventId: "event" }, text: "Bells" }]);
+    fireEvent.change(screen.getByLabelText("Lyric Cue"), { target: { value: "Ring" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Lyric Cue" }));
+    expect(onScore.mock.lastCall?.[0].annotations[0].text).toBe("Ring");
+    fireEvent.change(screen.getByLabelText("Lyric Cue"), { target: { value: "  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Lyric Cue" }));
+    expect(onScore.mock.lastCall?.[0].annotations).toEqual([]);
+  });
+
+  it("omits lyric authoring for rests and bass note events", () => {
+    const rest = initialScore();
+    const bass = trebleNoteScore();
+    const bassScore = { ...bass, measures: [{ ...bass.measures[0], events: bass.measures[0].events.map((event) => ({ ...event, staff: "bass" as const })) }] };
+    const { unmount } = render(<Harness source={rest} />);
+    expect(screen.queryByLabelText("Lyric Cue")).toBeNull();
+    unmount();
+    render(<Harness source={bassScore} />);
+    expect(screen.queryByLabelText("Lyric Cue")).toBeNull();
+  });
+
+  it("loads the selected event's authoritative cue when switching events", () => {
+    const source = { ...twoTrebleNoteScore(), annotations: [
+      { id: "lyric-a", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" },
+      { id: "lyric-b", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event-b" }, text: "Ring" },
+    ] };
+    const { rerender } = render(lyricPanel(source, "event"));
+    expect((screen.getByLabelText("Lyric Cue") as HTMLInputElement).value).toBe("Bells");
+    rerender(lyricPanel(source, "event-b"));
+    expect((screen.getByLabelText("Lyric Cue") as HTMLInputElement).value).toBe("Ring");
+    rerender(lyricPanel(source, "event"));
+    expect((screen.getByLabelText("Lyric Cue") as HTMLInputElement).value).toBe("Bells");
+  });
+
+  it("resynchronizes for authoritative cue edits and deletion", () => {
+    const source = { ...trebleNoteScore(), annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" }] };
+    const { rerender } = render(lyricPanel(source, "event"));
+    rerender(lyricPanel({ ...source, annotations: [{ ...source.annotations[0], text: "Ring" }] }, "event"));
+    expect((screen.getByLabelText("Lyric Cue") as HTMLInputElement).value).toBe("Ring");
+    rerender(lyricPanel({ ...source, annotations: [] }, "event"));
+    expect((screen.getByLabelText("Lyric Cue") as HTMLInputElement).value).toBe("");
+  });
+
+  it("preserves in-progress lyric typing across ordinary parent rerenders", () => {
+    const source = { ...trebleNoteScore(), annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" }] };
+    const { rerender } = render(lyricPanel(source, "event"));
+    fireEvent.change(screen.getByLabelText("Lyric Cue"), { target: { value: "Unsaved phrase" } });
+    rerender(lyricPanel({ ...source, title: "Unrelated rerender" }, "event"));
+    expect((screen.getByLabelText("Lyric Cue") as HTMLInputElement).value).toBe("Unsaved phrase");
+  });
   it("authors a Study Note on the selected event and a Study Note on the current measure", () => {
     const onScore = vi.fn();
     render(<Harness onScore={onScore} />);

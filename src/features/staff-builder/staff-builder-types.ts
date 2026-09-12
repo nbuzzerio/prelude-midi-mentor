@@ -70,6 +70,11 @@ export type StaffBuilderStudyNoteAnnotation = StaffBuilderAnnotationBase & Reado
   text: string;
 }>;
 
+export type StaffBuilderLyricCueAnnotation = StaffBuilderAnnotationBase & Readonly<{
+  kind: "lyric-cue";
+  text: string;
+}>;
+
 export type StaffBuilderPracticeMarkCategory =
   | "needs-work"
   | "rhythm"
@@ -92,6 +97,7 @@ export type StaffBuilderBookmarkAnnotation = StaffBuilderAnnotationBase & Readon
 
 export type StaffBuilderAnnotation =
   | StaffBuilderStudyNoteAnnotation
+  | StaffBuilderLyricCueAnnotation
   | StaffBuilderPracticeMarkAnnotation
   | StaffBuilderBookmarkAnnotation;
 

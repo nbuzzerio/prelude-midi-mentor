@@ -6,16 +6,17 @@ const annotations: readonly StaffBuilderAnnotation[] = [
   { id: "note", kind: "study-note", anchor: { kind: "measure", measureId: "measure" }, text: "Listen." },
   { id: "practice", kind: "practice-mark", anchor: { kind: "measure", measureId: "measure" }, category: "rhythm" },
   { id: "bookmark", kind: "bookmark", anchor: { kind: "measure", measureId: "measure" }, category: "revisit" },
+  { id: "lyric", kind: "lyric-cue", anchor: { kind: "event", eventId: "event" }, text: "Bells" },
 ];
 
 describe("Staff Builder annotation layers", () => {
   it("maps each Phase 1 annotation kind to its presentation layer", () => {
-    expect(annotations.map(getStaffBuilderAnnotationLayer)).toEqual(["study-notes", "practice-marks", "bookmarks"]);
+    expect(annotations.map(getStaffBuilderAnnotationLayer)).toEqual(["study-notes", "practice-marks", "bookmarks", "lyric-cues"]);
   });
 
   it("filters presentation without changing annotation data", () => {
     const visible = new Set(["study-notes", "bookmarks"] as const);
     expect(filterStaffBuilderAnnotationsByLayers(annotations, visible).map(({ id }) => id)).toEqual(["note", "bookmark"]);
-    expect(annotations).toHaveLength(3);
+    expect(annotations).toHaveLength(4);
   });
 });

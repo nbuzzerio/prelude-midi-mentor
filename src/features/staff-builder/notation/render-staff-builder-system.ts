@@ -3,6 +3,7 @@ import type { StaffBuilderNoteEvent, StaffBuilderScore } from "../staff-builder-
 import { projectStaffBuilderMeasure, type StaffBuilderMeasureProjection, type StaffBuilderProjectedEvent } from "./staff-builder-notation";
 import type { StaffBuilderLayoutBounds, StaffBuilderSystemLayout } from "./staff-builder-system-layout";
 import { drawStaffBuilderTie } from "./draw-staff-builder-tie";
+import { drawStaffBuilderLyricCues, getStaffBuilderLyricCues } from "./staff-builder-lyric-cues";
 import {
   applyStaffBuilderVexFlowAccidentals,
   configureStaffBuilderSvg,
@@ -176,6 +177,9 @@ export function renderStaffBuilderSystem(
       });
     }
     const events = createStaffBuilderEventAnchors(renderedTickables);
+    const measureEventIds = new Set(score.measures[placement.measureIndex]?.events.map(({ id }) => id) ?? []);
+    const measureNotes = new Map([...renderedEvents].filter(([, rendered]) => rendered.measureIndex === placement.measureIndex).map(([eventId, rendered]) => [eventId, rendered.note] as const));
+    drawStaffBuilderLyricCues(context, getStaffBuilderLyricCues(score, measureEventIds), measureNotes, 16, placement.x, placement.x + placement.width);
     events.forEach((anchor, eventId) => aggregateEvents.set(eventId, anchor));
     const temporal = createStaffBuilderTemporalAnchors(projection, trebleStave, bassStave);
     measureGeometry.push({

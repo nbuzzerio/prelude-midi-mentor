@@ -31,7 +31,7 @@ export type StaffBuilderStudyAnnotationProjection = Readonly<{
   markers: readonly StaffBuilderStudyAnnotationMarker[];
 }>;
 
-const kindOrder = { "study-note": 0, "practice-mark": 1, bookmark: 2 } as const;
+  const kindOrder = { "study-note": 0, "practice-mark": 1, bookmark: 2, "lyric-cue": 3 } as const;
 
 export function getStaffBuilderStudyAnnotationMarkerKey(annotation: StaffBuilderAnnotation): string {
   const anchor = annotation.anchor;
@@ -46,7 +46,7 @@ export function projectStaffBuilderStudyAnnotations(
 ): StaffBuilderStudyAnnotationProjection {
   const measureById = new Map(score.measures.map((measure, measureIndex) => [measure.id, { measure, measureIndex }] as const));
   const eventById = new Map(score.measures.flatMap((measure, measureIndex) => measure.events.map((event, eventIndex) => [event.id, { event, eventIndex, measureIndex }] as const)));
-  const visible = new Set(filterStaffBuilderAnnotationsByLayers(score.annotations, visibleLayers));
+  const visible = new Set(filterStaffBuilderAnnotationsByLayers(score.annotations, visibleLayers).filter(({ kind }) => kind !== "lyric-cue"));
   const records = score.annotations.flatMap((annotation, annotationIndex): StaffBuilderStudyAnnotationRecord[] => {
     if (!visible.has(annotation)) return [];
     const resolved = annotation.anchor.kind === "measure" ? measureById.get(annotation.anchor.measureId) : eventById.get(annotation.anchor.eventId);

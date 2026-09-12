@@ -199,6 +199,16 @@ describe("Staff Builder system layout", () => {
     expect(layout.systems[2]?.y).toBe((layout.systems[1]?.y ?? 0) + (layout.systems[1]?.height ?? 0) + constraints.systemGap);
   });
 
+  it("reserves a lyric lane only on systems containing lyric cues", () => {
+    const first = measure("m1", [note("cue-event", 0)]);
+    const second = measure("m2", [note("plain-event", 0)]);
+    const current = { ...score([first, second]), annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "cue-event" }, text: "Bells" }] };
+    const layout = layoutStaffBuilderScoreSystems(current, { ...constraints, contentWidth: 200 });
+    expect(layout.systems).toHaveLength(2);
+    expect(layout.systems[0]?.height).toBe(constraints.baseMusicHeight + 24);
+    expect(layout.systems[1]?.height).toBe(constraints.baseMusicHeight);
+  });
+
   it("translates local points and bounds through measure, system, and document spaces", () => {
     const layout = layoutStaffBuilderScoreSystems(score([measure("m1"), measure("m2"), measure("m3")]), { ...constraints, contentWidth: 300, verticalReservations: { aboveStaff: 12, betweenStaves: 0, belowStaff: 0 } });
     const system = layout.systems[1]!;

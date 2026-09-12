@@ -165,6 +165,7 @@ export function projectStaffBuilderPieceForPractice(score: StaffBuilderScore): P
       title: score.title,
       tempoBpm: score.tempoBpm,
       measures,
+      annotations: score.annotations.filter(({ kind }) => kind === "lyric-cue"),
       soundingSpans: deriveStaffBuilderSoundingSpans(score),
     },
   };

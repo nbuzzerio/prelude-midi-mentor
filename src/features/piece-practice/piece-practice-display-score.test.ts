@@ -51,6 +51,23 @@ describe("Piece Practice display score", () => {
     expect(chained.measures.map(({ targets }) => targets)).toEqual(targetsBefore);
   });
 
+  it("restores structurally equal but fully detached lyric annotations for the shared single-measure renderer", () => {
+    const annotated: PiecePracticePiece = { ...piece, annotations: [{ id: "lyric", kind: "lyric-cue", anchor: { kind: "event", eventId: "from" }, text: "Bells" }] };
+    const before = structuredClone(annotated);
+    const display = createPiecePracticeDisplayScore(annotated);
+    expect(display.annotations).toEqual(annotated.annotations);
+    expect(display.annotations).not.toBe(annotated.annotations);
+    expect(display.annotations[0]).not.toBe(annotated.annotations?.[0]);
+    expect(display.annotations[0]?.anchor).not.toBe(annotated.annotations?.[0]?.anchor);
+
+    const unsafeDisplayAnnotations = display.annotations as unknown as Array<{ text: string; anchor: { kind: "event"; eventId: string } }>;
+    const unsafeLyric = unsafeDisplayAnnotations[0]!;
+    unsafeLyric.text = "Changed";
+    unsafeLyric.anchor.eventId = "changed-event";
+    unsafeDisplayAnnotations.splice(0, 1);
+    expect(annotated).toEqual(before);
+  });
+
   it("does not mutate or retain a mutable reference to the practice projection", () => {
     const before = structuredClone(piece);
     const display = createPiecePracticeDisplayScore(piece);

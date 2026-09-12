@@ -179,6 +179,9 @@ function parseAnnotation(value: unknown): StaffBuilderAnnotation | null {
   if (value.kind === "study-note" && typeof value.text === "string" && value.text.trim().length > 0) {
     return { id: value.id, kind: "study-note", anchor, text: value.text };
   }
+  if (value.kind === "lyric-cue" && anchor.kind === "event" && typeof value.text === "string" && value.text === value.text.trim() && value.text.length > 0 && value.text.length <= 60) {
+    return { id: value.id, kind: "lyric-cue", anchor, text: value.text };
+  }
   if (value.kind === "practice-mark" && typeof value.category === "string" && PRACTICE_MARK_CATEGORIES.has(value.category)
     && (value.text === undefined || typeof value.text === "string")
     && (value.category !== "other" || (typeof value.text === "string" && value.text.trim().length > 0))) {
@@ -234,6 +237,12 @@ export function parseStaffBuilderScore(value: unknown): StaffBuilderParseResult<
   if (parsedAnnotations.some(({ anchor }) => anchor.kind === "measure" ? !measureIds.has(anchor.measureId) : !eventIds.has(anchor.eventId))) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains an annotation with a missing anchor." };
   }
+  const eventById = new Map(parsedMeasures.flatMap(({ events }) => events.map((event) => [event.id, event] as const)));
+  const lyricEventIds = parsedAnnotations.flatMap((annotation) => annotation.kind === "lyric-cue" && annotation.anchor.kind === "event" ? [annotation.anchor.eventId] : []);
+  if (new Set(lyricEventIds).size !== lyricEventIds.length || lyricEventIds.some((eventId) => {
+    const event = eventById.get(eventId);
+    return !event || event.kind !== "notes" || event.staff !== "treble";
+  })) return { ok: false, reason: "corrupt", message: "The stored Staff Builder score contains invalid lyric cue data." };
   return { ok: true, value: {
     schemaVersion: 3, id: value.id, title: value.title, createdAt: value.createdAt,
     updatedAt: value.updatedAt, tempoBpm: value.tempoBpm as number,

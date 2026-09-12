@@ -139,6 +139,12 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it("passes authored lyric cues through the shared read-only score view", () => {
+    const source = piece();
+    const annotated = { ...source, annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "sustained-e" }, text: "Bells" }] };
+    start(annotated);
+    expect(mocks.scoreProps?.score).toMatchObject({ annotations: [{ kind: "lyric-cue", text: "Bells", anchor: { eventId: "sustained-e" } }] });
+  });
   it("offers an accessible Start at Measure setup and initializes the selected range", () => {
     start(piece(), 3);
     expect(screen.getByText("Measure 3 of 3 · Practicing from Measure 3")).toBeTruthy();

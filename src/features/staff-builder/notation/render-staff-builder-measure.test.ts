@@ -61,6 +61,27 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it("renders ordered lyric cues in a reserved, non-focusable lane without changing ties or beams", () => {
+    const current = { ...score(), annotations: [
+      { id: "bells", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "chord" }, text: "Bells" },
+      { id: "ring", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "note" }, text: "ring" },
+    ] };
+    const ties = vi.spyOn(StaveTie.prototype, "draw");
+    const beams = vi.spyOn(Beam, "generateBeams");
+    const container = document.createElement("div");
+    const rendered = renderStaffBuilderMeasure(container, current, 0);
+    const lyricTexts = [...container.querySelectorAll("text")].filter(({ textContent }) => textContent === "Bells" || textContent === "ring");
+    expect(lyricTexts.map(({ textContent }) => textContent)).toEqual(["Bells", "ring"]);
+    expect(Number(lyricTexts[0]?.getAttribute("x"))).toBeLessThan(Number(lyricTexts[1]?.getAttribute("x")));
+    expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    expect(rendered.height).toBe(324);
+    expect(ties).toHaveBeenCalledTimes(1);
+    expect(beams).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps no-cue notation at compact geometry", () => {
+    expect(renderStaffBuilderMeasure(document.createElement("div"), score(), 0).height).toBe(300);
+  });
   it("renders complete and pitch-specific boundary ties, including both segments of a middle chain", () => {
     const current: StaffBuilderScore = {
       ...score(),

@@ -39,6 +39,19 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderSystem", () => {
+  it("renders lyric cues as plain decorative SVG text above their treble events", () => {
+    const base = score([measure("m1", [note("first", ["first-p"], 0), note("second", ["second-p"], 480)])]);
+    const current = { ...base, annotations: [
+      { id: "a", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "first" }, text: "Bells" },
+      { id: "b", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "second" }, text: "ring" },
+    ] };
+    const container = document.createElement("div");
+    renderStaffBuilderSystem(container, current, layout(current));
+    const lyrics = [...container.querySelectorAll("text")].filter(({ textContent }) => textContent === "Bells" || textContent === "ring");
+    expect(lyrics.map(({ textContent }) => textContent)).toEqual(["Bells", "ring"]);
+    expect(Number(lyrics[0]?.getAttribute("x"))).toBeLessThan(Number(lyrics[1]?.getAttribute("x")));
+    expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  });
   it("renders adjacent measures with one system start and aligned explicit boundaries", () => {
     const current = score([measure("m1"), measure("m2"), measure("m3")]);
     const clefs = vi.spyOn(Stave.prototype, "addClef");
