@@ -41,7 +41,7 @@ export type StaffBuilderDraftV1 = Readonly<{
   savedPieceId: string | null;
   updatedAt: string;
   score: StaffBuilderScoreV1;
-  editorPass: "capture" | "rhythm";
+  editorPass: "capture" | "rhythm" | "lyrics";
   captureState?: StaffBuilderCaptureState;
   rhythmState?: StaffBuilderRhythmState;
 }>;
@@ -272,7 +272,7 @@ export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<
   if (unsupportedVersion(value)) return { ok: false, reason: "unsupported", message: "The Staff Builder draft uses a newer unsupported version." };
   if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3)
     || (value.savedPieceId !== null && !isId(value.savedPieceId))
-    || !isTimestamp(value.updatedAt) || (value.editorPass !== "capture" && value.editorPass !== "rhythm")) {
+    || !isTimestamp(value.updatedAt) || (value.editorPass !== "capture" && value.editorPass !== "rhythm" && value.editorPass !== "lyrics")) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder draft is invalid." };
   }
   const score = parseStaffBuilderScore(value.score);

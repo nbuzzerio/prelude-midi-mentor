@@ -5,6 +5,7 @@ import type { StaffBuilderScore, StaffBuilderScoreV3 } from "./staff-builder-typ
 import {
   appendStaffBuilderMeasure,
   createStaffBuilderScore,
+  deleteStaffBuilderMeasure,
   getStaffBuilderEventsInScoreOrder,
   insertStaffBuilderMeasure,
   insertStaffBuilderRest,
@@ -31,6 +32,40 @@ function score(factory = factories()) {
 }
 
 describe("Staff Builder score", () => {
+  it("deletes first, middle, and last measures while preserving surviving identities", () => {
+    const original = { ...score(), measures: ["m1", "m2", "m3"].map((id) => ({ id, events: [] })) };
+    for (const [index, expected] of [[0, ["m2", "m3"]], [1, ["m1", "m3"]], [2, ["m1", "m2"]]] as const) {
+      const result = deleteStaffBuilderMeasure(original, index, { createId: vi.fn(), now: () => "updated" });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.score.measures.map(({ id }) => id)).toEqual(expected);
+    }
+    expect(original.measures.map(({ id }) => id)).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("rejects deletion of the sole measure", () => {
+    const original = score();
+    expect(deleteStaffBuilderMeasure(original, 0)).toEqual({ ok: false, score: original, error: "last-measure" });
+  });
+
+  it("removes deleted endpoints and annotations without reconnecting surviving ties", () => {
+    const a = { id: "a", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "ap", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] };
+    const b = { ...a, id: "b", pitches: [{ ...a.pitches[0], id: "bp" }] };
+    const c = { ...a, id: "c", pitches: [{ ...a.pitches[0], id: "cp" }] };
+    const original = { ...score(), measures: [{ id: "m1", events: [a] }, { id: "m2", events: [b] }, { id: "m3", events: [c] }], ties: [
+      { id: "ab", fromEventId: "a", fromPitchId: "ap", toEventId: "b", toPitchId: "bp" },
+      { id: "bc", fromEventId: "b", fromPitchId: "bp", toEventId: "c", toPitchId: "cp" },
+    ], annotations: [
+      { id: "measure-note", kind: "study-note" as const, anchor: { kind: "measure" as const, measureId: "m2" }, text: "remove" },
+      { id: "cue", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "b" }, text: "remove" },
+      { id: "keep", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "a" }, text: "keep" },
+    ] };
+    const result = deleteStaffBuilderMeasure(original, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.score.ties).toEqual([]);
+    expect(result.score.annotations).toEqual([original.annotations[2]]);
+    expect(result.score.measures).toEqual([original.measures[0], original.measures[2]]);
+  });
   it.each([[0, ["new", "m1", "m2", "m3"]], [1, ["m1", "new", "m2", "m3"]], [2, ["m1", "m2", "new", "m3"]], [3, ["m1", "m2", "m3", "new"]]] as const)("inserts one empty measure at boundary %i", (insertionIndex, expectedIds) => {
     const original = { ...score(), measures: ["m1", "m2", "m3"].map((id) => ({ id, events: [] })) };
     const result = insertStaffBuilderMeasure(original, insertionIndex, { createId: () => "new", now: () => "updated" });

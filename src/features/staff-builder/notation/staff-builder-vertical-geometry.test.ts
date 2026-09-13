@@ -50,4 +50,13 @@ describe("Staff Builder vertical notation geometry", () => {
     expect(geometry.bottomReservation).toBeGreaterThan(100);
     expect(geometry.height).toBe(300 + geometry.topReservation + geometry.bottomReservation);
   });
+
+  it("keeps the conservative render envelope by default while allowing a smaller explicit print occupancy envelope", () => {
+    const source = [pitch("bass", "D", 1)];
+    const rendered = getStaffBuilderVerticalGeometry({ pitchSources: source, baseHeight: 200, trebleStaveY: 15, bassStaveY: 95 });
+    const occupied = getStaffBuilderVerticalGeometry({ pitchSources: source, baseHeight: 200, trebleStaveY: 15, bassStaveY: 95, glyphAndStemExtent: 20 });
+    expect(rendered.bottomReservation).toBeGreaterThan(occupied.bottomReservation);
+    expect(occupied.bottomReservation).toBeGreaterThan(0);
+    expect(editor(source).bottomReservation).toBeGreaterThan(0);
+  });
 });

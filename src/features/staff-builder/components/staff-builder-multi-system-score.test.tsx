@@ -123,6 +123,15 @@ describe("StaffBuilderMultiSystemScore", () => {
     expect(screen.queryByText(/playback|add annotation|study view|fullscreen/i)).toBeNull();
   });
 
+  it("places original measure numbers in the reserved bottom label lane", () => {
+    const current = score(20);
+    const layout = documentLayout([[15, 16]], 720);
+    const { container } = render(<StaffBuilderMultiSystemScore layout={layout} measureNumberLaneHeight={20} score={current} showMeasureNumbers />);
+    const labels = [...container.querySelectorAll<HTMLElement>("[data-measure-number-lane=bottom]")];
+    expect(labels.map(({ textContent }) => textContent)).toEqual(["Measure 16", "Measure 17"]);
+    expect(labels.map(({ style }) => style.top)).toEqual(["200px", "200px"]);
+  });
+
   it("emits complete ordered geometry snapshots and replaces stale systems", async () => {
     const onResults = vi.fn();
     const current = score();

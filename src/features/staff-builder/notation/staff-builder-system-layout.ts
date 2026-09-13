@@ -17,6 +17,13 @@ export type StaffBuilderSystemLayoutConstraints = Readonly<{
   maximumMeasureWidth: number;
   baseMusicHeight: number;
   systemGap: number;
+  maximumMeasuresPerSystem?: 2 | 3 | 4 | 5;
+  fittedSystemComposition?: Readonly<{
+    targetMeasureCount: 2 | 3 | 4 | 5;
+    minimumRhythmicWidth: number;
+    minimumCompressionRatio: number;
+    partialMaximumMeasureWidth: number;
+  }>;
   verticalReservations?: StaffBuilderVerticalLayoutReservations;
 }>;
 
@@ -90,6 +97,15 @@ function validateConstraints(constraints: StaffBuilderSystemLayoutConstraints): 
     throw new Error("Layout width and base music height constraints must be positive.");
   }
   if (constraints.maximumMeasureWidth < constraints.minimumMeasureWidth) throw new Error("Maximum measure width must be at least the minimum measure width.");
+  if (constraints.maximumMeasuresPerSystem !== undefined && ![2, 3, 4, 5].includes(constraints.maximumMeasuresPerSystem)) throw new Error("Maximum measures per system must be 2, 3, 4, or 5.");
+  if (constraints.fittedSystemComposition) {
+    const fitted = constraints.fittedSystemComposition;
+    if (![2, 3, 4, 5].includes(fitted.targetMeasureCount)) throw new Error("Fitted target measure count must be 2, 3, 4, or 5.");
+    requireNonNegative(fitted.minimumRhythmicWidth, "minimum rhythmic width");
+    requireNonNegative(fitted.minimumCompressionRatio, "minimum compression ratio");
+    requireNonNegative(fitted.partialMaximumMeasureWidth, "partial maximum measure width");
+    if (fitted.minimumRhythmicWidth === 0 || fitted.minimumCompressionRatio === 0 || fitted.minimumCompressionRatio > 1 || fitted.partialMaximumMeasureWidth === 0) throw new Error("Fitted composition constraints are outside their supported range.");
+  }
   const reservations = constraints.verticalReservations ?? DEFAULT_STAFF_BUILDER_VERTICAL_LAYOUT_RESERVATIONS;
   for (const [name, value] of Object.entries(reservations)) requireNonNegative(value, name);
   return reservations;
@@ -221,18 +237,71 @@ function distributeWidths(estimates: readonly StaffBuilderMeasureLayoutEstimate[
   return widths;
 }
 
-export function layoutStaffBuilderScoreSystems(score: StaffBuilderScore, constraints: StaffBuilderSystemLayoutConstraints): StaffBuilderScoreDocumentLayout {
-  const reservations = validateConstraints(constraints);
-  if (score.measures.length === 0) return { width: constraints.contentWidth, height: 0, systems: [] };
+function fitWidths(estimates: readonly StaffBuilderMeasureLayoutEstimate[], targetWidth: number): readonly number[] {
+  const overheads = estimates.map(({ signatureChangeOverhead, systemStartOverhead }) => signatureChangeOverhead + systemStartOverhead);
+  const demands = estimates.map((estimate, index) => Math.max(1, estimate.requestedWidth - (overheads[index] ?? 0)));
+  const availableRhythmicWidth = targetWidth - overheads.reduce((sum, width) => sum + width, 0);
+  const totalDemand = demands.reduce((sum, width) => sum + width, 0);
+  const widths = demands.map((demand, index) => (overheads[index] ?? 0) + availableRhythmicWidth * demand / totalDemand);
+  if (widths.length > 0) widths[widths.length - 1] = (widths.at(-1) ?? 0) + targetWidth - widths.reduce((sum, width) => sum + width, 0);
+  return widths;
+}
+
+function fittedWidthsAreReadable(estimates: readonly StaffBuilderMeasureLayoutEstimate[], widths: readonly number[], minimumRhythmicWidth: number, minimumCompressionRatio: number): boolean {
+  return estimates.every((estimate, index) => {
+    const overhead = estimate.signatureChangeOverhead + estimate.systemStartOverhead;
+    const demand = Math.max(1, estimate.requestedWidth - overhead);
+    const allocated = (widths[index] ?? 0) - overhead;
+    return allocated >= minimumRhythmicWidth && allocated / demand >= minimumCompressionRatio;
+  });
+}
+
+function packFittedSystems(score: StaffBuilderScore, constraints: StaffBuilderSystemLayoutConstraints, measureIndexes: readonly number[]): readonly StaffBuilderMeasureLayoutEstimate[][] {
+  const fitted = constraints.fittedSystemComposition!;
   const packed: StaffBuilderMeasureLayoutEstimate[][] = [];
+  let cursor = 0;
+  while (cursor < measureIndexes.length) {
+    const runStart = cursor;
+    while (cursor + 1 < measureIndexes.length && measureIndexes[cursor + 1] === (measureIndexes[cursor] ?? 0) + 1) cursor += 1;
+    const runEnd = cursor + 1;
+    let runCursor = runStart;
+    while (runCursor < runEnd) {
+      let count = Math.min(fitted.targetMeasureCount, runEnd - runCursor);
+      while (count > 1) {
+        const estimates = measureIndexes.slice(runCursor, runCursor + count).map((measureIndex, index) => estimateStaffBuilderMeasureLayout(score, measureIndex, constraints, index === 0));
+        const isPartial = count < fitted.targetMeasureCount;
+        const targetWidth = isPartial ? Math.min(constraints.contentWidth, count * fitted.partialMaximumMeasureWidth) : constraints.contentWidth;
+        if (fittedWidthsAreReadable(estimates, fitWidths(estimates, targetWidth), fitted.minimumRhythmicWidth, fitted.minimumCompressionRatio)) break;
+        count -= 1;
+      }
+      packed.push(measureIndexes.slice(runCursor, runCursor + count).map((measureIndex, index) => estimateStaffBuilderMeasureLayout(score, measureIndex, constraints, index === 0)));
+      runCursor += count;
+    }
+    cursor = runEnd;
+  }
+  return packed;
+}
+
+export function layoutStaffBuilderScoreSystems(score: StaffBuilderScore, constraints: StaffBuilderSystemLayoutConstraints, measureIndexes: readonly number[] = score.measures.map((_measure, index) => index)): StaffBuilderScoreDocumentLayout {
+  const reservations = validateConstraints(constraints);
+  if (measureIndexes.length === 0) return { width: constraints.contentWidth, height: 0, systems: [] };
+  for (let index = 0; index < measureIndexes.length; index += 1) {
+    const measureIndex = measureIndexes[index]!;
+    if (!Number.isInteger(measureIndex) || measureIndex < 0 || measureIndex >= score.measures.length) throw new Error(`Unknown measure index ${measureIndex}.`);
+    if (index > 0 && measureIndex <= measureIndexes[index - 1]!) throw new Error("Selected measure indexes must be strictly increasing.");
+  }
+  const packed: StaffBuilderMeasureLayoutEstimate[][] = constraints.fittedSystemComposition ? [...packFittedSystems(score, constraints, measureIndexes)] : [];
   let current: StaffBuilderMeasureLayoutEstimate[] = [];
-  for (let measureIndex = 0; measureIndex < score.measures.length; measureIndex += 1) {
+  let previousMeasureIndex: number | null = null;
+  for (const measureIndex of constraints.fittedSystemComposition ? [] : measureIndexes) {
+    if (current.length > 0 && previousMeasureIndex !== null && measureIndex !== previousMeasureIndex + 1) { packed.push(current); current = []; }
     const estimate = estimateStaffBuilderMeasureLayout(score, measureIndex, constraints, current.length === 0);
     const used = current.reduce((sum, item) => sum + item.requestedWidth, 0);
-    if (current.length > 0 && used + estimate.requestedWidth > constraints.contentWidth) {
+    if (current.length > 0 && (current.length >= (constraints.maximumMeasuresPerSystem ?? Number.POSITIVE_INFINITY) || used + estimate.requestedWidth > constraints.contentWidth)) {
       packed.push(current);
       current = [estimateStaffBuilderMeasureLayout(score, measureIndex, constraints, true)];
     } else current.push(estimate);
+    previousMeasureIndex = measureIndex;
   }
   if (current.length > 0) packed.push(current);
 
@@ -246,8 +315,12 @@ export function layoutStaffBuilderScoreSystems(score: StaffBuilderScore, constra
     const belowStaff = reservations.belowStaff + range.bottomReservation;
     const systemHeight = aboveStaff + constraints.baseMusicHeight + reservations.betweenStaves + belowStaff;
     const requestedTotal = estimates.reduce((sum, estimate) => sum + estimate.requestedWidth, 0);
-    const allocationTarget = Math.max(constraints.contentWidth, requestedTotal);
-    const widths = distributeWidths(estimates, allocationTarget, constraints.maximumMeasureWidth);
+    const fitted = constraints.fittedSystemComposition;
+    const isPartial = fitted !== undefined && estimates.length < fitted.targetMeasureCount;
+    const allocationTarget = fitted
+      ? isPartial ? Math.min(constraints.contentWidth, estimates.length * fitted.partialMaximumMeasureWidth) : constraints.contentWidth
+      : Math.max(constraints.contentWidth, requestedTotal);
+    const widths = fitted ? fitWidths(estimates, allocationTarget) : distributeWidths(estimates, allocationTarget, constraints.maximumMeasureWidth);
     let measureX = 0;
     const measures = estimates.map((estimate, index): StaffBuilderMeasurePlacement => {
       const width = widths[index] ?? estimate.requestedWidth;

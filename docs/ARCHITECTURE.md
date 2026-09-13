@@ -494,9 +494,13 @@ The same schema boundary validates imported `.prelude.json` files, which contain
 
 Same-staff rhythmic voices are deterministic derived state, not persisted score identity. Validation partitions authoritative half-open event intervals into the minimum non-overlapping voice count while checking completeness through staff-wide union coverage. The notation projection renders those voices with invisible, noninteractive gap tickables; playback, ties, editing, persistence, and practice continue to address authoritative event and pitch IDs rather than voice numbers.
 
-## Capture Notes and Rhythm Correction
+## Capture Notes, Rhythm Correction, and Lyric Cues
 
-Capture Notes and Rhythm Correction are separate workflows over one score.
+Capture Notes, Rhythm Correction, and Lyric Cues are separate workflows over one score. Lyric Cues shares Capture's cursor and step duration, resolves treble note/chord events at the exact onset, and uses the existing annotation and score-history boundaries. Blank commits remove an existing cue or advance without authoring; ambiguous same-onset events require the existing selection or an explicit choice.
+
+Measure deletion is an immutable score-domain mutation. It retains at least one measure, removes ties and annotations whose endpoints or anchors were deleted, preserves all surviving identities, and is recorded by ordinary score history.
+
+Study View printing uses browser-native printing over a print-only multi-system wrapper. Pure one-based range parsing selects original score measure indices, disconnected runs begin new systems, and the full score remains available to tie projection so selected boundaries retain partial ties. Print CSS keeps systems intact and excludes interactive annotation markers and editor chrome while retaining lyric cues.
 
 Capture Notes is optimized for first-week transcription: MIDI or virtual-keyboard pitches are previewed, routed to grand/treble/bass input, and committed at a rhythmic cursor. Newly captured notes retain the beginner default of final quarter-note duration. Step Duration controls cursor advancement and the exact duration of an intentionally inserted rest.
 

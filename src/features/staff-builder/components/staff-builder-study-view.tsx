@@ -8,6 +8,7 @@ import { layoutStaffBuilderScoreSystems } from "../notation/staff-builder-system
 import { getStaffBuilderStudyLayoutConstraints } from "../staff-builder-study-layout";
 import { StaffBuilderMultiSystemScore } from "./staff-builder-multi-system-score";
 import { StaffBuilderStudyAnnotations } from "./staff-builder-study-annotations";
+import { StaffBuilderPrintFlow } from "./staff-builder-print-flow";
 
 export type StaffBuilderStudyViewProps = Readonly<{
   score: StaffBuilderScore;
@@ -24,6 +25,7 @@ export function StaffBuilderStudyView({ score, visibleAnnotationLayers, onLayerV
   const [contentWidth, setContentWidth] = useState(0);
   const [renderGeometry, setRenderGeometry] = useState<Readonly<{ layout: ReturnType<typeof layoutStaffBuilderScoreSystems>; results: readonly StaffBuilderSystemRenderResult[] }> | null>(null);
   const [selectedAnnotationKey, setSelectedAnnotationKey] = useState<string | null>(null);
+  const [printOptionsOpen, setPrintOptionsOpen] = useState(false);
   const notationScore = useMemo(() => visibleAnnotationLayers.has("lyric-cues") ? score : { ...score, annotations: score.annotations.filter(({ kind }) => kind !== "lyric-cue") }, [score, visibleAnnotationLayers]);
 
   useEffect(() => { exitRef.current?.focus(); }, []);
@@ -64,10 +66,9 @@ export function StaffBuilderStudyView({ score, visibleAnnotationLayers, onLayerV
   const selectedAnnotation = selectedAnnotationKey
     ? annotations.records.find(({ annotation }) => getStaffBuilderStudyAnnotationMarkerKey(annotation) === selectedAnnotationKey)?.annotation
     : undefined;
-
   return <section aria-labelledby="staff-builder-study-view-title" className="staff-builder-study-view">
     <header className="staff-builder-study-view-header">
-      <div className="staff-builder-study-view-title-row"><h1 id="staff-builder-study-view-title">{score.title}</h1><button className="staff-builder-secondary-button" onClick={onExit} ref={exitRef} type="button">Exit Study View</button></div>
+      <div className="staff-builder-study-view-title-row"><h1 id="staff-builder-study-view-title">{score.title}</h1><div><button className="staff-builder-secondary-button" onClick={() => setPrintOptionsOpen(true)} type="button">Print / Save PDF</button><button className="staff-builder-secondary-button" onClick={onExit} ref={exitRef} type="button">Exit Study View</button></div></div>
       <div aria-label="Study View annotation layers" className="staff-builder-study-view-layer-controls">{STAFF_BUILDER_ANNOTATION_LAYERS.map((layer) => <label key={layer}><input checked={visibleAnnotationLayers.has(layer)} onChange={(event) => { if (!event.target.checked && selectedAnnotation && getStaffBuilderAnnotationLayer(selectedAnnotation) === layer) setSelectedAnnotationKey(null); onLayerVisibilityChange(layer, event.target.checked); }} type="checkbox" />{STAFF_BUILDER_ANNOTATION_LAYER_LABELS[layer]}</label>)}<button className="staff-builder-secondary-button" onClick={onShowAllAnnotationLayers} type="button">Show All</button><button className="staff-builder-secondary-button" onClick={() => { setSelectedAnnotationKey(null); onHideAllAnnotationLayers(); }} type="button">Hide All</button></div>
     </header>
     <div aria-label={`${score.title} Study View score, scroll to explore`} className="staff-builder-study-view-viewport" ref={viewportRef} tabIndex={0}>
@@ -78,5 +79,6 @@ export function StaffBuilderStudyView({ score, visibleAnnotationLayers, onLayerV
       </div>
     </div>
     <StaffBuilderStudyAnnotations onSelect={setSelectedAnnotationKey} presentation="list" projection={annotations} selectedKey={visibleSelectedAnnotationKey} />
+    {printOptionsOpen && <StaffBuilderPrintFlow onClose={() => setPrintOptionsOpen(false)} score={score} />}
   </section>;
 }

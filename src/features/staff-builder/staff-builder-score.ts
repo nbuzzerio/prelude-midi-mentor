@@ -99,6 +99,23 @@ export function insertStaffBuilderMeasure(score: StaffBuilderScore, insertionInd
   return { ok: true, measureIndex: insertionIndex, score: updated(score, factories, { measures: [...score.measures.slice(0, insertionIndex), measure, ...score.measures.slice(insertionIndex)] }) };
 }
 
+export type DeleteStaffBuilderMeasureResult =
+  | Readonly<{ ok: true; score: StaffBuilderScore; measureIndex: number }>
+  | Readonly<{ ok: false; score: StaffBuilderScore; error: "invalid-index" | "last-measure" }>;
+
+export function deleteStaffBuilderMeasure(score: StaffBuilderScore, measureIndex: number, factories: StaffBuilderFactories = defaultFactories): DeleteStaffBuilderMeasureResult {
+  if (!Number.isInteger(measureIndex) || measureIndex < 0 || measureIndex >= score.measures.length) return { ok: false, score, error: "invalid-index" };
+  if (score.measures.length === 1) return { ok: false, score, error: "last-measure" };
+  const removed = score.measures[measureIndex]!;
+  const removedEventIds = new Set(removed.events.map(({ id }) => id));
+  const next = updated(score, factories, {
+    measures: [...score.measures.slice(0, measureIndex), ...score.measures.slice(measureIndex + 1)],
+    ties: score.ties.filter(({ fromEventId, toEventId }) => !removedEventIds.has(fromEventId) && !removedEventIds.has(toEventId)),
+    annotations: score.annotations.filter(({ anchor }) => anchor.kind === "measure" ? anchor.measureId !== removed.id : !removedEventIds.has(anchor.eventId)),
+  });
+  return { ok: true, score: next, measureIndex: Math.min(measureIndex, next.measures.length - 1) };
+}
+
 export function renameStaffBuilderScore(score: StaffBuilderScore, title: string, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
   return updated(score, factories, { title });
 }

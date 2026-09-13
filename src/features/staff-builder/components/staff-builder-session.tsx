@@ -6,7 +6,9 @@ import { StaffBuilderIntroduction } from "./staff-builder-introduction";
 import { StaffBuilderLibrary } from "./staff-builder-library";
 import { StaffBuilderPieceSetup } from "./staff-builder-piece-setup";
 import { StaffBuilderWorkspacePlaceholder } from "./staff-builder-workspace-placeholder";
+import { StaffBuilderPrintFlow } from "./staff-builder-print-flow";
 import { useStaffBuilderLibrary } from "../hooks/use-staff-builder-library";
+import type { StaffBuilderScore } from "../staff-builder-types";
 import { readStaffBuilderSustainPedalLocksInput, writeStaffBuilderValue, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import { downloadStaffBuilderPiece, readStaffBuilderPieceFile } from "../persistence/staff-builder-piece-file-browser";
 
@@ -28,6 +30,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
   const [practicePiece, setPracticePiece] = useState<PiecePracticePiece | null>(null);
   const [practiceLaunchError, setPracticeLaunchError] = useState<string | null>(null);
   const [pieceFileStatus, setPieceFileStatus] = useState<Readonly<{ kind: "error" | "success"; message: string }> | null>(null);
+  const [printPiece, setPrintPiece] = useState<StaffBuilderScore | null>(null);
   const introductionOpenerRef = useRef<HTMLButtonElement>(null);
   if (practicePiece) {
     return <PiecePracticeSession onExit={() => setPracticePiece(null)} piece={practicePiece} />;
@@ -111,10 +114,11 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
                     : `Imported "${imported.score.title}" in memory, but it could not be saved in this browser.`,
                 });
               });
-            }} onOpen={state.openPiece} onPractice={launchPiecePractice} onRename={state.renamePiece} pieces={state.library.pieces} />
+            }} onOpen={state.openPiece} onPractice={launchPiecePractice} onPrint={setPrintPiece} onRename={state.renamePiece} pieces={state.library.pieces} />
             <StaffBuilderPieceSetup onCreate={state.createPiece} />
           </div>}
       {state.introductionOpen && <StaffBuilderIntroduction onClose={state.closeIntroduction} returnFocusRef={introductionOpenerRef} />}
+      {printPiece && <StaffBuilderPrintFlow onClose={() => setPrintPiece(null)} score={printPiece} />}
     </div>
   );
 }

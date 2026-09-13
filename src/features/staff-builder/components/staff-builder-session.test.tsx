@@ -243,6 +243,29 @@ describe("Staff Builder session", () => {
     expect(persisted.pieces).toEqual([saved]);
   });
 
+  it("prints the exact persisted library score without opening or saving it", () => {
+    vi.useFakeTimers();
+    const storage = new MemoryStorage();
+    const saved = savedTwoMeasureScore("Library Print");
+    seedLibrary(storage, [saved]);
+    const before = new Map(storage.values);
+    const print = vi.fn();
+    vi.stubGlobal("print", print);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Print / PDF Library Print" }));
+    expect(screen.getByRole("dialog", { name: "Print / Save PDF" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
+    expect([...document.querySelectorAll<HTMLElement>("[data-measure-number-lane=bottom]")].map(({ textContent }) => textContent)).toEqual(["Measure 1", "Measure 2"]);
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Piece library" })).toBeTruthy();
+    expect(storage.values).toEqual(before);
+    act(() => vi.advanceTimersByTime(0));
+    expect(print).toHaveBeenCalledOnce();
+    act(() => window.dispatchEvent(new Event("afterprint")));
+    expect(document.querySelector(".staff-builder-print-document")).toBeNull();
+    vi.useRealTimers();
+  });
+
   it("launches the exact validated saved score through Phase A and exits to the unchanged library", () => {
     const storage = new MemoryStorage();
     const saved = savedValidScore();
@@ -706,7 +729,7 @@ describe("Staff Builder session", () => {
     dismissIntroduction();
     createPiece("Pedal Capture");
     expect((screen.getByRole("button", { name: "Lock pitches and continue" }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    fireEvent.click(screen.getByLabelText("Sustain pedal commits and advances input"));
     act(() => midiBoundary.onSustain?.(true));
     expect(screen.getByText(/Beat 2 .*tick 480/)).toBeTruthy();
     act(() => midiBoundary.onSustain?.(true));
@@ -753,7 +776,7 @@ describe("Staff Builder session", () => {
     act(() => midiBoundary.onSustain?.(false));
     expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
 
-    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    fireEvent.click(screen.getByLabelText("Sustain pedal commits and advances input"));
     expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
     act(() => midiBoundary.onSustain?.(false));
     expect(screen.getByText(/Beat 1 .*tick 0/)).toBeTruthy();
@@ -768,13 +791,13 @@ describe("Staff Builder session", () => {
     const first = render(<StaffBuilderSession storage={storage} />);
     dismissIntroduction();
     createPiece("Persistent Pedal");
-    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    fireEvent.click(screen.getByLabelText("Sustain pedal commits and advances input"));
     expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput)).toBe("true");
     first.unmount();
 
     render(<StaffBuilderSession storage={storage} />);
-    expect((screen.getByLabelText("Sustain pedal locks in input") as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    expect((screen.getByLabelText("Sustain pedal commits and advances input") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByLabelText("Sustain pedal commits and advances input"));
     expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput)).toBe("false");
   });
 
@@ -788,10 +811,10 @@ describe("Staff Builder session", () => {
     };
     render(<StaffBuilderSession storage={storage} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Protected Score" }));
-    fireEvent.click(screen.getByLabelText("Sustain pedal locks in input"));
+    fireEvent.click(screen.getByLabelText("Sustain pedal commits and advances input"));
     expect(screen.getByRole("alert").textContent).toContain("Staff Builder changes could not be saved in this browser.");
     expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(originalLibrary);
-    expect((screen.getByLabelText("Sustain pedal locks in input") as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText("Sustain pedal commits and advances input") as HTMLInputElement).checked).toBe(true);
   });
 
   it("routes MIDI and virtual pitches through Grand Staff previews and commits both staffs", () => {

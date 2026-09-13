@@ -49,6 +49,17 @@ describe("StaffBuilderScoreToolbar", () => {
     expect(screen.getByRole("button", { name: "Insert Measure After Measure 2" }).getAttribute("title")).toBe("Playback owns the score.");
   });
 
+  it("offers deletion and explains why the only measure cannot be deleted", () => {
+    const remove = vi.fn();
+    const { rerender } = render(<StaffBuilderScoreToolbar measureIndex={1} onDeleteMeasure={remove} onNavigate={vi.fn()} score={score} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete Measure 2" }));
+    expect(remove).toHaveBeenCalledOnce();
+    rerender(<StaffBuilderScoreToolbar measureIndex={0} onDeleteMeasure={remove} onNavigate={vi.fn()} score={{ ...score, measures: [score.measures[0]!] }} />);
+    const button = screen.getByRole("button", { name: "Delete Measure 1" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute("aria-describedby")).toBe("staff-builder-delete-measure-reason");
+  });
+
   it("offers the Study View entry through the supplied persistent launcher ref", () => {
     const open = vi.fn();
     const launcher = { current: null } as React.RefObject<HTMLButtonElement | null>;

@@ -3,7 +3,7 @@ import type { StaffBuilderDuplicationMode } from "../staff-builder-duplication";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 
-export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onPractice, onRename }: Readonly<{
+export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onPractice, onPrint, onRename }: Readonly<{
   activePieceId: string | null;
   pieces: readonly StaffBuilderScore[];
   onDelete: (id: string) => void;
@@ -12,6 +12,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownloa
   onImportFile: (file: File) => void;
   onOpen: (id: string) => void;
   onPractice: (piece: StaffBuilderScore) => void;
+  onPrint: (piece: StaffBuilderScore) => void;
   onRename: (id: string, title: string) => void;
 }>) {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +39,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownloa
                   <button aria-label={`Open ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onOpen(piece.id)} type="button">Open</button>
                   <button aria-describedby={!practiceEligible ? practiceReasonId : undefined} aria-label={`Practice ${piece.title}`} className="staff-builder-secondary-button" disabled={!practiceEligible} onClick={() => onPractice(piece)} title={!practiceEligible ? "Complete structural validation before practicing this piece." : undefined} type="button">Practice</button>
                   <button aria-label={`Download ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onDownload(piece)} type="button">Download</button>
+                  <button aria-label={`Print / PDF ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onPrint(piece)} type="button">Print / PDF</button>
                   <details>
                     <summary aria-label={`Duplicate ${piece.title}`} className="staff-builder-secondary-button cursor-pointer">Duplicate</summary>
                     <div className="mt-2 grid gap-2 rounded-md border border-zinc-600 bg-zinc-950 p-3">

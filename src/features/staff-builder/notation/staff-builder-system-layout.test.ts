@@ -38,6 +38,71 @@ function score(measures: readonly StaffBuilderMeasure[]): StaffBuilderScore {
 }
 
 describe("Staff Builder system layout", () => {
+  it("lays out selected original measure indexes and separates disconnected runs", () => {
+    const current = score(Array.from({ length: 8 }, (_value, index) => measure(`m${index + 1}`)));
+    const layout = layoutStaffBuilderScoreSystems(current, constraints, [1, 2, 5, 6]);
+    expect(layout.systems.flatMap(({ measures }) => measures.map(({ measureIndex }) => measureIndex))).toEqual([1, 2, 5, 6]);
+    expect(layout.systems).toHaveLength(2);
+    expect(layout.systems[1]?.measures[0]).toMatchObject({ measureId: "m6", measureIndex: 5, x: 0 });
+  });
+  it("uses the optional per-system maximum as a packing target without changing default packing", () => {
+    const current = score(Array.from({ length: 10 }, (_value, index) => measure(`m${index + 1}`)));
+    const printable = { ...constraints, contentWidth: 720, minimumMeasureWidth: 105, maximumMeasureWidth: 340 };
+    expect(layoutStaffBuilderScoreSystems(current, { ...printable, maximumMeasuresPerSystem: 4 }, current.measures.slice(0, 8).map((_measure, index) => index)).systems.map(({ measures }) => measures.length)).toEqual([4, 4]);
+    expect(layoutStaffBuilderScoreSystems(current, { ...printable, maximumMeasuresPerSystem: 5 }).systems.map(({ measures }) => measures.length)).toEqual([5, 5]);
+    expect(layoutStaffBuilderScoreSystems(current, printable)).toEqual(layoutStaffBuilderScoreSystems(current, { ...printable, maximumMeasuresPerSystem: undefined }));
+  });
+
+  it("fits intended print groups proportionally into the full content width", () => {
+    const fittedSystemComposition = { targetMeasureCount: 4 as const, minimumRhythmicWidth: 96, minimumCompressionRatio: 0.65, partialMaximumMeasureWidth: 340 };
+    const ordinary = score(Array.from({ length: 12 }, (_value, index) => measure(`m${index + 1}`)));
+    const fittedConstraints = { ...constraints, contentWidth: 720, minimumMeasureWidth: 105, maximumMeasureWidth: 340, fittedSystemComposition };
+    const eight = layoutStaffBuilderScoreSystems(ordinary, fittedConstraints, Array.from({ length: 8 }, (_value, index) => index));
+    const twelve = layoutStaffBuilderScoreSystems(ordinary, fittedConstraints);
+    expect(eight.systems.map(({ measures }) => measures.length)).toEqual([4, 4]);
+    expect(twelve.systems.map(({ measures }) => measures.length)).toEqual([4, 4, 4]);
+    for (const system of twelve.systems) {
+      expect(system.measures.reduce((sum, placement) => sum + placement.width, 0)).toBeCloseTo(720, 8);
+      expect(system.width).toBeLessThanOrEqual(720);
+    }
+  });
+
+  it("weights fitted widths by complexity and deterministically falls back below the readability floor", () => {
+    const dense = (id: string) => measure(id, [note(`${id}-1`, 0, "sixteenth", 4, "sharp"), note(`${id}-2`, 120, "sixteenth", 4, "flat"), note(`${id}-3`, 240, "sixteenth", 4), note(`${id}-4`, 360, "sixteenth", 4)]);
+    const mixed = score([measure("ordinary"), dense("dense")]);
+    const two = layoutStaffBuilderScoreSystems(mixed, { ...constraints, contentWidth: 720, minimumMeasureWidth: 105, maximumMeasureWidth: 340, fittedSystemComposition: { targetMeasureCount: 2, minimumRhythmicWidth: 96, minimumCompressionRatio: 0.65, partialMaximumMeasureWidth: 340 } });
+    expect(two.systems[0]?.measures[1]?.width).toBeGreaterThan(two.systems[0]?.measures[0]?.width ?? 0);
+    expect(two.systems[0]?.width).toBeCloseTo(720, 8);
+    const denseScore = score(Array.from({ length: 8 }, (_value, index) => dense(`m${index + 1}`)));
+    const fitted = { ...constraints, contentWidth: 450, minimumMeasureWidth: 105, maximumMeasureWidth: 340, fittedSystemComposition: { targetMeasureCount: 4 as const, minimumRhythmicWidth: 96, minimumCompressionRatio: 0.65, partialMaximumMeasureWidth: 340 } };
+    const first = layoutStaffBuilderScoreSystems(denseScore, fitted);
+    const second = layoutStaffBuilderScoreSystems(denseScore, fitted);
+    expect(first.systems.map(({ measures }) => measures.length)).toEqual([2, 2, 2, 2]);
+    expect(second).toEqual(first);
+  });
+
+  it("fits five ordinary measures but leaves a single partial final measure conventionally narrow", () => {
+    const current = score(Array.from({ length: 11 }, (_value, index) => measure(`m${index + 1}`)));
+    const layout = layoutStaffBuilderScoreSystems(current, { ...constraints, contentWidth: 720, minimumMeasureWidth: 105, maximumMeasureWidth: 340, fittedSystemComposition: { targetMeasureCount: 5, minimumRhythmicWidth: 96, minimumCompressionRatio: 0.65, partialMaximumMeasureWidth: 340 } });
+    expect(layout.systems.map(({ measures }) => measures.length)).toEqual([5, 5, 1]);
+    expect(layout.systems[0]?.width).toBeCloseTo(720, 8);
+    expect(layout.systems[1]?.width).toBeCloseTo(720, 8);
+    expect(layout.systems[2]?.width).toBe(340);
+  });
+
+  it("starts disconnected runs on new systems before the configured maximum is full", () => {
+    const current = score(Array.from({ length: 10 }, (_value, index) => measure(`m${index + 1}`)));
+    const layout = layoutStaffBuilderScoreSystems(current, { ...constraints, maximumMeasuresPerSystem: 5 }, [0, 1, 5, 6]);
+    expect(layout.systems.map(({ measures }) => measures.map(({ measureIndex }) => measureIndex))).toEqual([[0, 1], [5, 6]]);
+  });
+
+  it("breaks dense measures before the configured maximum and never overflows the content width", () => {
+    const dense = (id: string) => measure(id, [note(`${id}-1`, 0, "sixteenth", 4, "sharp"), note(`${id}-2`, 120, "sixteenth", 4, "flat"), note(`${id}-3`, 240, "sixteenth", 4), note(`${id}-4`, 360, "sixteenth", 4)]);
+    const current = score(Array.from({ length: 5 }, (_value, index) => dense(`m${index + 1}`)));
+    const layout = layoutStaffBuilderScoreSystems(current, { ...constraints, contentWidth: 500, maximumMeasuresPerSystem: 5 });
+    expect(layout.systems.length).toBeGreaterThan(1);
+    expect(layout.systems.every(({ measures, width }) => measures.length <= 5 && width <= 500)).toBe(true);
+  });
   it("places one measure in one system with stable identity and positive geometry", () => {
     const layout = layoutStaffBuilderScoreSystems(score([measure("m1")]), constraints);
     expect(layout.systems).toHaveLength(1);
@@ -207,6 +272,10 @@ describe("Staff Builder system layout", () => {
     expect(layout.systems).toHaveLength(2);
     expect(layout.systems[0]?.height).toBe(constraints.baseMusicHeight + 24);
     expect(layout.systems[1]?.height).toBe(constraints.baseMusicHeight);
+    const withMeasureLabelLane = layoutStaffBuilderScoreSystems(current, { ...constraints, contentWidth: 200, verticalReservations: { aboveStaff: 0, betweenStaves: 0, belowStaff: 20 } });
+    expect(withMeasureLabelLane.systems[0]?.measures[0]?.y).toBe(layout.systems[0]?.measures[0]?.y);
+    expect(withMeasureLabelLane.systems[0]?.height).toBe((layout.systems[0]?.height ?? 0) + 20);
+    expect(withMeasureLabelLane.systems[1]?.height).toBe((layout.systems[1]?.height ?? 0) + 20);
   });
 
   it("translates local points and bounds through measure, system, and document spaces", () => {

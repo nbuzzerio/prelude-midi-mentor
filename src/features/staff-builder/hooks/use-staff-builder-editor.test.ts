@@ -18,6 +18,56 @@ function score(keyId: "c-major" | "g-major" = "c-major") {
 afterEach(cleanup);
 
 describe("useStaffBuilderEditor", () => {
+  it("deletes a measure as one history edit and keeps shared cursors valid through Undo and Redo", () => {
+    const original = appendStaffBuilderMeasure(appendStaffBuilderMeasure(score()));
+    const initialCaptureState = { ...DEFAULT_STAFF_BUILDER_CAPTURE_STATE, cursor: { measureIndex: 2, offsetTicks: 480 } };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState, initialEditorPass: "lyrics", onDraftChange: vi.fn() }));
+    const deletedId = original.measures[2]!.id;
+    act(() => expect(result.current.deleteMeasure(2)).toBe(true));
+    expect(result.current.score.measures.some(({ id }) => id === deletedId)).toBe(false);
+    expect(result.current.captureState.cursor).toEqual({ measureIndex: 1, offsetTicks: 480 });
+    expect(result.current.editorPass).toBe("lyrics");
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score).toEqual(original);
+    act(() => expect(result.current.redo()).toBe(true));
+    expect(result.current.score.measures.some(({ id }) => id === deletedId)).toBe(false);
+  });
+
+  it("commits a lyric and advances once through shared history", () => {
+    const empty = score();
+    const original = { ...empty, measures: [{ ...empty.measures[0]!, events: [{ id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] }] }] };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "lyrics", onDraftChange: vi.fn() }));
+    act(() => expect(result.current.commitLyricAndContinue(" Bells ", "event")).toBe(true));
+    expect(result.current.score.annotations[0]).toMatchObject({ kind: "lyric-cue", text: "Bells" });
+    expect(result.current.captureState.cursor.offsetTicks).toBe(480);
+    act(() => expect(result.current.undo()).toBe(true));
+    expect(result.current.score.annotations).toEqual([]);
+  });
+
+  it("authoritatively blocks an ambiguous lyric commit until selection resolves it", () => {
+    const empty = score();
+    const note = (id: string) => ({ id, kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: `${id}-pitch`, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] });
+    const original = { ...empty, measures: [{ ...empty.measures[0]!, events: [note("a"), note("b")] }] };
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: original, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "lyrics", onDraftChange: vi.fn() }));
+    act(() => expect(result.current.commitLyricAndContinue("Bells", null)).toBe(false));
+    expect(result.current.captureState.cursor.offsetTicks).toBe(0);
+    expect(result.current.score.annotations).toEqual([]);
+    expect(result.current.captureStatus).toMatch(/Choose/);
+    act(() => result.current.selectRhythmEventFromScore({ measureIndex: 0, eventId: "b" }));
+    expect(result.current.editorPass).toBe("lyrics");
+    act(() => expect(result.current.commitLyricAndContinue("Bells", "b")).toBe(true));
+    expect(result.current.captureState.cursor.offsetTicks).toBe(480);
+    expect(result.current.score.annotations[0]).toMatchObject({ anchor: { eventId: "b" }, text: "Bells" });
+  });
+
+  it("switches from Lyrics to Rhythm and persists the Rhythm pass", () => {
+    const current = insertUnresolvedStaffBuilderNotes(score(), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const onDraftChange = vi.fn();
+    const { result } = renderHook(() => useStaffBuilderEditor({ score: current, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "lyrics", onDraftChange }));
+    act(() => expect(result.current.switchToRhythm()).toBe(true));
+    expect(result.current.editorPass).toBe("rhythm");
+    expect(onDraftChange).toHaveBeenLastCalledWith(current, expect.objectContaining({ editorPass: "rhythm" }));
+  });
   it("undoes and redoes a lyric cue through the shared annotation history", () => {
     const empty = score();
     const original = { ...empty, measures: [{ ...empty.measures[0]!, events: [{ id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] }] }] };

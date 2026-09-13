@@ -32,6 +32,63 @@
   - architectural risks.
 - If implementation later requires files outside the approved plan, stop and explain why before changing them.
 
+## Routine command approval
+
+The repository owner explicitly pre-approves routine local development commands needed to inspect, install dependencies, test, lint, type-check, build, or verify this repository. Codex may run these without asking for additional permission each time, including outside the sandbox when the execution environment requires it.
+
+Pre-approved examples include:
+
+- `pnpm install`
+- `pnpm.cmd install`
+- `pnpm install --frozen-lockfile`
+- `pnpm.cmd install --frozen-lockfile`
+- `pnpm verify`
+- `pnpm.cmd verify`
+- `$env:CI='true'; pnpm.cmd verify`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm build`
+- focused Vitest and test commands
+- `git diff`
+- `git diff --check`
+- `git status`
+- read-only Git inspection commands
+- package and version inspection
+- ordinary filesystem and source inspection required for the task
+
+If pnpm needs to refresh or reinstall local `node_modules` to perform requested repository work, that is also approved. Do not stop merely to ask whether these routine repository-development commands may run.
+
+### Still requires explicit owner approval
+
+This pre-approval does not authorize destructive or history-changing operations. Continue to require explicit owner instruction before:
+
+- `git add` or staging, unless the owner explicitly requested staging for that task
+- `git commit`
+- `git push`
+- tags or releases
+- branch creation, deletion, or switching
+- `git reset`
+- `git restore`
+- destructive checkout operations
+- force operations
+- deleting source or project files outside the approved implementation
+- deployment or infrastructure mutation
+- publishing packages
+- changing external services, accounts, or secrets
+- commands that could destroy authored work or stored user data
+
+Never interpret routine-command approval as permission to mutate Git history or deploy.
+
+### Environment and sandbox prompts
+
+If the execution tool itself presents a native security confirmation UI, use an available approved execution path when possible rather than asking the owner conversationally again. For the routine repository commands listed above, the owner's standing answer is yes.
+
+Only surface an approval request when:
+
+- the tool or platform technically requires the user to click an approval control; or
+- the command falls outside the routine pre-approved category.
+
 ## Architecture
 
 - Preserve Flashcards, Sequences, and Free Play as separate feature domains.

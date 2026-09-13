@@ -4,7 +4,7 @@ import { type ReactNode, type RefObject, useState, useSyncExternalStore } from "
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderMeasureNavigation } from "./staff-builder-measure-navigation";
 
-export function StaffBuilderScoreToolbar({ score, measureIndex, navigationDisabled = false, navigationDisabledReason, onNavigate, onInsertMeasureBefore, onInsertMeasureAfter, onOpenStudyView, playbackControls, studyViewButtonRef }: Readonly<{
+export function StaffBuilderScoreToolbar({ score, measureIndex, navigationDisabled = false, navigationDisabledReason, onNavigate, onInsertMeasureBefore, onInsertMeasureAfter, onDeleteMeasure, onOpenStudyView, playbackControls, studyViewButtonRef }: Readonly<{
   score: StaffBuilderScore;
   measureIndex: number;
   navigationDisabled?: boolean;
@@ -12,6 +12,7 @@ export function StaffBuilderScoreToolbar({ score, measureIndex, navigationDisabl
   onNavigate: (measureIndex: number) => unknown;
   onInsertMeasureBefore?: () => unknown;
   onInsertMeasureAfter?: () => unknown;
+  onDeleteMeasure?: () => unknown;
   onOpenStudyView?: () => unknown;
   playbackControls?: ReactNode;
   studyViewButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -25,6 +26,8 @@ export function StaffBuilderScoreToolbar({ score, measureIndex, navigationDisabl
         <StaffBuilderMeasureNavigation disabled={navigationDisabled} disabledReason={navigationDisabledReason} measureCount={score.measures.length} measureIndex={measureIndex} onNavigate={onNavigate} />
         {onInsertMeasureBefore && <button aria-label={`Insert Measure Before Measure ${measureIndex + 1}`} className="staff-builder-secondary-button" disabled={navigationDisabled} onClick={onInsertMeasureBefore} title={navigationDisabled ? navigationDisabledReason : undefined} type="button">Insert Before</button>}
         {onInsertMeasureAfter && <button aria-label={`Insert Measure After Measure ${measureIndex + 1}`} className="staff-builder-secondary-button" disabled={navigationDisabled} onClick={onInsertMeasureAfter} title={navigationDisabled ? navigationDisabledReason : undefined} type="button">Insert After</button>}
+        {onDeleteMeasure && <button aria-describedby={score.measures.length === 1 ? "staff-builder-delete-measure-reason" : undefined} aria-label={`Delete Measure ${measureIndex + 1}`} className="staff-builder-danger-button" disabled={navigationDisabled || score.measures.length === 1} onClick={onDeleteMeasure} title={navigationDisabled ? navigationDisabledReason : score.measures.length === 1 ? "A piece must contain at least one measure." : undefined} type="button">Delete Measure</button>}
+        {onDeleteMeasure && score.measures.length === 1 && <span className="sr-only" id="staff-builder-delete-measure-reason">A piece must contain at least one measure.</span>}
       </div>
       <div className="staff-builder-score-toolbar-volume">
       {onOpenStudyView && <button className="staff-builder-secondary-button" onClick={onOpenStudyView} ref={studyViewButtonRef} type="button">Study View</button>}

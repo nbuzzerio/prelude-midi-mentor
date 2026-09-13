@@ -8,6 +8,12 @@ export type StaffBuilderMultiSystemScoreProps = Readonly<{
   score: StaffBuilderScore;
   layout: StaffBuilderScoreDocumentLayout;
   onRenderResultsChange?: (results: readonly StaffBuilderSystemRenderResult[]) => void;
+  showMeasureNumbers?: boolean;
+  measureNumberLaneHeight?: number;
+  measureNumberTop?: number;
+  documentHeight?: number;
+  documentWidth?: number;
+  visualOffset?: Readonly<{ x: number; y: number }>;
 }>;
 
 const SEMANTIC_ONLY_STYLE = {
@@ -42,7 +48,7 @@ function StaffBuilderSystemVisual({ generation, onRender, score, system }: Reado
   );
 }
 
-function StaffBuilderMultiSystemScoreGeneration({ score, layout, onRenderResultsChange }: StaffBuilderMultiSystemScoreProps) {
+function StaffBuilderMultiSystemScoreGeneration({ score, layout, documentHeight = layout.height, documentWidth = layout.width, measureNumberLaneHeight = 0, measureNumberTop, onRenderResultsChange, showMeasureNumbers = false, visualOffset = { x: 0, y: 0 } }: StaffBuilderMultiSystemScoreProps) {
   const generation = useMemo(() => Symbol("staff-builder-system-render"), []);
   const aggregationRef = useRef({ results: new Map<number, StaffBuilderSystemRenderResult>(), emitted: false });
   const requiredIndexes = useMemo(() => layout.systems.map(({ systemIndex }) => systemIndex), [layout]);
@@ -62,9 +68,10 @@ function StaffBuilderMultiSystemScoreGeneration({ score, layout, onRenderResults
     }
   }, [onRenderResultsChange, requiredIndexes.length]);
   return (
-    <div data-staff-builder-score-document style={{ position: "relative", width: layout.width, height: layout.height }}>
+    <div data-staff-builder-score-document style={{ position: "relative", width: documentWidth, height: documentHeight }}>
       <div aria-hidden="true">
-        {layout.systems.map((system) => <StaffBuilderSystemVisual generation={generation} key={system.systemIndex} onRender={reportRender} score={score} system={system} />)}
+        {layout.systems.map((system) => <StaffBuilderSystemVisual generation={generation} key={system.systemIndex} onRender={reportRender} score={score} system={{ ...system, x: system.x + visualOffset.x, y: system.y + visualOffset.y }} />)}
+        {showMeasureNumbers && layout.systems.flatMap((system) => system.measures.map((measure) => <span className="staff-builder-printed-measure-number" data-measure-number-lane="bottom" key={measure.measureId} style={{ left: system.x + visualOffset.x + measure.x + 4, top: measureNumberTop ?? system.y + visualOffset.y + system.height - measureNumberLaneHeight }}>Measure {measure.measureIndex + 1}</span>))}
       </div>
 
       <section aria-label={`${score.title} score`} data-staff-builder-score-semantics style={SEMANTIC_ONLY_STYLE}>

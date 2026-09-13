@@ -33,8 +33,10 @@ export function getStaffBuilderVerticalGeometry(options: Readonly<{
   bassStaveY: number;
   visibleStaff?: "grand" | StaffBuilderStaff;
   topLaneReservation?: number;
+  glyphAndStemExtent?: number;
 }>): StaffBuilderVerticalGeometry {
   const visibleStaff = options.visibleStaff ?? "grand";
+  const glyphAndStemExtent = options.glyphAndStemExtent ?? GLYPH_AND_STEM_EXTENT;
   let minimumY = MINIMUM_MARGIN;
   let maximumY = options.baseHeight - MINIMUM_MARGIN;
   for (const source of options.pitchSources) {
@@ -43,8 +45,8 @@ export function getStaffBuilderVerticalGeometry(options: Readonly<{
     const referenceStep = source.staff === "treble" ? TREBLE_TOP_LINE_STEP : BASS_TOP_LINE_STEP;
     for (const pitch of source.pitches) {
       const noteheadCenterY = staveY + STAVE_TOP_LINE_OFFSET - (writtenStep(pitch) - referenceStep) * HALF_STEP_HEIGHT;
-      minimumY = Math.min(minimumY, noteheadCenterY - GLYPH_AND_STEM_EXTENT);
-      maximumY = Math.max(maximumY, noteheadCenterY + GLYPH_AND_STEM_EXTENT);
+      minimumY = Math.min(minimumY, noteheadCenterY - glyphAndStemExtent);
+      maximumY = Math.max(maximumY, noteheadCenterY + glyphAndStemExtent);
     }
   }
   const topReservation = (options.topLaneReservation ?? 0) + Math.max(0, Math.ceil(MINIMUM_MARGIN - minimumY));

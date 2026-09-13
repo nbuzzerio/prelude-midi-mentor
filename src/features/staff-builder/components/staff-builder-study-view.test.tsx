@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "../staff-builder-types";
@@ -27,6 +27,39 @@ afterEach(() => { cleanup(); resize = null; observed = null; vi.restoreAllMocks(
 
 describe("StaffBuilderStudyView", () => {
   const viewProps = { visibleAnnotationLayers: ALL_STAFF_BUILDER_ANNOTATION_LAYERS, onLayerVisibilityChange: vi.fn(), onShowAllAnnotationLayers: vi.fn(), onHideAllAnnotationLayers: vi.fn() };
+  it("keeps the print document through print and removes it on afterprint", () => {
+    vi.useFakeTimers();
+    const print = vi.fn();
+    vi.stubGlobal("print", print);
+    render(<StaffBuilderStudyView {...viewProps} onExit={vi.fn()} score={score} />);
+    fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Print / Save PDF" }));
+    expect(document.querySelector(".staff-builder-print-document")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(0));
+    expect(print).toHaveBeenCalledOnce();
+    expect(document.querySelector(".staff-builder-print-document")).toBeTruthy();
+    act(() => window.dispatchEvent(new Event("afterprint")));
+    expect(document.querySelector(".staff-builder-print-document")).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it("falls back when afterprint is absent and supports a later print", () => {
+    vi.useFakeTimers();
+    const print = vi.fn();
+    vi.stubGlobal("print", print);
+    const { unmount } = render(<StaffBuilderStudyView {...viewProps} onExit={vi.fn()} score={score} />);
+    const startPrint = () => { fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" })); fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Print / Save PDF" })); };
+    startPrint();
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(print).toHaveBeenCalledOnce();
+    expect(document.querySelector(".staff-builder-print-document")).toBeNull();
+    startPrint();
+    act(() => vi.advanceTimersByTime(0));
+    expect(print).toHaveBeenCalledTimes(2);
+    unmount();
+    act(() => vi.runOnlyPendingTimers());
+    vi.useRealTimers();
+  });
   it("renders lyric cues in Study View without annotation markers", () => {
     const event = { id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "pitch", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] };
     const lyricScore = { ...score, measures: [{ id: "m0", events: [event] }], annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "event" }, text: "Bells" }] };

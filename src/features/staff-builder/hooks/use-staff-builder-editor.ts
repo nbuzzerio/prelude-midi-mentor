@@ -10,7 +10,7 @@ import {
   type StaffBuilderPendingCapture,
   routeStaffBuilderCapturePitch,
 } from "../staff-builder-capture";
-import { insertStaffBuilderMeasure, resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
+import { deleteStaffBuilderMeasure, insertStaffBuilderMeasure, resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
 import { reconcileStaffBuilderAnnotations } from "../staff-builder-annotations";
 import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, setStaffBuilderEventDuration, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
 import type { StaffBuilderScore } from "../staff-builder-types";
@@ -20,8 +20,9 @@ import { createStaffBuilderTies, fillAllStaffBuilderGapsWithRests, fillStaffBuil
 import { validateStaffBuilderScore, type StaffBuilderIssue } from "../staff-builder-validation";
 import { useStaffBuilderHistory } from "./use-staff-builder-history";
 import { useStaffBuilderRhythmEditor } from "./use-staff-builder-rhythm-editor";
+import { commitStaffBuilderLyricCue, resolveStaffBuilderLyricTarget } from "../staff-builder-lyric-authoring";
 
-export type StaffBuilderEditorPass = "capture" | "rhythm";
+export type StaffBuilderEditorPass = "capture" | "rhythm" | "lyrics";
 export type StaffBuilderPersistedEditorState = Readonly<{ editorPass: StaffBuilderEditorPass; captureState: StaffBuilderCaptureState; rhythmState: StaffBuilderRhythmState }>;
 
 const EMPTY_PENDING: StaffBuilderPendingCapture = { treble: [], bass: [] };
@@ -154,7 +155,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, confirmDiscardPending, pending, persist, score]);
 
   const setCapturePosition = useCallback((position: Readonly<{ measureIndex: number; offsetTicks: number }>) => {
-    if (validationActive || editorPass !== "capture" || position.measureIndex !== captureState.cursor.measureIndex) return false;
+    if (validationActive || (editorPass !== "capture" && editorPass !== "lyrics") || position.measureIndex !== captureState.cursor.measureIndex) return false;
     const capacity = resolveStaffBuilderMeasureContext(score, position.measureIndex).capacityTicks;
     if (!Number.isInteger(position.offsetTicks) || position.offsetTicks < 0 || position.offsetTicks >= capacity || position.offsetTicks % 120 !== 0) return false;
     if (position.offsetTicks === captureState.cursor.offsetTicks) return false;
@@ -221,7 +222,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
 
   const goToMeasure = useCallback((measureIndex: number) => {
     if (validationActive || !Number.isInteger(measureIndex) || measureIndex < 0 || measureIndex >= score.measures.length) return false;
-    if (editorPass === "capture") {
+    if (editorPass === "capture" || editorPass === "lyrics") {
       if (measureIndex === captureState.cursor.measureIndex && captureState.cursor.offsetTicks === 0) return false;
       if (hasPending(pending) && !confirmDiscardPending()) return false;
       const nextCaptureState = { ...captureState, cursor: { measureIndex, offsetTicks: 0 } };
@@ -253,6 +254,25 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     return true;
   }, [captureState, confirmDiscardPending, editorPass, history, pending, persist, rhythm, score, validationActive]);
 
+  const deleteMeasure = useCallback((measureIndex: number) => {
+    if (validationActive || hasPending(pending) && !confirmDiscardPending()) return false;
+    const deleted = deleteStaffBuilderMeasure(score, measureIndex);
+    if (!deleted.ok) return false;
+    const capacity = resolveStaffBuilderMeasureContext(deleted.score, deleted.measureIndex).capacityTicks;
+    const stepTicks = stepDurationToTicks(captureState.stepDuration);
+    const maximumOffset = Math.max(0, Math.floor((capacity - 1) / stepTicks) * stepTicks);
+    const nextCaptureState = { ...captureState, cursor: { measureIndex: deleted.measureIndex, offsetTicks: Math.min(captureState.cursor.offsetTicks, maximumOffset) } };
+    const selectedSurvives = rhythm.selection && deleted.score.measures.some((measure) => measure.events.some(({ id }) => id === rhythm.selection?.eventId));
+    const nextRhythmState = { measureIndex: deleted.measureIndex, selectedEventId: selectedSurvives ? rhythm.selection!.eventId : null };
+    history.record(score);
+    setPending(EMPTY_PENDING);
+    setCaptureStatus(`Deleted Measure ${measureIndex + 1}.`);
+    if (selectedSurvives) rhythm.setSelection({ measureIndex: deleted.score.measures.findIndex((measure) => measure.events.some(({ id }) => id === rhythm.selection!.eventId)), eventId: rhythm.selection!.eventId });
+    else rhythm.goToMeasure(deleted.measureIndex);
+    persist(deleted.score, nextCaptureState, editorPass, nextRhythmState);
+    return true;
+  }, [captureState, confirmDiscardPending, editorPass, history, pending, persist, rhythm, score, validationActive]);
+
   const switchToRhythm = useCallback(() => {
     if (!getInitialStaffBuilderRhythmSelection(score)) return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
@@ -277,7 +297,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     const nextRhythmState = selectionToState(selection);
     setPending(EMPTY_PENDING);
     rhythm.setSelection(selection);
-    persist(score, captureState, "rhythm", nextRhythmState);
+    persist(score, captureState, editorPass === "lyrics" ? "lyrics" : "rhythm", nextRhythmState);
     return true;
   }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, selectionToState, validationActive]);
 
@@ -288,6 +308,38 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
       : { measureIndex: rhythm.measureIndex, offsetTicks: rhythm.measureIndex === captureState.cursor.measureIndex ? captureState.cursor.offsetTicks : 0 };
     persist(score, { ...captureState, cursor: nextCursor }, "capture", { measureIndex: rhythm.measureIndex, selectedEventId: rhythm.selection?.eventId ?? null });
   }, [captureState, persist, rhythm.measureIndex, rhythm.selectedEvent, rhythm.selection, score]);
+
+  const switchToLyrics = useCallback(() => {
+    if (hasPending(pending) && !confirmDiscardPending()) return false;
+    setPending(EMPTY_PENDING);
+    persist(score, captureState, "lyrics", rhythmState);
+    return true;
+  }, [captureState, confirmDiscardPending, pending, persist, rhythmState, score]);
+
+  const commitLyricAndContinue = useCallback((text: string, eventId: string | null) => {
+    if (editorPass !== "lyrics" || validationActive) return false;
+    const resolution = resolveStaffBuilderLyricTarget(score, captureState.cursor.measureIndex, captureState.cursor.offsetTicks, eventId);
+    if (resolution.ambiguous) {
+      setCaptureStatus("Choose which treble event should receive this lyric cue.");
+      return false;
+    }
+    const nextScore = resolution.target ? commitStaffBuilderLyricCue(score, resolution.target.id, text) : score;
+    const moved = moveStaffBuilderCaptureForward(nextScore, captureState.cursor, captureState.stepDuration);
+    if (moved.appendedMeasure) {
+      if (nextScore !== score) {
+        history.record(score);
+        persist(nextScore, captureState, "lyrics", rhythmState);
+        setCaptureStatus("Lyric cue saved at the end of the piece. No measure was added.");
+        return true;
+      }
+      setCaptureStatus("End of piece. No measure was added.");
+      return false;
+    }
+    if (nextScore !== score) history.record(score);
+    setCaptureStatus(nextScore === score ? "Advanced without changing a lyric cue." : "Lyric cue saved.");
+    persist(nextScore, { ...captureState, cursor: moved.cursor }, "lyrics", rhythmState);
+    return true;
+  }, [captureState, editorPass, history, persist, rhythmState, score, validationActive]);
 
   const captureRestAsNote = useCallback((selection: StaffBuilderEventSelection) => {
     const event = score.measures[selection.measureIndex]?.events.find(({ id }) => id === selection.eventId);
@@ -418,6 +470,8 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     switchToRhythm,
     selectRhythmEventFromScore,
     switchToCapture,
+    switchToLyrics,
+    commitLyricAndContinue,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     undo,
@@ -438,6 +492,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     goToMeasure,
     insertMeasureBefore: (measureIndex: number) => insertMeasure(measureIndex),
     insertMeasureAfter: (measureIndex: number) => insertMeasure(measureIndex + 1),
+    deleteMeasure,
     validation: {
       active: validationActive,
       issues,

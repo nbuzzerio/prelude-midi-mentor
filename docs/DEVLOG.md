@@ -4,7 +4,7 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
-No changes recorded after v2.6.0 release preparation.
+- Prepared v2.6.5 with sequential Staff Builder Lyric Cues authoring, browser-native Study View printing with measure ranges, and undoable measure deletion with safe tie and annotation cleanup.
 
 ---
 
