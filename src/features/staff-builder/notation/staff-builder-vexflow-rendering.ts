@@ -33,6 +33,15 @@ export type StaffBuilderEventAnchor = Readonly<{
   height: number;
 }>;
 
+export type StaffBuilderPitchAnchor = Readonly<{
+  pitchId: string;
+  eventId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}>;
+
 export type StaffBuilderPositionAnchor = Readonly<{
   tick: number;
   x: number;
@@ -165,6 +174,27 @@ export function createStaffBuilderEventAnchors(rendered: readonly StaffBuilderRe
       y: bounds.getY(),
       width: Math.max(1, bounds.getW()),
       height: Math.max(1, bounds.getH()),
+    });
+  }
+  return anchors;
+}
+
+export function createStaffBuilderPitchAnchors(rendered: readonly StaffBuilderRenderedTickable[]): ReadonlyMap<string, StaffBuilderPitchAnchor> {
+  const anchors = new Map<string, StaffBuilderPitchAnchor>();
+  for (const { note, projection } of rendered) {
+    if (projection.kind !== "notes") continue;
+    const ys = note.getYs();
+    projection.pitches.forEach((pitch, index) => {
+      const y = ys[index];
+      if (y === undefined) return;
+      anchors.set(pitch.id, {
+        pitchId: pitch.id,
+        eventId: projection.eventId,
+        x: note.getAbsoluteX() - 9,
+        y: y - 9,
+        width: 18,
+        height: 18,
+      });
     });
   }
   return anchors;

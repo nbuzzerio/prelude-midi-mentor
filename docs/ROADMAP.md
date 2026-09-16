@@ -2,7 +2,7 @@
 
 > This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
 >
-> **Current checkpoint:** September 7, 2026 — the repository, application version, and release notes are prepared for the v2.6.0 Practice Sessions release candidate. Owner review, the manual tag, deployment verification, and final Chromebook/tablet interaction QA remain.
+> **Current checkpoint:** September 15, 2026 — the repository and application version are prepared for the v2.7.0 Piece Practice diagnostics release candidate. Owner review, the manual tag, deployment verification, and final Chromebook/tablet interaction QA remain.
 
 ---
 

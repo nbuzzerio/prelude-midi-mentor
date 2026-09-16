@@ -18,7 +18,7 @@ let resize: ((width: number) => void) | null = null;
 let observed: Element | null = null;
 
 function resultFor(layout: StaffBuilderScoreDocumentLayout): StaffBuilderSystemRenderResult[] {
-  return layout.systems.map((system) => ({ coordinateSpace: { width: system.width, height: system.height }, system: { systemIndex: system.systemIndex, bounds: { x: 0, y: 0, width: system.width, height: system.height } }, measures: system.measures.map((measure) => ({ measureId: measure.measureId, measureIndex: measure.measureIndex, bounds: { x: measure.x, y: measure.y, width: measure.width, height: measure.height }, events: new Map(), positions: new Map(), timeline: { rhythmicStartX: measure.x, rhythmicEndX: measure.x + measure.width, y: measure.y, height: measure.height, capacityTicks: 1920 } })), events: new Map() }));
+  return layout.systems.map((system) => ({ coordinateSpace: { width: system.width, height: system.height }, system: { systemIndex: system.systemIndex, bounds: { x: 0, y: 0, width: system.width, height: system.height } }, measures: system.measures.map((measure) => ({ measureId: measure.measureId, measureIndex: measure.measureIndex, bounds: { x: measure.x, y: measure.y, width: measure.width, height: measure.height }, events: new Map(), pitches: new Map(), positions: new Map(), timeline: { rhythmicStartX: measure.x, rhythmicEndX: measure.x + measure.width, y: measure.y, height: measure.height, capacityTicks: 1920 } })), events: new Map(), pitches: new Map() }));
 }
 
 beforeEach(() => {

@@ -10,9 +10,11 @@ import {
   getPiecePracticeProgress,
   getPiecePracticeMeasureResults,
   getPiecePracticeRolledWindowMs,
+  pausePiecePracticeClock,
   expirePiecePracticeRolledChecks,
   restartCurrentPiecePracticeMeasure,
   restartPiecePractice,
+  resumePiecePracticeClock,
   skipCurrentPiecePracticeTarget,
   submitPiecePracticeAttempt,
   submitPiecePracticePitch,
@@ -141,6 +143,35 @@ function accepted(source: PiecePracticePiece, state: PiecePracticeSessionState, 
 }
 
 describe("Piece Practice blocking session", () => {
+  it("records authoritative chronological evidence and active measure/target time, excluding hidden time", () => {
+    const source = piece([1]);
+    let state = initialized(source, 0, 1_000);
+    const targetId = getCurrentPiecePracticeTarget(source, state)!.id;
+    const failed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [99] }, atMs: 2_000 });
+    if (!failed.accepted) throw new Error(failed.reason);
+    state = pausePiecePracticeClock(failed.state, 3_000);
+    state = resumePiecePracticeClock(state, 13_000);
+    const completed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [60] }, atMs: 18_000 });
+    if (!completed.accepted) throw new Error(completed.reason);
+    expect(completed.state.mistakeEvidence).toMatchObject([{ sequence: 0, kind: "normal-attempt", occurredAtActiveMs: 1_000, receivedMidiNumbers: [99], missingMidiNumbers: [60], extraMidiNumbers: [99] }]);
+    expect(completed.state.targetTimings).toMatchObject([{ responseDurationMs: 7_000, isHesitation: true, outcome: "completed" }]);
+    expect(getPiecePracticeMeasureResults(completed.state)).toMatchObject([{ activeDurationMs: 7_000, mistakeCount: 1, hesitationCount: 1, isProblem: true }]);
+    expect(getPiecePracticeElapsedMs(completed.state, 99_000)).toBe(7_000);
+  });
+
+  it("accumulates measure time and evidence across Restart Measure", () => {
+    const source = piece([1]);
+    let state = initialized(source, 0, 1_000);
+    const targetId = getCurrentPiecePracticeTarget(source, state)!.id;
+    const failed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [99] }, atMs: 2_000 });
+    if (!failed.accepted) throw new Error(failed.reason);
+    state = restartCurrentPiecePracticeMeasure(source, failed.state, 3_000);
+    const completed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [60] }, atMs: 4_000 });
+    if (!completed.accepted) throw new Error(completed.reason);
+    expect(completed.state.mistakeEvidence).toHaveLength(1);
+    expect(getPiecePracticeMeasureResults(completed.state)[0]).toMatchObject({ activeDurationMs: 3_000, mistakeCount: 1 });
+  });
+
   it("skips one authored onset without credit and advances through measure and piece completion", () => {
     const source = piece([2, 1]);
     let state = initialized(source);
@@ -172,7 +203,7 @@ describe("Piece Practice blocking session", () => {
     const result = skipCurrentPiecePracticeTarget(source, state);
     expect(result.skipped).toBe(true);
     state = result.state;
-    expect(state).toMatchObject({ currentTargetIndex: 1, completedTargetCount: 0, skippedTargetCount: 1, currentTargetIncorrectAttemptCount: 0 });
+    expect(state).toMatchObject({ currentTargetIndex: 1, completedTargetCount: 0, skippedTargetCount: 1 });
     expect(state.currentCheckProgress).toEqual([{ checkId: next.checks[0]!.id, completed: false, accumulatedMidiNumbers: [], startedAtMs: null }]);
   });
 
@@ -228,7 +259,7 @@ describe("Piece Practice blocking session", () => {
     expect(getCurrentPiecePracticeTarget(source, state)?.expectedMidiNumbers).toEqual([64]);
 
     state = accepted(source, state, [60]);
-    expect(state).toMatchObject({ currentTargetIndex: 0, incorrectAttemptCount: 1, completedTargetCount: 0 });
+    expect(state).toMatchObject({ currentTargetIndex: 0, completedTargetCount: 0 }); expect(state.mistakeEvidence).toHaveLength(1);
     state = accepted(source, state, [64]);
     expect(getCurrentPiecePracticeTarget(source, state)?.expectedMidiNumbers).toEqual([60]);
     state = accepted(source, state, [60]);
@@ -237,7 +268,7 @@ describe("Piece Practice blocking session", () => {
     expect(state).toMatchObject({ status: "piece-complete", completedTargetCount: 3, completedMeasureCount: 1 });
 
     const restarted = restartCurrentPiecePracticeMeasure(source, state);
-    expect(restarted).toMatchObject({ status: "practicing", currentTargetIndex: 0, completedTargetCount: 0, incorrectAttemptCount: 1 });
+    expect(restarted).toMatchObject({ status: "practicing", currentTargetIndex: 0, completedTargetCount: 0 }); expect(restarted.mistakeEvidence).toHaveLength(1);
     expect(source).toEqual(before);
     expect("voiceIndex" in state).toBe(false);
   });
@@ -262,7 +293,7 @@ describe("Piece Practice blocking session", () => {
     state = accepted(source, state, [99]);
     state = accepted(source, state, [98]);
     state = accepted(source, state, [97]);
-    expect(state).toMatchObject({ incorrectAttemptCount: 3, currentTargetIncorrectAttemptCount: 3, currentTargetIndex: 0 });
+    expect(state).toMatchObject({ currentTargetIndex: 0 }); expect(state.mistakeEvidence).toHaveLength(3);
   });
 
   it("returns missing and extra details from an incorrect session submission", () => {
@@ -419,7 +450,7 @@ describe("Piece Practice blocking session", () => {
     const source = piece([2]);
     let state = accepted(source, initialized(source), [99]);
     state = accepted(source, state);
-    expect(restartCurrentPiecePracticeMeasure(source, state)).toMatchObject({ incorrectAttemptCount: 1, currentTargetIncorrectAttemptCount: 0 });
+    expect(restartCurrentPiecePracticeMeasure(source, state).mistakeEvidence).toHaveLength(1);
   });
 
   it("can restart a just-completed final measure without double-counting", () => {
@@ -438,7 +469,7 @@ describe("Piece Practice blocking session", () => {
     const source = piece([2]);
     let state = accepted(source, initialized(source), [99]);
     state = accepted(source, state);
-    expect(restartPiecePractice(source, state, 5_000)).toMatchObject({ completedTargetCount: 0, completedMeasureCount: 0, completedMeasureIndexes: [], incorrectAttemptCount: 0, currentTargetIncorrectAttemptCount: 0, measureMistakeCounts: [{ measureIndex: 0, sourceMeasureId: "m1", mistakeCount: 0 }] });
+    expect(restartPiecePractice(source, state, 5_000)).toMatchObject({ completedTargetCount: 0, completedMeasureCount: 0, completedMeasureIndexes: [], mistakeEvidence: [] });
   });
 
   it("attributes authoritative mistakes to original measures and derives authored-order results", () => {
@@ -449,8 +480,8 @@ describe("Piece Practice blocking session", () => {
     state = accepted(source, state, [98]);
     state = accepted(source, state, [97]);
     state = accepted(source, state);
-    expect(state.incorrectAttemptCount).toBe(3);
-    expect(getPiecePracticeMeasureResults(state)).toEqual([
+    expect(state.mistakeEvidence).toHaveLength(3);
+    expect(getPiecePracticeMeasureResults(state)).toMatchObject([
       { measureIndex: 1, sourceMeasureId: "m2", measureNumber: 2, mistakeCount: 1, completedWithoutMistakes: false },
       { measureIndex: 2, sourceMeasureId: "m3", measureNumber: 3, mistakeCount: 2, completedWithoutMistakes: false },
     ]);
@@ -459,7 +490,7 @@ describe("Piece Practice blocking session", () => {
   it("retains measure mistakes across Restart Measure", () => {
     const source = piece([1]);
     const mistaken = accepted(source, initialized(source), [99]);
-    expect(getPiecePracticeMeasureResults(restartCurrentPiecePracticeMeasure(source, mistaken))).toEqual([
+    expect(getPiecePracticeMeasureResults(restartCurrentPiecePracticeMeasure(source, mistaken))).toMatchObject([
       { measureIndex: 0, sourceMeasureId: "m1", measureNumber: 1, mistakeCount: 1, completedWithoutMistakes: false },
     ]);
   });
@@ -603,8 +634,8 @@ describe("Piece Practice rolled-chord checks", () => {
     state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 48, atMs: 20 }).state;
     state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 98, atMs: 700 }).state;
     expect(state.currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [48], startedAtMs: 20 });
-    expect(state.incorrectAttemptCount).toBe(2);
-    expect(state.measureMistakeCounts[0]?.mistakeCount).toBe(2);
+    expect(state.mistakeEvidence).toHaveLength(2);
+    expect(getPiecePracticeMeasureResults(state)[0]?.mistakeCount).toBe(2);
   });
 
   it("expires only the incomplete roll and preserves completed parallel checks", () => {
@@ -617,7 +648,7 @@ describe("Piece Practice rolled-chord checks", () => {
       { checkId: "right", completed: true },
       { checkId: "left", completed: false, accumulatedMidiNumbers: [], startedAtMs: null },
     ]);
-    expect(state.incorrectAttemptCount).toBe(1);
+    expect(state.mistakeEvidence).toHaveLength(1);
   });
 
   it("counts each independent rolled check that expires in the same pass", () => {
@@ -630,8 +661,8 @@ describe("Piece Practice rolled-chord checks", () => {
       { checkId: "lower", accumulatedMidiNumbers: [], startedAtMs: null },
       { checkId: "upper", accumulatedMidiNumbers: [], startedAtMs: null },
     ]);
-    expect(state).toMatchObject({ incorrectAttemptCount: 2, currentTargetIncorrectAttemptCount: 2 });
-    expect(state.measureMistakeCounts[0]?.mistakeCount).toBe(2);
+    expect(state.mistakeEvidence).toHaveLength(2);
+    expect(getPiecePracticeMeasureResults(state)[0]?.mistakeCount).toBe(2);
   });
 
   it("lets the expiry-triggering required pitch immediately start a fresh attempt", () => {
@@ -640,7 +671,7 @@ describe("Piece Practice rolled-chord checks", () => {
     state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 48, atMs: 0 }).state;
     state = submitPiecePracticePitch(source, state, { targetId: "m1:attack:0", midiNumber: 52, atMs: 750 }).state;
     expect(state.currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [52], startedAtMs: 750 });
-    expect(state.incorrectAttemptCount).toBe(1);
+    expect(state.mistakeEvidence).toHaveLength(1);
   });
 
   it("allows one pitch to satisfy every pending check that expects it", () => {

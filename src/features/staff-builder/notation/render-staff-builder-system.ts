@@ -8,12 +8,14 @@ import {
   applyStaffBuilderVexFlowAccidentals,
   configureStaffBuilderSvg,
   createStaffBuilderEventAnchors,
+  createStaffBuilderPitchAnchors,
   createStaffBuilderTemporalAnchors,
   createStaffBuilderVexFlowBeams,
   createStaffBuilderVexFlowVoices,
   drawStaffBuilderVexFlowBeams,
   type StaffBuilderEventAnchor,
   type StaffBuilderPositionAnchor,
+  type StaffBuilderPitchAnchor,
   type StaffBuilderTemporalGeometry,
 } from "./staff-builder-vexflow-rendering";
 
@@ -22,6 +24,7 @@ export type StaffBuilderSystemMeasureGeometry = Readonly<{
   measureIndex: number;
   bounds: StaffBuilderLayoutBounds;
   events: ReadonlyMap<string, StaffBuilderEventAnchor>;
+  pitches: ReadonlyMap<string, StaffBuilderPitchAnchor>;
   positions: ReadonlyMap<number, StaffBuilderPositionAnchor>;
   timeline: StaffBuilderTemporalGeometry;
 }>;
@@ -31,6 +34,7 @@ export type StaffBuilderSystemRenderResult = Readonly<{
   system: Readonly<{ systemIndex: number; bounds: StaffBuilderLayoutBounds }>;
   measures: readonly StaffBuilderSystemMeasureGeometry[];
   events: ReadonlyMap<string, StaffBuilderEventAnchor>;
+  pitches: ReadonlyMap<string, StaffBuilderPitchAnchor>;
 }>;
 
 type RenderedEvent = Readonly<{
@@ -106,6 +110,7 @@ export function renderStaffBuilderSystem(
   const context = renderer.getContext();
   const renderedEvents = new Map<string, RenderedEvent>();
   const aggregateEvents = new Map<string, StaffBuilderEventAnchor>();
+  const aggregatePitches = new Map<string, StaffBuilderPitchAnchor>();
   const measureGeometry: StaffBuilderSystemMeasureGeometry[] = [];
   let previousProjection: StaffBuilderMeasureProjection | undefined;
 
@@ -177,16 +182,19 @@ export function renderStaffBuilderSystem(
       });
     }
     const events = createStaffBuilderEventAnchors(renderedTickables);
+    const pitches = createStaffBuilderPitchAnchors(renderedTickables);
     const measureEventIds = new Set(score.measures[placement.measureIndex]?.events.map(({ id }) => id) ?? []);
     const measureNotes = new Map([...renderedEvents].filter(([, rendered]) => rendered.measureIndex === placement.measureIndex).map(([eventId, rendered]) => [eventId, rendered.note] as const));
     drawStaffBuilderLyricCues(context, getStaffBuilderLyricCues(score, measureEventIds), measureNotes, 16, placement.x, placement.x + placement.width);
     events.forEach((anchor, eventId) => aggregateEvents.set(eventId, anchor));
+    pitches.forEach((anchor, pitchId) => aggregatePitches.set(pitchId, anchor));
     const temporal = createStaffBuilderTemporalAnchors(projection, trebleStave, bassStave);
     measureGeometry.push({
       measureId: placement.measureId,
       measureIndex: placement.measureIndex,
       bounds: { x: placement.x, y: placement.y, width: placement.width, height: placement.height },
       events,
+      pitches,
       positions: temporal.positions,
       timeline: temporal.timeline,
     });
@@ -199,5 +207,6 @@ export function renderStaffBuilderSystem(
     system: { systemIndex: systemLayout.systemIndex, bounds: { x: 0, y: 0, width: systemLayout.width, height: systemLayout.height } },
     measures: measureGeometry,
     events: aggregateEvents,
+    pitches: aggregatePitches,
   };
 }

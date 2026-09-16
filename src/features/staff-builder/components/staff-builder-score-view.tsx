@@ -20,11 +20,18 @@ import { StaffBuilderTimeWheel, STAFF_BUILDER_TIME_WHEEL_SIZE } from "./staff-bu
 
 type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: number }>;
 export type StaffBuilderEventHighlight = Readonly<{ eventId: string; status: "current" | "correct" | "incorrect" | "complete" | "missed" | "wrong-pitch" }>;
+export type StaffBuilderDiagnosticHighlight = Readonly<{
+  kind: "mistake" | "hesitation";
+  eventId: string;
+  pitchId?: string;
+  count?: number;
+}>;
 type PointerIntent = Readonly<{ kind: "event"; eventId: string }> | Readonly<{ kind: "position"; offsetTicks: number }> | Readonly<{ kind: "notation"; control: StaffBuilderNotationControlName }>;
 type PointerGesture = Readonly<{ pointerId: number; startX: number; startY: number; intent: PointerIntent }>;
 
 const EMPTY_PENDING_PREVIEW: StaffBuilderPendingCapture = { treble: [], bass: [] };
 const EMPTY_EVENT_HIGHLIGHTS: readonly StaffBuilderEventHighlight[] = [];
+const EMPTY_DIAGNOSTIC_HIGHLIGHTS: readonly StaffBuilderDiagnosticHighlight[] = [];
 const TAP_MOVEMENT_THRESHOLD_PX = 8;
 
 function durationName(event: StaffBuilderEvent): string {
@@ -40,7 +47,7 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, issue, inputMode = "grand", visibleStaff = "grand", visibleAnnotationLayers = ALL_STAFF_BUILDER_ANNOTATION_LAYERS, onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, diagnosticHighlights = EMPTY_DIAGNOSTIC_HIGHLIGHTS, issue, inputMode = "grand", visibleStaff = "grand", visibleAnnotationLayers = ALL_STAFF_BUILDER_ANNOTATION_LAYERS, onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
   score: StaffBuilderScore;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
@@ -48,6 +55,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   playbackPosition?: Readonly<{ offsetTicks: number }>;
   selectedEventId?: string;
   eventHighlights?: readonly StaffBuilderEventHighlight[];
+  diagnosticHighlights?: readonly StaffBuilderDiagnosticHighlight[];
   issue?: StaffBuilderIssue | null;
   inputMode?: StaffBuilderCaptureInputMode;
   visibleStaff?: "grand" | "treble" | "bass";
@@ -71,6 +79,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const [cursorGeometry, setCursorGeometry] = useState<CursorGeometry | null>(null);
   const [selectionGeometry, setSelectionGeometry] = useState<CursorGeometry | null>(null);
   const [highlightGeometries, setHighlightGeometries] = useState<readonly Readonly<{ eventId: string; status: StaffBuilderEventHighlight["status"]; geometry: CursorGeometry }>[]>([]);
+  const [diagnosticGeometries, setDiagnosticGeometries] = useState<readonly Readonly<{ highlight: StaffBuilderDiagnosticHighlight; geometry: CursorGeometry }>[]>([]);
   const [issueGeometry, setIssueGeometry] = useState<CursorGeometry | null>(null);
   const [renderResult, setRenderResult] = useState<StaffBuilderMeasureRenderResult | null>(null);
   const [durationEventId, setDurationEventId] = useState<string | null>(null);
@@ -127,6 +136,12 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       const anchor = result.anchors.authoritativeEvents.get(eventId);
       return anchor ? [{ eventId, status, geometry: { x: anchor.x - 6, y: anchor.y - 6, width: anchor.width + 12, height: anchor.height + 12 } }] : [];
     }));
+    setDiagnosticGeometries(diagnosticHighlights.flatMap((highlight) => {
+      const anchor = highlight.pitchId
+        ? result.anchors.pitches.get(highlight.pitchId)
+        : result.anchors.authoritativeEvents.get(highlight.eventId);
+      return anchor ? [{ highlight, geometry: { x: anchor.x - 5, y: anchor.y - 5, width: anchor.width + 10, height: anchor.height + 10 } }] : [];
+    }));
     const issueEvent = issue?.target.eventId ? result.anchors.events.get(issue.target.eventId) : undefined;
     const positions = [...result.anchors.positions.values()].sort((a, b) => a.tick - b.tick);
     const issuePosition = issue?.target.positionTicks === undefined ? undefined : result.anchors.positions.get(issue.target.positionTicks) ?? positions.at(-1);
@@ -136,7 +151,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       setIssueGeometry({ x: issuePosition.x, y: issuePosition.y, width: Math.max(issuePosition.width, end - issuePosition.x), height: issuePosition.height });
     } else setIssueGeometry(null);
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, eventHighlights, issue, measureIndex, notationScore, onRender, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId, visibleStaff]);
+  }, [cursorOffsetTicks, cursorStepDuration, diagnosticHighlights, eventHighlights, issue, measureIndex, notationScore, onRender, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId, visibleStaff]);
 
   const authoritativeTargets = [...(renderResult?.anchors.authoritativeEvents.values() ?? [])]
     .map((anchor, order) => ({ anchor, order, event: score.measures[measureIndex]?.events.find(({ id }) => id === anchor.eventId) }))
@@ -377,6 +392,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           {cursorGeometry && <div aria-hidden="true" className="staff-builder-capture-cursor" data-testid="staff-builder-capture-cursor" style={{ left: cursorGeometry.x, top: cursorGeometry.y, width: cursorGeometry.width, height: cursorGeometry.height }} />}
           {selectionGeometry && <div aria-hidden="true" className="staff-builder-selection-outline" data-testid="staff-builder-selection-outline" style={{ left: selectionGeometry.x, top: selectionGeometry.y, width: selectionGeometry.width, height: selectionGeometry.height }} />}
           {highlightGeometries.map(({ eventId, status, geometry }) => <div aria-hidden="true" className="staff-builder-event-highlight" data-event-id={eventId} data-highlight-status={status} data-testid="staff-builder-event-highlight" key={`${eventId}:${status}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height }} />)}
+          {diagnosticGeometries.map(({ highlight, geometry }) => <div aria-hidden="true" className="staff-builder-diagnostic-highlight" data-diagnostic-kind={highlight.kind} data-event-id={highlight.eventId} data-pitch-id={highlight.pitchId} key={`${highlight.kind}:${highlight.eventId}:${highlight.pitchId ?? "target"}`} style={{ left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height }}>{(highlight.count ?? 0) > 1 ? <span>×{highlight.count}</span> : null}</div>)}
           {issueGeometry && <div aria-hidden="true" className="staff-builder-issue-outline" data-testid="staff-builder-issue-outline" style={{ left: issueGeometry.x, top: issueGeometry.y, width: issueGeometry.width, height: issueGeometry.height }}><span>!</span></div>}
           {eventAnnotationGroups.map(({ layer, items, label, eventId, anchor, index }) => <span aria-label={`${label}, ${items.length} ${items.length === 1 ? "annotation" : "annotations"}, event in measure ${projection.measureNumber}`} className="staff-builder-event-annotation-indicator" data-annotation-layer={layer} data-event-id={eventId} key={`${eventId}:${layer}`} style={{ left: anchor.x + anchor.width - 4 + index * 18, top: Math.max(2, anchor.y - 18) }}>{label === "Study Note" ? "N" : label === "Practice Mark" ? "P" : "B"}<small>{items.length}</small></span>)}
         </div>

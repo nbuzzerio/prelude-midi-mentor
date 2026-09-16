@@ -403,7 +403,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Prelude's latest repository tag remains **v2.5.0** until the repository owner completes the manual release steps. The repository and application metadata are prepared for the backward-compatible **v2.6.0** release candidate.
+The repository and application metadata are prepared for the backward-compatible **v2.7.0** Piece Practice diagnostics release candidate. Git tagging and releasing remain manual owner actions.
 
 The application now supports seven complementary top-level modes:
 
@@ -417,7 +417,7 @@ The application now supports seven complementary top-level modes:
 
 The release candidate adds browser-local Practice Session presets, native completion targets, Scale Repertoire traversal, timed Melody orchestration, Bonus/Skip/End/summary flow, and stable hosted Mobile Play continuity across exercises. Final interaction and presentation QA is intentionally deferred to the deployed Chromebook/tablet. Practice evidence persistence, analytics, scheduling, cloud accounts, and active-run recovery remain future considerations rather than current capabilities.
 
-`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is set to `2.6.0`, so the prepared release candidate displays `v2.6.0`; the matching annotated tag is still created manually by the repository owner.
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is set to `2.7.0`, so the prepared release candidate displays `v2.7.0`; the matching annotated tag is still created manually by the repository owner.
 
 Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
 
@@ -506,7 +506,7 @@ Future lesson-based features can build on these existing primitives without forc
 - [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Current structure and technical direction
 - [`DECISIONS.md`](./docs/DECISIONS.md) — Important product and architectural decisions
 - [`TESTING.md`](./docs/TESTING.md) — Testing philosophy and coverage
-- [`DEVLOG.md`](./docs/DEVLOG.md) — Release history and prepared v2.6.0 notes
+- [`DEVLOG.md`](./docs/DEVLOG.md) — Release history and prepared v2.7.0 notes
 - [`RELEASING.md`](./docs/RELEASING.md) — Versioning, validation, tagging, and deployment process
 
 ---

@@ -30,7 +30,9 @@ export type UsePiecePracticeInputOptions = Readonly<{
 
 const IDLE_FEEDBACK: PiecePracticeInputFeedback = { status: "idle", source: null, grade: null };
 
-export function usePiecePracticeInput({ piece, sessionState, onSessionStateChange, now = Date.now }: UsePiecePracticeInputOptions) {
+const monotonicNow = () => performance.now();
+
+export function usePiecePracticeInput({ piece, sessionState, onSessionStateChange, now = monotonicNow }: UsePiecePracticeInputOptions) {
   const [feedback, setFeedback] = useState<PiecePracticeInputFeedback>(IDLE_FEEDBACK);
   const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(new Set());
   const [virtualSelectedMidiNumbers, setVirtualSelectedMidiNumbers] = useState<ReadonlySet<number>>(new Set());
@@ -72,14 +74,14 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   }, [clearTransientAttempts]);
 
   const skipCurrentTarget = useCallback(() => {
-    const result = skipCurrentPiecePracticeTarget(piece, sessionStateRef.current);
+    const result = skipCurrentPiecePracticeTarget(piece, sessionStateRef.current, now());
     if (!result.skipped) return false;
     clearTransientAttempts();
     setFeedback(IDLE_FEEDBACK);
     sessionStateRef.current = result.state;
     onSessionStateChange(result.state);
     return true;
-  }, [clearTransientAttempts, onSessionStateChange, piece]);
+  }, [clearTransientAttempts, now, onSessionStateChange, piece]);
 
   const submitAttack = useCallback((source: PiecePracticeInputSource, attackMidiNumbers: Iterable<number>, heldMidiNumbers: Iterable<number> = []) => {
     const currentState = sessionStateRef.current;
@@ -93,6 +95,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     const result = submitPiecePracticeAttempt(piece, currentState, {
       targetId: target.id,
       attempt: { attackMidiNumbers, heldMidiNumbers, allowedHeldMidiNumbers },
+      atMs: now(),
     });
     if (!result.accepted) return;
     sessionStateRef.current = result.state;
@@ -100,7 +103,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     setFeedback({ status: !result.grade.correct ? "incorrect" : advanced ? "correct" : "idle", source: advanced || !result.grade.correct ? source : null, grade: result.grade });
     clearTransientAttempts();
     onSessionStateChange(result.state);
-  }, [clearTransientAttempts, onSessionStateChange, piece]);
+  }, [clearTransientAttempts, now, onSessionStateChange, piece]);
 
   const submitPitch = useCallback((source: PiecePracticeInputSource, midiNumber: number) => {
     const currentState = sessionStateRef.current;
@@ -198,6 +201,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   }, [clearAttempt, clearVirtualSelection, piece, submitAttack, submitPitch]);
 
   useEffect(() => {
+    if (sessionState.clockPaused) return;
     const deadlines = sessionState.currentCheckProgress
       .filter(({ completed, startedAtMs }) => !completed && startedAtMs !== null)
       .map(({ startedAtMs }) => (startedAtMs as number) + getPiecePracticeRolledWindowMs(piece.tempoBpm));
@@ -212,7 +216,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       onSessionStateChange(expired);
     }, Math.max(0, deadline - now()));
     return () => window.clearTimeout(timeout);
-  }, [now, onSessionStateChange, piece, sessionState.currentCheckProgress]);
+  }, [now, onSessionStateChange, piece, sessionState.clockPaused, sessionState.currentCheckProgress]);
 
   const targetId = getCurrentPiecePracticeTarget(piece, sessionState)?.id ?? null;
   const previousTargetIdRef = useRef(targetId);

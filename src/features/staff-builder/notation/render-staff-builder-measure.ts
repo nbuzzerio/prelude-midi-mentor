@@ -9,19 +9,21 @@ import {
   applyStaffBuilderVexFlowAccidentals,
   configureStaffBuilderSvg,
   createStaffBuilderEventAnchors,
+  createStaffBuilderPitchAnchors,
   createStaffBuilderTemporalAnchors,
   createStaffBuilderVexFlowBeams,
   createStaffBuilderVexFlowVoices,
   drawStaffBuilderVexFlowBeams,
   type StaffBuilderEventAnchor,
   type StaffBuilderPositionAnchor,
+  type StaffBuilderPitchAnchor,
   type StaffBuilderTemporalGeometry,
 } from "./staff-builder-vexflow-rendering";
 import { getStaffBuilderVerticalGeometry } from "./staff-builder-vertical-geometry";
 import { drawStaffBuilderTie } from "./draw-staff-builder-tie";
 import { drawStaffBuilderLyricCues, getStaffBuilderLyricCues, STAFF_BUILDER_LYRIC_LANE_RESERVATION } from "./staff-builder-lyric-cues";
 
-export type { StaffBuilderEventAnchor, StaffBuilderPositionAnchor, StaffBuilderTemporalGeometry } from "./staff-builder-vexflow-rendering";
+export type { StaffBuilderEventAnchor, StaffBuilderPitchAnchor, StaffBuilderPositionAnchor, StaffBuilderTemporalGeometry } from "./staff-builder-vexflow-rendering";
 
 export type StaffBuilderNotationControlAnchor = Readonly<{
   x: number;
@@ -41,6 +43,7 @@ export type StaffBuilderNotationControlAnchors = Readonly<{
 export type StaffBuilderRenderAnchors = Readonly<{
   events: ReadonlyMap<string, StaffBuilderEventAnchor>;
   authoritativeEvents: ReadonlyMap<string, StaffBuilderEventAnchor>;
+  pitches: ReadonlyMap<string, StaffBuilderPitchAnchor>;
   positions: ReadonlyMap<number, StaffBuilderPositionAnchor>;
   timeline: StaffBuilderTemporalGeometry;
   notationControls: StaffBuilderNotationControlAnchors;
@@ -146,6 +149,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
 
   configureStaffBuilderSvg(container, RENDER_WIDTH, vertical.height);
   const eventAnchors = createStaffBuilderEventAnchors([...(visibleStaff === "bass" ? [] : trebleRendered), ...(visibleStaff === "treble" ? [] : bassRendered)]);
+  const pitchAnchors = createStaffBuilderPitchAnchors([...(visibleStaff === "bass" ? [] : trebleRendered), ...(visibleStaff === "treble" ? [] : bassRendered)]);
   const trebleTop = trebleStave.getTopLineTopY() - 28;
   const trebleBottom = trebleStave.getBottomLineBottomY() + 28;
   const bassTop = bassStave.getTopLineTopY() - 28;
@@ -159,6 +163,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     anchors: {
       events: eventAnchors,
       authoritativeEvents: new Map([...eventAnchors].filter(([eventId]) => !options?.excludedEventIds?.has(eventId))),
+      pitches: pitchAnchors,
       positions: temporal.positions,
       timeline: temporal.timeline,
       notationControls: {

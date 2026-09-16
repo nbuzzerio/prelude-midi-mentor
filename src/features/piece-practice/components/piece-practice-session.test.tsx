@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/features/staff-builder/components/staff-builder-score-view", () => ({
   StaffBuilderScoreView: (props: Record<string, unknown>) => {
     mocks.scoreProps = props;
-    const highlights = props.eventHighlights as readonly { eventId: string; status: string }[];
+    const highlights = (props.eventHighlights ?? []) as readonly { eventId: string; status: string }[];
     return <div aria-label="Read-only authored score" data-highlights={highlights.map(({ eventId }) => eventId).join(",")} data-testid="score-view" />;
   },
 }));
@@ -269,7 +269,17 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("Mistakes").parentElement?.querySelector("dd")?.textContent).toBe("1");
     const results = screen.getByLabelText("Measure-by-measure results");
     expect(within(results).getByText("Measure 3")).toBeTruthy();
-    expect(within(results).getByText("1 mistake")).toBeTruthy();
+    expect(within(results).getByText(/1 mistake/)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Show problem measures only"));
+    expect(results.children).toHaveLength(1);
+    fireEvent.click(within(results).getByText("Measure 3").closest("summary")!);
+    fireEvent.click(within(results).getByText("Show mistakes"));
+    expect(within(results).getByText("Expected: A4")).toBeTruthy();
+    expect(within(results).getByText(/Played: MIDI 68/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+    expect(screen.getByRole("dialog", { name: "Generate Report" })).toBeTruthy();
+    expect((screen.getByLabelText("Problem measures only") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
     expect(screen.getByText("Measure 3 of 3 · Practicing Measure 3 through end")).toBeTruthy();
     expect(mocks.resetInput).toHaveBeenCalledTimes(1);
@@ -282,7 +292,9 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
     const results = screen.getByLabelText("Measure-by-measure results");
     const rows = within(results).getAllByRole("listitem");
-    expect(rows.map((row) => row.textContent)).toEqual(["Measure 1✓ No mistakes", "Measure 2✓ No mistakes"]);
+    expect(rows.map((row) => row.textContent)).toEqual(["Measure 1No mistakes · 0.0s", "Measure 2No mistakes · 0.0s"]);
+    fireEvent.click(screen.getByLabelText("Show problem measures only"));
+    expect(screen.getByText("No problem measures in this attempt.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
     expect(screen.getByText("Measure 1 of 3 · Practicing Measures 1–2")).toBeTruthy();
   });
@@ -318,8 +330,7 @@ describe("PiecePracticeSession", () => {
     expect(mocks.inputOptions?.sessionState).toMatchObject({
       currentMeasureIndex: 0,
       currentTargetIndex: 0,
-      currentTargetIncorrectAttemptCount: 1,
-      incorrectAttemptCount: 1,
+      mistakeEvidence: [expect.any(Object)],
       startedAtMs: 65_000,
     });
 
@@ -329,8 +340,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("Target 1 of 2")).toBeTruthy();
     expect(screen.getByText(/Incorrect .* try the same target again\./)).toBeTruthy();
     expect(mocks.inputOptions?.sessionState).toMatchObject({
-      currentTargetIncorrectAttemptCount: 1,
-      incorrectAttemptCount: 1,
+      mistakeEvidence: [expect.any(Object)],
       startedAtMs: 65_000,
     });
   });

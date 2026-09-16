@@ -99,7 +99,7 @@ describe("usePiecePracticeInput", () => {
     const view = setup(piece([[[60]]]));
     midiHeld(61);
     midiNote(61);
-    expect(view.getState()).toMatchObject({ currentTargetIndex: 0, incorrectAttemptCount: 1, status: "practicing" });
+    expect(view.getState()).toMatchObject({ currentTargetIndex: 0, status: "practicing" }); expect(view.getState().mistakeEvidence).toHaveLength(1);
     midiHeld(60);
     midiNote(60);
     expect(view.getState()).toMatchObject({ completedTargetCount: 1, status: "piece-complete" });
@@ -150,7 +150,7 @@ describe("usePiecePracticeInput", () => {
     midiHeld(...held);
     played.forEach(midiNote);
     act(() => vi.advanceTimersByTime(225));
-    expect(view.getState()).toMatchObject({ currentTargetIndex: 0, completedTargetCount: 0, incorrectAttemptCount: 1 });
+    expect(view.getState()).toMatchObject({ currentTargetIndex: 0, completedTargetCount: 0 }); expect(view.getState().mistakeEvidence).toHaveLength(1);
   });
 
   it("discards a stale chord collector after an external target transition", () => {
@@ -211,7 +211,7 @@ describe("usePiecePracticeInput", () => {
     view.sync();
     midiHeld(60, 64);
     midiNote(64);
-    expect(view.getState()).toMatchObject({ currentTargetIndex: 2, incorrectAttemptCount: 0 });
+    expect(view.getState()).toMatchObject({ currentTargetIndex: 2 }); expect(view.getState().mistakeEvidence).toHaveLength(0);
     view.sync();
     midiHeld(60, 67);
     midiNote(67);
@@ -254,7 +254,7 @@ describe("usePiecePracticeInput", () => {
   it("submits virtual singles immediately and keeps wrong answers blocked", () => {
     const view = setup(piece([[[60]]]));
     act(() => view.result.current.onVirtualNoteToggle(61));
-    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 1, status: "practicing" });
+    expect(view.getState()).toMatchObject({ status: "practicing" }); expect(view.getState().mistakeEvidence).toHaveLength(1);
     act(() => view.result.current.onVirtualNoteToggle(60));
     expect(view.getState().status).toBe("piece-complete");
   });
@@ -289,7 +289,7 @@ describe("usePiecePracticeInput", () => {
     act(() => view.result.current.onVirtualNoteToggle(64));
     expect(view.result.current.midiChordAttemptMidiNumbers.size).toBe(0);
     act(() => view.result.current.onVirtualNoteToggle(67));
-    expect(view.getState()).toMatchObject({ status: "practicing", incorrectAttemptCount: 1 });
+    expect(view.getState()).toMatchObject({ status: "practicing" }); expect(view.getState().mistakeEvidence).toHaveLength(1);
     expect(view.result.current.virtualSelectedMidiNumbers.size).toBe(0);
   });
 
@@ -330,7 +330,7 @@ describe("usePiecePracticeInput", () => {
     midiNote(72); view.sync();
     act(() => vi.advanceTimersByTime(300));
     midiNote(55);
-    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1, incorrectAttemptCount: 0 });
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 }); expect(view.getState().mistakeEvidence).toHaveLength(0);
   });
 
   it("retains normal held-note strictness while allowing pitches owned by the parallel roll", () => {
@@ -343,7 +343,7 @@ describe("usePiecePracticeInput", () => {
     const unrelated = setup(rolledPiece());
     midiHeld(72, 99);
     midiNote(72);
-    expect(unrelated.getState()).toMatchObject({ incorrectAttemptCount: 1, status: "practicing" });
+    expect(unrelated.getState()).toMatchObject({ status: "practicing" }); expect(unrelated.getState().mistakeEvidence).toHaveLength(1);
     expect(unrelated.getState().currentCheckProgress[0]?.completed).toBe(false);
   });
 
@@ -353,7 +353,7 @@ describe("usePiecePracticeInput", () => {
     midiNote(48); view.sync();
     midiNote(72); midiNote(76);
     act(() => vi.advanceTimersByTime(225));
-    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 0, status: "practicing" });
+    expect(view.getState()).toMatchObject({ status: "practicing" }); expect(view.getState().mistakeEvidence).toHaveLength(0);
     expect(view.getState().currentCheckProgress[0]?.completed).toBe(true);
   });
 
@@ -370,7 +370,7 @@ describe("usePiecePracticeInput", () => {
     midiNote(48); view.sync();
     midiNote(72); midiNote(76);
     act(() => vi.advanceTimersByTime(225));
-    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 0, status: "practicing" });
+    expect(view.getState()).toMatchObject({ status: "practicing" }); expect(view.getState().mistakeEvidence).toHaveLength(0);
     expect(view.getState().currentCheckProgress[0]?.completed).toBe(true);
   });
 
@@ -380,7 +380,7 @@ describe("usePiecePracticeInput", () => {
     midiNote(48); view.sync();
     midiNote(72); midiNote(76);
     act(() => vi.advanceTimersByTime(225));
-    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 1, status: "practicing" });
+    expect(view.getState()).toMatchObject({ status: "practicing" }); expect(view.getState().mistakeEvidence).toHaveLength(1);
     expect(view.getState().currentCheckProgress[0]?.completed).toBe(false);
     expect(view.result.current.feedback.grade).toMatchObject({ unexpectedHeldMidiNumbers: [99] });
   });
@@ -390,7 +390,7 @@ describe("usePiecePracticeInput", () => {
     midiHeld(48, 60, 64);
     midiNote(60); midiNote(64);
     act(() => vi.advanceTimersByTime(225));
-    expect(view.getState()).toMatchObject({ incorrectAttemptCount: 1, status: "practicing" });
+    expect(view.getState()).toMatchObject({ status: "practicing" }); expect(view.getState().mistakeEvidence).toHaveLength(1);
     expect(view.result.current.feedback.grade).toMatchObject({ unexpectedHeldMidiNumbers: [48] });
   });
 
@@ -409,6 +409,6 @@ describe("usePiecePracticeInput", () => {
     midiNote(48); view.sync();
     act(() => vi.advanceTimersByTime(938));
     expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { completed: false, accumulatedMidiNumbers: [] }]);
-    expect(view.getState().incorrectAttemptCount).toBe(1);
+    expect(view.getState().mistakeEvidence).toHaveLength(1);
   });
 });

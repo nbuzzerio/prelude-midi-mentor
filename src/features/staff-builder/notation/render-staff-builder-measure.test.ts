@@ -61,6 +61,11 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it("publishes stable pitch-level anchors alongside event anchors", () => {
+    const result = renderStaffBuilderMeasure(document.createElement("div"), score(), 0);
+    const pitch = score().measures[0]!.events.find((event) => event.kind === "notes")?.pitches[0];
+    expect(pitch && result.anchors.pitches.get(pitch.id)).toMatchObject({ pitchId: pitch?.id, width: 18, height: 18 });
+  });
   it("renders ordered lyric cues in a reserved, non-focusable lane without changing ties or beams", () => {
     const current = { ...score(), annotations: [
       { id: "bells", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "chord" }, text: "Bells" },

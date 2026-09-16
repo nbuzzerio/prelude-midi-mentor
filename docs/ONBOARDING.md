@@ -2,7 +2,7 @@
 
 > **Latest Repository Tag:** v2.5.0
 > **Last Updated:** September 7, 2026
-> **Current Milestone:** v2.6.0 Practice Sessions release candidate prepared; owner review and manual tag pending
+> **Current Milestone:** v2.7.0 Piece Practice diagnostics release candidate prepared; owner review and manual tag pending
 >
 > Automated release preparation is complete after verification. Final Practice Session interaction and presentation QA follows deployment on the Chromebook/tablet; do not expand the feature before that real-use checkpoint.
 
@@ -222,13 +222,13 @@ Completed features include:
 
 # Current Development Focus
 
-Prelude's latest repository tag remains v2.5.0 until the repository owner completes the manual release steps. The package version and release notes are prepared for the backward-compatible v2.6.0 release candidate centered on reusable Practice Session presets, native completion orchestration, and stable hosted Mobile Play continuity.
+The package version and release notes are prepared for the backward-compatible v2.7.0 release candidate centered on transient Piece Practice diagnostics, active-time evidence, and printable reports. Tagging and releasing remain manual owner actions.
 
 The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 
 Staff Builder owns its schema v3 score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, annotations, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Historical local-storage keys retain `-v1` names for compatibility and must not be renamed merely because the current schema is v3. Piece Practice owns transient projection, check-based blocking state, input, and read-only presentation without copying the score or coupling back into the editor.
 
-The current automated baseline is established by `pnpm verify`; exact passing test-file and test counts are recorded in the v2.6.0 release handoff. Physical Web MIDI, installed-PWA behavior, real offline behavior, and representative browser/device behavior still require manual validation where relevant.
+The current automated baseline is established by `pnpm verify`; exact passing test-file and test counts are recorded in the v2.7.0 release handoff. Physical Web MIDI, installed-PWA behavior, real offline behavior, browser printing, and representative browser/device behavior still require manual validation where relevant.
 
 ---
 

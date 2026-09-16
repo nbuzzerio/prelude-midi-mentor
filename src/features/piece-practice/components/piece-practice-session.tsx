@@ -10,13 +10,15 @@ import {
   advancePiecePracticeNoAttackMeasure,
   createPiecePracticeSession,
   getCurrentPiecePracticeTarget,
-  getPiecePracticeMeasureResults,
   getPiecePracticeProgress,
+  pausePiecePracticeClock,
   restartCurrentPiecePracticeMeasure,
   restartPiecePractice,
+  resumePiecePracticeClock,
   type PiecePracticeSessionState,
 } from "../piece-practice-session";
 import type { PiecePracticeAttackedPitch, PiecePracticePiece } from "../piece-practice-types";
+import { PiecePracticeResults } from "./piece-practice-results";
 
 function writtenPitchName(pitch: PiecePracticeAttackedPitch): string {
   const accidental = pitch.accidental === "sharp" ? "♯" : pitch.accidental === "flat" ? "♭" : "";
@@ -33,7 +35,9 @@ function formatElapsed(elapsedMs: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
 }
 
-export function PiecePracticeSession({ piece, onExit, now = Date.now }: Readonly<{
+const monotonicNow = () => performance.now();
+
+export function PiecePracticeSession({ piece, onExit, now = monotonicNow }: Readonly<{
   piece: PiecePracticePiece;
   onExit: () => void;
   now?: () => number;
@@ -42,6 +46,17 @@ export function PiecePracticeSession({ piece, onExit, now = Date.now }: Readonly
   const [selectedEndMeasure, setSelectedEndMeasure] = useState<number | null>(null);
   const [sessionState, setSessionState] = useState<PiecePracticeSessionState | null>(null);
   const displayScore = useMemo(() => createPiecePracticeDisplayScore(piece), [piece]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => setSessionState((current) => {
+      if (!current) return current;
+      return document.visibilityState === "hidden"
+        ? pausePiecePracticeClock(current, now())
+        : resumePiecePracticeClock(current, now());
+    });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [now]);
 
   if (!sessionState) {
     return <section aria-labelledby="piece-practice-setup-title" className="mx-auto grid w-full max-w-3xl gap-5 rounded-xl border border-zinc-700 bg-zinc-900 p-5 text-zinc-100">
@@ -94,7 +109,6 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   const target = getCurrentPiecePracticeTarget(piece, sessionState);
   const measure = piece.measures[sessionState.currentMeasureIndex];
   const progress = getPiecePracticeProgress(piece, sessionState, now());
-  const measureResults = getPiecePracticeMeasureResults(sessionState);
   const rangeText = sessionState.endMeasureIndex === null
     ? `Measure ${sessionState.startMeasureIndex + 1} through end`
     : sessionState.startMeasureIndex === sessionState.endMeasureIndex
@@ -126,7 +140,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   }, [sessionState.status]);
 
   const restartMeasure = () => {
-    const restarted = restartCurrentPiecePracticeMeasure(piece, sessionState);
+    const restarted = restartCurrentPiecePracticeMeasure(piece, sessionState, now());
     input.resetInput();
     onSessionStateChange(restarted);
   };
@@ -161,15 +175,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         <div><dt className="text-sm text-zinc-400">Mistakes</dt><dd className="text-xl font-bold">{progress.incorrectAttemptCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
-      <section aria-labelledby="piece-practice-measure-results-title" className="grid gap-3">
-        <div><h2 className="text-xl font-bold" id="piece-practice-measure-results-title">Measure results</h2><p className="text-sm text-zinc-300">Problem measures are emphasized for quick review.</p></div>
-        <ul aria-label="Measure-by-measure results" className="piece-practice-measure-results">
-          {measureResults.map((result) => <li className="piece-practice-measure-result" data-has-mistakes={!result.completedWithoutMistakes || undefined} key={result.sourceMeasureId}>
-            <strong>Measure {result.measureNumber}</strong>
-            <span>{result.completedWithoutMistakes ? "✓ No mistakes" : `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}`}</span>
-          </li>)}
-        </ul>
-      </section>
+      <PiecePracticeResults displayScore={displayScore} rangeText={rangeText} state={sessionState} title={piece.title} />
       <div className="flex flex-wrap gap-3"><button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={restartWholePiece} type="button">Practice Again</button>{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold" onClick={onExit} type="button">Exit Piece Practice</button></div>
     </section>;
   }
@@ -201,7 +207,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map((midi) => `MIDI ${midi}`).join(", ")}</p> : null}</div> : null}
         {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" onClick={input.skipCurrentTarget} type="button">Skip Target</button> : null}
         {sessionState.status === "awaiting-explicit-measure-advance" ? <button className="justify-self-start rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={() => {
-          const result = advancePiecePracticeNoAttackMeasure(piece, sessionState);
+          const result = advancePiecePracticeNoAttackMeasure(piece, sessionState, now());
           if (result.advanced) { input.resetInput(); onSessionStateChange(result.state); }
         }} type="button">Next Measure</button> : null}
       </section>

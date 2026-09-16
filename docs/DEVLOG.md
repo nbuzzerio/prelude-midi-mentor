@@ -1,6 +1,6 @@
 # Dev Log
 
-A high-level release history and record of significant milestones in Prelude's development. The Unreleased section records work after the prepared release, while dated sections preserve finalized release notes. The v2.6.0 section is prepared for the repository owner's manual release commit and annotated tag; it does not claim that tag already exists.
+A high-level release history and record of significant milestones in Prelude's development. The Unreleased section records work after the prepared release, while dated sections preserve finalized release notes. The v2.7.0 candidate remains subject to the repository owner's review, manual release commit, and annotated tag.
 
 ## Unreleased
 
@@ -184,3 +184,8 @@ A high-level release history and record of significant milestones in Prelude's d
 - Added deterministic score playback and playback-follow visualization through the shared musical-event player.
 - Added score-first notation controls, specialized radial controls, deterministic interaction geometry, and responsive mobile workflows.
 - Released the Staff Builder foundation as the authoritative local score-authoring and project workflow.
+# v2.7.0 candidate
+
+- Expanded Piece Practice completion into an attempt-local diagnostic report with chronological mistake evidence, accumulated measure time, slow-response evidence, expandable authored notation, problem filtering, and browser-print reporting.
+- Added additive pitch anchors and red/amber diagnostic overlays while preserving Melody's event-highlight behavior.
+- Excluded hidden-tab time from active practice timing and froze all attempt timing at completion.
