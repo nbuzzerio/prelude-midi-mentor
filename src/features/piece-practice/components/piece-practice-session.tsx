@@ -10,6 +10,7 @@ import {
   advancePiecePracticeNoAttackMeasure,
   createPiecePracticeSession,
   getCurrentPiecePracticeTarget,
+  getPiecePracticeMeasureResults,
   getPiecePracticeProgress,
   restartCurrentPiecePracticeMeasure,
   restartPiecePractice,
@@ -38,20 +39,36 @@ export function PiecePracticeSession({ piece, onExit, now = Date.now }: Readonly
   now?: () => number;
 }>) {
   const [selectedStartMeasure, setSelectedStartMeasure] = useState(0);
+  const [selectedEndMeasure, setSelectedEndMeasure] = useState<number | null>(null);
   const [sessionState, setSessionState] = useState<PiecePracticeSessionState | null>(null);
   const displayScore = useMemo(() => createPiecePracticeDisplayScore(piece), [piece]);
 
   if (!sessionState) {
     return <section aria-labelledby="piece-practice-setup-title" className="mx-auto grid w-full max-w-3xl gap-5 rounded-xl border border-zinc-700 bg-zinc-900 p-5 text-zinc-100">
       <header><h1 className="text-2xl font-bold" id="piece-practice-setup-title">Practice {piece.title}</h1><p className="mt-1 text-sm text-zinc-300">Practice one measure at a time. Incorrect notes never move you forward.</p></header>
-      <label className="grid max-w-xs gap-2 font-medium" htmlFor="piece-practice-start-measure">Start at Measure
-        <select className="rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2" id="piece-practice-start-measure" onChange={(event) => setSelectedStartMeasure(Number(event.target.value))} value={selectedStartMeasure}>
-          {piece.measures.map((_measure, index) => <option key={index} value={index}>Measure {index + 1}</option>)}
-        </select>
-      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="grid max-w-xs gap-2 font-medium" htmlFor="piece-practice-start-measure">Start Measure
+          <select className="rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2" id="piece-practice-start-measure" onChange={(event) => {
+            const nextStart = Number(event.target.value);
+            setSelectedStartMeasure(nextStart);
+            setSelectedEndMeasure((current) => current !== null && current < nextStart ? nextStart : current);
+          }} value={selectedStartMeasure}>
+            {piece.measures.map((_measure, index) => <option key={index} value={index}>Measure {index + 1}</option>)}
+          </select>
+        </label>
+        <label className="grid max-w-xs gap-2 font-medium" htmlFor="piece-practice-end-measure">End Measure <span className="text-sm font-normal text-zinc-400">Optional, inclusive</span>
+          <select className="rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2" id="piece-practice-end-measure" onChange={(event) => setSelectedEndMeasure(event.target.value === "" ? null : Number(event.target.value))} value={selectedEndMeasure ?? ""}>
+            <option value="">Through end</option>
+            {piece.measures.slice(selectedStartMeasure).map((_measure, offset) => {
+              const index = selectedStartMeasure + offset;
+              return <option key={index} value={index}>Measure {index + 1}</option>;
+            })}
+          </select>
+        </label>
+      </div>
       <div className="flex flex-wrap gap-3">
         <button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold hover:bg-sky-500" onClick={() => {
-          const result = createPiecePracticeSession(piece, { startMeasureIndex: selectedStartMeasure, startedAtMs: now() });
+          const result = createPiecePracticeSession(piece, { startMeasureIndex: selectedStartMeasure, endMeasureIndex: selectedEndMeasure, startedAtMs: now() });
           if (result.ok) setSessionState(result.state);
         }} type="button">Start Practice</button>
         <button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold hover:bg-zinc-800" onClick={onExit} type="button">Exit Piece Practice</button>
@@ -77,6 +94,12 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   const target = getCurrentPiecePracticeTarget(piece, sessionState);
   const measure = piece.measures[sessionState.currentMeasureIndex];
   const progress = getPiecePracticeProgress(piece, sessionState, now());
+  const measureResults = getPiecePracticeMeasureResults(sessionState);
+  const rangeText = sessionState.endMeasureIndex === null
+    ? `Measure ${sessionState.startMeasureIndex + 1} through end`
+    : sessionState.startMeasureIndex === sessionState.endMeasureIndex
+      ? `Measure ${sessionState.startMeasureIndex + 1}`
+      : `Measures ${sessionState.startMeasureIndex + 1}–${sessionState.endMeasureIndex + 1}`;
   const expectedNames = target?.attackedPitches.map(writtenPitchName) ?? [];
   const checkProgress = target?.checks.map((check) => ({
     check,
@@ -130,7 +153,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
       {mobilePlayExit}
       <div aria-live="polite" className="sr-only" role="status">Piece complete.</div>
       <h1 className="text-3xl font-bold text-green-300" ref={completionHeadingRef} tabIndex={-1}>Piece complete</h1>
-      <p>You completed the selected practice range for <strong>{piece.title}</strong>.</p>
+      <p>You completed {rangeText} for <strong>{piece.title}</strong>.</p>
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><dt className="text-sm text-zinc-400">Measures practiced</dt><dd className="text-xl font-bold">{progress.practicedMeasureCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Completed targets</dt><dd className="text-xl font-bold">{progress.completedTargetCount}</dd></div>
@@ -138,6 +161,15 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         <div><dt className="text-sm text-zinc-400">Mistakes</dt><dd className="text-xl font-bold">{progress.incorrectAttemptCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
+      <section aria-labelledby="piece-practice-measure-results-title" className="grid gap-3">
+        <div><h2 className="text-xl font-bold" id="piece-practice-measure-results-title">Measure results</h2><p className="text-sm text-zinc-300">Problem measures are emphasized for quick review.</p></div>
+        <ul aria-label="Measure-by-measure results" className="piece-practice-measure-results">
+          {measureResults.map((result) => <li className="piece-practice-measure-result" data-has-mistakes={!result.completedWithoutMistakes || undefined} key={result.sourceMeasureId}>
+            <strong>Measure {result.measureNumber}</strong>
+            <span>{result.completedWithoutMistakes ? "✓ No mistakes" : `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}`}</span>
+          </li>)}
+        </ul>
+      </section>
       <div className="flex flex-wrap gap-3"><button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={restartWholePiece} type="button">Practice Again</button>{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold" onClick={onExit} type="button">Exit Piece Practice</button></div>
     </section>;
   }
@@ -152,7 +184,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   return <section className={isMobilePlayMode ? "piece-practice-session piece-practice-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100" : "piece-practice-session mx-auto grid w-full max-w-6xl gap-4 text-zinc-100"}>
     {mobilePlayExit}
     <header className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-zinc-900 p-4">
-      <div><h1 className="text-2xl font-bold">{piece.title}</h1><p>Measure {sessionState.currentMeasureIndex + 1} of {piece.measures.length}{sessionState.startMeasureIndex > 0 ? ` · Practicing from Measure ${sessionState.startMeasureIndex + 1}` : ""}</p>{target ? <p>Target {(sessionState.currentTargetIndex ?? 0) + 1} of {measure?.targets.length ?? 0}</p> : null}</div>
+      <div><h1 className="text-2xl font-bold">{piece.title}</h1><p>Measure {sessionState.currentMeasureIndex + 1} of {piece.measures.length} · Practicing {rangeText}</p>{target ? <p>Target {(sessionState.currentTargetIndex ?? 0) + 1} of {measure?.targets.length ?? 0}</p> : null}</div>
       <div className="piece-practice-actions flex flex-wrap items-center gap-2"><MidiStatus deviceName={input.deviceName} error={input.error} onConnect={input.connectMidi} status={input.status} />{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={restartMeasure} type="button">Restart Measure</button><button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={restartWholePiece} type="button">Restart Piece</button><button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={onExit} type="button">Exit Piece Practice</button></div>
     </header>
     <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{statusText}</div>

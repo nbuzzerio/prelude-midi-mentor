@@ -376,6 +376,8 @@ Automated coverage includes:
 - ordinary narrow/coarse layouts requiring explicit Mobile Play rather than automatic focus
 - Mobile Play preservation of blocking mistakes, current target/measure, original timing, pending physical chord collection, and partial virtual chord selection
 - unchanged Restart Measure, Restart Piece, explicit targetless-measure advancement, completion, and distinct Mobile Play/Piece Practice exits
+- optional inclusive Piece Practice end-measure validation, bounded target and targetless-measure completion, original measure identity, same-range Practice Again, and through-end compatibility
+- attempt-local authored-order measure results derived from normal, rolled-pitch, and rolled-expiry mistake transitions, including explicit clean-measure text and retained Restart Measure mistakes
 - transient Piece Practice Skip Target advancement without completion credit, including input-state cleanup, mixed normal/rolled onsets, tied spans, measure/piece completion, restart counters, and boundary-only reattack protection
 - Staff Builder editor Practice Piece readiness across validation, pending capture, validated-save snapshots, autosave isolation, edit/Undo equivalence, storage failure, and reuse of the existing Piece Practice projection without implicit writes
 - exactly one mounted keyboard and input owner before, during, and after focused presentation

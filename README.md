@@ -85,7 +85,9 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Evaluate upward rolls expressively with a tempo-relative window while retaining ordinary block-chord collection
 - Support physical MIDI and persistent virtual-keyboard selection without merging their attempts
 - Respect authored rests, pitch-specific ties, independent grand-staff rhythm, and automatic same-staff polyphony
-- Start at any measure, restart the current measure or selected practice range, and return to the Staff Builder library
+- Practice an inclusive start/end excerpt—or continue through the end—while retaining authored measure numbering
+- Review attempt-local mistake counts by measure, then replay the same selected range with Practice Again
+- Restart the current measure or selected practice range and return to the Staff Builder library
 - Reuse the authored score as read-only notation without creating a copied Sequence score
 
 Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It does not grade BPM, note-hold duration, rhythmic timing, or continuous performance; those remain separate possible future Accuracy-mode work.

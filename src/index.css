@@ -56,6 +56,10 @@ button {
 .piece-practice-mobile-play .mobile-play-keyboard-region,
 .piece-practice-mobile-play .piano-keyboard { min-height: 10rem; }
 .piece-practice-complete.mobile-play-mode { align-content: start; gap: 1rem; padding: max(3.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); }
+.piece-practice-measure-results { display: grid; gap: 0.5rem; }
+.piece-practice-measure-result { display: flex; min-height: 2.75rem; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid rgb(63 63 70); border-radius: 0.5rem; padding: 0.625rem 0.75rem; color: rgb(212 212 216); }
+.piece-practice-measure-result[data-has-mistakes="true"] { border-color: rgb(245 158 11 / 70%); background: rgb(120 53 15 / 35%); color: rgb(254 243 199); }
+.piece-practice-complete.mobile-play-mode .piece-practice-measure-results { max-height: min(16rem, 42vh); overflow-y: auto; padding-right: 0.25rem; }
 
 .practice-mobile-play-entry { display: none; }
 

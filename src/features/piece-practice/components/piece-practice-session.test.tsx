@@ -122,9 +122,10 @@ function submit(midiNumbers: readonly number[]) {
   options.onSessionStateChange(result.state);
 }
 
-function start(source = piece(), measure = 1) {
+function start(source = piece(), measure = 1, endMeasure: number | null = null) {
   const rendered = render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={source} />);
-  if (measure !== 1) fireEvent.change(screen.getByLabelText("Start at Measure"), { target: { value: String(measure - 1) } });
+  if (measure !== 1) fireEvent.change(screen.getByLabelText("Start Measure"), { target: { value: String(measure - 1) } });
+  if (endMeasure !== null) fireEvent.change(screen.getByLabelText(/End Measure/), { target: { value: String(endMeasure - 1) } });
   fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
   return rendered;
 }
@@ -147,8 +148,28 @@ describe("PiecePracticeSession", () => {
   });
   it("offers an accessible Start at Measure setup and initializes the selected range", () => {
     start(piece(), 3);
-    expect(screen.getByText("Measure 3 of 3 · Practicing from Measure 3")).toBeTruthy();
+    expect(screen.getByText("Measure 3 of 3 · Practicing Measure 3 through end")).toBeTruthy();
     expect(screen.getByText("Target 1 of 1")).toBeTruthy();
+  });
+
+  it("offers an optional inclusive End Measure and clamps it when Start moves beyond it", () => {
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} />);
+    const end = screen.getByLabelText(/End Measure/) as HTMLSelectElement;
+    expect(end.value).toBe("");
+    expect(within(end).getByRole("option", { name: "Through end" })).toBeTruthy();
+    fireEvent.change(end, { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Start Measure"), { target: { value: "2" } });
+    expect(end.value).toBe("2");
+    expect(within(end).queryByRole("option", { name: "Measure 2" })).toBeNull();
+  });
+
+  it("completes at an explicit inclusive end without entering the following measure", () => {
+    start(piece(), 1, 1);
+    act(() => submit([60, 64]));
+    act(() => submit([67]));
+    expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
+    expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "You completed Measure 1 for Hallelujah.")).toBeTruthy();
+    expect(screen.queryByText("No notes to play in this measure.")).toBeNull();
   });
 
   it("renders the current authored measure read-only with every cross-staff/polyphonic source highlight", () => {
@@ -202,7 +223,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("Target 2 of 2")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Next Measure" })).toBeNull();
     act(() => submit([67]));
-    expect(screen.getByText("Measure 2 of 3")).toBeTruthy();
+    expect(screen.getByText(/Measure 2 of 3 · Practicing/)).toBeTruthy();
     expect(screen.getByText("No notes to play in this measure.")).toBeTruthy();
     expect(mocks.success).toHaveBeenCalledTimes(2);
   });
@@ -217,7 +238,7 @@ describe("PiecePracticeSession", () => {
     start(extraRest);
     expect(screen.queryByRole("button", { name: "Skip Target" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
-    expect(screen.getByText("Measure 2 of 3")).toBeTruthy();
+    expect(screen.getByText(/Measure 2 of 3 · Practicing/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Next Measure" })).toBeTruthy();
   });
 
@@ -246,9 +267,24 @@ describe("PiecePracticeSession", () => {
     expect(document.activeElement).toBe(heading);
     expect(screen.getByText("Measures practiced").parentElement?.querySelector("dd")?.textContent).toBe("1");
     expect(screen.getByText("Mistakes").parentElement?.querySelector("dd")?.textContent).toBe("1");
+    const results = screen.getByLabelText("Measure-by-measure results");
+    expect(within(results).getByText("Measure 3")).toBeTruthy();
+    expect(within(results).getByText("1 mistake")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
-    expect(screen.getByText("Measure 3 of 3 · Practicing from Measure 3")).toBeTruthy();
+    expect(screen.getByText("Measure 3 of 3 · Practicing Measure 3 through end")).toBeTruthy();
     expect(mocks.resetInput).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports clean and problem measures in authored order and Practice Again retains the explicit excerpt", () => {
+    start(piece(), 1, 2);
+    act(() => submit([60, 64]));
+    act(() => submit([67]));
+    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+    const results = screen.getByLabelText("Measure-by-measure results");
+    const rows = within(results).getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual(["Measure 1✓ No mistakes", "Measure 2✓ No mistakes"]);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    expect(screen.getByText("Measure 1 of 3 · Practicing Measures 1–2")).toBeTruthy();
   });
 
   it("requires explicit Mobile Play on narrow/coarse layouts and preserves one input tree", () => {
@@ -309,10 +345,10 @@ describe("PiecePracticeSession", () => {
 
     act(() => submit([60, 64]));
     act(() => submit([67]));
-    expect(screen.getByText("Measure 2 of 3")).toBeTruthy();
+    expect(screen.getByText(/Measure 2 of 3 · Practicing/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Next Measure" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
-    expect(screen.getByText("Measure 3 of 3")).toBeTruthy();
+    expect(screen.getByText(/Measure 3 of 3 · Practicing/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
   });
 
@@ -344,7 +380,7 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
-    expect(screen.getByText(/Measure 3 of 3 .* Practicing from Measure 3/)).toBeTruthy();
+    expect(screen.getByText(/Measure 3 of 3 .* Practicing Measure 3 through end/)).toBeTruthy();
   });
 
   it("routes virtual keyboard presses through the single input owner", () => {
@@ -384,7 +420,7 @@ describe("PiecePracticeSession", () => {
     act(() => submit([60]));
     act(() => submit([62]));
     act(() => submit([65]));
-    expect(screen.getByText("Measure 2 of 2")).toBeTruthy();
+    expect(screen.getByText(/Measure 2 of 2 · Practicing/)).toBeTruthy();
     expect(screen.getByText("Expected: E3, A4")).toBeTruthy();
     act(() => submit([52, 69]));
     expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
