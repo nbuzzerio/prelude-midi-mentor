@@ -2,7 +2,7 @@
 
 > **Latest Repository Tag:** v2.5.0
 > **Last Updated:** September 7, 2026
-> **Current Milestone:** v2.8.0 Practice Session comprehensive reporting, Phase 3 completed report
+> **Current Milestone:** v2.8.0 Practice Session comprehensive reporting, Phase 4 browser printing
 >
 > Automated release preparation is complete after verification. Final Practice Session interaction and presentation QA follows deployment on the Chromebook/tablet; do not expand the feature before that real-use checkpoint.
 
@@ -222,7 +222,7 @@ Completed features include:
 
 # Current Development Focus
 
-The package version is 2.8.0 for in-development Practice Session comprehensive reporting. Phase 1 contains transient generic lifecycle evidence, foreground active-time accounting, and pure report derivation. Phase 2 adds transient engine-owned result contracts for Flashcards, Sequences, Ear Training, and Melody. Phase 3 adds engine-local selectors and the responsive comprehensive report; printing remains deferred to Phase 4. Tagging and releasing remain manual owner actions.
+The package version is 2.8.0 for in-development Practice Session comprehensive reporting. Phases 1–3 provide transient lifecycle evidence, engine-owned results/selectors, and the responsive completed report. Phase 4 adds configurable browser-native Print / Save PDF generation from that report without persistence or a PDF dependency. Tagging and releasing remain manual owner actions.
 
 The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 

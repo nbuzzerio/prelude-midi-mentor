@@ -190,7 +190,7 @@ Practice Session presets are local prescriptions, not persisted run history. Sch
 - [x] Prescribed versus Bonus work and active-time presentation
 - [x] Neutral outcomes and progressively disclosed native diagnostics
 - [x] Responsive normal-flow report composition for constrained tablet viewports
-- [ ] Browser-native printing/PDF (Phase 4)
+- [x] Configurable browser-native printing / Save PDF (Phase 4)
 
 No report history, backend, persistence, or Piece Practice changes are included.
 

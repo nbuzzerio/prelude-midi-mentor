@@ -403,7 +403,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-The package is on the in-development **v2.8.0** Practice Session comprehensive report. Phase 1 added transient host lifecycle evidence and foreground active-time derivation; Phase 2 added transient, engine-owned result contracts; Phase 3 adds engine-local selectors and a responsive completed-session report in authored order, including never-entered exercises, prescribed versus Bonus work, active time, and progressively disclosed diagnostics. Printing remains deferred to Phase 4. Git tagging and releasing remain manual owner actions.
+The package is on the in-development **v2.8.0** Practice Session comprehensive report. Phases 1–3 provide transient lifecycle evidence, engine-owned results/selectors, and the responsive completed report. Phase 4 adds configurable browser-native Print / Save PDF generation from that same report without persistence or a PDF dependency. Git tagging and releasing remain manual owner actions.
 
 The application now supports seven complementary top-level modes:
 

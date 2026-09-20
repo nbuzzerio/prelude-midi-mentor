@@ -12,6 +12,7 @@ import {
 } from "../practice-session-runtime";
 import type { PracticeSessionEngineResult } from "../practice-session-engine-result";
 import { PracticeSessionCompletedReport } from "./practice-session-report";
+import { PracticeSessionPrintControls } from "./practice-session-print-report";
 
 type RuntimeProps = Readonly<{
   run: ActivePracticeSessionRun;
@@ -157,5 +158,5 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
 
 export function PracticeSessionSummary({ run, onBack }: Readonly<{ run: CompletedPracticeSessionRun; onBack: () => void }>) {
   useEffect(() => document.getElementById("practice-session-summary-title")?.focus(), []);
-  return <PracticeSessionCompletedReport onBack={onBack} run={run} />;
+  return <PracticeSessionCompletedReport onBack={onBack} renderActions={(report) => <PracticeSessionPrintControls report={report} />} run={run} />;
 }

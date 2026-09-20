@@ -433,8 +433,32 @@ button {
 .staff-builder-lyric-pass fieldset, .staff-builder-print-options fieldset { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 .staff-builder-print-options { position: fixed; z-index: 95; inset: 50% auto auto 50%; display: grid; width: min(32rem, calc(100vw - 2rem)); gap: 1rem; transform: translate(-50%, -50%); border: 1px solid rgb(82 82 91); border-radius: 0.75rem; background: rgb(24 24 27); padding: 1rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 50%); }
 .staff-builder-print-document { display: none; color: black; background: white; }
+.practice-session-report-dialog-backdrop { position: fixed; z-index: 95; inset: 0; display: grid; place-items: center; overflow-y: auto; background: rgb(0 0 0 / 65%); padding: 1rem; }
+.practice-session-report-options { display: grid; width: min(32rem, 100%); max-height: calc(100dvh - 2rem); gap: 1rem; overflow-y: auto; border: 1px solid rgb(82 82 91); border-radius: 0.75rem; background: rgb(24 24 27); padding: 1rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 50%); }
+.practice-session-report-options fieldset { display: grid; gap: 0.25rem; }
+.practice-session-report-options label { display: flex; min-height: 2.75rem; align-items: center; gap: 0.65rem; }
+.practice-session-print-document { display: none; }
 .staff-builder-printed-measure-number { position: absolute; z-index: 3; font: 11px/1 sans-serif; color: black; }
 @media print {
+  body:has(.practice-session-print-document) > * { visibility: hidden !important; }
+  .practice-session-print-document, .practice-session-print-document * { visibility: visible !important; color: black !important; }
+  .practice-session-print-document { position: absolute; inset: 0; display: block; width: 100%; overflow: visible; background: white; font: 10.5pt/1.35 sans-serif; }
+  .practice-session-print-document h1 { margin: 0 0 0.2rem; font-size: 20pt; }
+  .practice-session-print-document h2 { break-after: avoid; margin: 1rem 0 0.35rem; font-size: 14pt; }
+  .practice-session-print-document h3, .practice-session-print-document h4 { break-after: avoid; margin: 0.6rem 0 0.2rem; font-size: 11pt; }
+  .practice-session-print-document p { margin: 0.15rem 0; }
+  .practice-session-print-summary dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem 0.75rem; }
+  .practice-session-print-summary dl > div, .practice-session-print-block { break-inside: avoid; }
+  .practice-session-print-summary dt { font-size: 9pt; }
+  .practice-session-print-summary dd { margin: 0; font-weight: 700; }
+  .practice-session-print-exercise { margin-top: 0.8rem; border-top: 1px solid #777; padding-top: 0.45rem; }
+  .practice-session-print-exercise > header, .practice-session-print-block { break-inside: avoid; }
+  .practice-session-print-diagnostics { overflow: visible; }
+  .practice-session-print-diagnostics dl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; }
+  .practice-session-print-diagnostics dl > div { break-inside: avoid; border: 1px solid #bbb; padding: 0.25rem; background: none !important; }
+  .practice-session-print-diagnostics ol, .practice-session-print-diagnostics ul { margin: 0.25rem 0; padding-left: 1.25rem; }
+  .practice-session-print-diagnostics details { border: 0; padding: 0; }
+  .practice-session-print-diagnostics summary { display: none; }
   body:has(.piece-practice-report-document) > * { visibility: hidden !important; }
   .piece-practice-report-document, .piece-practice-report-document * { visibility: visible !important; }
   .piece-practice-report-document { position: absolute; inset: 0; display: block; width: 100%; padding: 0.25in; }

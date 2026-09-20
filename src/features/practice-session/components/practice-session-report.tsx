@@ -94,7 +94,7 @@ function EarTrainingDiagnostics({ exercise }: Readonly<{ exercise: PracticeSessi
   return <div className="space-y-5"><DiagnosticPhase title="Prescribed"><EarTrainingReportView report={phases.prescribed} /></DiagnosticPhase>{phases.bonus && <DiagnosticPhase title="Bonus"><EarTrainingReportView report={phases.bonus} /></DiagnosticPhase>}</div>;
 }
 
-function MelodyReportView({ report }: Readonly<{ report: MelodyPracticeReport }>) {
+function MelodyReportView({ report, compact = false }: Readonly<{ report: MelodyPracticeReport; compact?: boolean }>) {
   if (report.orderedTrials.length === 0) return <p>No completed Melody diagnostic trials were recorded.</p>;
   return <div className="space-y-4">
     {report.interrupted && <p>The timed Melody exercise was interrupted; completed trials were preserved.</p>}
@@ -106,40 +106,41 @@ function MelodyReportView({ report }: Readonly<{ report: MelodyPracticeReport }>
       <Metric label="Original Timing average" value={report.summary.averageTiming === null ? "No completed trials" : `${report.summary.averageTiming}%`} />
     </dl>
     <p className="text-sm text-zinc-300">Interval Trouble uses the same Sight Read and Repair evidence as Melody Review: {report.sightReadIntervals.needsAttention.length} Sight Read and {report.hasRepairEvidence ? report.repairIntervals.needsAttention.length : 0} Repair intervals need attention.</p>
-    <div className="space-y-2">{report.orderedTrials.map((trial) => {
+    {!compact && <div className="space-y-2">{report.orderedTrials.map((trial) => {
       const latest = getMelodyContinuousTrialLatestResult(trial);
       const retries = getMelodyContinuousTrialRetryCount(trial);
       return <details className="rounded-lg border border-white/10 bg-black/20 p-3" key={trial.id}>
         <summary className="cursor-pointer font-semibold">Trial {trial.originalOrder} · {isMelodyContinuousTrialMastered(trial) ? "Mastered" : "Needs review"} · {retries} {retries === 1 ? "retry" : "retries"}</summary>
         <div className="mt-4 space-y-4"><MelodyResultMetrics result={latest} /><MelodyResultDetail exercise={trial.exercise} result={latest} /></div>
       </details>;
-    })}</div>
+    })}</div>}
+    {compact && <ol>{report.orderedTrials.map((trial) => <li key={trial.id}>Trial {trial.originalOrder}: {isMelodyContinuousTrialMastered(trial) ? "Mastered" : "Needs review"}; {getMelodyContinuousTrialRetryCount(trial)} {getMelodyContinuousTrialRetryCount(trial) === 1 ? "retry" : "retries"}.</li>)}</ol>}
   </div>;
 }
 
-function MelodyDiagnostics({ exercise }: Readonly<{ exercise: PracticeSessionExerciseReport }>) {
+function MelodyDiagnostics({ exercise, compact = false }: Readonly<{ exercise: PracticeSessionExerciseReport; compact?: boolean }>) {
   const boundary = exercise.targetBoundaryEngineResult?.engine === "melody" ? exercise.targetBoundaryEngineResult : null;
   const final = exercise.finalEngineResult?.engine === "melody" ? exercise.finalEngineResult : null;
   const phases = selectMelodyPracticeReportPhases(boundary, final);
-  if (phases.recorded) return <DiagnosticPhase title="Recorded evidence"><MelodyReportView report={phases.recorded} /></DiagnosticPhase>;
+  if (phases.recorded) return <DiagnosticPhase title="Recorded evidence"><MelodyReportView compact={compact} report={phases.recorded} /></DiagnosticPhase>;
   if (!phases.prescribed) return <p>No completed Melody diagnostic trials were recorded.</p>;
   return <div className="space-y-5">
-    <DiagnosticPhase title="Prescribed"><MelodyReportView report={phases.prescribed} /></DiagnosticPhase>
+    <DiagnosticPhase title="Prescribed"><MelodyReportView compact={compact} report={phases.prescribed} /></DiagnosticPhase>
     {phases.bonus && <DiagnosticPhase title="Bonus">
-      {phases.bonus.newDiagnosticEvidence && <MelodyReportView report={phases.bonus.newDiagnosticEvidence} />}
+      {phases.bonus.newDiagnosticEvidence && <MelodyReportView compact={compact} report={phases.bonus.newDiagnosticEvidence} />}
       {phases.bonus.additionalRepairRetries > 0 && <p>{phases.bonus.additionalRepairRetries} additional Repair {phases.bonus.additionalRepairRetries === 1 ? "retry was" : "retries were"} recorded during Bonus practice.</p>}
     </DiagnosticPhase>}
   </div>;
 }
 
-function ExerciseDiagnostics({ exercise }: Readonly<{ exercise: PracticeSessionExerciseReport }>) {
+export function ExerciseDiagnostics({ exercise, compactMelody = false }: Readonly<{ exercise: PracticeSessionExerciseReport; compactMelody?: boolean }>) {
   if (exercise.engine === "flashcards") return <FlashcardDiagnostics exercise={exercise} />;
   if (exercise.engine === "sequences") return <SequenceDiagnostics exercise={exercise} />;
   if (exercise.engine === "ear-training") return <EarTrainingDiagnostics exercise={exercise} />;
-  return <MelodyDiagnostics exercise={exercise} />;
+  return <MelodyDiagnostics compact={compactMelody} exercise={exercise} />;
 }
 
-export function PracticeSessionCompletedReport({ run, onBack }: Readonly<{ run: CompletedPracticeSessionRun; onBack: () => void }>) {
+export function PracticeSessionCompletedReport({ run, onBack, renderActions }: Readonly<{ run: CompletedPracticeSessionRun; onBack: () => void; renderActions?: (report: ReturnType<typeof derivePracticeSessionReport>) => ReactNode }>) {
   const report = derivePracticeSessionReport(run);
   return <main aria-labelledby="practice-session-summary-title" className="mx-auto w-full max-w-5xl space-y-5 px-3 py-4 text-white sm:px-5">
     <header className="space-y-2">
@@ -168,7 +169,7 @@ export function PracticeSessionCompletedReport({ run, onBack }: Readonly<{ run: 
         {exercise.entered && <details className="mt-3 rounded-lg border border-white/10 p-3"><summary className="cursor-pointer font-semibold">Detailed diagnostics</summary><div className="mt-4"><ExerciseDiagnostics exercise={exercise} /></div></details>}
       </li>)}</ol>
     </section>
-    <button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={onBack} type="button">Back to Practice Sessions</button>
+    <div className="flex flex-wrap gap-3">{renderActions?.(report)}<button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={onBack} type="button">Back to Practice Sessions</button></div>
   </main>;
 }
 import type { ReactNode } from "react";

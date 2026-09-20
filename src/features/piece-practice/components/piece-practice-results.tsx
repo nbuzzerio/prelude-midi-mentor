@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useBrowserPrint } from "@/hooks/use-browser-print";
 import { StaffBuilderPrintScore } from "@/features/staff-builder/components/staff-builder-print-score";
 import { StaffBuilderScoreView, type StaffBuilderDiagnosticHighlight } from "@/features/staff-builder/components/staff-builder-score-view";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
@@ -159,14 +160,7 @@ export function PiecePracticeResults({ displayScore, rangeText, state, title }: 
   const reportButton = useRef<HTMLButtonElement>(null);
   const results = useMemo(() => getPiecePracticeMeasureResults(state), [state]);
   const visible = problemsOnly ? results.filter(({ isProblem }) => isProblem) : results;
-  useEffect(() => {
-    if (!reportOptions) return;
-    let fallbackTimer: number | undefined;
-    const finish = () => { if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer); setReportOptions(null); reportButton.current?.focus(); };
-    window.addEventListener("afterprint", finish, { once: true });
-    const timer = window.setTimeout(() => { window.print(); fallbackTimer = window.setTimeout(finish, 1_000); }, 0);
-    return () => { window.clearTimeout(timer); if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer); window.removeEventListener("afterprint", finish); };
-  }, [reportOptions]);
+  useBrowserPrint(reportOptions !== null, () => { setReportOptions(null); reportButton.current?.focus(); });
   return <section aria-labelledby="piece-practice-measure-results-title" className="grid gap-3">
     <div><h2 className="text-xl font-bold" id="piece-practice-measure-results-title">Measure results</h2><p className="text-sm text-zinc-300">Problem measures are emphasized for quick review.</p></div>
     <div className="piece-practice-result-controls"><label className="piece-practice-problem-filter"><input checked={problemsOnly} onChange={(event) => setProblemsOnly(event.target.checked)} type="checkbox" />Show problem measures only</label><div aria-label="Measure result color key" className="piece-practice-result-legend"><span><i data-result-presentation="mistake" />Mistake</span><span><i data-result-presentation="hesitation" />Hesitation</span><span><i data-result-presentation="both" />Both</span></div></div>
