@@ -128,9 +128,9 @@ describe("App focus mode", () => {
   it("exposes the package version in the persistent mode navigation", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
-    const version = within(navigation).getByLabelText("Prelude v2.7.0");
-    expect(version.textContent).toBe("v2.7.0");
-    expect(version.getAttribute("title")).toBe("Prelude v2.7.0");
+    const version = within(navigation).getByLabelText("Prelude v2.8.0");
+    expect(version.textContent).toBe("v2.8.0");
+    expect(version.getAttribute("title")).toBe("Prelude v2.8.0");
   });
 
   it("shares focus state between the visible control and keyboard shortcut", () => {

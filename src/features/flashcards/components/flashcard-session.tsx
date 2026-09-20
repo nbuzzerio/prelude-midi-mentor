@@ -46,6 +46,13 @@ import type { FeedbackState, PracticeClefMode } from "@/types/practice";
 import FlashcardCard from "./flashcard-card";
 import PracticeControls from "./practice-controls";
 import PracticeStats from "./practice-stats";
+import {
+  appendFlashcardCompletedTarget,
+  appendFlashcardIncorrectAttempt,
+  createFlashcardPracticeResult,
+  snapshotFlashcardPracticeTarget,
+  type FlashcardPracticeResultV1,
+} from "../flashcard-practice-result";
 
 type LastAnswer = Readonly<{
   midiNumbers: ReadonlySet<number>;
@@ -57,6 +64,7 @@ type AnswerSource = "midi" | "virtual" | "simulation";
 type FlashcardSessionProps = Readonly<{
   initialConfig?: FlashcardConfig;
   onPracticeUnitCompleted?: () => void;
+  onPracticeResultChange?: (result: FlashcardPracticeResultV1) => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
   practiceSessionMode?: boolean;
@@ -66,6 +74,7 @@ type FlashcardSessionProps = Readonly<{
 export default function FlashcardSession({
   initialConfig,
   onPracticeUnitCompleted,
+  onPracticeResultChange,
   isFocusMode,
   onToggleFocusMode,
   practiceSessionMode = false,
@@ -138,6 +147,12 @@ export default function FlashcardSession({
   const [feedback, setFeedback] = useState<FeedbackState>("idle");
 
   const [stats, setStats] = useState(INITIAL_PRACTICE_STATS);
+  const practiceResultRef = useRef(createFlashcardPracticeResult());
+
+  const publishPracticeResult = useCallback((result: FlashcardPracticeResultV1) => {
+    practiceResultRef.current = result;
+    onPracticeResultChange?.(result);
+  }, [onPracticeResultChange]);
 
   const [lastAnswer, setLastAnswer] = useState<LastAnswer | null>(null);
 
@@ -227,6 +242,7 @@ export default function FlashcardSession({
       clearCorrectAnswerSequence();
 
       const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
+      const target = getCurrentTarget();
 
       const shouldReplayVirtualChord =
         source === "virtual" &&
@@ -262,6 +278,13 @@ export default function FlashcardSession({
         applyCorrectAttempt(currentStats, responseTimeMs),
       );
 
+      publishPracticeResult(appendFlashcardCompletedTarget(practiceResultRef.current, {
+        target: snapshotFlashcardPracticeTarget(target, startedAt),
+        submittedMidiNumbers: [...midiNumbers].sort((left, right) => left - right),
+        source,
+        responseDurationMs: responseTimeMs,
+      }));
+
       startCorrectAnswerSequence({
         nextTargetDelayMs,
         successChirpDelayMs,
@@ -274,6 +297,8 @@ export default function FlashcardSession({
       clearCorrectAnswerSequence,
       clearMidiAttempt,
       lockFlashcardTarget,
+      getCurrentTarget,
+      publishPracticeResult,
       replayCorrectVirtualChords,
       startCorrectAnswerSequence,
       startedAt,
@@ -282,7 +307,7 @@ export default function FlashcardSession({
 
   // Incorrect-answer handling
   const handleSingleIncorrectAnswer = useCallback(
-    (midiNumber: number) => {
+    (midiNumber: number, source: AnswerSource) => {
       if (isFlashcardTargetLocked()) {
         return;
       }
@@ -297,12 +322,15 @@ export default function FlashcardSession({
       });
 
       setStats(applyIncorrectAttempt);
+      publishPracticeResult(appendFlashcardIncorrectAttempt(practiceResultRef.current, {
+        target: snapshotFlashcardPracticeTarget(getCurrentTarget(), startedAt), submittedMidiNumbers: [midiNumber], source,
+      }));
     },
-    [isFlashcardTargetLocked],
+    [getCurrentTarget, isFlashcardTargetLocked, publishPracticeResult, startedAt],
   );
 
   const handleFailedChordAttempt = useCallback(
-    (midiNumbers: ReadonlySet<number>) => {
+    (midiNumbers: ReadonlySet<number>, source: AnswerSource) => {
       if (isFlashcardTargetLocked() || midiNumbers.size === 0) {
         return;
       }
@@ -314,8 +342,12 @@ export default function FlashcardSession({
       setLastFailedAttemptNotes(new Set(midiNumbers));
 
       setStats(applyIncorrectAttempt);
+      publishPracticeResult(appendFlashcardIncorrectAttempt(practiceResultRef.current, {
+        target: snapshotFlashcardPracticeTarget(getCurrentTarget(), startedAt),
+        submittedMidiNumbers: [...midiNumbers].sort((left, right) => left - right), source,
+      }));
     },
-    [isFlashcardTargetLocked],
+    [getCurrentTarget, isFlashcardTargetLocked, publishPracticeResult, startedAt],
   );
 
   // MIDI input
@@ -333,7 +365,7 @@ export default function FlashcardSession({
         return;
       }
 
-      handleFailedChordAttempt(completedAttempt);
+      handleFailedChordAttempt(completedAttempt, "midi");
     },
     [
       handleCorrectAnswer,
@@ -387,7 +419,7 @@ export default function FlashcardSession({
           return;
         }
 
-        handleSingleIncorrectAnswer(midiNumber);
+        handleSingleIncorrectAnswer(midiNumber, "midi");
 
         return;
       }
@@ -430,7 +462,7 @@ export default function FlashcardSession({
           return;
         }
 
-        handleSingleIncorrectAnswer(midiNumber);
+        handleSingleIncorrectAnswer(midiNumber, "virtual");
 
         return;
       }
@@ -490,7 +522,7 @@ export default function FlashcardSession({
     }
 
     if (currentTarget.notes.length === 1) {
-      handleSingleIncorrectAnswer(incorrectMidiNumber);
+      handleSingleIncorrectAnswer(incorrectMidiNumber, "simulation");
 
       return;
     }
@@ -507,7 +539,7 @@ export default function FlashcardSession({
     setVirtualHeldNotes(new Set());
     clearMidiAttempt();
 
-    handleFailedChordAttempt(simulatedAttempt);
+    handleFailedChordAttempt(simulatedAttempt, "simulation");
   };
 
   // Session controls
@@ -518,6 +550,7 @@ export default function FlashcardSession({
   const handleReset = () => {
     clearCorrectAnswerSequence();
     setStats(INITIAL_PRACTICE_STATS);
+    publishPracticeResult(createFlashcardPracticeResult());
     generateNextTarget();
   };
 

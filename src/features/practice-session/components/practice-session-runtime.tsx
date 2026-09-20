@@ -11,6 +11,7 @@ import {
   type CompletedPracticeSessionRun,
   type PracticeSessionRunEvent,
 } from "../practice-session-runtime";
+import type { PracticeSessionEngineResult } from "../practice-session-engine-result";
 
 type RuntimeProps = Readonly<{
   run: ActivePracticeSessionRun;
@@ -51,6 +52,15 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
     if (completionPending) completionPrimaryActionRef.current?.focus();
   }, [completionPending]);
 
+  useEffect(() => {
+    const handleVisibilityChange = () => dispatch({
+      type: "VISIBILITY_CHANGED", runId: run.runId, exerciseToken: run.activeExerciseToken, exerciseId: entry.id,
+      at: now(), foreground: document.visibilityState !== "hidden",
+    });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [dispatch, entry.id, now, run.activeExerciseToken, run.runId]);
+
   const advance = (type: "ADVANCE" | "SKIP") => {
     const endedAt = now();
     dispatch(finalExercise
@@ -63,11 +73,12 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
       return;
     }
     setBonusNotice(null);
-    dispatch({ type: "KEEP_PLAYING", ...scope });
+    dispatch({ type: "KEEP_PLAYING", ...scope, at: now() });
     window.setTimeout(() => exerciseContextRef.current?.focus(), 0);
   };
-  const unitCompleted = () => dispatch({ type: "UNIT_COMPLETED", ...scope });
-  const targetReached = () => dispatch({ type: "TARGET_REACHED", ...scope });
+  const unitCompleted = () => dispatch({ type: "UNIT_COMPLETED", ...scope, at: now() });
+  const targetReached = () => dispatch({ type: "TARGET_REACHED", ...scope, at: now() });
+  const resultChanged = (result: PracticeSessionEngineResult) => dispatch({ type: "ENGINE_RESULT_CHANGED", ...scope, result });
   const exitMobilePlay = () => {
     mobilePlay.exitMobilePlay();
     window.setTimeout(() => mobilePlayEntryRef.current?.focus(), 0);
@@ -96,16 +107,16 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
   let engine: React.ReactNode;
   switch (entry.engine) {
     case "flashcards":
-      engine = <FlashcardSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} isFocusMode={false} onPracticeUnitCompleted={unitCompleted} onToggleFocusMode={() => undefined} practiceSessionMode />;
+      engine = <FlashcardSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} isFocusMode={false} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={unitCompleted} onToggleFocusMode={() => undefined} practiceSessionMode />;
       break;
     case "sequences":
-      engine = <SequenceSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} isFocusMode={false} onPracticeUnitCompleted={unitCompleted} onScaleRepertoireCompleted={entry.target.kind === "complete-scale-repertoire" ? targetReached : undefined} onToggleFocusMode={() => undefined} practiceSessionMode />;
+      engine = <SequenceSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} isFocusMode={false} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={unitCompleted} onScaleRepertoireCompleted={entry.target.kind === "complete-scale-repertoire" ? targetReached : undefined} onToggleFocusMode={() => undefined} practiceSessionMode />;
       break;
     case "ear-training":
-      engine = <EarTrainingSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeUnitCompleted={unitCompleted} practiceSessionMode />;
+      engine = <EarTrainingSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={unitCompleted} practiceSessionMode />;
       break;
     case "melody":
-      engine = <MelodySession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeTargetReached={targetReached} practiceSessionMode ref={melodyRef} />;
+      engine = <MelodySession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeTargetReached={targetReached} practiceSessionMode ref={melodyRef} />;
       break;
   }
 

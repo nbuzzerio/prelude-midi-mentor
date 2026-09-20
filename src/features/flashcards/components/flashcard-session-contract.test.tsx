@@ -90,6 +90,17 @@ describe("Flashcard engine contract", () => {
     act(() => vi.advanceTimersByTime(3000));
     expect(completed).toHaveBeenCalledTimes(1);
   });
+  it("publishes the completing evidence before notifying the host unit boundary", () => {
+    const order: string[] = [];
+    const results = vi.fn((result) => { if (result.completedTargets.length === 0) return; order.push("result"); expect(result.completedTargets).toHaveLength(1); expect(result.completedTargets[0]).toMatchObject({ target: { kind: "note" }, responseDurationMs: expect.any(Number) }); });
+    const completed = vi.fn(() => order.push("unit"));
+    render(<FlashcardSession {...focusProps} initialConfig={noteConfig} onPracticeResultChange={results} onPracticeUnitCompleted={completed} />);
+    const first = target();
+    midi(first.notes[0].midiNumber + 1);
+    midi(first.notes[0].midiNumber);
+    expect(results.mock.calls.at(-1)?.[0]).toMatchObject({ incorrectAttempts: [{ submittedMidiNumbers: [first.notes[0].midiNumber + 1] }], completedTargets: [{ priorIncorrectAttemptCount: 1 }] });
+    expect(order.slice(-2)).toEqual(["result", "unit"]);
+  });
   it("suppresses prescription controls only when hosted", () => {
     const view = render(<FlashcardSession {...focusProps} initialConfig={noteConfig} />);
     expect(screen.getByText("Practice Settings")).toBeTruthy();

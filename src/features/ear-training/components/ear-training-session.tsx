@@ -11,10 +11,12 @@ import { useEarTrainingTarget } from "../hooks/use-ear-training-target";
 import EarTrainingCard from "./ear-training-card";
 import EarTrainingControls from "./ear-training-controls";
 import EarTrainingStatsView from "./ear-training-stats";
+import type { EarTrainingPracticeResultV1 } from "../ear-training-practice-result";
 
-export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, practiceSessionMode = false, hostedPracticePresentation }: Readonly<{
+export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, onPracticeResultChange, practiceSessionMode = false, hostedPracticePresentation }: Readonly<{
   initialConfig?: EarTrainingConfig;
   onPracticeUnitCompleted?: () => void;
+  onPracticeResultChange?: (result: EarTrainingPracticeResultV1) => void;
   practiceSessionMode?: boolean;
   hostedPracticePresentation?: HostedPracticePresentation;
 }> = {}) {
@@ -45,6 +47,7 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
     wrongAnswers,
   } = useEarTrainingAttempt({
     onPracticeUnitCompleted,
+    onPracticeResultChange,
     cancelPrompt,
     generateNextTarget,
     getCurrentTarget,

@@ -141,15 +141,21 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     let now = 0;
     const oldCallback = vi.fn();
+    const order: string[] = [];
+    const resultChanged = vi.fn((practiceResult) => {
+      if (practiceResult.diagnosticTrials.length > 0) order.push("result");
+    });
     const latest = vi.fn(() => {
+      order.push("target");
+      expect(resultChanged.mock.calls.at(-1)?.[0]).toMatchObject({ diagnosticTrials: [{ originalOrder: 1, retryResults: [] }], interrupted: false });
       expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
       expect(screen.getByText("Diagnostic trial 1 of 1")).toBeTruthy();
       expect(screen.getByRole("heading", { name: "Original Sight Read" })).toBeTruthy();
     });
     const props = { initialConfig: timedConfig, createAudioContext: () => audio.context, nowMs: () => now };
-    const view = render(<StrictMode><MelodySession {...props} onPracticeTargetReached={oldCallback} /></StrictMode>);
+    const view = render(<StrictMode><MelodySession {...props} onPracticeResultChange={resultChanged} onPracticeTargetReached={oldCallback} /></StrictMode>);
     await startTimed();
-    view.rerender(<StrictMode><MelodySession {...props} initialConfig={{ ...DEFAULT_MELODY_CONFIG }} onPracticeTargetReached={latest} /></StrictMode>);
+    view.rerender(<StrictMode><MelodySession {...props} initialConfig={{ ...DEFAULT_MELODY_CONFIG }} onPracticeResultChange={resultChanged} onPracticeTargetReached={latest} /></StrictMode>);
     now = 60_000;
     act(() => vi.advanceTimersByTime(1000));
     expect(latest).not.toHaveBeenCalled();
@@ -164,7 +170,8 @@ describe("MelodySession", () => {
     act(() => vi.advanceTimersByTime(120_000));
     expect(oldCallback).not.toHaveBeenCalled();
     expect(latest).toHaveBeenCalledTimes(1);
-    view.rerender(<StrictMode><MelodySession {...props} onPracticeTargetReached={oldCallback} /></StrictMode>);
+    expect(order.slice(-2)).toEqual(["result", "target"]);
+    view.rerender(<StrictMode><MelodySession {...props} onPracticeResultChange={resultChanged} onPracticeTargetReached={oldCallback} /></StrictMode>);
     expect(oldCallback).not.toHaveBeenCalled();
   });
 
@@ -193,12 +200,13 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     let now = 0;
     const ref = createRef<MelodySessionHandle>();
+    const resultChanged = vi.fn();
     const completed = vi.fn(() => {
       expect(screen.getByText("Diagnostic trial 1 of 1")).toBeTruthy();
       expect(ref.current?.continuePractice()).toBe(true);
       expect(ref.current?.continuePractice()).toBe(false);
     });
-    render(<MelodySession ref={ref} initialConfig={timedConfig} createAudioContext={() => audio.context} nowMs={() => now} seedFactory={() => "continuation"} onPracticeTargetReached={completed} />);
+    render(<MelodySession ref={ref} initialConfig={timedConfig} createAudioContext={() => audio.context} nowMs={() => now} seedFactory={() => "continuation"} onPracticeResultChange={resultChanged} onPracticeTargetReached={completed} />);
     expect(ref.current?.continuePractice()).toBe(false);
     await startTimed();
     now = 60_000;
@@ -217,6 +225,7 @@ describe("MelodySession", () => {
     audio.setNow(60);
     frame();
     expect(screen.getByText("Diagnostic trial 3 complete")).toBeTruthy();
+    expect(resultChanged.mock.calls.at(-1)?.[0].diagnosticTrials).toHaveLength(3);
     expect(completed).toHaveBeenCalledTimes(1);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Try Another" })); });
     // Existing interruption returns to Review, preserving completed trials.
@@ -232,6 +241,7 @@ describe("MelodySession", () => {
     expect(screen.getByText("Diagnostic trial 1 of 3")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Original Sight Read" }).parentElement!.textContent).toBe(original);
     expect(screen.getByRole("heading", { name: "Repair" })).toBeTruthy();
+    expect(resultChanged.mock.calls.at(-1)?.[0].diagnosticTrials[0].retryResults).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Original" }));
     fireEvent.click(screen.getByRole("button", { name: "Latest" }));
     await act(async () => { expect(ref.current?.continuePractice()).toBe(true); });
@@ -244,6 +254,7 @@ describe("MelodySession", () => {
     expect(screen.getByText("Diagnostic trial 1 of 4")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Repair" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Original Sight Read" }).parentElement!.textContent).toBe(original);
+    expect(resultChanged.mock.calls.at(-1)?.[0].interrupted).toBe(true);
     expect(completed).toHaveBeenCalledTimes(1);
   });
 

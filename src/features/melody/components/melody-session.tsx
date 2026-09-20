@@ -32,6 +32,7 @@ import { createMelodyPerformanceRecorder, type MelodyPerformanceRecorder } from 
 import { shouldTryAnotherFromPedal } from "../melody-pedal-result-action";
 import { evaluateMelodyAttempt, type MelodyAttemptResult } from "../melody-scoring";
 import { getMelodyPerformancePhase } from "../melody-timing";
+import { createMelodyPracticeResult, type MelodyPracticeResultV1 } from "../melody-practice-result";
 import type { MelodyExercise, MelodySeed, MelodySettings } from "../melody-types";
 import { MelodyCountGuide } from "./melody-count-guide";
 import { MelodyResults } from "./melody-results";
@@ -67,7 +68,7 @@ export type MelodySessionHandle = Readonly<{
 }>;
 
 export default function MelodySession({
-  initialConfig = DEFAULT_MELODY_CONFIG, onPracticeTargetReached, ref,
+  initialConfig = DEFAULT_MELODY_CONFIG, onPracticeTargetReached, onPracticeResultChange, ref,
   practiceSessionMode = false,
   hostedPracticePresentation,
   seedFactory = defaultSeedFactory, createAudioContext = createMelodyBrowserAudioContext, nowMs = defaultNowMs,
@@ -75,6 +76,7 @@ export default function MelodySession({
   initialConfig?: MelodyConfig;
   /** Timed practice only: delivered after final evidence and achievement commit. */
   onPracticeTargetReached?: () => void;
+  onPracticeResultChange?: (result: MelodyPracticeResultV1) => void;
   practiceSessionMode?: boolean;
   hostedPracticePresentation?: HostedPracticePresentation;
   ref?: Ref<MelodySessionHandle>;
@@ -148,6 +150,9 @@ export default function MelodySession({
     continuousDeadlineMsRef.current = null;
     setContinuousDeadlineMs(null);
   }, []);
+  const publishPracticeResult = useCallback((trials: readonly MelodyContinuousDiagnosticTrial[], interrupted = false) => {
+    onPracticeResultChange?.(createMelodyPracticeResult(trials, interrupted));
+  }, [onPracticeResultChange]);
 
   const resetReviewPresentation = useCallback(() => {
     setReviewTrialId(null);
@@ -250,6 +255,7 @@ export default function MelodySession({
       cancelAttempt();
       setResult(null);
       if (continuousSessionActiveRef.current) {
+        publishPracticeResult(continuousHistoryRef.current, true);
         enterReview(continuousHistoryRef.current, true);
         setInterruptionNotice("Timed diagnostic interrupted because Prelude was no longer active.");
         setStatusMessage("Timed diagnostic interrupted. Completed trials were preserved.");
@@ -262,7 +268,7 @@ export default function MelodySession({
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [cancelAttempt, enterReview]);
+  }, [cancelAttempt, enterReview, publishPracticeResult]);
 
   function sampleClock(
     generation: number,
@@ -293,6 +299,7 @@ export default function MelodySession({
         const nextHistory = [...previousHistory, entry];
         continuousHistoryRef.current = nextHistory;
         setContinuousHistory(nextHistory);
+        publishPracticeResult(nextHistory);
         const deadlineMs = continuousDeadlineMsRef.current;
         if (deadlineMs !== null
           && !canStartMelodyContinuousDiagnosticTrial(deadlineMs, nowMs())) {
@@ -319,6 +326,7 @@ export default function MelodySession({
         const updatedTrial = nextHistory.find(({ id }) => id === attemptContext.trialId)!;
         continuousHistoryRef.current = nextHistory;
         setContinuousHistory(nextHistory);
+        publishPracticeResult(nextHistory);
         setReviewTrialId(attemptContext.trialId);
         setReviewResultView("latest");
         if (reviewFilter === "needs-review"
@@ -456,6 +464,7 @@ export default function MelodySession({
     continuousHistoryRef.current = [];
     setContinuousSessionActive(false);
     setContinuousHistory([]);
+    publishPracticeResult([]);
     clearContinuousDeadline();
     setContinuousInterrupted(false);
     resetReviewPresentation();
@@ -505,6 +514,7 @@ export default function MelodySession({
     continuousHistoryRef.current = [];
     setContinuousSessionActive(true);
     setContinuousHistory([]);
+    publishPracticeResult([]);
     clearContinuousDeadline();
     setContinuousInterrupted(false);
     resetReviewPresentation();

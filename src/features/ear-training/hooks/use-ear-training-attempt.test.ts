@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EarTrainingTarget } from "../ear-training-types";
 import type { EarTrainingPromptState } from "./use-ear-training-prompt";
 import { useEarTrainingAttempt } from "./use-ear-training-attempt";
+import type { EarTrainingPracticeResultV1 } from "../ear-training-practice-result";
 
 const feedbackMocks = vi.hoisted(() => ({
   playIncorrectFeedback: vi.fn(),
@@ -21,7 +22,7 @@ const TARGET: EarTrainingTarget = {
   ],
 };
 
-function setup(initialPromptState: EarTrainingPromptState = "heard") {
+function setup(initialPromptState: EarTrainingPromptState = "heard", onPracticeResultChange = vi.fn(), onPracticeUnitCompleted = vi.fn()) {
   let locked = false;
   const dependencies = {
     cancelPrompt: vi.fn(),
@@ -40,10 +41,10 @@ function setup(initialPromptState: EarTrainingPromptState = "heard") {
   };
   const hook = renderHook(
     ({ promptState }: { promptState: EarTrainingPromptState }) =>
-      useEarTrainingAttempt({ ...dependencies, promptState }),
+      useEarTrainingAttempt({ ...dependencies, promptState, onPracticeResultChange, onPracticeUnitCompleted }),
     { initialProps: { promptState: initialPromptState } },
   );
-  return { ...hook, dependencies };
+  return { ...hook, dependencies, onPracticeResultChange, onPracticeUnitCompleted };
 }
 
 beforeEach(() => {
@@ -144,6 +145,22 @@ describe("useEarTrainingAttempt", () => {
       streak: 0,
       totalResponseTimeMs: 1500,
     });
+  });
+
+  it("publishes accepted guesses and completion before the host unit boundary", () => {
+    const order: string[] = [];
+    const resultChanged = vi.fn((result: EarTrainingPracticeResultV1) => { expect(result.engine).toBe("ear-training"); order.push("result"); });
+    const completed = vi.fn(() => order.push("unit"));
+    const { result } = setup("heard", resultChanged, completed);
+    act(() => result.current.answer("minor-second"));
+    act(() => vi.advanceTimersByTime(250));
+    act(() => result.current.answer("minor-second"));
+    act(() => result.current.answer("major-third"));
+    expect(resultChanged.mock.calls.at(-1)?.[0]).toMatchObject({
+      incorrectGuesses: [{ guessedInterval: "minor-second" }],
+      completedTargets: [{ target: { interval: "major-third", direction: "ascending" }, priorIncorrectGuesses: ["minor-second"], responseDurationMs: 1500 }],
+    });
+    expect(order.slice(-2)).toEqual(["result", "unit"]);
   });
 
   it("prepares a new target while preserving statistics and cancelling incorrect feedback", () => {

@@ -13,9 +13,17 @@ import {
 import { isEarTrainingAnswerCorrect } from "../ear-training-validation";
 import type { EarTrainingTarget } from "../ear-training-types";
 import type { EarTrainingPromptState } from "./use-ear-training-prompt";
+import {
+  appendEarTrainingCompletedTarget,
+  appendEarTrainingIncorrectGuess,
+  createEarTrainingPracticeResult,
+  snapshotEarTrainingTarget,
+  type EarTrainingPracticeResultV1,
+} from "../ear-training-practice-result";
 
 type Options = Readonly<{
   onPracticeUnitCompleted?: () => void;
+  onPracticeResultChange?: (result: EarTrainingPracticeResultV1) => void;
   cancelPrompt: () => void;
   generateNextTarget: () => void;
   getCurrentTarget: () => EarTrainingTarget;
@@ -30,6 +38,7 @@ export type EarTrainingFeedback = "idle" | "correct" | "incorrect";
 
 export function useEarTrainingAttempt({
   onPracticeUnitCompleted,
+  onPracticeResultChange,
   cancelPrompt,
   generateNextTarget,
   getCurrentTarget,
@@ -49,6 +58,11 @@ export function useEarTrainingAttempt({
   const attemptVersionRef = useRef(0);
   const incorrectFeedbackTimerRef = useRef<number | null>(null);
   const advancementTimerRef = useRef<number | null>(null);
+  const practiceResultRef = useRef(createEarTrainingPracticeResult());
+  const publishPracticeResult = useCallback((result: EarTrainingPracticeResultV1) => {
+    practiceResultRef.current = result;
+    onPracticeResultChange?.(result);
+  }, [onPracticeResultChange]);
 
   const clearAttemptTimers = useCallback(() => {
     if (incorrectFeedbackTimerRef.current !== null) {
@@ -78,8 +92,9 @@ export function useEarTrainingAttempt({
 
   const resetSession = useCallback(() => {
     setStats(INITIAL_EAR_TRAINING_STATS);
+    publishPracticeResult(createEarTrainingPracticeResult());
     prepareNextTarget();
-  }, [prepareNextTarget]);
+  }, [prepareNextTarget, publishPracticeResult]);
 
   const answer = useCallback(
     (answerInterval: MusicalInterval) => {
@@ -98,6 +113,9 @@ export function useEarTrainingAttempt({
         setStats((current) =>
           applyEarTrainingIncorrectAttempt(current, alreadyIncorrect),
         );
+        publishPracticeResult(appendEarTrainingIncorrectGuess(practiceResultRef.current, {
+          target: snapshotEarTrainingTarget(currentTarget, attemptVersionRef.current), guessedInterval: answerInterval,
+        }));
         hadIncorrectRef.current = true;
         setWrongAnswers((current) => new Set(current).add(answerInterval));
         setFeedback("incorrect");
@@ -118,13 +136,17 @@ export function useEarTrainingAttempt({
 
       cancelPrompt();
       setFeedback("correct");
+      const responseDurationMs = getResponseTimeMs();
       setStats((current) =>
         applyEarTrainingCompletion(
           current,
-          getResponseTimeMs(),
+          responseDurationMs,
           hadIncorrectRef.current,
         ),
       );
+      publishPracticeResult(appendEarTrainingCompletedTarget(practiceResultRef.current, {
+        target: snapshotEarTrainingTarget(currentTarget, attemptVersionRef.current), responseDurationMs,
+      }));
       playSuccessChirp();
 
       const attemptVersion = attemptVersionRef.current;
@@ -138,6 +160,7 @@ export function useEarTrainingAttempt({
     },
     [
       onPracticeUnitCompleted,
+      publishPracticeResult,
       cancelPrompt,
       canReplay,
       getCurrentTarget,

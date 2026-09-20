@@ -21,6 +21,7 @@ import SequenceSession from "./sequence-session";
 import type SequenceCard from "./sequence-card";
 import { DEFAULT_SEQUENCE_CONFIG, sequenceConfigToSettings, type SequenceConfig } from "../sequence-config";
 import { generateSequenceTarget } from "@/lib/music/generators/sequences";
+import type { SequencePracticeResultV1 } from "../sequence-practice-result";
 vi.mock("./sequence-card", () => ({ default: (props: ComponentProps<typeof SequenceCard>) => { observed.card(props); return props.repertoireStatus ? <p role="status">{props.repertoireStatus}</p> : null; } }));
 vi.mock("@/lib/music/generators/sequences", async (original) => {
   const actual = await original<typeof import("@/lib/music/generators/sequences")>();
@@ -100,6 +101,20 @@ describe("Sequence engine contract", () => {
     expect(target().steps.map((step) => step.notes[0].midiNumber)).toEqual([60, 64]);
     expect(generateSequenceTarget).not.toHaveBeenCalled();
   });
+  it("publishes completed sequence evidence before the host unit boundary", () => {
+    const order: string[] = [];
+    const resultChanged = vi.fn((result: SequencePracticeResultV1) => { expect(result.engine).toBe("sequences"); order.push("result"); });
+    const completed = vi.fn(() => order.push("unit"));
+    render(<SequenceSession {...focusProps} initialConfig={configs[0]} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={completed} />);
+    midi(1);
+    act(() => vi.advanceTimersByTime(1000));
+    complete();
+    expect(resultChanged.mock.calls.at(-1)?.[0]).toMatchObject({
+      incorrectSequenceAttempts: [{ failedStepIndex: 0, submittedMidiNumbers: [1] }],
+      completedSequences: [{ priorIncorrectAttemptCount: 1, completionDurationMs: expect.any(Number) }],
+    });
+    expect(order.slice(-2)).toEqual(["result", "unit"]);
+  });
   it("suppresses prescription controls only when hosted", () => {
     const view = render(<SequenceSession {...focusProps} initialConfig={configs[0]} />);
     expect(screen.getByRole("button", { name: "Treble" })).toBeTruthy();
@@ -137,6 +152,14 @@ describe("Sequence engine contract", () => {
 const repertoireConfig: SequenceConfig = { ...DEFAULT_SEQUENCE_CONFIG, exerciseType: "scales", scalePracticeMode: "repertoire-in-order", scaleRepertoire: ["c-major", "a-natural-minor", "g-major"] };
 
 describe("Scale repertoire session contract", () => {
+  it("publishes the final repertoire scale before reporting traversal completion", () => {
+    const order: string[] = [];
+    const resultChanged = vi.fn((result) => { order.push("result"); expect(result.completedSequences.at(-1)?.repertoireId).toBe("c-major"); });
+    const traversal = vi.fn(() => order.push("traversal"));
+    render(<SequenceSession {...focusProps} initialConfig={{ ...repertoireConfig, scaleRepertoire: ["c-major"] }} onPracticeResultChange={resultChanged} onScaleRepertoireCompleted={traversal} />);
+    complete();
+    expect(order.slice(-2)).toEqual(["result", "traversal"]);
+  });
   it("launches the first written scale immediately, completes each once, and reports traversal only at the end", () => {
     const unit = vi.fn(); const traversal = vi.fn();
     const view = render(<SequenceSession {...focusProps} initialConfig={repertoireConfig} onPracticeUnitCompleted={unit} onScaleRepertoireCompleted={traversal} />);

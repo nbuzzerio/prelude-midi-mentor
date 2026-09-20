@@ -403,7 +403,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-The repository and application metadata are prepared for the backward-compatible **v2.7.0** Piece Practice diagnostics release candidate. Git tagging and releasing remain manual owner actions.
+The package is on the in-development **v2.8.0** Practice Session reporting foundation. Phase 1 adds transient host lifecycle evidence and foreground active-time derivation; Phase 2 adds transient, engine-owned result contracts for the hosted engines. The comprehensive report UI and printing are not yet implemented. Git tagging and releasing remain manual owner actions.
 
 The application now supports seven complementary top-level modes:
 

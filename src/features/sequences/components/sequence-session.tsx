@@ -43,6 +43,13 @@ import { useSequenceTransition } from "../hooks/use-sequence-transition";
 import SequenceStats from "./sequence-stats";
 import SequenceCard from "./sequence-card";
 import SequenceControls from "./sequence-controls";
+import {
+  appendCompletedSequence,
+  appendSequenceIncorrectAttempt,
+  createSequencePracticeResult,
+  snapshotSequencePracticeTarget,
+  type SequencePracticeResultV1,
+} from "../sequence-practice-result";
 
 type AnswerSource = "midi" | "virtual" | "simulation";
 
@@ -57,6 +64,7 @@ type SequenceSessionProps = Readonly<{
   initialConfig?: SequenceConfig;
   onPracticeUnitCompleted?: () => void;
   onScaleRepertoireCompleted?: () => void;
+  onPracticeResultChange?: (result: SequencePracticeResultV1) => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
   practiceSessionMode?: boolean;
@@ -67,6 +75,7 @@ export default function SequenceSession({
   initialConfig,
   onPracticeUnitCompleted,
   onScaleRepertoireCompleted,
+  onPracticeResultChange,
   isFocusMode,
   onToggleFocusMode,
   practiceSessionMode = false,
@@ -191,6 +200,11 @@ export default function SequenceSession({
     useState<ReadonlySet<number>>(new Set());
 
   const [stats, setStats] = useState(INITIAL_SEQUENCE_STATS);
+  const practiceResultRef = useRef(createSequencePracticeResult(scaleRepertoire));
+  const publishPracticeResult = useCallback((result: SequencePracticeResultV1) => {
+    practiceResultRef.current = result;
+    onPracticeResultChange?.(result);
+  }, [onPracticeResultChange]);
   const [showWholeSequence, setShowWholeSequence] = useState(false);
 
   const midiHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
@@ -340,6 +354,8 @@ export default function SequenceSession({
 
       const repertoireCompleted = completeRepertoireTarget();
       const responseTimeMs = startedAt === 0 ? 0 : Date.now() - startedAt;
+      const target = getCurrentTarget();
+      const repertoireId = repertoireTraversal?.order[repertoireTraversal.completed] ?? null;
 
       setFeedback("correct");
       setLastFailedAttemptNotes(new Set());
@@ -347,6 +363,10 @@ export default function SequenceSession({
       setStats((currentStats) =>
         applyCompletedSequence(currentStats, responseTimeMs),
       );
+
+      publishPracticeResult(appendCompletedSequence(practiceResultRef.current, {
+        target: snapshotSequencePracticeTarget(target, startedAt), completionDurationMs: responseTimeMs, source, repertoireId,
+      }));
 
       startSequenceCompletionTransition({
         nextSequenceDelayMs: NEXT_SEQUENCE_DELAY_MS,
@@ -360,6 +380,9 @@ export default function SequenceSession({
       onPracticeUnitCompleted,
       onScaleRepertoireCompleted,
       completeRepertoireTarget,
+      getCurrentTarget,
+      publishPracticeResult,
+      repertoireTraversal,
       clearTransition,
       lockSequenceTarget,
       startSequenceCompletionTransition,
@@ -446,6 +469,12 @@ export default function SequenceSession({
       });
 
       setStats((currentStats) => applyIncorrectSequenceAttempt(currentStats));
+      const target = getCurrentTarget();
+      publishPracticeResult(appendSequenceIncorrectAttempt(practiceResultRef.current, {
+        target: snapshotSequencePracticeTarget(target, startedAt), failedStepIndex: currentStepIndex,
+        expectedMidiNumbers: [...getCurrentSequenceStepMidiNumbers(target, currentStepIndex)].sort((left, right) => left - right),
+        submittedMidiNumbers: [...midiNumbers].sort((left, right) => left - right), source,
+      }));
 
       setAllowedLingeringMidiNumbers(new Set());
 
@@ -456,8 +485,12 @@ export default function SequenceSession({
     [
       clearTransition,
       clearInputAttempts,
+      currentStepIndex,
+      getCurrentTarget,
       isSequenceTargetLocked,
+      publishPracticeResult,
       showIncorrectFeedback,
+      startedAt,
       startIncorrectStepTransition,
     ],
   );
@@ -672,6 +705,7 @@ export default function SequenceSession({
   const handleReset = () => {
     clearTransition();
     setStats(INITIAL_SEQUENCE_STATS);
+    publishPracticeResult(createSequencePracticeResult(scaleRepertoire));
     generateNextSequence(undefined, true);
   };
 

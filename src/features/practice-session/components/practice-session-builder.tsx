@@ -60,7 +60,7 @@ export default function PracticeSessionBuilder({ active = true, storage = browse
         setStatus("Practice started, but the last-used preference could not be saved. Your changes remain in this tab.");
       }
     }
-    dispatchRun({ type: "START_RUN", runId: createRunId(), startedAt: now(), firstExerciseToken: createExerciseToken(), snapshot: createPracticeSessionRunSnapshot(preset) });
+    dispatchRun({ type: "START_RUN", runId: createRunId(), startedAt: now(), firstExerciseToken: createExerciseToken(), snapshot: createPracticeSessionRunSnapshot(preset), foreground: document.visibilityState !== "hidden" });
   };
   if (run?.status === "active") return <><PracticeSessionRuntime createExerciseToken={createExerciseToken} dispatch={dispatchRun} now={now} run={run} />{active && status && <p aria-live="polite" className="mx-auto mt-4 w-full max-w-7xl text-sm text-zinc-300" role="status">{status}</p>}</>;
   if (run?.status === "summary") return <PracticeSessionSummary onBack={() => dispatchRun({ type: "CLEAR_RUN" })} run={run} />;
