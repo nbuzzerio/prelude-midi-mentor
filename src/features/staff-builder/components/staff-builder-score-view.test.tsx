@@ -104,6 +104,19 @@ describe("StaffBuilderScoreView", () => {
     ]);
     expect(screen.queryByRole("button", { name: /chord/i })).toBeNull();
   });
+  it("renders transparent-outline mistake and hesitation diagnostics without duplicating notation, while retaining tallies", async () => {
+    const { container } = render(<StaffBuilderScoreView diagnosticHighlights={[
+      { kind: "mistake", eventId: "treble-note", count: 3 },
+      { kind: "hesitation", eventId: "treble-chord" },
+    ]} measureIndex={0} score={interactiveScore()} />);
+    await waitFor(() => expect(container.querySelectorAll(".staff-builder-diagnostic-highlight")).toHaveLength(2));
+    const markers = [...container.querySelectorAll<HTMLElement>(".staff-builder-diagnostic-highlight")];
+    expect(markers.map(({ dataset }) => [dataset.diagnosticKind, dataset.diagnosticPresentation])).toEqual([
+      ["mistake", "transparent-outline"], ["hesitation", "transparent-outline"],
+    ]);
+    expect(container.querySelectorAll(".staff-builder-notation-canvas")).toHaveLength(1);
+    expect(screen.getByText("×3")).toBeTruthy();
+  });
   it("supports generic missed and wrong-pitch read-only highlight semantics", async () => {
     render(<StaffBuilderScoreView eventHighlights={[{ eventId: "treble-note", status: "missed" }, { eventId: "treble-chord", status: "wrong-pitch" }]} measureIndex={0} score={interactiveScore()} />);
     await waitFor(() => expect(screen.getAllByTestId("staff-builder-event-highlight")).toHaveLength(2));

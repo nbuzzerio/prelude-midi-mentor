@@ -31,6 +31,15 @@ const DEFAULT_REPORT_OPTIONS: ReportOptions = {
 
 const seconds = (milliseconds: number) => `${(milliseconds / 1_000).toFixed(1)}s`;
 
+type ResultPresentation = "clean" | "mistake" | "hesitation" | "both" | "skip-only";
+
+function resultPresentation(result: ReturnType<typeof getPiecePracticeMeasureResults>[number]): ResultPresentation {
+  if (result.mistakeCount && result.hesitationCount) return "both";
+  if (result.mistakeCount) return "mistake";
+  if (result.hesitationCount) return "hesitation";
+  return result.skippedTargetCount ? "skip-only" : "clean";
+}
+
 function mistakeText(evidence: PiecePracticeMistakeEvidence) {
   const expected = evidence.expectedPitches.map(formatPiecePracticeWrittenPitch).join(", ") || "None";
   if (evidence.kind === "normal-attempt") return {
@@ -160,10 +169,10 @@ export function PiecePracticeResults({ displayScore, rangeText, state, title }: 
   }, [reportOptions]);
   return <section aria-labelledby="piece-practice-measure-results-title" className="grid gap-3">
     <div><h2 className="text-xl font-bold" id="piece-practice-measure-results-title">Measure results</h2><p className="text-sm text-zinc-300">Problem measures are emphasized for quick review.</p></div>
-    <label className="piece-practice-problem-filter"><input checked={problemsOnly} onChange={(event) => setProblemsOnly(event.target.checked)} type="checkbox" />Show problem measures only</label>
+    <div className="piece-practice-result-controls"><label className="piece-practice-problem-filter"><input checked={problemsOnly} onChange={(event) => setProblemsOnly(event.target.checked)} type="checkbox" />Show problem measures only</label><div aria-label="Measure result color key" className="piece-practice-result-legend"><span><i data-result-presentation="mistake" />Mistake</span><span><i data-result-presentation="hesitation" />Hesitation</span><span><i data-result-presentation="both" />Both</span></div></div>
     {visible.length ? <ul aria-label="Measure-by-measure results" className="piece-practice-measure-results">{visible.map((result) => <li key={result.sourceMeasureId}>{result.isProblem
-      ? <details className="piece-practice-measure-result" data-has-problems><summary><strong>Measure {result.measureNumber}</strong><span>{result.mistakeCount ? `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}` : "No mistakes"} · {seconds(result.activeDurationMs)}{result.hesitationCount ? ` · ${result.hesitationCount} slow` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</span></summary><ResultMeasure displayScore={displayScore} measureIndex={result.measureIndex} state={state} /></details>
-      : <div className="piece-practice-measure-result"><strong>Measure {result.measureNumber}</strong><span>No mistakes · {seconds(result.activeDurationMs)}</span></div>}</li>)}</ul> : <p>No problem measures in this attempt.</p>}
+      ? <details className="piece-practice-measure-result" data-has-problems data-result-presentation={resultPresentation(result)}><summary><strong>Measure {result.measureNumber}</strong><span>{result.mistakeCount ? `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}` : "No mistakes"} · {seconds(result.activeDurationMs)}{result.hesitationCount ? ` · ${result.hesitationCount} slow` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</span></summary><ResultMeasure displayScore={displayScore} measureIndex={result.measureIndex} state={state} /></details>
+      : <div className="piece-practice-measure-result" data-result-presentation="clean"><strong>Measure {result.measureNumber}</strong><span>No mistakes · {seconds(result.activeDurationMs)}</span></div>}</li>)}</ul> : <p>No problem measures in this attempt.</p>}
     <button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" onClick={() => setReportDialog(true)} ref={reportButton} type="button">Generate Report</button>
     {reportDialog ? <ReportOptionsDialog onCancel={() => { setReportDialog(false); reportButton.current?.focus(); }} onGenerate={(options) => { setReportDialog(false); setReportOptions(options); }} /> : null}
     {reportOptions ? <PracticeReport displayScore={displayScore} options={reportOptions} rangeText={rangeText} state={state} title={title} /> : null}

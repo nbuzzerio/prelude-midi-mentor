@@ -7,6 +7,8 @@ import { skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt } from "../p
 import type { PiecePracticeInputFeedback } from "../hooks/use-piece-practice-input";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
 import { PiecePracticeSession } from "./piece-practice-session";
+import { PiecePracticeResults } from "./piece-practice-results";
+import type { PiecePracticeSessionState } from "../piece-practice-session";
 
 const mocks = vi.hoisted(() => ({
   feedback: { status: "idle", source: null, grade: null } as PiecePracticeInputFeedback,
@@ -140,6 +142,30 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it("classifies result rows by existing diagnostics and exposes the compact textual key", () => {
+    const mistake = (measureIndex: number, sequence: number) => ({
+      kind: "normal-attempt" as const, sequence, measureIndex, sourceMeasureId: `m${measureIndex + 1}`, targetId: `t${measureIndex}`, checkId: `c${measureIndex}`, occurredAtActiveMs: 100,
+      expectedPitches: [], receivedMidiNumbers: [61], missingMidiNumbers: [], extraMidiNumbers: [61], unexpectedHeldMidiNumbers: [],
+    });
+    const hesitation = (measureIndex: number, sequence: number) => ({
+      sequence, measureIndex, sourceMeasureId: `m${measureIndex + 1}`, targetId: `t${measureIndex}`, sourceEventIds: [], expectedPitches: [], activatedAtActiveMs: 0,
+      completedAtActiveMs: 3_000, responseDurationMs: 3_000, expectedWindowMs: 500, hesitationThresholdMs: 2_500, isHesitation: true, outcome: "completed" as const,
+    });
+    const state = {
+      measureTimings: Array.from({ length: 5 }, (_, measureIndex) => ({ measureIndex, sourceMeasureId: `m${measureIndex + 1}`, activeDurationMs: 1_000 })),
+      mistakeEvidence: [mistake(1, 0), mistake(3, 1)], targetTimings: [hesitation(2, 0), hesitation(3, 1)],
+      skipEvidence: [{ sequence: 0, measureIndex: 4, sourceMeasureId: "m5", targetId: "t4", occurredAtActiveMs: 500 }],
+      activeElapsedMs: 5_000, completedAtActiveMs: 5_000,
+    } as unknown as PiecePracticeSessionState;
+    render(<PiecePracticeResults displayScore={{} as StaffBuilderScore} rangeText="Measures 1–5" state={state} title="Test" />);
+    expect(within(screen.getByLabelText("Measure result color key")).getByText("Mistake")).toBeTruthy();
+    expect(within(screen.getByLabelText("Measure result color key")).getByText("Hesitation")).toBeTruthy();
+    expect(within(screen.getByLabelText("Measure result color key")).getByText("Both")).toBeTruthy();
+    const rows = screen.getByLabelText("Measure-by-measure results").querySelectorAll(".piece-practice-measure-result");
+    expect([...rows].map((row) => row.getAttribute("data-result-presentation"))).toEqual(["clean", "mistake", "hesitation", "both", "skip-only"]);
+    fireEvent.click(screen.getByLabelText("Show problem measures only"));
+    expect(screen.getByLabelText("Measure-by-measure results").children).toHaveLength(4);
+  });
   it("passes authored lyric cues through the shared read-only score view", () => {
     const source = piece();
     const annotated = { ...source, annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "sustained-e" }, text: "Bells" }] };

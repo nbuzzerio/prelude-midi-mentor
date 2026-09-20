@@ -58,7 +58,10 @@ button {
 .piece-practice-complete.mobile-play-mode { align-content: start; gap: 1rem; padding: max(3.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); }
 .piece-practice-measure-results { display: grid; gap: 0.5rem; }
 .piece-practice-measure-result { display: flex; min-height: 2.75rem; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid rgb(63 63 70); border-radius: 0.5rem; padding: 0.625rem 0.75rem; color: rgb(212 212 216); }
-.piece-practice-measure-result[data-has-mistakes="true"], .piece-practice-measure-result[data-has-problems] { border-color: rgb(245 158 11 / 70%); background: rgb(120 53 15 / 35%); color: rgb(254 243 199); }
+.piece-practice-measure-result[data-result-presentation="mistake"] { border-color: rgb(248 113 113 / 75%); background: rgb(127 29 29 / 22%); color: rgb(254 226 226); }
+.piece-practice-measure-result[data-result-presentation="hesitation"] { border-color: rgb(250 204 21 / 75%); background: rgb(113 63 18 / 22%); color: rgb(254 249 195); }
+.piece-practice-measure-result[data-result-presentation="both"] { border-color: rgb(251 146 60 / 80%); background: rgb(124 45 18 / 24%); color: rgb(255 237 213); }
+.piece-practice-measure-result[data-result-presentation="skip-only"] { border-color: rgb(161 161 170 / 75%); background: rgb(63 63 70 / 30%); }
 .piece-practice-measure-result > summary { display: flex; min-height: 2.75rem; cursor: pointer; align-items: center; justify-content: space-between; gap: 1rem; }
 .piece-practice-measure-result[open] { display: block; }
 .piece-practice-result-detail { display: grid; gap: 0.75rem; border-top: 1px solid rgb(161 98 7 / 55%); padding-top: 0.75rem; }
@@ -66,6 +69,14 @@ button {
 .piece-practice-mistake-list, .piece-practice-hesitation-list { display: grid; gap: 0.6rem; padding-left: 1.4rem; }
 .piece-practice-mistake-list { list-style: decimal; }
 .piece-practice-problem-filter { display: flex; min-height: 2.75rem; align-items: center; gap: 0.55rem; font-weight: 600; }
+.piece-practice-result-controls, .piece-practice-result-legend, .piece-practice-result-legend span { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.piece-practice-result-controls { justify-content: space-between; }
+.piece-practice-result-legend { font-size: 0.8rem; color: rgb(212 212 216); }
+.piece-practice-result-legend span { gap: 0.25rem; }
+.piece-practice-result-legend i { width: 0.75rem; height: 0.75rem; border: 2px solid; border-radius: 999px; background: transparent; }
+.piece-practice-result-legend i[data-result-presentation="mistake"] { border-color: rgb(248 113 113); }
+.piece-practice-result-legend i[data-result-presentation="hesitation"] { border-color: rgb(250 204 21); }
+.piece-practice-result-legend i[data-result-presentation="both"] { border-color: rgb(251 146 60); }
 .piece-practice-report-options { position: fixed; z-index: 95; inset: 50% auto auto 50%; display: grid; width: min(34rem, calc(100vw - 2rem)); max-height: min(90vh, 46rem); overflow-y: auto; gap: 1rem; transform: translate(-50%, -50%); border: 1px solid rgb(82 82 91); border-radius: 0.75rem; background: rgb(24 24 27); padding: 1rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 65%); }
 .piece-practice-report-options fieldset { display: grid; gap: 0.5rem; }
 .piece-practice-report-options label { display: flex; min-height: 2.75rem; align-items: center; gap: 0.5rem; }
@@ -295,8 +306,8 @@ button {
 .staff-builder-event-highlight[data-highlight-status="incorrect"] { border-color: rgb(220 38 38); background: rgb(248 113 113 / 16%); }
 .staff-builder-event-highlight[data-highlight-status="wrong-pitch"] { border-color: rgb(220 38 38); background: rgb(248 113 113 / 18%); }
 .staff-builder-event-highlight[data-highlight-status="missed"] { border-color: rgb(56 189 248); background: rgb(186 230 253 / 22%); border-style: dashed; }
-.staff-builder-diagnostic-highlight { position: absolute; z-index: 4; pointer-events: none; border: 3px solid rgb(220 38 38); border-radius: 999px; background: rgb(248 113 113 / 12%); box-shadow: 0 0 0 2px white; }
-.staff-builder-diagnostic-highlight[data-diagnostic-kind="hesitation"] { border-color: rgb(217 119 6); background: rgb(251 191 36 / 18%); border-style: dashed; }
+.staff-builder-diagnostic-highlight { position: absolute; z-index: 4; pointer-events: none; border: 3px solid rgb(220 38 38); border-radius: 999px; background: transparent; box-shadow: none; }
+.staff-builder-diagnostic-highlight[data-diagnostic-kind="hesitation"] { border-color: rgb(217 119 6); background: transparent; border-style: dashed; }
 .staff-builder-diagnostic-highlight > span { position: absolute; right: -0.8rem; top: -1rem; min-width: 1.4rem; border-radius: 999px; background: rgb(127 29 29); padding: 0.05rem 0.25rem; color: white; font-size: 0.7rem; font-weight: 700; line-height: 1.2; text-align: center; }
 
 .melody-result-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; }
