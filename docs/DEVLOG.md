@@ -4,6 +4,8 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Added the v2.8.0 Practice Session comprehensive completed report with authored-order outcomes, never-entered exercises, foreground-active time, prescribed/Bonus separation, engine-local diagnostics, and compact progressive disclosure.
+- Reused Melody's existing diagnostic summary, mastery, interval, metric, and score-detail semantics rather than introducing a cross-engine score abstraction.
 - Prepared v2.6.5 with sequential Staff Builder Lyric Cues authoring, browser-native Study View printing with measure ranges, and undoable measure deletion with safe tie and annotation cleanup.
 
 ---

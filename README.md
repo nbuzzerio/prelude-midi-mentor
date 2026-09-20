@@ -403,7 +403,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-The package is on the in-development **v2.8.0** Practice Session reporting foundation. Phase 1 adds transient host lifecycle evidence and foreground active-time derivation; Phase 2 adds transient, engine-owned result contracts for the hosted engines. The comprehensive report UI and printing are not yet implemented. Git tagging and releasing remain manual owner actions.
+The package is on the in-development **v2.8.0** Practice Session comprehensive report. Phase 1 added transient host lifecycle evidence and foreground active-time derivation; Phase 2 added transient, engine-owned result contracts; Phase 3 adds engine-local selectors and a responsive completed-session report in authored order, including never-entered exercises, prescribed versus Bonus work, active time, and progressively disclosed diagnostics. Printing remains deferred to Phase 4. Git tagging and releasing remain manual owner actions.
 
 The application now supports seven complementary top-level modes:
 
@@ -417,7 +417,7 @@ The application now supports seven complementary top-level modes:
 
 The release candidate adds browser-local Practice Session presets, native completion targets, Scale Repertoire traversal, timed Melody orchestration, Bonus/Skip/End/summary flow, and stable hosted Mobile Play continuity across exercises. Final interaction and presentation QA is intentionally deferred to the deployed Chromebook/tablet. Practice evidence persistence, analytics, scheduling, cloud accounts, and active-run recovery remain future considerations rather than current capabilities.
 
-`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is set to `2.7.0`, so the prepared release candidate displays `v2.7.0`; the matching annotated tag is still created manually by the repository owner.
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. It remains at `2.8.0`; tagging and releasing remain manual owner actions.
 
 Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
 

@@ -181,6 +181,31 @@ Future Free Play ideas such as chord analysis, phrase history, last-measure disp
 
 Practice Session presets are local prescriptions, not persisted run history. Scheduling, analytics, evidence storage, cloud accounts, active-run recovery, quick start, and real-use presentation polish remain outside this release. Final viewport, fullscreen/orientation, physical-keyboard, and installed-PWA behavior will be evaluated after deployment on the actual Chromebook/tablet.
 
+## v2.8.0 Practice Session Comprehensive Reporting
+
+- [x] Transient lifecycle evidence and foreground-active time
+- [x] Engine-owned Flashcard, Sequence, Ear Training, and Melody result contracts
+- [x] Engine-local report selectors without a universal accuracy/mastery/score abstraction
+- [x] Comprehensive authored-order report, including never-entered exercises
+- [x] Prescribed versus Bonus work and active-time presentation
+- [x] Neutral outcomes and progressively disclosed native diagnostics
+- [x] Responsive normal-flow report composition for constrained tablet viewports
+- [ ] Browser-native printing/PDF (Phase 4)
+
+No report history, backend, persistence, or Piece Practice changes are included.
+
+## Post-v2.8 real-device QA follow-up backlog
+
+These findings came from tablet/piano use and are deliberately outside reporting Phase 3. They should be investigated in this order, preserving the Sequence/interval layouts that already work:
+
+1. **Hosted Practice Session viewport composition (medium):** inspect `practice-session-runtime.tsx`, the hosted branches in Flashcard/Sequence/Melody sessions and cards, and the `.practice-session-*` rules in `src/index.css`. Address hidden-keyboard space reclamation and Triad notation/keyboard sizing together because they may share hosted sizing constraints, while verifying roots independently.
+2. **Melody tablet fit (medium):** inspect `melody-session.tsx`, Melody review/result components, and Melody/mobile rules in `src/index.css`, comparing standalone, hosted Practice Session, and Mobile Play states. Coordinate viewport findings with item 1, but avoid indiscriminate global shrinking.
+3. **Ear Training pedal to Play Prompt (small):** inspect `ear-training-session.tsx`, `ear-training-card.tsx`, `use-ear-training-prompt.ts`, shared MIDI/pedal handling, and Melody's existing semantic pedal-action pattern. Route the pedal through the existing prompt action only when Play Prompt is relevant, retaining button and keyboard access.
+4. **Piece Library sorting and usage metadata (medium):** inspect `staff-builder-library.tsx`, `use-staff-builder-library.ts`, Staff Builder storage/schema, and Piece Practice launch ownership. Saved pieces currently expose authored `createdAt`/`updatedAt`; neither is trustworthy last-played evidence. Define and migrate explicit usage metadata before offering Recently Played, alongside alphabetical sorting.
+5. **Scale hand configurations (architectural):** inspect Sequence scale config, generators, range/direction ownership, controls, validation, and Practice Session configuration reuse. Design right hand, left hand, and hands together in the Sequence/Scale domain; hands-together grading must be explicit rather than modeled as unrelated hosted exercises.
+
+The named user-facing findings covered by this backlog are Piece Library recent/alphabetical sorting; Practice Session hidden-keyboard layout; Triad keyboard/notation sizing; Scale left-hand/hands-together support; Ear Training pedal to Play Prompt; and Melody tablet fit.
+
 ## Completed v2.5.0 Scope
 
 Chord Progressions, key-aware Free Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, Piece Practice, Melody, and the coordinated Mobile Play stream shipped in v2.5.0. That release also includes annotations and Study View, timed Melody diagnostics and review, piece duplication, and authored and practiced rolled chords. Melody duration/hold grading and Piece Practice Accuracy remain separate future work.

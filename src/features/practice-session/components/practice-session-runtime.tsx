@@ -6,12 +6,12 @@ import SequenceSession from "@/features/sequences/components/sequence-session";
 import { useMobilePlay } from "@/hooks/use-mobile-play";
 import {
   getPracticeSessionProgressText,
-  getPracticeSessionRecordSummary,
   type ActivePracticeSessionRun,
   type CompletedPracticeSessionRun,
   type PracticeSessionRunEvent,
 } from "../practice-session-runtime";
 import type { PracticeSessionEngineResult } from "../practice-session-engine-result";
+import { PracticeSessionCompletedReport } from "./practice-session-report";
 
 type RuntimeProps = Readonly<{
   run: ActivePracticeSessionRun;
@@ -156,15 +156,6 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
 }
 
 export function PracticeSessionSummary({ run, onBack }: Readonly<{ run: CompletedPracticeSessionRun; onBack: () => void }>) {
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => headingRef.current?.focus(), []);
-  return <section aria-labelledby="practice-session-summary-title" className="mx-auto w-full max-w-3xl rounded-xl border border-white/10 bg-white/5 p-5 text-white">
-    <p className="text-sm text-zinc-400">{run.snapshot.presetName}</p>
-    <h1 className="mt-1 text-2xl font-bold focus:outline-none" id="practice-session-summary-title" ref={headingRef} tabIndex={-1}>Practice session complete</h1>
-    <ol className="mt-5 space-y-3">{run.records.map((record) => {
-      const entry = run.snapshot.exercises[record.exerciseIndex]!;
-      return <li className="rounded-lg bg-zinc-900 p-3" key={record.exerciseId}><strong>{record.label}</strong><p className="text-sm text-zinc-300">{getPracticeSessionRecordSummary(record, entry)}</p></li>;
-    })}</ol>
-    <button className="mt-5 min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={onBack} type="button">Back to Practice Sessions</button>
-  </section>;
+  useEffect(() => document.getElementById("practice-session-summary-title")?.focus(), []);
+  return <PracticeSessionCompletedReport onBack={onBack} run={run} />;
 }
