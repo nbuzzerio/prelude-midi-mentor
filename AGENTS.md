@@ -151,14 +151,13 @@ Only surface an approval request when:
   1. run the requested focused and final validation;
   2. run `git diff --check`;
   3. run `git status --short`;
-  4. run the user's existing interactive Bash `cxdu` command to generate the CxR/Git-review artifact;
-  5. report whether `cxdu` succeeded and include any generated artifact path it reports.
-- On this Windows repository, `cxdu` is provided by the user's interactive Git Bash configuration. Invoke it with:
+  4. run the repository-local, non-interactive CxR exporter to generate the CxR/Git-review artifact;
+  5. report whether the exporter succeeded and include the generated artifact path it reports.
+- Invoke the exporter from the repository root without an interactive shell or user-profile dependency:
 
   ```bash
-  & "C:\Program Files\Git\bin\bash.exe" -ic 'cxdu'
+  & "C:\Program Files\Git\bin\bash.exe" .dev/cxdu.sh
   ```
 
-- `cxdu` is permitted only as this final handoff step. Its currently inspected definition delegates to `.dev/export-git-diff.cmd`, whose Git operations are read-only and whose generated artifact is `.dev/_git-diff.txt`.
-- Do not redefine, duplicate, replace, or copy the implementation of `cxdu` into the repository, and do not create another repository script for it.
-- If `cxdu` is unavailable or fails, report the command attempted and the failure accurately. Do not invent an artifact and do not treat failure as permission to stage, commit, reset, restore, checkout, clean, push, or otherwise mutate Git/index/history.
+- `.dev/cxdu.sh` delegates artifact generation to `.dev/export-git-diff.cmd --no-open`. These scripts use only read-only Git inspection commands, write `.dev/_git-diff.txt`, and must not open a GUI or mutate Git/index/history during this handoff.
+- If the exporter is unavailable or fails, report the command attempted and the failure accurately. Do not invent an artifact and do not treat failure as permission to stage, commit, reset, restore, checkout, clean, push, or otherwise mutate Git/index/history.
