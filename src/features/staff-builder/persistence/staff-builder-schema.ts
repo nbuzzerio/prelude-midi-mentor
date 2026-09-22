@@ -34,7 +34,13 @@ export type StaffBuilderLibraryV2 = Readonly<{
 }>;
 
 export type StaffBuilderLibraryV3 = Readonly<{ schemaVersion: 3; pieces: readonly StaffBuilderScore[] }>;
-export type StaffBuilderLibrary = StaffBuilderLibraryV3;
+export type StaffBuilderPiecePracticeMetadata = Readonly<{ lastPracticedAt: string }>;
+export type StaffBuilderLibraryV4 = Readonly<{
+  schemaVersion: 4;
+  pieces: readonly StaffBuilderScore[];
+  practiceMetadataByPieceId: Readonly<Record<string, StaffBuilderPiecePracticeMetadata>>;
+}>;
+export type StaffBuilderLibrary = StaffBuilderLibraryV4;
 
 export type StaffBuilderDraftV1 = Readonly<{
   schemaVersion: 1;
@@ -252,8 +258,11 @@ export function parseStaffBuilderScore(value: unknown): StaffBuilderParseResult<
 }
 
 export function parseStaffBuilderLibrary(value: unknown): StaffBuilderParseResult<StaffBuilderLibrary> {
-  if (unsupportedVersion(value)) return { ok: false, reason: "unsupported", message: "The Staff Builder library uses a newer unsupported version." };
-  if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3) || !Array.isArray(value.pieces)) {
+  if (isRecord(value) && "schemaVersion" in value && value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4) {
+    return { ok: false, reason: "unsupported", message: "The Staff Builder library uses a newer unsupported version." };
+  }
+  if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4) || !Array.isArray(value.pieces)
+    || (value.schemaVersion === 4 && !isRecord(value.practiceMetadataByPieceId))) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder library is invalid." };
   }
   const pieces: StaffBuilderScore[] = [];
@@ -265,7 +274,17 @@ export function parseStaffBuilderLibrary(value: unknown): StaffBuilderParseResul
   if (new Set(pieces.map(({ id }) => id)).size !== pieces.length) {
     return { ok: false, reason: "corrupt", message: "The stored Staff Builder library contains duplicate piece IDs." };
   }
-  return { ok: true, value: { schemaVersion: 3, pieces } };
+  const pieceIds = new Set(pieces.map(({ id }) => id));
+  const practiceMetadataByPieceId: Record<string, StaffBuilderPiecePracticeMetadata> = {};
+  if (value.schemaVersion === 4) {
+    for (const [pieceId, metadata] of Object.entries(value.practiceMetadataByPieceId as Record<string, unknown>)) {
+      if (!pieceIds.has(pieceId) || !isRecord(metadata) || !isTimestamp(metadata.lastPracticedAt)) {
+        return { ok: false, reason: "corrupt", message: "The stored Staff Builder library contains invalid practice metadata." };
+      }
+      practiceMetadataByPieceId[pieceId] = { lastPracticedAt: metadata.lastPracticedAt };
+    }
+  }
+  return { ok: true, value: { schemaVersion: 4, pieces, practiceMetadataByPieceId } };
 }
 
 export function parseStaffBuilderDraft(value: unknown): StaffBuilderParseResult<StaffBuilderDraft> {

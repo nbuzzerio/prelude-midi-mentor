@@ -33,7 +33,7 @@ function readParsed<T>(storage: StaffBuilderStorage, key: string, empty: T, pars
 }
 
 export function readStaffBuilderLibrary(storage: StaffBuilderStorage): StaffBuilderStorageResult<StaffBuilderLibrary> {
-  return readParsed(storage, STAFF_BUILDER_STORAGE_KEYS.library, { schemaVersion: 3, pieces: [] }, parseStaffBuilderLibrary);
+  return readParsed(storage, STAFF_BUILDER_STORAGE_KEYS.library, { schemaVersion: 4, pieces: [], practiceMetadataByPieceId: {} }, parseStaffBuilderLibrary);
 }
 
 export function readStaffBuilderDraft(storage: StaffBuilderStorage): StaffBuilderStorageResult<StaffBuilderDraft | null> {

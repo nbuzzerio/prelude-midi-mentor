@@ -42,13 +42,14 @@ describe("Staff Builder piece files", () => {
     expect(parsed).toEqual({ ok: true, score: source });
   });
   it("serializes one canonical authoritative score as deterministic human-readable JSON", () => {
-    const source = { ...score(), editorPass: "rhythm", practiceProgress: { target: 3 } };
+    const source = { ...score(), editorPass: "rhythm", practiceProgress: { target: 3 }, lastPracticedAt: "2026-09-21T12:00:00.000Z" };
     const serialized = serializeStaffBuilderPiece(source);
     expect(serialized).toBe(serializeStaffBuilderPiece(source));
     expect(serialized.endsWith("\n")).toBe(true);
     expect(serialized).toContain('\n  "schemaVersion": 3');
     expect(serialized).not.toContain("editorPass");
     expect(serialized).not.toContain("practiceProgress");
+    expect(serialized).not.toContain("lastPracticedAt");
   });
 
   it("round trips ties, polyphony, chords, rests, spelling, durations, and measure overrides exactly", () => {

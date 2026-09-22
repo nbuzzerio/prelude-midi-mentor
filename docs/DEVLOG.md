@@ -4,6 +4,8 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Added compact Piece Library sorting by Recently Played, Recently Updated, or Alphabetical, backed by honest browser-local practice timestamps recorded only when a saved score successfully enters Piece Practice.
+- Migrated Staff Builder library envelopes to schema v4 without fabricating history; score exports/imports and duplicates remain free of source practice recency.
 - Added Ear Training’s mode-local sustain-pedal shortcut for the existing guarded Play Prompt action in standalone and hosted Practice Sessions.
 - Corrected tablet Practice Session composition with intrinsic Note/Triad notation sizing, true hidden-keyboard space reclamation, bounded Melody Focus/Mobile Play layout, deliberate Melody replacement-score scrolling, and a stable target-complete decision overlay.
 - Added the v2.8.0 Practice Session comprehensive completed report with authored-order outcomes, never-entered exercises, foreground-active time, prescribed/Bonus separation, engine-local diagnostics, and compact progressive disclosure.

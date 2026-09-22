@@ -59,7 +59,7 @@ function loadInitialState(storage: StaffBuilderStorage): InitialState {
   }
   if (!introResult.ok) issues.push({ area: "preferences", message: introResult.message, clearable: false });
   if (!lastPieceResult.ok) issues.push({ area: "preferences", message: lastPieceResult.message, clearable: false });
-  const library = libraryResult.ok ? libraryResult.value : { schemaVersion: 3 as const, pieces: [] };
+  const library = libraryResult.ok ? libraryResult.value : { schemaVersion: 4 as const, pieces: [], practiceMetadataByPieceId: {} };
   const draft = draftResult.ok ? draftResult.value : null;
   const savedPiece = draft?.savedPieceId ? library.pieces.find(({ id }) => id === draft.savedPieceId) : undefined;
   const draftMatchesSaved = Boolean(draft && savedPiece && JSON.stringify(draft.score) === JSON.stringify(savedPiece));
@@ -122,7 +122,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
 
   const createPiece = useCallback((input: Readonly<{ title: string; keyId: MusicKeyId; timeSignature: StaffBuilderTimeSignature; tempoBpm: number }>) => {
     const score = createStaffBuilderScore({ title: input.title.trim(), tempoBpm: input.tempoBpm, initialKeySignatureId: input.keyId, initialTimeSignature: input.timeSignature });
-    const next = { schemaVersion: 3 as const, pieces: [...library.pieces, score] };
+    const next = { ...library, pieces: [...library.pieces, score] };
     setLibrary(next);
     setActiveScore(score);
     setActiveCaptureState(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
@@ -133,7 +133,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
     persistLibrary(next);
     persistDraft(score, score.id);
     reportWrite("preferences", writeStaffBuilderValue(storage, "lastPieceId", score.id));
-  }, [library.pieces, persistDraft, persistLibrary, reportWrite, storage]);
+  }, [library, persistDraft, persistLibrary, reportWrite, storage]);
 
   const importPiece = useCallback((score: StaffBuilderScore, factories?: StaffBuilderImportFactories) => {
     const imported = normalizeImportedStaffBuilderPiece(score, new Set(library.pieces.map(({ id }) => id)), factories);
@@ -195,7 +195,9 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
   }, [activeCaptureState, activeEditorPass, activeRhythmState, activeSavedPieceId, activeScore, library, persistDraft, persistLibrary]);
 
   const deletePiece = useCallback((pieceId: string) => {
-    const next = { ...library, pieces: library.pieces.filter(({ id }) => id !== pieceId) };
+    const { [pieceId]: _removedMetadata, ...practiceMetadataByPieceId } = library.practiceMetadataByPieceId;
+    void _removedMetadata;
+    const next = { ...library, pieces: library.pieces.filter(({ id }) => id !== pieceId), practiceMetadataByPieceId };
     setLibrary(next);
     persistLibrary(next);
     if (activeSavedPieceId === pieceId) {
@@ -209,6 +211,13 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
       reportWrite("preferences", removeStaffBuilderValue(storage, "lastPieceId"));
     }
   }, [activeSavedPieceId, blockedAreas, library, persistLibrary, reportWrite, storage]);
+
+  const recordPiecePractice = useCallback((pieceId: string, lastPracticedAt = new Date().toISOString()) => {
+    if (!library.pieces.some(({ id }) => id === pieceId)) return false;
+    const next = { ...library, practiceMetadataByPieceId: { ...library.practiceMetadataByPieceId, [pieceId]: { lastPracticedAt } } };
+    setLibrary(next);
+    return persistLibrary(next);
+  }, [library, persistLibrary]);
 
   const closePiece = useCallback(() => {
     setActiveScore(null);
@@ -302,7 +311,7 @@ export function useStaffBuilderLibrary(storage: StaffBuilderStorage) {
 
   return {
     library, activeScore, activeCaptureState, activeEditorPass, activeRhythmState, activeSavedPieceId, lastValidatedSavedSnapshot, recoveryDraft, introductionOpen, issues,
-    createPiece, importPiece, duplicatePiece, openPiece, renamePiece, deletePiece, closePiece, restoreDraft, declineDraft,
+    createPiece, importPiece, duplicatePiece, openPiece, renamePiece, deletePiece, recordPiecePractice, closePiece, restoreDraft, declineDraft,
     closeIntroduction, reopenIntroduction: () => setIntroductionOpen(true), clearCorruptArea, updateActiveDraft, validateAndSave,
   };
 }

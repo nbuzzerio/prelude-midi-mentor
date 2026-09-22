@@ -42,6 +42,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
       return;
     }
     setPracticeLaunchError(null);
+    state.recordPiecePractice(score.id);
     setPracticePiece(projection.piece);
   };
   return (
@@ -114,7 +115,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
                     : `Imported "${imported.score.title}" in memory, but it could not be saved in this browser.`,
                 });
               });
-            }} onOpen={state.openPiece} onPractice={launchPiecePractice} onPrint={setPrintPiece} onRename={state.renamePiece} pieces={state.library.pieces} />
+            }} onOpen={state.openPiece} onPractice={launchPiecePractice} onPrint={setPrintPiece} onRename={state.renamePiece} pieces={state.library.pieces} practiceMetadataByPieceId={state.library.practiceMetadataByPieceId} />
             <StaffBuilderPieceSetup onCreate={state.createPiece} />
           </div>}
       {state.introductionOpen && <StaffBuilderIntroduction onClose={state.closeIntroduction} returnFocusRef={introductionOpenerRef} />}

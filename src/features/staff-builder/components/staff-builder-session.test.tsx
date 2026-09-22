@@ -134,6 +134,7 @@ describe("Staff Builder session", () => {
     act(() => midiBoundary.onNote?.(67));
     fireEvent.click(screen.getByRole("button", { name: "Exit Study View" }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Study View" })));
+    expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null").practiceMetadataByPieceId).toEqual({});
     expect(screen.queryByRole("button", { name: "Stop playback" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Measure 2 of 2" })).toBeTruthy();
     expect(screen.getByText(/pending treble MIDI pitches 64;/)).toBeTruthy();
@@ -266,20 +267,23 @@ describe("Staff Builder session", () => {
     vi.useRealTimers();
   });
 
-  it("launches the exact validated saved score through Phase A and exits to the unchanged library", () => {
+  it("records practice once at the successful Phase A launch boundary and does not rewrite it while rendered", () => {
     const storage = new MemoryStorage();
     const saved = savedValidScore();
     seedLibrary(storage, [saved]);
-    const before = new Map(storage.values);
     render(<StaffBuilderSession storage={storage} />);
     fireEvent.click(screen.getByRole("button", { name: "Practice Practice Study" }));
     expect(screen.getByRole("heading", { name: "Blocking Piece Practice: Practice Study" })).toBeTruthy();
     expect(practiceBoundary.projectionScores).toEqual([saved]);
     expect(practiceBoundary.piece).toMatchObject({ sourceScoreId: saved.id, sourceScoreUpdatedAt: saved.updatedAt, title: saved.title });
-    expect(storage.values).toEqual(before);
+    const launchedLibrary = storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "";
+    const metadata = JSON.parse(launchedLibrary).practiceMetadataByPieceId[saved.id];
+    expect(metadata).toMatchObject({ lastPracticedAt: expect.any(String) });
+    expect(Number.isNaN(Date.parse(metadata.lastPracticedAt))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Exit Piece Practice" }));
     expect(screen.getByRole("heading", { name: "Piece library" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Measure 1 of 1" })).toBeNull();
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(launchedLibrary);
     expect(saved).toEqual(savedValidScore());
   });
 
@@ -339,6 +343,7 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Practice Practice Study" }));
     expect(screen.getByRole("alert").textContent).toContain("could not be opened for practice");
     expect(screen.queryByText(/Blocking Piece Practice:/)).toBeNull();
+    expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null").practiceMetadataByPieceId).toBeUndefined();
   });
 
   it("uses the updated saved score on the next launch without changing Open or editor behavior", () => {
@@ -686,7 +691,9 @@ describe("Staff Builder session", () => {
     expect(screen.getByRole("heading", { name: "Blocking Piece Practice: Editor Practice" })).toBeTruthy();
     expect(practiceBoundary.projectionScores).toHaveLength(1);
     expect(practiceBoundary.projectionScores[0]).toMatchObject({ id: saved.id, title: saved.title, tempoBpm: saved.tempoBpm, measures: saved.measures });
-    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(libraryBeforeLaunch);
+    const libraryAfterLaunch = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
+    expect(libraryAfterLaunch.pieces).toEqual(JSON.parse(libraryBeforeLaunch ?? "null").pieces);
+    expect(libraryAfterLaunch.practiceMetadataByPieceId[saved.id]).toMatchObject({ lastPracticedAt: expect.any(String) });
     expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft)).toBe(draftBeforeLaunch);
   });
 

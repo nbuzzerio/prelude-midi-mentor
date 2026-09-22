@@ -462,6 +462,7 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - rapid Replay replacement, mode switching, reset, and settings changes during playback
 - Ear Training answer-grid touch targets, keyboard focus, and screen-reader announcements
 - Staff Builder physical MIDI capture and same-position replacement in treble, bass, and grand routing
+- Piece Library Recently Played/Recently Updated/Alphabetical ordering, stable non-mutating fallback order, schema-v4 migration without fabricated practice history, launch-only timestamp updates, and non-portable duplicate/import/export semantics
 - Staff Builder’s browser-local pedal Lock preference: default/read/write/error handling, valid capture commit/advance, empty-position advance, invalid-input suppression, pedal-up/repeated-down/stale-enable suppression, and unchanged score/draft schemas
 - range-aware Staff Builder notation geometry across ordinary and MIDI-endpoint written pitches, single/grand staves, editor SVG bounds, per-system Study View offsets, ties, and the shared Piece Practice score view
 - complete, incoming, and outgoing single-measure VexFlow ties, including middle-chain notes, independently tied chord pitches, untied siblings, enharmonic visible spelling, and Piece Practice boundary measures without grading changes

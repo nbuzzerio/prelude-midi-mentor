@@ -1,11 +1,14 @@
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { StaffBuilderPiecePracticeMetadata } from "../persistence/staff-builder-schema";
 import type { StaffBuilderDuplicationMode } from "../staff-builder-duplication";
+import { sortStaffBuilderLibraryPieces, type StaffBuilderLibrarySort } from "../staff-builder-library-sorting";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 
-export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onPractice, onPrint, onRename }: Readonly<{
+export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByPieceId, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onPractice, onPrint, onRename }: Readonly<{
   activePieceId: string | null;
   pieces: readonly StaffBuilderScore[];
+  practiceMetadataByPieceId: Readonly<Record<string, StaffBuilderPiecePracticeMetadata>>;
   onDelete: (id: string) => void;
   onDownload: (piece: StaffBuilderScore) => void;
   onDuplicate: (id: string, mode: StaffBuilderDuplicationMode) => void;
@@ -16,11 +19,24 @@ export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownloa
   onRename: (id: string, title: string) => void;
 }>) {
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [sort, setSort] = useState<StaffBuilderLibrarySort>("recently-played");
+  const sortedPieces = useMemo(
+    () => sortStaffBuilderLibraryPieces({ pieces, practiceMetadataByPieceId }, sort),
+    [pieces, practiceMetadataByPieceId, sort],
+  );
   return (
     <section className="staff-builder-panel" aria-labelledby="staff-builder-library-title">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold" id="staff-builder-library-title">Piece library</h2>
-        <button className="staff-builder-secondary-button" onClick={() => importInputRef.current?.click()} type="button">Import Piece</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm" htmlFor="staff-builder-library-sort">Sort</label>
+          <select className="rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm" id="staff-builder-library-sort" onChange={(event) => setSort(event.target.value as StaffBuilderLibrarySort)} value={sort}>
+            <option value="recently-played">Recently Played</option>
+            <option value="recently-updated">Recently Updated</option>
+            <option value="alphabetical">Alphabetical</option>
+          </select>
+          <button className="staff-builder-secondary-button" onClick={() => importInputRef.current?.click()} type="button">Import Piece</button>
+        </div>
         <input accept=".prelude.json,application/json" aria-label="Choose Prelude piece file" className="sr-only" onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
@@ -29,7 +45,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, onDelete, onDownloa
       </div>
       {pieces.length === 0 ? <p>No Staff Builder pieces yet.</p> : (
         <ul className="staff-builder-library-list">
-          {pieces.map((piece) => {
+          {sortedPieces.map((piece) => {
             const practiceEligible = validateStaffBuilderScore(piece).length === 0;
             const practiceReasonId = `staff-builder-practice-reason-${piece.id}`;
             return (

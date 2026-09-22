@@ -64,11 +64,11 @@ describe("Staff Builder schema", () => {
   });
 
   it("distinguishes unsupported schema versions", () => {
-    expect(parseStaffBuilderLibrary({ schemaVersion: 4, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
+    expect(parseStaffBuilderLibrary({ schemaVersion: 5, pieces: [] })).toMatchObject({ ok: false, reason: "unsupported" });
     expect(parseStaffBuilderDraft({ schemaVersion: 4 })).toMatchObject({ ok: false, reason: "unsupported" });
   });
 
-  it("deliberately migrates V1 scores, libraries, and drafts to canonical V3", () => {
+  it("deliberately migrates V1 scores and drafts to canonical V3 and libraries to V4 without invented practice history", () => {
     const current = validScore();
     const { annotations: _annotations, ...withoutAnnotations } = current;
     void _annotations;
@@ -77,12 +77,23 @@ describe("Staff Builder schema", () => {
     expect(parsedScore).toEqual({ ok: true, value: { ...legacy, schemaVersion: 3, annotations: [] } });
     expect(parseStaffBuilderLibrary({ schemaVersion: 1, pieces: [legacy] })).toEqual({
       ok: true,
-      value: { schemaVersion: 3, pieces: [{ ...legacy, schemaVersion: 3, annotations: [] }] },
+      value: { schemaVersion: 4, pieces: [{ ...legacy, schemaVersion: 3, annotations: [] }], practiceMetadataByPieceId: {} },
     });
     expect(parseStaffBuilderDraft({ schemaVersion: 1, savedPieceId: legacy.id, updatedAt: legacy.updatedAt, score: legacy, editorPass: "capture" })).toMatchObject({
       ok: true,
       value: { schemaVersion: 3, score: { schemaVersion: 3, annotations: [] } },
     });
+  });
+
+  it("parses trustworthy library-local practice metadata and rejects malformed or orphaned entries", () => {
+    const score = validScore();
+    const lastPracticedAt = "2026-09-21T12:00:00.000Z";
+    expect(parseStaffBuilderLibrary({ schemaVersion: 4, pieces: [score], practiceMetadataByPieceId: { [score.id]: { lastPracticedAt } } }))
+      .toMatchObject({ ok: true, value: { schemaVersion: 4, practiceMetadataByPieceId: { [score.id]: { lastPracticedAt } } } });
+    expect(parseStaffBuilderLibrary({ schemaVersion: 4, pieces: [score], practiceMetadataByPieceId: { missing: { lastPracticedAt } } }))
+      .toMatchObject({ ok: false, reason: "corrupt" });
+    expect(parseStaffBuilderLibrary({ schemaVersion: 4, pieces: [score], practiceMetadataByPieceId: { [score.id]: { lastPracticedAt: "today" } } }))
+      .toMatchObject({ ok: false, reason: "corrupt" });
   });
 
   it("migrates V2 scores to V3 without accepting authored arpeggiation", () => {

@@ -66,6 +66,21 @@ describe("useStaffBuilderLibrary", () => {
     expect(result.current.activeSavedPieceId).toBeNull();
     expect(storage.values.has(STAFF_BUILDER_STORAGE_KEYS.draft)).toBe(false);
     expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null").pieces).toEqual([imported]);
+    expect(result.current.library.practiceMetadataByPieceId).toEqual({});
+  });
+
+  it("records practice recency only when explicitly commanded and persists one timestamp", () => {
+    const storage = new MemoryStorage();
+    const { result } = renderHook(() => useStaffBuilderLibrary(storage));
+    act(() => result.current.createPiece({ title: "Practice", keyId: "c-major", timeSignature: "4/4", tempoBpm: 100 }));
+    const id = result.current.library.pieces[0]!.id;
+    act(() => result.current.openPiece(id));
+    act(() => result.current.renamePiece(id, "Edited"));
+    expect(result.current.library.practiceMetadataByPieceId).toEqual({});
+    act(() => { expect(result.current.recordPiecePractice(id, "2026-09-21T12:00:00.000Z")).toBe(true); });
+    expect(result.current.library.practiceMetadataByPieceId[id]).toEqual({ lastPracticedAt: "2026-09-21T12:00:00.000Z" });
+    expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null").practiceMetadataByPieceId[id])
+      .toEqual({ lastPracticedAt: "2026-09-21T12:00:00.000Z" });
   });
 
   it("duplicates a library piece and opens the independent copy with fresh editor state", () => {
@@ -78,7 +93,7 @@ describe("useStaffBuilderLibrary", () => {
       factories: { createId: () => "source-id", now: () => "2026-08-01T12:00:00.000Z" },
     });
     const original = { ...originalBase, measures: [{ ...originalBase.measures[0]!, events: [{ id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: "pitch", midiNumber: 61, letter: "D" as const, accidental: "flat" as const, octave: 4 }] }] }] };
-    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces: [original] }));
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 4, pieces: [original], practiceMetadataByPieceId: { "source-id": { lastPracticedAt: "2026-08-20T12:00:00.000Z" } } }));
     const { result } = renderHook(() => useStaffBuilderLibrary(storage));
     let nextId = 0;
 
@@ -95,6 +110,7 @@ describe("useStaffBuilderLibrary", () => {
     expect(result.current.activeCaptureState).toEqual(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
     expect(result.current.activeEditorPass).toBe("capture");
     expect(result.current.activeRhythmState).toEqual({ measureIndex: 0, selectedEventId: null });
+    expect(result.current.library.practiceMetadataByPieceId).toEqual({ "source-id": { lastPracticedAt: "2026-08-20T12:00:00.000Z" } });
     const persistedLibrary = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
     const persistedDraft = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null");
     expect(persistedLibrary.pieces).toHaveLength(2);
