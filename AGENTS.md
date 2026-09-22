@@ -144,3 +144,21 @@ Only surface an approval request when:
   ```bash
   pnpm verify
   ```
+
+## CxR handoff
+
+- After completing implementation or review work and all requested validation, finish the handoff in this order:
+  1. run the requested focused and final validation;
+  2. run `git diff --check`;
+  3. run `git status --short`;
+  4. run the user's existing interactive Bash `cxdu` command to generate the CxR/Git-review artifact;
+  5. report whether `cxdu` succeeded and include any generated artifact path it reports.
+- On this Windows repository, `cxdu` is provided by the user's interactive Git Bash configuration. Invoke it with:
+
+  ```bash
+  & "C:\Program Files\Git\bin\bash.exe" -ic 'cxdu'
+  ```
+
+- `cxdu` is permitted only as this final handoff step. Its currently inspected definition delegates to `.dev/export-git-diff.cmd`, whose Git operations are read-only and whose generated artifact is `.dev/_git-diff.txt`.
+- Do not redefine, duplicate, replace, or copy the implementation of `cxdu` into the repository, and do not create another repository script for it.
+- If `cxdu` is unavailable or fails, report the command attempted and the failure accurately. Do not invent an artifact and do not treat failure as permission to stage, commit, reset, restore, checkout, clean, push, or otherwise mutate Git/index/history.
