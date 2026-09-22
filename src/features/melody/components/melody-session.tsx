@@ -137,6 +137,8 @@ export default function MelodySession({
   const reviewTrialHeadingRef = useRef<HTMLHeadingElement>(null);
   const reviewFocusTargetRef = useRef<"review" | "trial">("review");
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
+  const scoreRegionRef = useRef<HTMLDivElement>(null);
+  const previousExerciseIdRef = useRef(exercise.id);
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode: localMobilePlayMode } = useMobilePlay();
   const isHostedPresentation = hostedPracticePresentation !== undefined;
   const isMobilePlayMode = hostedPracticePresentation?.isMobilePlayMode ?? localMobilePlayMode;
@@ -223,6 +225,11 @@ export default function MelodySession({
     if (reviewFocusTargetRef.current === "trial") reviewTrialHeadingRef.current?.focus();
     else reviewHeadingRef.current?.focus();
   }, [presentation, continuousHistory]);
+  useEffect(() => {
+    if (previousExerciseIdRef.current === exercise.id) return;
+    previousExerciseIdRef.current = exercise.id;
+    scoreRegionRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [exercise.id]);
   // Effects run after evidence/Review has committed. Mark delivered before calling
   // the host, which may immediately continue, replace, or unmount this engine.
   useEffect(() => {
@@ -602,7 +609,7 @@ export default function MelodySession({
     </MelodySettingsControls>}
     {presentation !== "results" && presentation !== "review" && <div className="melody-practice">
       {continuousSessionActive && continuousDeadlineMs !== null && presentation !== "setup" && <p>Time remaining: {formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))} · Trials completed: {continuousHistory.length}</p>}
-      <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll" data-measure-count={exercise.measures.length} data-preparatory-measure-count="1" tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `minmax(8rem, 0.5fr) repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{score.measures.map((measure, displayIndex) => <StaffBuilderScoreView key={measure.id} measureIndex={displayIndex} playbackPosition={displayMeasureIndex === displayIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} showPreparatoryLeadIn /></div></div>
+      <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll" data-measure-count={exercise.measures.length} data-preparatory-measure-count="1" ref={scoreRegionRef} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `minmax(8rem, 0.5fr) repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{score.measures.map((measure, displayIndex) => <StaffBuilderScoreView key={measure.id} measureIndex={displayIndex} playbackPosition={displayMeasureIndex === displayIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} showPreparatoryLeadIn /></div></div>
       {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => continuousPractice ? startContinuousSession() : void start()} type="button">{continuousPractice ? "Start Session" : "Start Exercise"}</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
       {presentation === "count-in" && <p className="text-xl"><strong>Lead-in</strong> · Preparatory rests</p>}

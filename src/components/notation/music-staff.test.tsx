@@ -138,6 +138,17 @@ describe("MusicStaff graded rendering", () => {
       PRACTICE_TARGET,
     );
     expect(mocks.renderGrandStaffHeldNotes).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/Musical staff showing/).dataset.practiceTargetPresentation).toBe("single-note");
+  });
+
+  it("marks chord notation separately without applying the marker to Sequence", () => {
+    const triad = { ...PRACTICE_TARGET, notes: [C, { midiNumber: 64, name: "E", octave: 4 }, { midiNumber: 67, name: "G", octave: 4 }] } satisfies PracticeTarget;
+    const view = render(<MusicStaff practiceTarget={triad} />);
+    expect(screen.getByLabelText(/Musical staff showing/).dataset.practiceTargetPresentation).toBe("chord");
+    view.unmount();
+
+    render(<MusicStaff currentStepIndex={0} firstVisibleStepIndex={0} lastVisibleStepIndex={1} sequenceTarget={SEQUENCE_TARGET} showWholeSequence={false} />);
+    expect(screen.getByLabelText(/Musical staff showing/).hasAttribute("data-practice-target-presentation")).toBe(false);
   });
 
   it("keeps Sequence rendering unchanged", () => {

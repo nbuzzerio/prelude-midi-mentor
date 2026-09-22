@@ -183,6 +183,13 @@ export default function MusicStaff(props: MusicStaffProps) {
             : "measure"
           : undefined
       }
+      data-practice-target-presentation={
+        !isSequenceStaff && !isKeyAwareFreePlayStaff
+          ? props.practiceTarget.notes.length === 1
+            ? "single-note"
+            : "chord"
+          : undefined
+      }
       tabIndex={isSequenceStaff && props.showWholeSequence ? 0 : undefined}
     />
   );

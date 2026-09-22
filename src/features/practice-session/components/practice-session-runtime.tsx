@@ -149,6 +149,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={() => advance("ADVANCE")} ref={completionPrimaryActionRef} type="button">{finalExercise ? "Finish Session" : "Next Exercise"}</button>
           <button className="min-h-11 rounded bg-zinc-800 px-4" onClick={keepPlaying} type="button">Keep Playing</button>
+          <button className="min-h-11 rounded border border-zinc-600 px-4 sm:col-span-2" onClick={() => dispatch({ type: "END", ...scope, endedAt: now() })} type="button">End Session</button>
         </div>
         {bonusNotice?.token === run.activeExerciseToken && <p className="mt-3 text-sm text-amber-200" role="status">{bonusNotice.message}</p>}
       </div>

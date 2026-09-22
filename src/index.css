@@ -702,6 +702,10 @@ button {
   grid-template-rows: minmax(0, 1fr);
 }
 
+.practice-session-shell .flashcard-practice-stage:has(.mobile-play-keyboard-region[hidden]) > section {
+  min-height: 0;
+}
+
 .practice-session-focus .music-staff {
   height: 100%;
   min-height: 0;
@@ -712,6 +716,49 @@ button {
   max-height: calc(100dvh - 7rem) !important;
   max-width: 100% !important;
   width: 100% !important;
+}
+
+/* Flashcard targets are a single musical instant, so extra host height must not
+   stretch their one-system notation. Sequence notation retains its own
+   content-width rules below. */
+.flashcard-session .music-staff[data-practice-target-presentation="single-note"] svg {
+  width: min(100%, 32rem) !important;
+  height: auto !important;
+  max-height: min(34dvh, 16rem) !important;
+}
+
+.flashcard-session .music-staff[data-practice-target-presentation="chord"] svg {
+  width: min(100%, 28rem) !important;
+  height: auto !important;
+  max-height: min(30dvh, 14rem) !important;
+}
+
+.melody-mobile-play.melody-session-setup,
+.melody-mobile-play.melody-session-starting,
+.melody-mobile-play.melody-session-count-in,
+.melody-mobile-play.melody-session-performing {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.melody-mobile-play .melody-practice {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.melody-mobile-play .melody-score-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.melody-mobile-play .melody-keyboard {
+  flex: 0 1 38%;
+  min-height: 0;
+  max-height: 15rem;
 }
 
 .practice-session-completion-backdrop {

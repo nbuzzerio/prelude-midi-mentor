@@ -983,6 +983,23 @@ describe("MelodySession", () => {
     expect(screen.getByText("Score measure 1").getAttribute("data-staff")).toBe(firstScore);
   });
 
+  it.each([
+    ["standalone", undefined],
+    ["hosted", { isFocusMode: true, isMobilePlayMode: false, showVirtualKeyboard: false }],
+  ] as const)("brings replacement notation into view in %s presentation", async (_label, hostedPracticePresentation) => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    const seeds = ["first", "replacement"];
+    const audio = fakeAudio();
+    render(<MelodySession createAudioContext={() => audio.context} hostedPracticePresentation={hostedPracticePresentation} seedFactory={() => seeds.shift() ?? "later"} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    audio.setNow(8.6);
+    frame();
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
+    expect(scrollIntoView).toHaveBeenCalledExactlyOnceWith({ block: "nearest", inline: "nearest" });
+    expect(screen.getByLabelText("Melody exercise score and preparatory lead-in")).toBeTruthy();
+  });
+
   it("reports audio startup failure without entering performance", async () => {
     render(<MelodySession createAudioContext={() => { throw new Error("no audio"); }} seedFactory={() => "seed"} />);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });

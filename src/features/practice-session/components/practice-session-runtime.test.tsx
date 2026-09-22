@@ -63,6 +63,7 @@ describe("Practice Session runtime", () => {
     const dialog = screen.getByRole("dialog", { name: "Practice Complete" });
     const next = screen.getByRole("button", { name: "Next Exercise" });
     const keepPlaying = screen.getByRole("button", { name: "Keep Playing" });
+    const endSession = screen.getByRole("button", { name: "End Session" });
     expect(document.activeElement).toBe(next);
     expect(engine).toBeTruthy();
     expect(dialog.parentElement?.previousElementSibling?.getAttribute("inert")).not.toBeNull();
@@ -70,10 +71,23 @@ describe("Practice Session runtime", () => {
     expect(screen.getByRole("dialog", { name: "Practice Complete" })).toBeTruthy();
     keepPlaying.focus();
     fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(keepPlaying);
+    endSession.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
     expect(document.activeElement).toBe(next);
     next.focus();
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
-    expect(document.activeElement).toBe(keepPlaying);
+    expect(document.activeElement).toBe(endSession);
+  });
+
+  it("ends from the target-complete overlay through the existing reducer event", () => {
+    render(<Harness exercises={[readyEntry(0, "e1"), readyEntry(6, "e2")]} />);
+    const engine = screen.getByTestId("flashcards");
+    fireEvent.click(screen.getByRole("button", { name: "unit" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
+    expect(screen.queryByTestId("flashcards")).toBeNull();
+    expect(engine.isConnected).toBe(false);
+    expect(screen.getByRole("heading", { name: "Practice session complete" })).toBeTruthy();
   });
 
   it("mounts only the active engine with its exact config and advances immediately", () => {
