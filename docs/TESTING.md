@@ -336,7 +336,7 @@ Automated coverage includes:
 - deterministic musical-event offsets, simultaneous notes, durations, completion, replacement, cancellation, playback failure, stale callbacks, and repeated use
 - cancellable grand-piano playback handles
 - top-level mode switching and Focus Staff suppression
-- Ear Training Mobile Play state preservation and accessible status/answer names
+- Ear Training Mobile Play state preservation, accessible status/answer names, and standalone/hosted pedal-to-Play-Prompt routing through one active MIDI consumer
 
 ### Block 12 — Staff Builder
 

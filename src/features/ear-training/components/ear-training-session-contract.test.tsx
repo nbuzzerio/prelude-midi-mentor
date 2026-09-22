@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
-import { StrictMode, useCallback, useState } from "react";
+import { StrictMode, useCallback, useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import EarTrainingSession from "./ear-training-session";
 
@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   playIncorrectFeedback: vi.fn(),
   playSuccessChirp: vi.fn(),
   resetPrompt: vi.fn(),
+  midiConsumer: null as null | { onSustainPedalChanged?: (isDown: boolean) => void },
+  promptBusy: false,
+  activeMidiConsumers: 0,
 }));
 
 vi.mock("../generate-ear-training-target", async (original) => {
@@ -23,9 +26,13 @@ vi.mock("@/lib/audio/feedback", () => ({
 }));
 vi.mock("../hooks/use-ear-training-prompt", () => ({
   useEarTrainingPrompt: () => {
-    const [state, setState] = useState<"ready" | "heard">("ready");
+    const [state, setState] = useState<"ready" | "playing" | "heard">("ready");
     const playPrompt = useCallback(async (target: unknown) => {
       mocks.playPrompt(target);
+      if (mocks.promptBusy) {
+        setState("playing");
+        return await new Promise<"completed">(() => undefined);
+      }
       setState("heard");
       return "completed";
     }, []);
@@ -48,10 +55,22 @@ vi.mock("@/hooks/use-mobile-play", () => ({
     return { enterMobilePlay: () => setActive(true), exitMobilePlay: () => setActive(false), isMobilePlayMode };
   },
 }));
+vi.mock("@/hooks/use-app-midi-input", () => ({ useAppMidiInput: (consumer: typeof mocks.midiConsumer) => {
+  mocks.midiConsumer = consumer;
+  useEffect(() => {
+    mocks.activeMidiConsumers += 1;
+    return () => {
+      mocks.activeMidiConsumers -= 1;
+      mocks.midiConsumer = null;
+    };
+  }, []);
+  return { connectMidi: vi.fn(), status: "connected", deviceName: "Test Keys", error: null };
+} }));
+vi.mock("@/components/midi/midi-status", () => ({ default: () => null }));
 vi.mock("@/components/audio/feedback-volume-control", () => ({ default: () => <div>Feedback volume</div> }));
 vi.mock("@/components/audio/instrument-volume-control", () => ({ default: () => <div>Instrument volume</div> }));
 
-beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); vi.spyOn(Math, "random").mockReturnValue(0); });
+beforeEach(() => { vi.clearAllMocks(); mocks.midiConsumer = null; mocks.promptBusy = false; mocks.activeMidiConsumers = 0; vi.useFakeTimers(); vi.spyOn(Math, "random").mockReturnValue(0); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 function playPrompt() {
@@ -75,6 +94,45 @@ describe("Ear Training engine contract", () => {
     expect(generateEarTrainingTarget).toHaveBeenCalledTimes(1);
     playPrompt();
     expect(mocks.playPrompt).toHaveBeenCalledExactlyOnceWith(first);
+  });
+  it.each([
+    ["standalone", {}],
+    ["hosted Practice Session", { practiceSessionMode: true, hostedPracticePresentation: { isFocusMode: false, isMobilePlayMode: false, showVirtualKeyboard: false } }],
+  ] as const)("routes pedal-down through the same current-target Play Prompt action in %s", (_label, presentationProps) => {
+    render(<EarTrainingSession initialConfig={config} {...presentationProps} />);
+    const target = vi.mocked(generateEarTrainingTarget).mock.results[0].value;
+    expect(mocks.activeMidiConsumers).toBe(1);
+    act(() => mocks.midiConsumer?.onSustainPedalChanged?.(false));
+    expect(mocks.playPrompt).not.toHaveBeenCalled();
+    act(() => mocks.midiConsumer?.onSustainPedalChanged?.(true));
+    expect(mocks.playPrompt).toHaveBeenCalledExactlyOnceWith(target);
+  });
+  it("keeps button and pedal behind the same playing and completion guards", () => {
+    mocks.promptBusy = true;
+    render(<EarTrainingSession initialConfig={config} />);
+    playPrompt();
+    expect((screen.getByRole("button", { name: "Replay Prompt" }) as HTMLButtonElement).disabled).toBe(true);
+    act(() => mocks.midiConsumer?.onSustainPedalChanged?.(true));
+    expect(mocks.playPrompt).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    mocks.promptBusy = false;
+    render(<EarTrainingSession initialConfig={config} />);
+    playPrompt();
+    fireEvent.click(screen.getByRole("button", { name: "Octave" }));
+    act(() => {
+      mocks.midiConsumer?.onSustainPedalChanged?.(false);
+      mocks.midiConsumer?.onSustainPedalChanged?.(true);
+    });
+    expect(mocks.playPrompt).toHaveBeenCalledTimes(2);
+  });
+  it("releases its sole MIDI consumer on unmount", () => {
+    const view = render(<EarTrainingSession initialConfig={config} />);
+    expect(mocks.activeMidiConsumers).toBe(1);
+    view.unmount();
+    expect(mocks.activeMidiConsumers).toBe(0);
+    expect(mocks.midiConsumer).toBeNull();
+    expect(mocks.playPrompt).not.toHaveBeenCalled();
   });
   it("does not regenerate on Strict Mode effect replay or callback changes", () => {
     const oldCallback = vi.fn(); const currentCallback = vi.fn();

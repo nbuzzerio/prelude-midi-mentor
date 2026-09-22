@@ -189,6 +189,7 @@ The Ear Training feature owns:
 - melodic interval target generation within C4–C6
 - enabled interval and direction settings
 - prompt/replay UI state and response timing
+- a mode-local sustain-pedal shortcut for the existing Play Prompt command
 - interval-name validation and one-failure-per-target statistics
 - Ear Training-specific Mobile Play presentation
 
@@ -286,7 +287,7 @@ Sequence notation consumes the target's explicit meter and durations rather than
 
 ## Ear Training Session
 
-`EarTrainingSession` composes the feature's settings, target, prompt, attempt, and Mobile Play hooks, then renders the normal or Mobile Play presentation. `useEarTrainingTarget` owns stable target generation and locking. `useEarTrainingPrompt` owns prompt playback state, playback cancellation, and response timing. `useEarTrainingAttempt` owns grading, feedback, statistics, and delayed advancement. Answers remain disabled until successful prompt completion, replays preserve target notes and response timing, and a correct answer advances without autoplaying the next target.
+`EarTrainingSession` composes the feature's settings, target, prompt, attempt, shared MIDI-consumer, and Mobile Play hooks, then renders the normal or Mobile Play presentation. `useEarTrainingTarget` owns stable target generation and locking. `useEarTrainingPrompt` owns prompt playback state, playback cancellation, and response timing. `useEarTrainingAttempt` owns grading, feedback, statistics, and delayed advancement. The session maps a normalized sustain-pedal down edge to the same guarded Play Prompt command as the button; pedal-up only rearms the shared MIDI edge detector, and playing, feedback, completion, unmount, and inactive-engine states cannot bypass the command's existing availability rules. Answers remain disabled until successful prompt completion, replays preserve target notes and response timing, and a correct answer advances without autoplaying the next target.
 
 ---
 
@@ -671,7 +672,7 @@ Owns browser MIDI access, physical input listeners, hotplug/disconnect state, an
 
 ## MidiProvider and useAppMidiInput
 
-`MidiProvider` remains mounted above top-level mode switching. It shares connection status, device identity, errors, and `connectMidi()` without requesting permission on page load. A token-safe active-consumer registration routes new note attacks and held-note snapshots only to the currently mounted MIDI-enabled feature. Switching through a feature with no MIDI consumer, such as Ear Training, leaves the physical connection and held state alive without grading attacks.
+`MidiProvider` remains mounted above top-level mode switching. It shares connection status, device identity, errors, and `connectMidi()` without requesting permission on page load. A token-safe active-consumer registration routes new note attacks, held-note snapshots, and normalized CC64 sustain edges only to the currently mounted MIDI-enabled feature. Ear Training intentionally consumes only the sustain edge for Play Prompt; note attacks remain ungraded. Switching through a feature with no MIDI consumer leaves the physical connection and held state alive without grading attacks.
 
 Feature adapters retain all musical behavior. Flashcards, Sequences, and Piece Practice keep their own chord collectors and grading; Staff Builder keeps Capture semantics; Free Play consumes held-note snapshots. An already-held key is published as held environmental state after a mode switch but is never replayed as a new attack.
 

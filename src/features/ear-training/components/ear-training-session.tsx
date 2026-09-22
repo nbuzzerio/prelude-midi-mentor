@@ -1,7 +1,9 @@
 import type { EarTrainingConfig } from "../ear-training-config";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
+import MidiStatus from "@/components/midi/midi-status";
+import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import { useMobilePlay } from "@/hooks/use-mobile-play";
 import type { HostedPracticePresentation } from "@/types/hosted-practice-presentation";
 import { useEarTrainingAttempt } from "../hooks/use-ear-training-attempt";
@@ -59,6 +61,16 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
   });
   const previousSettingsRef = useRef(targetOptions);
 
+  const playCurrentPrompt = useCallback(() => {
+    if (!canReplay || feedback === "correct" || promptState === "playing") return;
+    void playPrompt(getCurrentTarget());
+  }, [canReplay, feedback, getCurrentTarget, playPrompt, promptState]);
+  const midi = useAppMidiInput({
+    onSustainPedalChanged: (isDown) => {
+      if (isDown) playCurrentPrompt();
+    },
+  });
+
   useEffect(() => {
     if (previousSettingsRef.current === targetOptions) return;
     previousSettingsRef.current = targetOptions;
@@ -72,13 +84,16 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
   return <div className={isMobilePlayActive ? isHostedPresentation ? "ear-training-mobile-play grid h-full min-h-0 w-full overflow-hidden bg-zinc-950" : "mobile-play-mode ear-training-mobile-play fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950" : isHostedFocus ? "ear-training-mobile-play grid h-full min-h-0 w-full overflow-hidden bg-zinc-950" : "mx-auto flex w-full max-w-7xl flex-col gap-6"}>
     <header className="ear-training-header flex items-center justify-between gap-2" hidden={isMobilePlayActive || isHostedFocus}>
       <div className="min-w-0"><p className="hidden text-sm font-semibold uppercase tracking-wider text-white/60 sm:block">Ear Training</p><h1 className="truncate text-lg font-bold sm:text-3xl"><span className="sm:hidden">Prelude · Ear Training</span><span className="hidden sm:inline">Prelude: MIDI Mentor</span></h1></div>
-      {!isHostedPresentation && <button className="practice-mobile-play-entry shrink-0 rounded-lg border border-sky-400/50 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} type="button">Mobile Play</button>}
+      <div className="flex items-center gap-2">
+        {!isHostedPresentation && <button className="practice-mobile-play-entry shrink-0 rounded-lg border border-sky-400/50 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} type="button">Mobile Play</button>}
+        <MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} />
+      </div>
     </header>
 
     {isMobilePlayActive && !isHostedPresentation ? <button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.exitMobilePlay} type="button">Exit Mobile Play</button> : null}
 
     <main className="ear-training-stage min-h-0">
-      <EarTrainingCard answerIntervals={settings.enabledIntervals} canReplay={canReplay} feedback={feedback} onAnswer={answer} onPlayPrompt={() => { void playPrompt(getCurrentTarget()); }} promptState={promptState} target={target} wrongAnswers={wrongAnswers} />
+      <EarTrainingCard answerIntervals={settings.enabledIntervals} canReplay={canReplay} feedback={feedback} onAnswer={answer} onPlayPrompt={playCurrentPrompt} promptState={promptState} target={target} wrongAnswers={wrongAnswers} />
     </main>
 
     <section className="grid gap-4 md:grid-cols-2" hidden={isMobilePlayActive || isHostedFocus}>

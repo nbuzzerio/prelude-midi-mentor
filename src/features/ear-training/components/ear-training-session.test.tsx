@@ -54,6 +54,8 @@ vi.mock("@/hooks/use-mobile-play", () => ({
     return { enterMobilePlay: () => setActive(true), exitMobilePlay: () => setActive(false), isMobilePlayMode };
   },
 }));
+vi.mock("@/hooks/use-app-midi-input", () => ({ useAppMidiInput: () => ({ connectMidi: vi.fn(), status: "disconnected", deviceName: null, error: null }) }));
+vi.mock("@/components/midi/midi-status", () => ({ default: () => null }));
 vi.mock("@/components/audio/feedback-volume-control", () => ({ default: () => <div>Feedback volume</div> }));
 vi.mock("@/components/audio/instrument-volume-control", () => ({ default: () => <div>Instrument volume</div> }));
 

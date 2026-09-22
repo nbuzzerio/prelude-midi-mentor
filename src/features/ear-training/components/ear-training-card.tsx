@@ -28,7 +28,7 @@ export default function EarTrainingCard({ answerIntervals, canReplay, feedback, 
   return <section aria-label="Ear Training prompt" className="ear-training-card flex min-h-0 flex-col justify-center gap-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
     <div className="text-center">
       <p aria-live="polite" role="status" className="text-base font-semibold text-white/80">{status}</p>
-      <button className="mt-4 rounded-lg bg-sky-500 px-5 py-3 font-semibold text-white disabled:opacity-50" disabled={!canReplay || feedback === "correct"} onClick={onPlayPrompt} type="button">
+      <button className="mt-4 rounded-lg bg-sky-500 px-5 py-3 font-semibold text-white disabled:opacity-50" disabled={!canReplay || feedback === "correct" || promptState === "playing"} onClick={onPlayPrompt} type="button">
         {promptState !== "ready" || wrongAnswers.size > 0 ? "Replay Prompt" : "Play Prompt"}
       </button>
     </div>
