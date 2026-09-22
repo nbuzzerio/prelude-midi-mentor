@@ -1,4 +1,5 @@
 import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-builder-time";
+import type { PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 
 export const PIECE_PRACTICE_HESITATION_MINIMUM_MS = 2_500;
@@ -134,6 +135,14 @@ export function derivePiecePracticeMeasureDiagnostics(input: Readonly<{
       completedWithoutMistakes: mistakeCount === 0,
     };
   });
+}
+
+export function selectPiecePracticeMeasureDiagnosticChips(diagnostic: PiecePracticeMeasureDiagnostic): readonly PracticeDiagnosticChip[] {
+  return Object.freeze([
+    ...(diagnostic.mistakeCount > 0 ? [{ id: "pitch-problem", kind: "problem", label: "Pitch", count: diagnostic.mistakeCount, accessibleText: `Pitch problem evidence: ${diagnostic.mistakeCount} ${diagnostic.mistakeCount === 1 ? "mistake" : "mistakes"} in measure ${diagnostic.measureNumber}` } as const] : []),
+    ...(diagnostic.hesitationCount > 0 ? [{ id: "hesitation", kind: "problem", label: "Hesitation", count: diagnostic.hesitationCount, accessibleText: `${diagnostic.hesitationCount} tempo-aware slow ${diagnostic.hesitationCount === 1 ? "response" : "responses"} in measure ${diagnostic.measureNumber}` } as const] : []),
+    ...(diagnostic.skippedTargetCount > 0 ? [{ id: "skipped", kind: "process", label: "Skipped", count: diagnostic.skippedTargetCount, accessibleText: `${diagnostic.skippedTargetCount} ${diagnostic.skippedTargetCount === 1 ? "target was" : "targets were"} skipped in measure ${diagnostic.measureNumber}` } as const] : []),
+  ]);
 }
 
 export function formatPiecePracticeWrittenPitch(pitch: PiecePracticeExpectedPitchSnapshot): string {

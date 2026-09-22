@@ -163,6 +163,9 @@ describe("PiecePracticeSession", () => {
     expect(within(screen.getByLabelText("Measure result color key")).getByText("Both")).toBeTruthy();
     const rows = screen.getByLabelText("Measure-by-measure results").querySelectorAll(".piece-practice-measure-result");
     expect([...rows].map((row) => row.getAttribute("data-result-presentation"))).toEqual(["clean", "mistake", "hesitation", "both", "skip-only"]);
+    expect(screen.getByLabelText("Pitch problem evidence: 1 mistake in measure 2").textContent).toBe("Pitch ×1");
+    expect(screen.getByLabelText("1 tempo-aware slow response in measure 3").textContent).toBe("Hesitation ×1");
+    expect(screen.getByLabelText("1 target was skipped in measure 5").textContent).toBe("Skipped ×1");
     fireEvent.click(screen.getByLabelText("Show problem measures only"));
     expect(screen.getByLabelText("Measure-by-measure results").children).toHaveLength(4);
   });

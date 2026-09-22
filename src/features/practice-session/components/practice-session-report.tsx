@@ -1,9 +1,10 @@
-import { selectEarTrainingPracticeReportPhases, type EarTrainingPracticeReport } from "@/features/ear-training/ear-training-practice-result";
-import { selectFlashcardPracticeReportPhases, type FlashcardPracticeReport } from "@/features/flashcards/flashcard-practice-result";
+import { PracticeDiagnosticChips, type PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
+import { selectEarTrainingDiagnosticChips, selectEarTrainingPracticeReportPhases, type EarTrainingPracticeReport } from "@/features/ear-training/ear-training-practice-result";
+import { selectFlashcardDiagnosticChips, selectFlashcardPracticeReportPhases, type FlashcardPracticeReport } from "@/features/flashcards/flashcard-practice-result";
 import { MelodyResultDetail, MelodyResultMetrics } from "@/features/melody/components/melody-result-detail";
 import { getMelodyContinuousTrialLatestResult, getMelodyContinuousTrialRetryCount, isMelodyContinuousTrialMastered } from "@/features/melody/melody-continuous-practice";
-import { selectMelodyPracticeReportPhases, type MelodyPracticeReport } from "@/features/melody/melody-practice-result";
-import { selectSequencePracticeReportPhases, type SequencePracticeReport } from "@/features/sequences/sequence-practice-result";
+import { selectMelodyPracticeDiagnosticChips, selectMelodyPracticeReportPhases, type MelodyPracticeReport } from "@/features/melody/melody-practice-result";
+import { selectSequenceDiagnosticChips, selectSequencePracticeReportPhases, type SequencePracticeReport } from "@/features/sequences/sequence-practice-result";
 import { derivePracticeSessionReport, type PracticeSessionExerciseReport, type PracticeSessionReportExerciseOutcome } from "../practice-session-report";
 import type { CompletedPracticeSessionRun } from "../practice-session-runtime";
 
@@ -32,6 +33,7 @@ function DiagnosticPhase({ title, children }: Readonly<{ title: string; children
 
 function FlashcardReportView({ report }: Readonly<{ report: FlashcardPracticeReport }>) {
   return <div className="space-y-3">
+    <PracticeDiagnosticChips chips={selectFlashcardDiagnosticChips(report)} label="Flashcard diagnostic shorthand" />
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Metric label="Targets answered" value={report.completedTargetCount} /><Metric label="First try" value={report.firstTryTargetCount} />
       <Metric label="Answered after retry" value={report.retriedTargetCount} /><Metric label="Incorrect attempts" value={report.incorrectAttemptCount} />
@@ -53,6 +55,7 @@ function FlashcardDiagnostics({ exercise }: Readonly<{ exercise: PracticeSession
 
 function SequenceReportView({ report }: Readonly<{ report: SequencePracticeReport }>) {
   return <div className="space-y-3">
+    <PracticeDiagnosticChips chips={selectSequenceDiagnosticChips(report)} label="Sequence diagnostic shorthand" />
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Metric label="Sequences completed" value={report.completedSequenceCount} /><Metric label="First try" value={report.firstTrySequenceCount} />
       <Metric label="Completed after retry" value={report.retriedSequenceCount} /><Metric label="Incorrect sequence attempts" value={report.incorrectSequenceAttemptCount} />
@@ -75,6 +78,7 @@ function SequenceDiagnostics({ exercise }: Readonly<{ exercise: PracticeSessionE
 
 function EarTrainingReportView({ report }: Readonly<{ report: EarTrainingPracticeReport }>) {
   return <div className="space-y-3">
+    <PracticeDiagnosticChips chips={selectEarTrainingDiagnosticChips(report)} label="Ear Training diagnostic shorthand" />
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Metric label="Intervals identified" value={report.completedIdentificationCount} /><Metric label="First guess" value={report.firstGuessIdentificationCount} />
       <Metric label="Identified after another guess" value={report.retriedIdentificationCount} /><Metric label="Incorrect guesses" value={report.incorrectGuessCount} />
@@ -97,6 +101,7 @@ function EarTrainingDiagnostics({ exercise }: Readonly<{ exercise: PracticeSessi
 function MelodyReportView({ report, compact = false }: Readonly<{ report: MelodyPracticeReport; compact?: boolean }>) {
   if (report.orderedTrials.length === 0) return <p>No completed Melody diagnostic trials were recorded.</p>;
   return <div className="space-y-4">
+    <PracticeDiagnosticChips chips={selectMelodyPracticeDiagnosticChips(report)} label="Melody diagnostic shorthand and neutral metrics" />
     {report.interrupted && <p>The timed Melody exercise was interrupted; completed trials were preserved.</p>}
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Metric label="Diagnostic trials" value={report.summary.trialsCompleted} /><Metric label="Initially pitch-perfect" value={report.summary.initiallyPitchPerfectTrials} />
@@ -159,7 +164,7 @@ export function PracticeSessionCompletedReport({ run, onBack, renderActions }: R
     <section aria-labelledby="exercise-report-title" className="space-y-3">
       <h2 className="text-lg font-semibold" id="exercise-report-title">Exercises in prescribed order</h2>
       <ol className="space-y-3">{report.exercises.map((exercise) => <li className="rounded-xl border border-white/10 bg-white/5 p-4" key={exercise.exerciseId}>
-        <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs text-zinc-400">Exercise {exercise.exerciseIndex + 1} of {report.exercises.length} · {exercise.engine}</p><h3 className="font-semibold">{exercise.label}</h3></div><p className="rounded-full bg-zinc-800 px-3 py-1 text-sm">{outcomeText(exercise.outcome)}</p></div>
+        <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs text-zinc-400">Exercise {exercise.exerciseIndex + 1} of {report.exercises.length} · {exercise.engine}</p><h3 className="font-semibold">{exercise.label}</h3></div><div className="grid justify-items-end gap-2"><p className="rounded-full bg-zinc-800 px-3 py-1 text-sm">{outcomeText(exercise.outcome)}</p>{exercise.outcome === "skipped" && <PracticeDiagnosticChips chips={[{ id: "skipped", kind: "process", label: "Skipped", count: 1, accessibleText: "Exercise was deliberately skipped for today" } satisfies PracticeDiagnosticChip]} label="Exercise process shorthand" />}</div></div>
         <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Metric label="Prescribed work" value={`${exercise.prescribedUnitsCompleted} ${exercise.prescribedUnitsCompleted === 1 ? "unit" : "units"}`} />
           <Metric label="Prescribed active time" value={formatDuration(exercise.prescribedActiveDurationMs)} />

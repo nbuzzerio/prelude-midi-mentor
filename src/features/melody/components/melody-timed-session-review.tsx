@@ -1,5 +1,6 @@
 import { forwardRef, type Ref } from "react";
 
+import { PracticeDiagnosticChips, type PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 import {
   getMelodyContinuousTrialLatestResult,
   getMelodyContinuousTrialRetryCount,
@@ -20,6 +21,7 @@ import {
   type MelodyIntervalStatistic,
 } from "../melody-interval-statistics";
 import type { MelodyAttemptResult } from "../melody-scoring";
+import { selectMelodyAttemptDiagnosticChips } from "../melody-practice-result";
 import { MelodyResultDetail, MelodyResultMetrics } from "./melody-result-detail";
 
 export type MelodyReviewFilter = "all" | "needs-review";
@@ -228,6 +230,10 @@ export const MelodyTimedSessionReview = forwardRef<
               <p className="font-semibold">{isMelodyContinuousTrialMastered(selectedTrial) ? "Mastered" : "Needs Review"}</p>
               {pinnedTrialId === selectedTrial.id && <p>Repair complete. This trial remains selected.</p>}
               <p>Original + {retryCount} {retryCount === 1 ? "retry" : "retries"}</p>
+              <PracticeDiagnosticChips chips={[
+                ...(retryCount > 0 ? [{ id: "retried", kind: "process", label: "Retried", count: retryCount, accessibleText: `${retryCount} Melody Repair ${retryCount === 1 ? "retry" : "retries"}` } satisfies PracticeDiagnosticChip] : []),
+                ...selectMelodyAttemptDiagnosticChips(detailedResult),
+              ]} label="Selected Melody trial shorthand and neutral metrics" />
             </header>
 
             <div className="melody-review-comparison grid gap-4 lg:grid-cols-2">

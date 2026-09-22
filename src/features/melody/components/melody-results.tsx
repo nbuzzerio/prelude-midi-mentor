@@ -1,5 +1,7 @@
 import { forwardRef } from "react";
 
+import { PracticeDiagnosticChips } from "@/components/practice-diagnostic-chips";
+import { selectMelodyAttemptDiagnosticChips } from "../melody-practice-result";
 import type { MelodyAttemptResult } from "../melody-scoring";
 import type { MelodyExercise } from "../melody-types";
 import { MelodyResultDetail, MelodyResultMetrics } from "./melody-result-detail";
@@ -38,6 +40,7 @@ export const MelodyResults = forwardRef<HTMLHeadingElement, MelodyResultsProps>(
           </button>
         </header>
 
+        <PracticeDiagnosticChips chips={selectMelodyAttemptDiagnosticChips(result)} label="Melody result shorthand and neutral metrics" />
         <MelodyResultMetrics result={result} />
         <MelodyResultDetail
           exercise={exercise}

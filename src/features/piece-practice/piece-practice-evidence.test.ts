@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { derivePiecePracticeMeasureDiagnostics, getPiecePracticeHesitationThresholdMs, PIECE_PRACTICE_HESITATION_EXPECTED_WINDOW_CAP_MS, PIECE_PRACTICE_HESITATION_MINIMUM_MS, PIECE_PRACTICE_HESITATION_MULTIPLIER } from "./piece-practice-evidence";
+import { derivePiecePracticeMeasureDiagnostics, getPiecePracticeHesitationThresholdMs, PIECE_PRACTICE_HESITATION_EXPECTED_WINDOW_CAP_MS, PIECE_PRACTICE_HESITATION_MINIMUM_MS, PIECE_PRACTICE_HESITATION_MULTIPLIER, selectPiecePracticeMeasureDiagnosticChips } from "./piece-practice-evidence";
 
 describe("Piece Practice diagnostic evidence", () => {
   it("uses named forgiving hesitation constants with a floor and capped musical window", () => {
@@ -23,5 +23,9 @@ describe("Piece Practice diagnostic evidence", () => {
       { mistakeCount: 0, hesitationCount: 0, skippedTargetCount: 1, isProblem: true },
       { mistakeCount: 0, hesitationCount: 0, skippedTargetCount: 0, isProblem: false },
     ]);
+    expect(results.map((result) => selectPiecePracticeMeasureDiagnosticChips(result).map(({ id }) => id))).toEqual([
+      ["pitch-problem"], ["hesitation"], ["skipped"], [],
+    ]);
+    expect(selectPiecePracticeMeasureDiagnosticChips(results[2]!).map(({ label }) => label)).toEqual(["Skipped"]);
   });
 });

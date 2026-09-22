@@ -50,6 +50,8 @@ describe("Practice Session completed report", () => {
     fireEvent.click(disclosure);
     expect(disclosure.closest("details")?.open).toBe(true);
     expect(screen.queryByRole("heading", { name: "Bonus", level: 4 })).toBeNull();
+    expect(screen.getByLabelText("Pitch problem evidence: 1 incorrect attempt").textContent).toBe("Pitch ×1");
+    expect(screen.getByLabelText("1 target was answered after retry").textContent).toBe("Retried ×1");
     expect(screen.getByText("Targets answered").nextElementSibling?.textContent).toBe("1");
     expect(screen.getByText("Answered after 1 incorrect attempt · 2s")).toBeTruthy();
   });

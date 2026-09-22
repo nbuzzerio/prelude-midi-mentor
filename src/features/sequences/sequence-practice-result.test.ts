@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendCompletedSequence, appendSequenceIncorrectAttempt, createSequencePracticeResult, selectSequencePracticeReport, selectSequencePracticeReportPhases, snapshotSequencePracticeTarget } from "./sequence-practice-result";
+import { appendCompletedSequence, appendSequenceIncorrectAttempt, createSequencePracticeResult, selectSequenceDiagnosticChips, selectSequencePracticeReport, selectSequencePracticeReportPhases, snapshotSequencePracticeTarget } from "./sequence-practice-result";
 
 const target = snapshotSequencePracticeTarget({ clef: "treble", name: { primary: "C major" }, steps: [{ durationTicks: 480, notes: [{ midiNumber: 60, name: "C", octave: 4 }] }], timing: { meter: { numerator: 4, denominator: 4 }, ticksPerQuarter: 480 } }, 10);
 describe("Sequence practice result", () => {
@@ -13,11 +13,14 @@ describe("Sequence practice result", () => {
   it("selects sequence terminology, timing, retries, and repertoire coverage", () => {
     let evidence = appendSequenceIncorrectAttempt(createSequencePracticeResult(["c-major", "g-major"]), { target, failedStepIndex: 0, expectedMidiNumbers: [60], submittedMidiNumbers: [61], source: "virtual" });
     evidence = appendCompletedSequence(evidence, { target, completionDurationMs: 2400, source: "virtual", repertoireId: "c-major" });
-    expect(selectSequencePracticeReport(evidence)).toMatchObject({
+    const report = selectSequencePracticeReport(evidence);
+    expect(report).toMatchObject({
       completedSequenceCount: 1, incorrectSequenceAttemptCount: 1, firstTrySequenceCount: 0,
       retriedSequenceCount: 1, averageCompletionDurationMs: 2400,
       configuredRepertoireCount: 2, completedRepertoireCount: 1, unresolvedIncorrectAttempts: [],
     });
+    expect(selectSequenceDiagnosticChips(report).map(({ id, count }) => [id, count])).toEqual([["pitch-problem", 1], ["retried", 1]]);
+    expect(evidence.incorrectSequenceAttempts[0]).toMatchObject({ expectedMidiNumbers: [60], submittedMidiNumbers: [61], failedStepIndex: 0 });
   });
   it("splits Bonus sequence evidence and phase-local unresolved attempts", () => {
     const boundary = appendSequenceIncorrectAttempt(createSequencePracticeResult(["c-major"]), { target, failedStepIndex: 0, expectedMidiNumbers: [60], submittedMidiNumbers: [61], source: "midi" });

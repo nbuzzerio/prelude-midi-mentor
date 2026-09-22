@@ -1,4 +1,5 @@
 import type { Clef, PracticeTargetName, SequenceTarget } from "@/types/practice";
+import type { PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 import type { ScaleRepertoireId } from "./scale-repertoire";
 
 export type SequencePracticeAnswerSource = "midi" | "virtual" | "simulation";
@@ -58,6 +59,12 @@ export function selectSequencePracticeReport(result: SequencePracticeResultV1): 
     completedSequences: Object.freeze([...result.completedSequences]),
     unresolvedIncorrectAttempts: Object.freeze(result.incorrectSequenceAttempts.filter(({ target }) => !completedTargetIds.has(target.id))),
   });
+}
+export function selectSequenceDiagnosticChips(report: SequencePracticeReport): readonly PracticeDiagnosticChip[] {
+  return Object.freeze([
+    ...(report.incorrectSequenceAttemptCount > 0 ? [{ id: "pitch-problem", kind: "problem", label: "Pitch", count: report.incorrectSequenceAttemptCount, accessibleText: `Pitch problem evidence: ${report.incorrectSequenceAttemptCount} incorrect sequence ${report.incorrectSequenceAttemptCount === 1 ? "attempt" : "attempts"}` } as const] : []),
+    ...(report.retriedSequenceCount > 0 ? [{ id: "retried", kind: "process", label: "Retried", count: report.retriedSequenceCount, accessibleText: `${report.retriedSequenceCount} ${report.retriedSequenceCount === 1 ? "sequence was" : "sequences were"} completed after retry` } as const] : []),
+  ]);
 }
 function isSequenceEvidencePrefix<T>(boundary: readonly T[], final: readonly T[]): boolean {
   return boundary.length <= final.length && boundary.every((item, index) => JSON.stringify(item) === JSON.stringify(final[index]));

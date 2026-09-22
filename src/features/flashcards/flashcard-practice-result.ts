@@ -1,4 +1,5 @@
 import type { Clef, PracticeTarget, PracticeTargetName } from "@/types/practice";
+import type { PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 
 export type FlashcardPracticeAnswerSource = "midi" | "virtual" | "simulation";
 
@@ -77,6 +78,13 @@ export function selectFlashcardPracticeReport(result: FlashcardPracticeResultV1)
     completedTargets: Object.freeze([...result.completedTargets]),
     unresolvedIncorrectAttempts: Object.freeze(result.incorrectAttempts.filter(({ target }) => !completedTargetIds.has(target.id))),
   });
+}
+
+export function selectFlashcardDiagnosticChips(report: FlashcardPracticeReport): readonly PracticeDiagnosticChip[] {
+  return Object.freeze([
+    ...(report.incorrectAttemptCount > 0 ? [{ id: "pitch-problem", kind: "problem", label: "Pitch", count: report.incorrectAttemptCount, accessibleText: `Pitch problem evidence: ${report.incorrectAttemptCount} incorrect ${report.incorrectAttemptCount === 1 ? "attempt" : "attempts"}` } as const] : []),
+    ...(report.retriedTargetCount > 0 ? [{ id: "retried", kind: "process", label: "Retried", count: report.retriedTargetCount, accessibleText: `${report.retriedTargetCount} ${report.retriedTargetCount === 1 ? "target was" : "targets were"} answered after retry` } as const] : []),
+  ]);
 }
 
 function isFlashcardEvidencePrefix<T>(boundary: readonly T[], final: readonly T[]): boolean {

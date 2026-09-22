@@ -1,4 +1,5 @@
 import type { IntervalDirection, MusicalInterval } from "@/lib/music/intervals";
+import type { PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 import type { EarTrainingTarget } from "./ear-training-types";
 
 export type EarTrainingTargetSnapshot = Readonly<{
@@ -47,6 +48,12 @@ export function selectEarTrainingPracticeReport(result: EarTrainingPracticeResul
     completedTargets: Object.freeze([...result.completedTargets]),
     unresolvedIncorrectGuesses: Object.freeze(result.incorrectGuesses.filter(({ target }) => !completedTargetIds.has(target.id))),
   });
+}
+export function selectEarTrainingDiagnosticChips(report: EarTrainingPracticeReport): readonly PracticeDiagnosticChip[] {
+  return Object.freeze([
+    ...(report.incorrectGuessCount > 0 ? [{ id: "identification", kind: "problem", label: "Identification", count: report.incorrectGuessCount, accessibleText: `Identification problem evidence: ${report.incorrectGuessCount} incorrect ${report.incorrectGuessCount === 1 ? "guess" : "guesses"}` } as const] : []),
+    ...(report.retriedIdentificationCount > 0 ? [{ id: "retried", kind: "process", label: "Retried", count: report.retriedIdentificationCount, accessibleText: `${report.retriedIdentificationCount} ${report.retriedIdentificationCount === 1 ? "interval was" : "intervals were"} identified after another guess` } as const] : []),
+  ]);
 }
 function isEarTrainingEvidencePrefix<T>(boundary: readonly T[], final: readonly T[]): boolean {
   return boundary.length <= final.length && boundary.every((item, index) => JSON.stringify(item) === JSON.stringify(final[index]));

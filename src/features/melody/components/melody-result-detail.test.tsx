@@ -84,6 +84,10 @@ describe("MelodyResults workflow wrapper", () => {
       result={detailedResult}
     />);
     expect(screen.getAllByLabelText("Melody pitch result score")).toHaveLength(1);
+    expect(screen.getByLabelText(/Pitch problem evidence/).dataset.diagnosticKind).toBe("problem");
+    expect(screen.getByLabelText(/Pitch metric:/).dataset.diagnosticKind).toBe("metric");
+    expect(screen.getByLabelText(/Movement metric:/).textContent).toMatch(/^Movement \d+%$/);
+    expect(screen.getByLabelText(/Timing metric:/).textContent).toMatch(/^Timing \d+%$/);
     fireEvent.click(screen.getByRole("button", { name: "Retry Same" }));
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));

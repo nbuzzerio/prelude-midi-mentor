@@ -4,6 +4,7 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Added accessible Practice Diagnostic Shorthand chips derived from engine-native evidence: Pitch, Identification, Hesitation, Retried, and Skipped, plus neutral numeric Melody Pitch/Movement/Timing metrics without new thresholds or grading semantics.
 - Added compact Piece Library sorting by Recently Played, Recently Updated, or Alphabetical, backed by honest browser-local practice timestamps recorded only when a saved score successfully enters Piece Practice.
 - Migrated Staff Builder library envelopes to schema v4 without fabricating history; score exports/imports and duplicates remain free of source practice recency.
 - Added Ear Training’s mode-local sustain-pedal shortcut for the existing guarded Play Prompt action in standalone and hosted Practice Sessions.

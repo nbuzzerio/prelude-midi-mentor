@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appendMelodyContinuousTrialRetry, createMelodyContinuousDiagnosticTrial } from "./melody-continuous-practice";
 import type { MelodyAttemptResult } from "./melody-scoring";
 import type { MelodyExercise } from "./melody-types";
-import { createMelodyPracticeResult, selectMelodyPracticeReport, selectMelodyPracticeReportPhases } from "./melody-practice-result";
+import { createMelodyPracticeResult, selectMelodyAttemptDiagnosticChips, selectMelodyPracticeDiagnosticChips, selectMelodyPracticeReport, selectMelodyPracticeReportPhases } from "./melody-practice-result";
 
 describe("Melody practice result", () => {
   it("freezes the trial collection and preserves interruption without adding a score", () => {
@@ -36,5 +36,25 @@ describe("Melody practice result", () => {
     expect(phases.bonus?.additionalRepairRetries).toBe(1);
     expect(selectMelodyPracticeReportPhases(final, final).bonus).toBeNull();
     expect(JSON.stringify(boundary)).toBe(before);
+  });
+
+  it("derives distinct pitch evidence, neutral metrics, and Repair retries without thresholds", () => {
+    const attempt = {
+      attacks: [{ status: "wrong-pitch" }], exerciseId: "exercise", extraAttackCount: 0, extras: [], missedAttackCount: 0,
+      movementScorePercent: 76, movements: [], pitchScorePercent: 82, timingScorePercent: 71,
+    } as unknown as MelodyAttemptResult;
+    const attemptChips = selectMelodyAttemptDiagnosticChips(attempt);
+    expect(attemptChips.map(({ id, kind, value }) => [id, kind, value])).toEqual([
+      ["pitch-problem", "problem", undefined], ["melody-pitch-metric", "metric", "82%"],
+      ["melody-movement-metric", "metric", "76%"], ["melody-timing-metric", "metric", "71%"],
+    ]);
+    expect(selectMelodyAttemptDiagnosticChips({ ...attempt, attacks: [], movementScorePercent: null }).map(({ id }) => id))
+      .toEqual(["melody-pitch-metric", "melody-timing-metric"]);
+    const exercise = { id: "exercise", seed: "seed" } as MelodyExercise;
+    const trial = createMelodyContinuousDiagnosticTrial(1, exercise, attempt);
+    const retried = appendMelodyContinuousTrialRetry([trial], trial.id, { ...attempt, pitchScorePercent: 100 });
+    const report = selectMelodyPracticeReport(createMelodyPracticeResult(retried));
+    expect(selectMelodyPracticeDiagnosticChips(report).find(({ id }) => id === "retried")?.count).toBe(1);
+    expect(selectMelodyPracticeDiagnosticChips(report).some(({ accessibleText }) => /bad|warning|failed/i.test(accessibleText))).toBe(false);
   });
 });

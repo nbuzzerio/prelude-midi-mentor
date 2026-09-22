@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendFlashcardCompletedTarget, appendFlashcardIncorrectAttempt, createFlashcardPracticeResult, selectFlashcardPracticeReport, selectFlashcardPracticeReportPhases, snapshotFlashcardPracticeTarget } from "./flashcard-practice-result";
+import { appendFlashcardCompletedTarget, appendFlashcardIncorrectAttempt, createFlashcardPracticeResult, selectFlashcardDiagnosticChips, selectFlashcardPracticeReport, selectFlashcardPracticeReportPhases, snapshotFlashcardPracticeTarget } from "./flashcard-practice-result";
 
 const target = snapshotFlashcardPracticeTarget({ clef: "treble", name: { primary: "C" }, notes: [{ midiNumber: 60, name: "C", octave: 4 }] }, 10);
 describe("Flashcard practice result", () => {
@@ -19,6 +19,8 @@ describe("Flashcard practice result", () => {
     expect(report).toMatchObject({ completedTargetCount: 1, incorrectAttemptCount: 2, firstTryTargetCount: 0, retriedTargetCount: 1, averageResponseDurationMs: 1000 });
     expect(report.unresolvedIncorrectAttempts.map(({ target: item }) => item.id)).toEqual([other.id]);
     expect(Object.isFrozen(report)).toBe(true);
+    expect(selectFlashcardDiagnosticChips(report).map(({ id, count }) => [id, count])).toEqual([["pitch-problem", 2], ["retried", 1]]);
+    expect(selectFlashcardDiagnosticChips(selectFlashcardPracticeReport(appendFlashcardCompletedTarget(createFlashcardPracticeResult(), { target, submittedMidiNumbers: [60], source: "midi", responseDurationMs: 9_000 })))).toEqual([]);
   });
   it("splits appended Bonus evidence without mutating the boundary", () => {
     const boundary = appendFlashcardIncorrectAttempt(createFlashcardPracticeResult(), { target, submittedMidiNumbers: [61], source: "midi" });

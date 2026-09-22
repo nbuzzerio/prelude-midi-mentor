@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendFlashcardCompletedTarget, createFlashcardPracticeResult, snapshotFlashcardPracticeTarget } from "@/features/flashcards/flashcard-practice-result";
+import { appendFlashcardCompletedTarget, appendFlashcardIncorrectAttempt, createFlashcardPracticeResult, snapshotFlashcardPracticeTarget } from "@/features/flashcards/flashcard-practice-result";
 import { createMelodyContinuousDiagnosticTrial } from "@/features/melody/melody-continuous-practice";
 import { createMelodyPracticeResult } from "@/features/melody/melody-practice-result";
 import type { MelodyAttemptResult } from "@/features/melody/melody-scoring";
@@ -18,7 +18,7 @@ const entry = (option: number, id: string): PracticeExerciseEntry => {
 const firstEntry = entry(0, "first");
 const target1 = snapshotFlashcardPracticeTarget({ clef: "treble", name: { primary: "C" }, notes: [{ midiNumber: 60, name: "C", octave: 4 }] }, 1);
 const target2 = snapshotFlashcardPracticeTarget({ clef: "treble", name: { primary: "D" }, notes: [{ midiNumber: 62, name: "D", octave: 4 }] }, 2);
-const boundary = appendFlashcardCompletedTarget(createFlashcardPracticeResult(), { responseDurationMs: 500, source: "midi", submittedMidiNumbers: [60], target: target1 });
+const boundary = appendFlashcardCompletedTarget(appendFlashcardIncorrectAttempt(createFlashcardPracticeResult(), { source: "midi", submittedMidiNumbers: [61], target: target1 }), { responseDurationMs: 500, source: "midi", submittedMidiNumbers: [60], target: target1 });
 const final = appendFlashcardCompletedTarget(boundary, { responseDurationMs: 700, source: "midi", submittedMidiNumbers: [62], target: target2 });
 function exercise(prescription: PracticeExerciseEntry, index: number, outcome: PracticeSessionExerciseReport["outcome"]): PracticeSessionExerciseReport {
   return { exerciseIndex: index, exerciseId: prescription.id, label: prescription.label, engine: prescription.engine, prescription, entered: outcome !== "never-entered", outcome,
@@ -56,6 +56,7 @@ describe("Practice Session printable report", () => {
     rerender(<PracticeSessionPrintableReport options={{ ...options, exerciseSummaries: false }} report={report} />); expect(screen.queryByText("Exercises")).toBeNull();
     rerender(<PracticeSessionPrintableReport options={DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS} report={report} />);
     expect(screen.getByText("Session summary")).toBeTruthy(); expect(screen.getAllByText("Exercise summary")).toHaveLength(3); expect(screen.getAllByText("Exercise details")).toHaveLength(3); expect(screen.getAllByText("Active exercise time")).toHaveLength(3); expect(screen.getByText(/Exercise 2 of 3/)).toBeTruthy(); expect(screen.getByText(/Exercise 3 of 3/)).toBeTruthy();
+    expect(screen.getByLabelText("Exercise was deliberately skipped for today").textContent).toBe("Skipped ×1");
   });
 
   it("uses compact existing Melody semantics without duplicating notation detail", () => {
@@ -66,6 +67,9 @@ describe("Practice Session printable report", () => {
     const melodyReport = { ...report, exercises: [{ ...exercise(melodyEntry, 0, "completed"), targetBoundaryEngineResult: melodyResult, finalEngineResult: melodyResult }] };
     render(<PracticeSessionPrintableReport options={DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS} report={melodyReport} />);
     expect(screen.getByText("Original Pitch average").nextElementSibling?.textContent).toBe("82%");
+    expect(screen.getByLabelText("Original Pitch average metric: 82 percent").textContent).toBe("Pitch 82%");
+    expect(screen.queryByLabelText(/Movement average metric/)).toBeNull();
+    expect(screen.getByLabelText("Original Timing average metric: 76 percent").textContent).toBe("Timing 76%");
     expect(screen.getByText(/Trial 1: Needs review/)).toBeTruthy();
     expect(screen.queryByLabelText("Melody pitch result score")).toBeNull();
   });
@@ -73,6 +77,8 @@ describe("Practice Session printable report", () => {
   it("prints prescribed and Bonus engine diagnostics from Phase 3 selectors", () => {
     const { rerender } = render(<PracticeSessionPrintableReport options={DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS} report={report} />);
     expect(screen.getByRole("heading", { name: "Prescribed", level: 4 })).toBeTruthy(); expect(screen.getByRole("heading", { name: "Bonus", level: 4 })).toBeTruthy();
+    expect(screen.getByLabelText("Pitch problem evidence: 1 incorrect attempt").textContent).toBe("Pitch ×1");
+    expect(screen.getByLabelText("1 target was answered after retry").textContent).toBe("Retried ×1");
     expect(screen.getByText("C")).toBeTruthy(); expect(screen.getByText("D")).toBeTruthy(); expect(screen.queryByText(/generic score/i)).toBeNull();
     const unsplit = { ...report, exercises: [{ ...report.exercises[0]!, targetBoundaryEngineResult: null, finalEngineResult: final }] };
     rerender(<PracticeSessionPrintableReport options={DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS} report={unsplit} />);
