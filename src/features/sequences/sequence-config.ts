@@ -1,6 +1,6 @@
 import { isSelectableRepertoire, type ScalePracticeMode, type ScaleRepertoireId } from "./scale-repertoire";
 import { booleanField, enumField, parseConfig, requireConfig, selectionField } from "@/lib/config-validation";
-import type { SequenceExerciseType, PracticeClefMode, SequenceDirection, SequenceInterval, SequenceNoteCategory, SequenceScale, SequenceScaleDirection, SequenceArpeggio, SequenceArpeggioDirection } from "@/types/practice";
+import { PRACTICE_CLEF_MODES, PRACTICE_NOTE_CATEGORIES, SEQUENCE_ARPEGGIO_DIRECTIONS, SEQUENCE_ARPEGGIOS, SEQUENCE_DIRECTIONS, SEQUENCE_SCALE_DIRECTIONS, SEQUENCE_SCALES, type SequenceExerciseType, type PracticeClefMode, type SequenceDirection, type SequenceInterval, type SequenceNoteCategory, type SequenceScale, type SequenceScaleDirection, type SequenceArpeggio, type SequenceArpeggioDirection } from "@/types/practice";
 import { MUSICAL_INTERVALS } from "@/lib/music/intervals";
 import { CHORD_PROGRESSION_TEMPLATES, SUPPORTED_CHORD_PROGRESSION_KEYS, type ChordProgressionKeyId, type ChordProgressionTemplateId } from "@/lib/music/chord-progressions";
 
@@ -46,15 +46,15 @@ export function parseSequenceConfig(value: unknown) {
     scalePracticeMode: enumField(["random", "repertoire-in-order", "repertoire-shuffle"]),
     scaleRepertoire: isSelectableRepertoire,
     exerciseType: enumField(["intervals", "scales", "arpeggios", "chord-progressions"]),
-    mode: enumField(["bass", "treble", "mixed"]),
+    mode: enumField(PRACTICE_CLEF_MODES),
     showTargetName: booleanField,
-    enabledDirections: selectionField(["ascending", "descending"]),
+    enabledDirections: selectionField(SEQUENCE_DIRECTIONS),
     enabledIntervals: selectionField(MUSICAL_INTERVALS),
-    enabledNoteCategories: selectionField(["naturals", "accidentals"]),
-    enabledScales: selectionField(["major", "natural-minor", "harmonic-minor", "melodic-minor", "major-pentatonic", "minor-pentatonic"]),
-    enabledScaleDirections: selectionField(["ascending", "descending", "ascending-descending"]),
-    enabledArpeggios: selectionField(["major", "minor", "diminished", "augmented", "dominant-seventh", "major-seventh", "minor-seventh"]),
-    enabledArpeggioDirections: selectionField(["ascending", "descending", "ascending-descending"]),
+    enabledNoteCategories: selectionField(PRACTICE_NOTE_CATEGORIES),
+    enabledScales: selectionField(SEQUENCE_SCALES),
+    enabledScaleDirections: selectionField(SEQUENCE_SCALE_DIRECTIONS),
+    enabledArpeggios: selectionField(SEQUENCE_ARPEGGIOS),
+    enabledArpeggioDirections: selectionField(SEQUENCE_ARPEGGIO_DIRECTIONS),
     enabledChordProgressionKeyIds: selectionField(SUPPORTED_CHORD_PROGRESSION_KEYS.map(({ id }) => id)),
     enabledChordProgressionTemplateIds: selectionField(CHORD_PROGRESSION_TEMPLATES.map(({ id }) => id)),
   }, 2);

@@ -17,8 +17,9 @@ class MemoryStorage implements PracticeSessionStorage {
 }
 const ids = (...values: string[]) => vi.fn(() => values.shift() ?? `id-${Math.random()}`);
 const readyLibrary = (lastUsedPresetId: string | null = null) => ({
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   presets: [{ schemaVersion: 1 as const, id: "p1", name: "Daily", exercises: [{ ...PRACTICE_SESSION_BUILDER_OPTIONS[0]!.createEntry("e1"), target: { kind: "correct-answers" as const, count: 2 } }] }],
+  curricula: [],
   lastUsedPresetId,
 });
 
@@ -80,7 +81,7 @@ describe("Practice Session builder", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Fresh" }));
     expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false); expect(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)).toBe(raw);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(JSON.parse(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)!)).toEqual({ schemaVersion: 1, presets: [], lastUsedPresetId: null });
+    expect(JSON.parse(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)!)).toEqual({ schemaVersion: 2, presets: [], curricula: [], lastUsedPresetId: null });
     confirm.mockRestore();
   });
 

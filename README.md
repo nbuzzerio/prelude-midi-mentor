@@ -403,7 +403,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-The package is on the in-development **v2.8.0** Practice Session comprehensive report. Phases 1–3 provide transient lifecycle evidence, engine-owned results/selectors, and the responsive completed report. Phase 4 adds configurable browser-native Print / Save PDF generation from that same report without persistence or a PDF dependency. Git tagging and releasing remain manual owner actions.
+The package is on the in-development **v2.8.2** Weekly Practice import foundation. It defines a reduced, provider-neutral weekly curriculum contract, preserves lightweight curriculum metadata in the browser-local Practice Session library, translates supported concepts into the existing exercise engines, and includes a tested Copy-for-AI specification foundation. Paste/upload, preview, confirmation, and schema-information UI remain later phases. Git tagging and releasing remain manual owner actions.
 
 The application now supports seven complementary top-level modes:
 
@@ -417,7 +417,7 @@ The application now supports seven complementary top-level modes:
 
 The release candidate adds browser-local Practice Session presets, native completion targets, Scale Repertoire traversal, timed Melody orchestration, Bonus/Skip/End/summary flow, and stable hosted Mobile Play continuity across exercises. Final interaction and presentation QA is intentionally deferred to the deployed Chromebook/tablet. Practice evidence persistence, analytics, scheduling, cloud accounts, and active-run recovery remain future considerations rather than current capabilities.
 
-`package.json` is the authoritative source for the version displayed in Prelude's navigation. It remains at `2.8.0`; tagging and releasing remain manual owner actions.
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is `2.8.2`; tagging and releasing remain manual owner actions.
 
 Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
 

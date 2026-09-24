@@ -12,8 +12,9 @@ import type {
 export const PRACTICE_SESSION_LIBRARY_STORAGE_KEY = "prelude-practice-session-library-v1";
 
 export const EMPTY_PRACTICE_SESSION_LIBRARY: PracticeSessionLibrary = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 2,
   presets: Object.freeze([]),
+  curricula: Object.freeze([]),
   lastUsedPresetId: null,
 });
 
@@ -175,7 +176,15 @@ export function duplicatePracticeSessionPreset(
 
 export function deletePracticeSessionPreset(library: PracticeSessionLibrary, presetId: string): PracticeSessionOperationResult<PracticeSessionLibrary> {
   if (!library.presets.some(({ id }) => id === presetId)) return { ok: false, reason: "not-found" };
-  return { ok: true, value: { ...library, presets: library.presets.filter(({ id }) => id !== presetId), lastUsedPresetId: library.lastUsedPresetId === presetId ? null : library.lastUsedPresetId } };
+  return { ok: true, value: {
+    ...library,
+    presets: library.presets.filter(({ id }) => id !== presetId),
+    curricula: library.curricula.map((curriculum) => ({
+      ...curriculum,
+      days: curriculum.days.filter((day) => day.kind !== "practice" || day.presetId !== presetId),
+    })),
+    lastUsedPresetId: library.lastUsedPresetId === presetId ? null : library.lastUsedPresetId,
+  } };
 }
 
 export function setLastUsedPracticeSessionPreset(library: PracticeSessionLibrary, presetId: string | null): PracticeSessionOperationResult<PracticeSessionLibrary> {
@@ -195,7 +204,7 @@ export function loadPracticeSessionLibrary(storage: PracticeSessionStorage): Pra
   let raw: string | null;
   try { raw = storage.getItem(PRACTICE_SESSION_LIBRARY_STORAGE_KEY); }
   catch { return { ok: false, reason: "unavailable", message: "Practice Session storage is unavailable in this browser." }; }
-  if (raw === null) return { ok: true, value: { schemaVersion: 1, presets: [], lastUsedPresetId: null } };
+  if (raw === null) return { ok: true, value: { schemaVersion: 2, presets: [], curricula: [], lastUsedPresetId: null } };
   let value: unknown;
   try { value = JSON.parse(raw); }
   catch { return { ok: false, reason: "corrupt", message: "Stored Practice Session data could not be read." }; }

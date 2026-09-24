@@ -181,6 +181,19 @@ Future Free Play ideas such as chord analysis, phrase history, last-measure disp
 
 Practice Session presets are local prescriptions, not persisted run history. Scheduling, analytics, evidence storage, cloud accounts, active-run recovery, quick start, and real-use presentation polish remain outside this release. Final viewport, fullscreen/orientation, physical-keyboard, and installed-PWA behavior will be evaluated after deployment on the actual Chromebook/tablet.
 
+## v2.8.2 Weekly Practice Import Foundation
+
+- [x] Independently versioned reduced weekly interchange contract for nine supported Practice Session concepts
+- [x] Partial-week practice/rest representation without a weekly runtime or scheduler
+- [x] Practice Session library schema v2 with normalized curriculum metadata and no-write v1 migration
+- [x] Detailed collecting validation with defensive bounds and strict chord/repertoire compatibility
+- [x] Deterministic translation into canonical feature configs, ordinary presets, and native targets
+- [x] Mechanically checked JSON Schema, minimal/realistic examples, and pure Copy-for-AI specification foundation
+- [ ] Paste/upload import UI, readable preview, collision editing, and confirmation into the unsaved working library
+- [ ] Schema-information dialog with clipboard/download actions
+
+Weekly export, calendar scheduling, provenance/idempotency, results, hand/fingering settings, and non-Practice-Session engines remain deferred.
+
 ## v2.8.0 Practice Session Comprehensive Reporting
 
 - [x] Transient lifecycle evidence and foreground-active time

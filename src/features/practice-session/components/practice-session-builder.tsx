@@ -32,7 +32,7 @@ export default function PracticeSessionBuilder({ active = true, storage = browse
   };
   const startFresh = () => {
     if (!window.confirm("Start a new Practice Session library? Your existing stored data will be replaced only when you choose Save.")) return;
-    setWorkingLibrary({ schemaVersion: 1, presets: [], lastUsedPresetId: null }); setSavedLibrary(null); setLoadBlock(null); setReplacementAuthorized(true); setSelectedPresetId(null); setSelectedExerciseId(null); setStatus("Existing stored data is unchanged until you save.");
+    setWorkingLibrary({ schemaVersion: 2, presets: [], curricula: [], lastUsedPresetId: null }); setSavedLibrary(null); setLoadBlock(null); setReplacementAuthorized(true); setSelectedPresetId(null); setSelectedExerciseId(null); setStatus("Existing stored data is unchanged until you save.");
   };
   const save = () => {
     const result = savePracticeSessionLibrary(storage, workingLibrary);

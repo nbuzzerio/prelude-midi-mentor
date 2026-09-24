@@ -4,6 +4,7 @@ import { parseMelodyConfig } from "@/features/melody/melody-config";
 import { parseSequenceConfig } from "@/features/sequences/sequence-config";
 import type {
   PracticeExerciseEntry,
+  PracticeSessionCurriculum,
   PracticeSessionLibrary,
   PracticeSessionPreset,
   PracticeSessionRunnableIssue,
@@ -11,6 +12,7 @@ import type {
   RepertoireSequenceConfig,
   RunnablePresetValidationResult,
 } from "./practice-session-types";
+import { PRACTICE_SESSION_CURRICULUM_LIMITS, PRACTICE_SESSION_WEEKDAYS } from "./practice-session-types";
 
 export type PracticeSessionParseFailure = Readonly<{
   ok: false;
@@ -112,9 +114,15 @@ export function parsePracticeSessionPreset(value: unknown, path = "preset"): Pra
 
 export function parsePracticeSessionLibrary(value: unknown): PracticeSessionParseResult<PracticeSessionLibrary> {
   const path = "library";
-  if (!isRecord(value) || !hasExactKeys(value, ["schemaVersion", "presets", "lastUsedPresetId"])) return failure("corrupt", path, "The Practice Session library is malformed.");
-  const versionFailure = parseVersion(value, path);
-  if (versionFailure) return versionFailure;
+  if (!isRecord(value)) return failure("corrupt", path, "The Practice Session library is malformed.");
+  if (typeof value.schemaVersion === "number" && Number.isInteger(value.schemaVersion) && value.schemaVersion > 2) {
+    return failure("unsupported", `${path}.schemaVersion`, "This Practice Session library schema version is unsupported.");
+  }
+  const legacy = value.schemaVersion === 1;
+  if ((!legacy && value.schemaVersion !== 2)
+    || !hasExactKeys(value, legacy ? ["schemaVersion", "presets", "lastUsedPresetId"] : ["schemaVersion", "presets", "curricula", "lastUsedPresetId"])) {
+    return failure("corrupt", path, "The Practice Session library is malformed.");
+  }
   if (!Array.isArray(value.presets) || (value.lastUsedPresetId !== null && !isNonEmptyString(value.lastUsedPresetId))) return failure("corrupt", path, "The preset list or last-used identity is invalid.");
   const presets: PracticeSessionPreset[] = [];
   for (let index = 0; index < value.presets.length; index += 1) {
@@ -123,10 +131,45 @@ export function parsePracticeSessionLibrary(value: unknown): PracticeSessionPars
     presets.push(parsed.value);
   }
   if (new Set(presets.map(({ id }) => id)).size !== presets.length) return failure("corrupt", "library.presets", "Preset IDs must be unique.");
+  const curricula: PracticeSessionCurriculum[] = [];
+  if (!legacy) {
+    if (!Array.isArray(value.curricula)) return failure("corrupt", "library.curricula", "The curriculum list is invalid.");
+    const presetIds = new Set(presets.map(({ id }) => id));
+    for (let index = 0; index < value.curricula.length; index += 1) {
+      const curriculumPath = `library.curricula[${index}]`;
+      const candidate = value.curricula[index];
+      if (!isRecord(candidate) || !hasExactKeys(candidate, ["id", "title", "instructions", "days"])
+        || !isNonEmptyString(candidate.id) || !isNonEmptyString(candidate.title)
+        || [...candidate.title].length > PRACTICE_SESSION_CURRICULUM_LIMITS.titleCharacters
+        || (candidate.instructions !== null && (typeof candidate.instructions !== "string" || [...candidate.instructions].length > PRACTICE_SESSION_CURRICULUM_LIMITS.instructionsCharacters))
+        || !Array.isArray(candidate.days)) return failure("corrupt", curriculumPath, "The curriculum is malformed.");
+      const days: PracticeSessionCurriculum["days"][number][] = [];
+      for (let dayIndex = 0; dayIndex < candidate.days.length; dayIndex += 1) {
+        const dayPath = `${curriculumPath}.days[${dayIndex}]`;
+        const day = candidate.days[dayIndex];
+        if (!isRecord(day) || typeof day.day !== "string" || !PRACTICE_SESSION_WEEKDAYS.includes(day.day as never)
+          || (day.notes !== null && (typeof day.notes !== "string" || [...day.notes].length > PRACTICE_SESSION_CURRICULUM_LIMITS.dayNotesCharacters))) {
+          return failure("corrupt", dayPath, "The curriculum day is malformed.");
+        }
+        if (day.kind === "rest" && hasExactKeys(day, ["day", "kind", "notes"])) {
+          days.push({ day: day.day as (typeof PRACTICE_SESSION_WEEKDAYS)[number], kind: "rest", notes: day.notes as string | null });
+        } else if (day.kind === "practice" && hasExactKeys(day, ["day", "kind", "presetId", "notes", "estimatedDurationMinutes"])
+          && isNonEmptyString(day.presetId) && presetIds.has(day.presetId)
+          && (day.estimatedDurationMinutes === null || (Number.isInteger(day.estimatedDurationMinutes) && (day.estimatedDurationMinutes as number) > 0 && (day.estimatedDurationMinutes as number) <= PRACTICE_SESSION_CURRICULUM_LIMITS.estimatedDurationMinutes))) {
+          days.push({ day: day.day as (typeof PRACTICE_SESSION_WEEKDAYS)[number], kind: "practice", presetId: day.presetId, notes: day.notes as string | null, estimatedDurationMinutes: day.estimatedDurationMinutes as number | null });
+        } else return failure("corrupt", dayPath, "The curriculum day is malformed or references a missing preset.");
+      }
+      if (new Set(days.map(({ day }) => day)).size !== days.length) return failure("corrupt", `${curriculumPath}.days`, "Curriculum weekdays must be unique.");
+      const referencedPresetIds = days.flatMap((day) => day.kind === "practice" ? [day.presetId] : []);
+      if (new Set(referencedPresetIds).size !== referencedPresetIds.length) return failure("corrupt", `${curriculumPath}.days`, "A preset may appear only once in a curriculum.");
+      curricula.push({ id: candidate.id, title: candidate.title, instructions: candidate.instructions as string | null, days });
+    }
+    if (new Set(curricula.map(({ id }) => id)).size !== curricula.length) return failure("corrupt", "library.curricula", "Curriculum IDs must be unique.");
+  }
   const lastUsedPresetId = typeof value.lastUsedPresetId === "string" && presets.some(({ id }) => id === value.lastUsedPresetId)
     ? value.lastUsedPresetId
     : null;
-  return { ok: true, value: { schemaVersion: 1, presets, lastUsedPresetId } };
+  return { ok: true, value: { schemaVersion: 2, presets, curricula, lastUsedPresetId } };
 }
 
 export function validateRunnablePracticeSessionPreset(preset: PracticeSessionPreset): RunnablePresetValidationResult {

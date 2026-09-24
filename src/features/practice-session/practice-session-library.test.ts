@@ -28,7 +28,7 @@ class MemoryStorage implements PracticeSessionStorage {
 
 const exercise = (id: string, label = id): FlashcardPracticeExercise => ({ id, label, engine: "flashcards", config: DEFAULT_FLASHCARD_CONFIG, target: { kind: "correct-answers", count: 10 } });
 const preset = (id = "p1", exercises = [exercise("e1"), exercise("e2")]): PracticeSessionPreset => ({ schemaVersion: 1, id, name: "Daily", exercises });
-const library = (presets = [preset()], lastUsedPresetId: string | null = null): PracticeSessionLibrary => ({ schemaVersion: 1, presets, lastUsedPresetId });
+const library = (presets = [preset()], lastUsedPresetId: string | null = null): PracticeSessionLibrary => ({ schemaVersion: 2, presets, curricula: [], lastUsedPresetId });
 
 function value<T>(result: { ok: true; value: T } | { ok: false }): T {
   if (!result.ok) throw new Error("operation failed");
@@ -80,7 +80,7 @@ describe("Practice Session domain operations", () => {
 
   it("owns last-used behavior at the library boundary", () => {
     const selected = value(setLastUsedPracticeSessionPreset(library(), "p1"));
-    expect(deletePracticeSessionPreset(selected, "p1")).toEqual({ ok: true, value: { schemaVersion: 1, presets: [], lastUsedPresetId: null } });
+    expect(deletePracticeSessionPreset(selected, "p1")).toEqual({ ok: true, value: { schemaVersion: 2, presets: [], curricula: [], lastUsedPresetId: null } });
     expect(setLastUsedPracticeSessionPreset(library(), "missing")).toEqual({ ok: false, reason: "not-found" });
   });
 });
@@ -89,7 +89,7 @@ describe("Practice Session guarded storage", () => {
   it("returns a clean empty library without writing when storage is empty", () => {
     const storage = new MemoryStorage();
     const setItem = vi.spyOn(storage, "setItem");
-    expect(loadPracticeSessionLibrary(storage)).toEqual({ ok: true, value: { schemaVersion: 1, presets: [], lastUsedPresetId: null } });
+    expect(loadPracticeSessionLibrary(storage)).toEqual({ ok: true, value: { schemaVersion: 2, presets: [], curricula: [], lastUsedPresetId: null } });
     expect(setItem).not.toHaveBeenCalled();
   });
 
@@ -110,7 +110,7 @@ describe("Practice Session guarded storage", () => {
 
   it("preserves corrupt and unsupported storage content", () => {
     const storage = new MemoryStorage();
-    for (const raw of ["not-json", JSON.stringify({ schemaVersion: 2, presets: [], lastUsedPresetId: null })]) {
+    for (const raw of ["not-json", JSON.stringify({ schemaVersion: 3, presets: [], curricula: [], lastUsedPresetId: null })]) {
       storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, raw);
       expect(loadPracticeSessionLibrary(storage)).toMatchObject({ ok: false });
       expect(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)).toBe(raw);
@@ -122,5 +122,22 @@ describe("Practice Session guarded storage", () => {
     expect(loadPracticeSessionLibrary(throwing)).toMatchObject({ ok: false, reason: "unavailable" });
     expect(savePracticeSessionLibrary(throwing, library())).toMatchObject({ ok: false, reason: "write-failed" });
     expect(savePracticeSessionLibrary(new MemoryStorage(), { ...library(), presets: [preset(), preset()] })).toMatchObject({ ok: false, reason: "invalid" });
+  });
+
+  it("migrates v1 in memory without writing and serializes v2 only on explicit save", () => {
+    const storage = new MemoryStorage();
+    const legacy = { schemaVersion: 1, presets: [preset()], lastUsedPresetId: "p1" };
+    const raw = JSON.stringify(legacy); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, raw);
+    const loaded = loadPracticeSessionLibrary(storage);
+    expect(loaded).toEqual({ ok: true, value: { schemaVersion: 2, presets: legacy.presets, curricula: [], lastUsedPresetId: "p1" } });
+    expect(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)).toBe(raw);
+    if (!loaded.ok) throw new Error("legacy fixture must load");
+    expect(savePracticeSessionLibrary(storage, loaded.value)).toEqual({ ok: true });
+    expect(JSON.parse(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)!)).toMatchObject({ schemaVersion: 2, curricula: [] });
+  });
+
+  it("removes a deleted preset's practice day while retaining an empty curriculum", () => {
+    const source: PracticeSessionLibrary = { ...library(), curricula: [{ id: "c1", title: "Week", instructions: "Keep going.", days: [{ day: "monday", kind: "practice", presetId: "p1", notes: "Notes", estimatedDurationMinutes: 20 }] }] };
+    expect(deletePracticeSessionPreset(source, "p1")).toEqual({ ok: true, value: { schemaVersion: 2, presets: [], curricula: [{ id: "c1", title: "Week", instructions: "Keep going.", days: [] }], lastUsedPresetId: null } });
   });
 });

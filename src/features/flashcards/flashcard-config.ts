@@ -1,5 +1,5 @@
 import { booleanField, enumField, parseConfig, requireConfig, selectionField } from "@/lib/config-validation";
-import type { PracticeClefMode, PracticeExerciseType, PracticeNoteCategory, PracticeTriadQuality, PracticeTriadPosition } from "@/types/practice";
+import { PRACTICE_CLEF_MODES, PRACTICE_EXERCISE_TYPES, PRACTICE_NOTE_CATEGORIES, PRACTICE_TRIAD_POSITIONS, PRACTICE_TRIAD_QUALITIES, type PracticeClefMode, type PracticeExerciseType, type PracticeNoteCategory, type PracticeTriadQuality, type PracticeTriadPosition } from "@/types/practice";
 
 export type FlashcardConfig = Readonly<{
   schemaVersion: 1;
@@ -26,13 +26,13 @@ export const DEFAULT_FLASHCARD_CONFIG: FlashcardConfig = Object.freeze({
 export function parseFlashcardConfig(value: unknown) {
   const parsed = parseConfig<FlashcardConfig>(value, {
     schemaVersion: enumField([1]),
-    mode: enumField(["bass", "treble", "mixed"]),
+    mode: enumField(PRACTICE_CLEF_MODES),
     showTargetName: booleanField,
     replayCorrectVirtualChords: booleanField,
-    enabledExerciseTypes: selectionField(["notes", "triads"]),
-    enabledNoteCategories: selectionField(["naturals", "accidentals"]),
-    enabledTriadQualities: selectionField(["major", "minor", "diminished", "augmented"]),
-    enabledTriadPositions: selectionField(["root", "first", "second"]),
+    enabledExerciseTypes: selectionField(PRACTICE_EXERCISE_TYPES),
+    enabledNoteCategories: selectionField(PRACTICE_NOTE_CATEGORIES),
+    enabledTriadQualities: selectionField(PRACTICE_TRIAD_QUALITIES),
+    enabledTriadPositions: selectionField(PRACTICE_TRIAD_POSITIONS),
   });
   return parsed;
 }

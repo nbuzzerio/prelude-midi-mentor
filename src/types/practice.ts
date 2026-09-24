@@ -5,19 +5,20 @@ import type {
 
 export type Clef = "bass" | "treble";
 
-export type PracticeClefMode = Clef | "mixed";
+export const PRACTICE_CLEF_MODES = ["bass", "treble", "mixed"] as const;
+export type PracticeClefMode = (typeof PRACTICE_CLEF_MODES)[number];
 
-export type PracticeExerciseType = "notes" | "triads";
+export const PRACTICE_EXERCISE_TYPES = ["notes", "triads"] as const;
+export type PracticeExerciseType = (typeof PRACTICE_EXERCISE_TYPES)[number];
 
-export type PracticeNoteCategory = "naturals" | "accidentals";
+export const PRACTICE_NOTE_CATEGORIES = ["naturals", "accidentals"] as const;
+export type PracticeNoteCategory = (typeof PRACTICE_NOTE_CATEGORIES)[number];
 
-export type PracticeTriadQuality =
-  | "major"
-  | "minor"
-  | "diminished"
-  | "augmented";
+export const PRACTICE_TRIAD_QUALITIES = ["major", "minor", "diminished", "augmented"] as const;
+export type PracticeTriadQuality = (typeof PRACTICE_TRIAD_QUALITIES)[number];
 
-export type PracticeTriadPosition = "root" | "first" | "second";
+export const PRACTICE_TRIAD_POSITIONS = ["root", "first", "second"] as const;
+export type PracticeTriadPosition = (typeof PRACTICE_TRIAD_POSITIONS)[number];
 
 export type FeedbackState = "idle" | "correct" | "incorrect";
 
@@ -83,31 +84,19 @@ export type SequenceExerciseType =
 
 export type SequenceDirection = IntervalDirection;
 
-export type SequenceScaleDirection =
-  | SequenceDirection
-  | "ascending-descending";
+export const SEQUENCE_DIRECTIONS = ["ascending", "descending"] as const;
+export const SEQUENCE_SCALE_DIRECTIONS = ["ascending", "descending", "ascending-descending"] as const;
+export type SequenceScaleDirection = (typeof SEQUENCE_SCALE_DIRECTIONS)[number];
 
-export type SequenceArpeggioDirection =
-  | SequenceDirection
-  | "ascending-descending";
+export const SEQUENCE_ARPEGGIO_DIRECTIONS = SEQUENCE_SCALE_DIRECTIONS;
+export type SequenceArpeggioDirection = (typeof SEQUENCE_ARPEGGIO_DIRECTIONS)[number];
 
 export type SequenceInterval = MusicalInterval;
 
-export type SequenceScale =
-  | "major"
-  | "natural-minor"
-  | "harmonic-minor"
-  | "melodic-minor"
-  | "major-pentatonic"
-  | "minor-pentatonic";
+export const SEQUENCE_SCALES = ["major", "natural-minor", "harmonic-minor", "melodic-minor", "major-pentatonic", "minor-pentatonic"] as const;
+export type SequenceScale = (typeof SEQUENCE_SCALES)[number];
 
-export type SequenceArpeggio =
-  | "major"
-  | "minor"
-  | "diminished"
-  | "augmented"
-  | "dominant-seventh"
-  | "major-seventh"
-  | "minor-seventh";
+export const SEQUENCE_ARPEGGIOS = ["major", "minor", "diminished", "augmented", "dominant-seventh", "major-seventh", "minor-seventh"] as const;
+export type SequenceArpeggio = (typeof SEQUENCE_ARPEGGIOS)[number];
 
 export type SequenceNoteCategory = "naturals" | "accidentals";

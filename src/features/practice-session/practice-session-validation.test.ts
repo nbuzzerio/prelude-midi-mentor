@@ -26,7 +26,7 @@ describe("Practice Session parsing", () => {
   it("delegates nested feature schemas and distinguishes corrupt from unsupported", () => {
     expect(parsePracticeSessionLibrary(library([preset([{ ...flashcard(), config: { ...DEFAULT_FLASHCARD_CONFIG, schemaVersion: 2 } }])]))).toMatchObject({ ok: false, reason: "unsupported", issue: { path: "library.presets[0].exercises[0].config" } });
     expect(parsePracticeSessionLibrary(library([preset([{ ...sequence(), config: { ...DEFAULT_SEQUENCE_CONFIG, mode: "invalid" } }])]))).toMatchObject({ ok: false, reason: "corrupt" });
-    expect(parsePracticeSessionLibrary({ ...library([]), schemaVersion: 2 })).toMatchObject({ ok: false, reason: "unsupported" });
+    expect(parsePracticeSessionLibrary({ ...library([]), schemaVersion: 3 })).toMatchObject({ ok: false, reason: "unsupported" });
     expect(parsePracticeSessionLibrary({ ...library([]), extra: true })).toMatchObject({ ok: false, reason: "corrupt" });
   });
 
@@ -45,7 +45,25 @@ describe("Practice Session parsing", () => {
   });
 
   it("normalizes a dangling last-used ID in memory without rejecting presets", () => {
-    expect(parsePracticeSessionLibrary(library([preset([flashcard()])], "missing"))).toEqual({ ok: true, value: { schemaVersion: 1, presets: [preset([flashcard()])], lastUsedPresetId: null } });
+    expect(parsePracticeSessionLibrary(library([preset([flashcard()])], "missing"))).toEqual({ ok: true, value: { schemaVersion: 2, presets: [preset([flashcard()])], curricula: [], lastUsedPresetId: null } });
+  });
+
+  it("round trips v2 curriculum metadata and accepts an empty curriculum", () => {
+    const value = { schemaVersion: 2, presets: [preset([flashcard()])], curricula: [
+      { id: "week", title: "Foundation week", instructions: "Practice slowly.", days: [
+        { day: "monday", kind: "practice", presetId: "preset-1", notes: "Read ahead.", estimatedDurationMinutes: 20 },
+        { day: "tuesday", kind: "rest", notes: "Rest." },
+      ] },
+      { id: "empty", title: "Unassigned week", instructions: null, days: [] },
+    ], lastUsedPresetId: null };
+    expect(parsePracticeSessionLibrary(value)).toEqual({ ok: true, value });
+  });
+
+  it("rejects corrupt curriculum references, duplicate weekdays, and future library versions", () => {
+    const current = { schemaVersion: 2, presets: [preset([flashcard()])], curricula: [], lastUsedPresetId: null };
+    expect(parsePracticeSessionLibrary({ ...current, curricula: [{ id: "week", title: "Week", instructions: null, days: [{ day: "monday", kind: "practice", presetId: "missing", notes: null, estimatedDurationMinutes: null }] }] })).toMatchObject({ ok: false, issue: { path: "library.curricula[0].days[0]" } });
+    expect(parsePracticeSessionLibrary({ ...current, curricula: [{ id: "week", title: "Week", instructions: null, days: [{ day: "monday", kind: "rest", notes: null }, { day: "monday", kind: "rest", notes: null }] }] })).toMatchObject({ ok: false, issue: { path: "library.curricula[0].days" } });
+    expect(parsePracticeSessionLibrary({ ...current, schemaVersion: 3 })).toMatchObject({ ok: false, reason: "unsupported" });
   });
 
   it("detaches nested arrays at the parsing boundary", () => {

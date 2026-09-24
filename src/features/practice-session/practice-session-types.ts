@@ -79,11 +79,50 @@ export type PracticeSessionPreset = Readonly<{
   exercises: readonly PracticeExerciseEntry[];
 }>;
 
-export type PracticeSessionLibrary = Readonly<{
+export const PRACTICE_SESSION_WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+export type PracticeSessionWeekday = (typeof PRACTICE_SESSION_WEEKDAYS)[number];
+export const PRACTICE_SESSION_CURRICULUM_LIMITS = Object.freeze({
+  titleCharacters: 120,
+  instructionsCharacters: 4_000,
+  dayNotesCharacters: 2_000,
+  estimatedDurationMinutes: 480,
+});
+
+export type PracticeSessionCurriculumDay =
+  | Readonly<{
+      day: PracticeSessionWeekday;
+      kind: "practice";
+      presetId: string;
+      notes: string | null;
+      estimatedDurationMinutes: number | null;
+    }>
+  | Readonly<{
+      day: PracticeSessionWeekday;
+      kind: "rest";
+      notes: string | null;
+    }>;
+
+export type PracticeSessionCurriculum = Readonly<{
+  id: string;
+  title: string;
+  instructions: string | null;
+  days: readonly PracticeSessionCurriculumDay[];
+}>;
+
+export type PracticeSessionLibraryV1 = Readonly<{
   schemaVersion: 1;
   presets: readonly PracticeSessionPreset[];
   lastUsedPresetId: string | null;
 }>;
+
+export type PracticeSessionLibraryV2 = Readonly<{
+  schemaVersion: 2;
+  presets: readonly PracticeSessionPreset[];
+  curricula: readonly PracticeSessionCurriculum[];
+  lastUsedPresetId: string | null;
+}>;
+
+export type PracticeSessionLibrary = PracticeSessionLibraryV2;
 
 export type PracticeSessionIdFactory = () => string;
 
