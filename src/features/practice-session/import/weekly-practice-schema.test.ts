@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MUSICAL_INTERVALS } from "@/lib/music/intervals";
 import { SCALE_REPERTOIRE_CATALOG } from "@/features/sequences/scale-repertoire";
-import { WEEKLY_PRACTICE_CAPABILITIES, WEEKLY_PRACTICE_EXERCISE_TYPES, WEEKLY_PRACTICE_LIMITS } from "./weekly-practice-contract";
+import { WEEKLY_PRACTICE_CAPABILITIES, WEEKLY_PRACTICE_EXERCISE_DESCRIPTIONS, WEEKLY_PRACTICE_EXERCISE_TYPES, WEEKLY_PRACTICE_LIMITS } from "./weekly-practice-contract";
 import { MINIMAL_WEEKLY_PRACTICE_EXAMPLE, REALISTIC_WEEKLY_PRACTICE_EXAMPLE } from "./weekly-practice-examples";
 import { WEEKLY_PRACTICE_EXERCISE_SCHEMAS, WEEKLY_PRACTICE_JSON_SCHEMA_V1 } from "./weekly-practice-schema";
 import { createWeeklyPracticeLlmSpecification } from "./weekly-practice-specification";
@@ -34,12 +34,20 @@ describe("Weekly Practice published contract artifacts", () => {
   it("creates a self-contained Copy-for-AI specification with pedagogy and safety instructions", () => {
     const specification = createWeeklyPracticeLlmSpecification();
     for (const type of WEEKLY_PRACTICE_EXERCISE_TYPES) expect(specification).toContain(`- ${type}:`);
-    expect(specification).toContain("Return exactly one raw JSON object");
+    for (const description of Object.values(WEEKLY_PRACTICE_EXERCISE_DESCRIPTIONS)) expect(specification).toContain(description);
+    expect(specification).toContain("ask a small number of useful questions");
+    expect(specification).toContain("Do not require a fixed questionnaire");
+    expect(specification).toContain("For the final plan, return exactly one raw JSON object");
     expect(specification).toContain("Do not use Markdown fences");
-    expect(specification).toContain("Add no surrounding commentary");
+    expect(specification).toContain("Add no surrounding commentary to the final JSON");
     expect(specification).toContain("Do not invent hand, fingering");
     expect(specification).toContain("Include no runtime state");
     expect(specification).toContain("Read isolated staff notes");
+    expect(specification).toContain(`at most ${WEEKLY_PRACTICE_LIMITS.totalExercises} exercises`);
+    expect(specification).toContain(`${WEEKLY_PRACTICE_LIMITS.jsonBytes} bytes`);
+    expect(specification).toContain(WEEKLY_PRACTICE_CAPABILITIES.chordProgressions[0]!);
+    expect(specification).toContain("correctAnswers is the number of correctly played visual targets required");
+    expect(specification).toContain("estimated duration is planning context, not a Prelude timer or schedule");
     expect(specification).toContain(JSON.stringify(MINIMAL_WEEKLY_PRACTICE_EXAMPLE, null, 2));
   });
 });

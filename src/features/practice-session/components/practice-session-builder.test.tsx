@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRACTICE_SESSION_LIBRARY_STORAGE_KEY, type PracticeSessionStorage } from "../practice-session-library";
 import { PRACTICE_SESSION_BUILDER_OPTIONS } from "../practice-session-builder-options";
@@ -25,6 +25,17 @@ const readyLibrary = (lastUsedPresetId: string | null = null) => ({
 });
 
 describe("Practice Session builder", () => {
+  it("opens the adjacent AI guide without storage changes and restores its own trigger focus", async () => {
+    const storage = new MemoryStorage(); render(<PracticeSessionBuilder storage={storage} />);
+    const help = screen.getByRole("button", { name: "How to generate a Weekly Practice plan with AI" });
+    const importButton = screen.getByRole("button", { name: "Import Weekly Plan" });
+    expect(help.parentElement).toBe(importButton.parentElement);
+    fireEvent.click(help); expect(screen.getByRole("dialog", { name: "Generate a plan with AI" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Generate a plan with AI" })).toBeNull(); expect(storage.setItem).not.toHaveBeenCalled();
+    await waitFor(() => expect(document.activeElement).toBe(help)); expect(screen.getByText("Saved")).toBeTruthy();
+  });
+
   it("imports into working state only, selects the imported preset, and leaves explicit Save authoritative", () => {
     const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify(readyLibrary("p1")));
     render(<PracticeSessionBuilder createId={ids("curriculum", "imported-preset", "imported-exercise")} storage={storage} />);

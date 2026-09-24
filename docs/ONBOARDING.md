@@ -208,6 +208,7 @@ Completed features include:
 - Lightweight curriculum records preserve title/instructions, weekdays, rest/day notes, estimated duration, and references to ordinary presets without copying exercise data or adding scheduling state
 - `src/features/practice-session/import/` owns the independently versioned reduced Weekly Practice contract, collecting validator, canonical translator, tested examples, JSON Schema, and pure Copy-for-AI specification generator
 - The same folder owns pure Weekly Practice import preparation/application and preview derivation; the builder dialog only collects input and presents those results. Import changes working state, selects the first imported practice preset, and requires the existing Save action to persist.
+- `createWeeklyPracticeLlmSpecification()` is the one clipboard payload for the AI generation guide. React explains the copy/paste workflow but does not duplicate contract fields or allowed values; clipboard failure exposes the same generated text for manual copying, and no student data is sent by Prelude.
 - When extending an importable exercise, update feature-owned constants first, then the reduced variant, translator, schema/specification inputs, examples, and canonical compatibility tests together
 - Explicit Save persists the complete preset library; active runs, progress, evidence, and summaries remain memory-only
 - One keyed exercise engine mounts at a time while the stable Practice Session host preserves Mobile Play across transitions
@@ -227,7 +228,7 @@ Completed features include:
 
 # Current Development Focus
 
-The package version is 2.8.3 for the Weekly Practice import workflow. It adds paste/file input, detailed error presentation, readable previews, editable collision-safe names, and atomic insertion into the unsaved Practice Session working library. The schema-information UI remains a later phase. Tagging and releasing remain manual owner actions.
+The package version is 2.8.4 for the completed Weekly Practice generation and import workflow. It adds the accessible Copy for AI guide and manual-copy fallback to the existing paste/file input, detailed error presentation, readable previews, editable collision-safe names, and atomic insertion into the unsaved Practice Session working library. Schema download, weekly export, and report sharing with AI remain later work. Tagging and releasing remain manual owner actions.
 
 The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 

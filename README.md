@@ -403,7 +403,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-The package is on the in-development **v2.8.3** Weekly Practice import workflow. Practice Sessions can validate pasted or uploaded reduced weekly-plan JSON, preview practice and rest days, resolve preset-name collisions, and atomically add the curriculum to the unsaved working library. The existing Save action remains the only browser-storage write; Copy-for-AI/schema-information UI remains a later phase. Git tagging and releasing remain manual owner actions.
+The package is on the in-development **v2.8.4** Weekly Practice generation and import workflow. A compact Practice Sessions guide copies a provider-neutral, self-contained prompt that helps a general AI assistant ask useful student-context questions and return valid raw Weekly Practice JSON. Prelude then validates pasted or uploaded JSON, previews it, resolves preset-name collisions, and atomically adds the curriculum to the unsaved working library. Prelude never sends student information to an AI service, and the existing Save action remains the only browser-storage write. Git tagging and releasing remain manual owner actions.
 
 The application now supports seven complementary top-level modes:
 
@@ -417,7 +417,7 @@ The application now supports seven complementary top-level modes:
 
 The release candidate adds browser-local Practice Session presets, native completion targets, Scale Repertoire traversal, timed Melody orchestration, Bonus/Skip/End/summary flow, and stable hosted Mobile Play continuity across exercises. Final interaction and presentation QA is intentionally deferred to the deployed Chromebook/tablet. Practice evidence persistence, analytics, scheduling, cloud accounts, and active-run recovery remain future considerations rather than current capabilities.
 
-`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is `2.8.2`; tagging and releasing remain manual owner actions.
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is `2.8.4`; tagging and releasing remain manual owner actions.
 
 Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
 
