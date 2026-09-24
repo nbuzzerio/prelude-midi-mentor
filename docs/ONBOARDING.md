@@ -207,6 +207,7 @@ Completed features include:
 - The library envelope is schema v2; stored v1 libraries migrate in memory with an empty curriculum list and are not rewritten until explicit Save
 - Lightweight curriculum records preserve title/instructions, weekdays, rest/day notes, estimated duration, and references to ordinary presets without copying exercise data or adding scheduling state
 - `src/features/practice-session/import/` owns the independently versioned reduced Weekly Practice contract, collecting validator, canonical translator, tested examples, JSON Schema, and pure Copy-for-AI specification generator
+- The same folder owns pure Weekly Practice import preparation/application and preview derivation; the builder dialog only collects input and presents those results. Import changes working state, selects the first imported practice preset, and requires the existing Save action to persist.
 - When extending an importable exercise, update feature-owned constants first, then the reduced variant, translator, schema/specification inputs, examples, and canonical compatibility tests together
 - Explicit Save persists the complete preset library; active runs, progress, evidence, and summaries remain memory-only
 - One keyed exercise engine mounts at a time while the stable Practice Session host preserves Mobile Play across transitions
@@ -226,7 +227,7 @@ Completed features include:
 
 # Current Development Focus
 
-The package version is 2.8.2 for the Weekly Practice interchange contract foundation. It adds the reduced nine-concept contract, library-v2 curriculum metadata and v1 migration, detailed validation, canonical translation, tested JSON Schema/examples, and a pure Copy-for-AI specification generator. Paste/upload, preview, confirmation, and schema-information UI remain later phases. Tagging and releasing remain manual owner actions.
+The package version is 2.8.3 for the Weekly Practice import workflow. It adds paste/file input, detailed error presentation, readable previews, editable collision-safe names, and atomic insertion into the unsaved Practice Session working library. The schema-information UI remains a later phase. Tagging and releasing remain manual owner actions.
 
 The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 

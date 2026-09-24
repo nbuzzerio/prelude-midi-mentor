@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useState } from "react";
+import { useMemo, useReducer, useRef, useState } from "react";
 import {
   addPracticeSessionPreset, createPracticeSessionPreset, EMPTY_PRACTICE_SESSION_LIBRARY,
   loadPracticeSessionLibrary, savePracticeSessionLibrary, setLastUsedPracticeSessionPreset, type PracticeSessionStorage,
@@ -7,6 +7,7 @@ import { createPracticeSessionRunSnapshot, practiceSessionRunReducer } from "../
 import type { PracticeSessionIdFactory, PracticeSessionLibrary, PracticeSessionPreset } from "../practice-session-types";
 import { PracticeSessionRuntime, PracticeSessionSummary } from "./practice-session-runtime";
 import PracticeSessionPresetEditor from "./practice-session-preset-editor";
+import WeeklyPracticeImportDialog from "./weekly-practice-import-dialog";
 
 const unavailableStorage: PracticeSessionStorage = { getItem: () => { throw new Error(); }, setItem: () => { throw new Error(); } };
 const browserStorage = () => { try { return window.localStorage; } catch { return unavailableStorage; } };
@@ -23,6 +24,8 @@ export default function PracticeSessionBuilder({ active = true, storage = browse
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(initial.ok ? initial.value.presets[0]?.id ?? null : null);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const importButtonRef = useRef<HTMLButtonElement>(null);
   const [run, dispatchRun] = useReducer(practiceSessionRunReducer, null);
   const dirty = savedLibrary === null ? replacementAuthorized : JSON.stringify(workingLibrary) !== JSON.stringify(savedLibrary);
   const retry = () => {
@@ -62,14 +65,16 @@ export default function PracticeSessionBuilder({ active = true, storage = browse
     }
     dispatchRun({ type: "START_RUN", runId: createRunId(), startedAt: now(), firstExerciseToken: createExerciseToken(), snapshot: createPracticeSessionRunSnapshot(preset), foreground: document.visibilityState !== "hidden" });
   };
+  const closeImport = () => { setImportOpen(false); window.setTimeout(() => importButtonRef.current?.focus()); };
   if (run?.status === "active") return <><PracticeSessionRuntime createExerciseToken={createExerciseToken} dispatch={dispatchRun} now={now} run={run} />{active && status && <p aria-live="polite" className="mx-auto mt-4 w-full max-w-7xl text-sm text-zinc-300" role="status">{status}</p>}</>;
   if (run?.status === "summary") return <PracticeSessionSummary onBack={() => dispatchRun({ type: "CLEAR_RUN" })} run={run} />;
   return <section aria-labelledby="practice-sessions-title" className="mx-auto w-full max-w-7xl text-white">
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
       <div className="mr-auto"><h1 className="text-2xl font-bold" id="practice-sessions-title">Practice Sessions</h1><p className="mt-1 text-sm text-zinc-400">Build and save practice-session presets.</p></div>
-      {!loadBlock && <><span className={dirty ? "text-amber-300" : "text-emerald-300"}>{dirty ? "Unsaved changes" : "Saved"}</span><button className="min-h-11 rounded bg-sky-500 px-4 font-semibold disabled:opacity-40" disabled={!dirty} onClick={save} type="button">Save</button><button className="min-h-11 rounded bg-zinc-800 px-4" onClick={createPreset} type="button">New Preset</button></>}
+      {!loadBlock && <><span className={dirty ? "text-amber-300" : "text-emerald-300"}>{dirty ? "Unsaved changes" : "Saved"}</span><button className="min-h-11 rounded bg-sky-500 px-4 font-semibold disabled:opacity-40" disabled={!dirty} onClick={save} type="button">Save</button><button className="min-h-11 rounded bg-zinc-800 px-4" onClick={createPreset} type="button">New Preset</button><button className="min-h-11 rounded border border-zinc-600 px-4" onClick={() => setImportOpen(true)} ref={importButtonRef} type="button">Import Weekly Plan</button></>}
     </div>
     {loadBlock ? <section aria-label="Practice Session storage problem" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-5"><h2 className="font-semibold">Saved Practice Session data could not be loaded.</h2><p className="mt-2">{loadBlock.message} Your stored data has not been changed.</p><div className="mt-4 flex gap-2"><button className="min-h-11 rounded bg-zinc-800 px-4" onClick={retry} type="button">Retry</button>{loadBlock.reason !== "unavailable" && <button className="min-h-11 rounded border border-red-400/40 px-4 text-red-100" onClick={startFresh} type="button">Start Fresh</button>}</div></section> : <PracticeSessionPresetEditor announce={(message) => { if (active) setStatus(message); }} createId={createId} library={workingLibrary} onLibraryChange={setWorkingLibrary} onSelectExercise={setSelectedExerciseId} onSelectPreset={setSelectedPresetId} onStartPractice={startPractice} selectedExerciseId={selectedExerciseId} selectedPresetId={selectedPresetId} />}
     {active && status && <p aria-live="polite" className="mt-4 text-sm text-zinc-300" role="status">{status}</p>}
+    {importOpen && <WeeklyPracticeImportDialog createId={createId} library={workingLibrary} onCancel={closeImport} onImport={(library, firstPresetId, title) => { setWorkingLibrary(library); if (firstPresetId) setSelectedPresetId(firstPresetId); setSelectedExerciseId(null); setStatus(`Imported “${title}”. Changes are not saved yet.`); closeImport(); }} />}
   </section>;
 }

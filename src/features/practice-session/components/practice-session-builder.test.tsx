@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRACTICE_SESSION_LIBRARY_STORAGE_KEY, type PracticeSessionStorage } from "../practice-session-library";
 import { PRACTICE_SESSION_BUILDER_OPTIONS } from "../practice-session-builder-options";
 import PracticeSessionBuilder from "./practice-session-builder";
+import { MINIMAL_WEEKLY_PRACTICE_EXAMPLE } from "../import/weekly-practice-examples";
 
 vi.mock("./practice-session-runtime", () => ({
   PracticeSessionRuntime: ({ run }: { run: { snapshot: { presetName: string } } }) => <p>Running {run.snapshot.presetName}</p>,
@@ -24,6 +25,20 @@ const readyLibrary = (lastUsedPresetId: string | null = null) => ({
 });
 
 describe("Practice Session builder", () => {
+  it("imports into working state only, selects the imported preset, and leaves explicit Save authoritative", () => {
+    const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify(readyLibrary("p1")));
+    render(<PracticeSessionBuilder createId={ids("curriculum", "imported-preset", "imported-exercise")} storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Import Weekly Plan" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Weekly Practice JSON" }), { target: { value: JSON.stringify(MINIMAL_WEEKLY_PRACTICE_EXAMPLE) } });
+    fireEvent.click(screen.getByRole("button", { name: "Validate and preview" })); fireEvent.click(screen.getByRole("button", { name: "Import weekly plan" }));
+    expect(screen.queryByRole("dialog")).toBeNull(); expect(screen.getByDisplayValue(MINIMAL_WEEKLY_PRACTICE_EXAMPLE.days[0].name)).toBeTruthy();
+    expect(screen.getByText("Unsaved changes")).toBeTruthy(); expect(screen.getByRole("status").textContent).toContain("not saved yet");
+    expect(storage.setItem).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const saved = JSON.parse(storage.values.get(PRACTICE_SESSION_LIBRARY_STORAGE_KEY)!);
+    expect(saved.presets.map(({ id }: { id: string }) => id)).toEqual(["p1", "imported-preset"]); expect(saved.lastUsedPresetId).toBe("p1");
+  });
+
   it("restores a blank preset name from the committed library on blur", () => {
     const storage = new MemoryStorage();
     storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify({ schemaVersion: 1, presets: [{ schemaVersion: 1, id: "p1", name: "Committed Name", exercises: [] }], lastUsedPresetId: null }));

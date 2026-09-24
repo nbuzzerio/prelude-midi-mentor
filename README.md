@@ -403,7 +403,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-The package is on the in-development **v2.8.2** Weekly Practice import foundation. It defines a reduced, provider-neutral weekly curriculum contract, preserves lightweight curriculum metadata in the browser-local Practice Session library, translates supported concepts into the existing exercise engines, and includes a tested Copy-for-AI specification foundation. Paste/upload, preview, confirmation, and schema-information UI remain later phases. Git tagging and releasing remain manual owner actions.
+The package is on the in-development **v2.8.3** Weekly Practice import workflow. Practice Sessions can validate pasted or uploaded reduced weekly-plan JSON, preview practice and rest days, resolve preset-name collisions, and atomically add the curriculum to the unsaved working library. The existing Save action remains the only browser-storage write; Copy-for-AI/schema-information UI remains a later phase. Git tagging and releasing remain manual owner actions.
 
 The application now supports seven complementary top-level modes:
 

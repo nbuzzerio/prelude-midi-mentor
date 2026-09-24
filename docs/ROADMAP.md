@@ -189,7 +189,7 @@ Practice Session presets are local prescriptions, not persisted run history. Sch
 - [x] Detailed collecting validation with defensive bounds and strict chord/repertoire compatibility
 - [x] Deterministic translation into canonical feature configs, ordinary presets, and native targets
 - [x] Mechanically checked JSON Schema, minimal/realistic examples, and pure Copy-for-AI specification foundation
-- [ ] Paste/upload import UI, readable preview, collision editing, and confirmation into the unsaved working library
+- [x] Paste/upload import UI, readable preview, collision editing, and atomic confirmation into the unsaved working library
 - [ ] Schema-information dialog with clipboard/download actions
 
 Weekly export, calendar scheduling, provenance/idempotency, results, hand/fingering settings, and non-Practice-Session engines remain deferred.
