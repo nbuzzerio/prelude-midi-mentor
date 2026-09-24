@@ -54,7 +54,7 @@ The milestones in this section describe implemented product behavior. An uncheck
 
 - [x] Physical MIDI keyboard support
 - [x] On-screen piano keyboard
-- [x] MIDI diagnostics
+- [x] Reachable raw MIDI diagnostic with multi-input attribution, browser timestamps, common/unknown message preservation, bounded capture, and copy workflow
 - [x] Chromebook compatibility
 - [x] Mobile support
 

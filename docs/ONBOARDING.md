@@ -128,7 +128,7 @@ Completed features include:
 - Physical MIDI block and rolled-chord progression input
 - Persistent virtual progression-chord selection with toggle removal and chord playback
 - Exact chord validation
-- MIDI diagnostics
+- Permanent raw MIDI diagnostic mode with independent multi-input connection, exact bytes, browser timestamps, decoded channel/message data, bounded capture, and copy/manual-copy workflow
 - One user-initiated Web MIDI connection persists across top-level mode changes; active features retain their own input/grading semantics
 - Chromebook compatibility
 
@@ -228,7 +228,7 @@ Completed features include:
 
 # Current Development Focus
 
-The package version is 2.8.4 for the completed Weekly Practice generation and import workflow. It adds the accessible Copy for AI guide and manual-copy fallback to the existing paste/file input, detailed error presentation, readable previews, editable collision-safe names, and atomic insertion into the unsaved Practice Session working library. Schema download, weekly export, and report sharing with AI remain later work. Tagging and releasing remain manual owner actions.
+The package version is 2.8.5 for the Phase 0 Raw MIDI Diagnostic Viewer. The diagnostic is an ordinary reachable mode and owns an independent, in-memory Web MIDI observation path; it does not expand the shared feature-facing MIDI contract, Piece Practice evidence, persistence, analytics, or grading. Tagging and releasing remain manual owner actions.
 
 The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 

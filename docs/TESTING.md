@@ -2,7 +2,7 @@
 
 > **Status:** v2.6.5 Staff Builder Lyric Cues authoring, Study View printing, and measure deletion prepared, ahead of the repository owner's manual deployment and tag
 
-The current automated baseline is 1,989 passing tests across 177 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session report presentation and browser print-preview QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
+The current automated baseline is 2,066 passing tests across 188 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session report presentation and browser print-preview QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
 
 > **Latest repository tag:** v2.5.0
 > **Last updated:** September 12, 2026
@@ -515,13 +515,18 @@ Across the matrix, verify real MIDI attacks and chords, no duplicate input, Sequ
 
 After v2.0, consider:
 
-- pure MIDI message parsing tests
 - focused audio utility tests
 - VexFlow smoke tests
 - browser-level MIDI mocks
 - end-to-end practice-flow tests
 - PWA installation and offline tests
 - selective visual regression tests
+
+### Raw MIDI diagnostic coverage
+
+Pure byte-level tests cover Note On and both release encodings, attack/release velocity, channels 1 and 16, polyphonic/channel pressure, CC64 and arbitrary controllers, Program Change, minimum/center/maximum Pitch Bend, common one-/two-/three-byte system messages, reserved statuses, empty/data-only/truncated input, unexpected extra bytes, raw preservation, and MIDI octave-name boundaries. Capture tests cover fractional browser-relative timestamps, ordering, the newest-1,000 ring boundary, monotonic sequence numbers, dropped counts, deterministic TSV, multiple sources, and tab/newline sanitization.
+
+Component tests use browser MIDI mocks for unsupported/rejected access, all initial inputs, multi-source attribution, hotplug/disconnect without duplicate listeners, unmount cleanup, pause/resume, Clear, copy success/failure/retry, selectable fallback text, semantic table structure, and the absence of event-by-event live announcements. App tests cover ordinary-mode reachability and unmount. These tests do not claim Yamaha behavior; velocity range, release encoding, pedal values, chord spread, rolled timing, unexpected messages, and Chromebook/tablet interaction remain physical QA after deployment.
 
 ## Release Verification Baseline
 

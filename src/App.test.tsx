@@ -70,6 +70,10 @@ vi.mock("./features/practice-session/components/practice-session-builder", () =>
   },
 }));
 
+vi.mock("./components/midi/midi-diagnostic", () => ({
+  default: () => <div>MIDI Diagnostic viewer</div>,
+}));
+
 describe("App focus mode", () => {
   it("keeps one connected MIDI lifecycle while routing attacks only to the active top-level mode", async () => {
     appMidiNotes.length = 0;
@@ -114,7 +118,7 @@ describe("App focus mode", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
     expect(within(navigation).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
-      "Free Play", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody",
+      "Free Play", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody", "MIDI Diagnostic",
     ]);
     expect(within(screen.getByRole("button", { name: "Staff Builder" })).getByText("Staff")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: "Ear Training" })).getByText("Ear")).toBeTruthy();
@@ -128,9 +132,9 @@ describe("App focus mode", () => {
   it("exposes the package version in the persistent mode navigation", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
-    const version = within(navigation).getByLabelText("Prelude v2.8.4");
-    expect(version.textContent).toBe("v2.8.4");
-    expect(version.getAttribute("title")).toBe("Prelude v2.8.4");
+    const version = within(navigation).getByLabelText("Prelude v2.8.5");
+    expect(version.textContent).toBe("v2.8.5");
+    expect(version.getAttribute("title")).toBe("Prelude v2.8.5");
   });
 
   it("shares focus state between the visible control and keyboard shortcut", () => {
@@ -201,6 +205,15 @@ describe("App focus mode", () => {
     expect(screen.getByText("Melody session")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Sequences" }));
     expect(screen.getByText("Sequence session")).toBeTruthy();
+  });
+
+  it("mounts MIDI Diagnostic as an ordinary mode and unmounts it when leaving", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "MIDI Diagnostic" }));
+    expect(screen.getByText("MIDI Diagnostic viewer")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "MIDI Diagnostic" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
+    expect(screen.queryByText("MIDI Diagnostic viewer")).toBeNull();
   });
 
   it("shows a persistently mounted but accessibility-hidden Practice Sessions builder", () => {

@@ -98,6 +98,7 @@ Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It do
 - Interactive on-screen piano
 - Immediate correct and incorrect feedback
 - MIDI connection status and diagnostics
+- Reachable raw MIDI diagnostic with browser timestamps, source input, channels, velocities, releases, controllers, pressure, pitch bend, system messages, raw bytes, and a bounded copyable capture
 - One user-initiated MIDI connection remains active while switching Prelude modes
 - Simultaneous MIDI note tracking
 - Rolled chord support
@@ -341,7 +342,7 @@ Interface MIDI OUT → Keyboard MIDI IN
 Interface MIDI IN  → Keyboard MIDI OUT
 ```
 
-When a device is not detected, check the cable direction and use Prelude's MIDI diagnostic display.
+When a device is not detected, check the cable direction and open **MIDI Diagnostic** from Prelude's mode navigation. Connect MIDI there to inspect every browser-received message from every connected input. Clear starts a fresh timestamp origin, Pause/Resume controls capture without disconnecting, and Copy Capture produces compact diagnostic text suitable for sharing. The newest 1,000 events remain in memory; the viewer reports when older rows were dropped and does not save or grade the capture.
 
 Physical MIDI input depends on browser Web MIDI support and user permission; Chromium-based desktop browsers provide the most reliable current path. The virtual keyboard remains available where physical MIDI is unavailable, but MIDI, touch, audio-autoplay, fullscreen, and orientation behavior can vary by browser and device and should be verified before relying on a particular setup.
 
@@ -403,9 +404,9 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-The package is on the in-development **v2.8.4** Weekly Practice generation and import workflow. A compact Practice Sessions guide copies a provider-neutral, self-contained prompt that helps a general AI assistant ask useful student-context questions and return valid raw Weekly Practice JSON. Prelude then validates pasted or uploaded JSON, previews it, resolves preset-name collisions, and atomically adds the curriculum to the unsaved working library. Prelude never sends student information to an AI service, and the existing Save action remains the only browser-storage write. Git tagging and releasing remain manual owner actions.
+The package is on the in-development **v2.8.5** Phase 0 Raw MIDI Diagnostic Viewer. The permanent diagnostic mode independently observes exact browser MIDI bytes, event timing, input identity, decoded message details, and unexpected messages without changing Prelude's feature-facing MIDI pipeline or Piece Practice evidence. Its bounded capture is memory-only and can be copied as diagnostic text. Git tagging and releasing remain manual owner actions.
 
-The application now supports seven complementary top-level modes:
+The application now supports eight complementary top-level modes/tools:
 
 - Flashcards for isolated notes and triads
 - Sequences for intervals, scales, arpeggios, and chord progressions
@@ -414,10 +415,11 @@ The application now supports seven complementary top-level modes:
 - Melody for continuous one- or two-measure sight-reading and independent Pitch, Movement, and Timing results
 - Staff Builder for beginner-friendly score transcription and editing
 - Practice Sessions for reusable ordered prescriptions across the existing exercise engines
+- MIDI Diagnostic for raw, non-grading hardware and browser input inspection
 
 The release candidate adds browser-local Practice Session presets, native completion targets, Scale Repertoire traversal, timed Melody orchestration, Bonus/Skip/End/summary flow, and stable hosted Mobile Play continuity across exercises. Final interaction and presentation QA is intentionally deferred to the deployed Chromebook/tablet. Practice evidence persistence, analytics, scheduling, cloud accounts, and active-run recovery remain future considerations rather than current capabilities.
 
-`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is `2.8.4`; tagging and releasing remain manual owner actions.
+`package.json` is the authoritative source for the version displayed in Prelude's navigation. It is `2.8.5`; tagging and releasing remain manual owner actions.
 
 Staff Builder projects and drafts live only in the current browser's local storage. There is no account, cloud synchronization, or server-side analytics. Export important pieces as `.prelude.json` files: clearing site data, using another browser/profile, or losing the device can otherwise remove local work. An import restores a piece, not session history or practice evidence.
 

@@ -9,9 +9,10 @@ import { useFocusMode } from "./hooks/use-focus-mode";
 import { MidiProvider } from "./components/midi/midi-provider";
 import MelodySession from "./features/melody/components/melody-session";
 import PracticeSessionBuilder from "./features/practice-session/components/practice-session-builder";
+import MidiDiagnostic from "./components/midi/midi-diagnostic";
 import { version } from "../package.json";
 
-type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session";
+type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session" | "midi-diagnostic";
 
 export default function App() {
   const [practiceSection, setPracticeSection] =
@@ -64,6 +65,10 @@ export default function App() {
 
     case "practice-session":
       content = null;
+      break;
+
+    case "midi-diagnostic":
+      content = <MidiDiagnostic />;
       break;
 
     default:
@@ -174,6 +179,17 @@ export default function App() {
           type="button"
         >
           Melody
+        </button>
+
+        <button
+          aria-label="MIDI Diagnostic"
+          aria-pressed={practiceSection === "midi-diagnostic"}
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "midi-diagnostic" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+          onClick={() => { exitFocusMode(); setPracticeSection("midi-diagnostic"); }}
+          type="button"
+        >
+          <span className="sm:hidden">MIDI</span>
+          <span className="hidden sm:inline">MIDI Diagnostic</span>
         </button>
 
         <span

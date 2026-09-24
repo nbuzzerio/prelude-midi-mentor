@@ -4,6 +4,7 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Added the permanent Phase 0 Raw MIDI Diagnostic mode with independent multi-input Web MIDI observation, length-tolerant decoding, browser-relative timestamps, a bounded 1,000-event history, pause/clear controls, and copyable diagnostic evidence without changing feature MIDI contracts or Piece Practice.
 - Added accessible Practice Diagnostic Shorthand chips derived from engine-native evidence: Pitch, Identification, Hesitation, Retried, and Skipped, plus neutral numeric Melody Pitch/Movement/Timing metrics without new thresholds or grading semantics.
 - Added compact Piece Library sorting by Recently Played, Recently Updated, or Alphabetical, backed by honest browser-local practice timestamps recorded only when a saved score successfully enters Piece Practice.
 - Migrated Staff Builder library envelopes to schema v4 without fabricating history; score exports/imports and duplicates remain free of source practice recency.
