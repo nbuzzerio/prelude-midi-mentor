@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendMidiDiagnosticEvent, EMPTY_MIDI_DIAGNOSTIC_CAPTURE, formatMidiDiagnosticCapture, MIDI_DIAGNOSTIC_CAPTURE_LIMIT, type MidiDiagnosticCapture } from "./midi-diagnostic-capture";
+import { advanceMidiDiagnosticContinuity, appendMidiDiagnosticEvent, EMPTY_MIDI_DIAGNOSTIC_CAPTURE, formatMidiDiagnosticCapture, MIDI_DIAGNOSTIC_CAPTURE_LIMIT, type MidiDiagnosticCapture } from "./midi-diagnostic-capture";
 import { decodeMidiDiagnosticMessage } from "./midi-diagnostic-message";
 
 const source: Readonly<{ id: string; name: string }> = { id: "keys-1", name: "Yamaha Keys" };
@@ -9,6 +9,18 @@ function append(capture: MidiDiagnosticCapture, eventTimeStampMs: number, eventS
 }
 
 describe("MIDI diagnostic capture", () => {
+  it("records continuity as capture context without changing previous raw evidence or origin", () => {
+    const before = append(EMPTY_MIDI_DIAGNOSTIC_CAPTURE, 10.125);
+    const raw = formatMidiDiagnosticCapture({ capture: before, inputs: [source], version: "test" });
+    const gap = advanceMidiDiagnosticContinuity(before, source.id);
+    expect(gap.events).toBe(before.events);
+    expect(gap.totalCaptured).toBe(before.totalCaptured); expect(gap.originTimeStampMs).toBe(before.originTimeStampMs);
+    expect(formatMidiDiagnosticCapture({ capture: gap, inputs: [source], version: "test" })).toBe(raw);
+    const resumed = append(gap, 20.125);
+    expect(resumed.events[0]).toBe(before.events[0]);
+    expect(resumed.events.map(({ continuitySegment }) => continuitySegment)).toEqual(["0:0", "0:1"]);
+    expect(resumed.observedInputs).toEqual([source]);
+  });
   it("uses the first event as a precise relative origin and preserves ordering", () => {
     let capture = append(EMPTY_MIDI_DIAGNOSTIC_CAPTURE, 10.125);
     capture = append(capture, 71.557);

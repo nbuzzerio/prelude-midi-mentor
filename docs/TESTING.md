@@ -643,3 +643,12 @@ Manual QA: open Melody directly and check standalone defaults; change staff/key/
 `staff-builder-guide-dialog.test.tsx` covers exact clipboard output, failure/manual selection, retry, concurrent-copy prevention, modal focus, Escape/Close, and focus restoration. `staff-builder-session.test.tsx` verifies guide preview/copy/failure/retry leave editor history and all stored draft/library/metadata data unchanged, and retains the separate current-score copy path.
 
 Manual checks: open the ? dialog on desktop/tablet/mobile; inspect the expandable guide; copy into a text editor; deny clipboard access and manually copy the selected text; verify Escape/Close returns focus. Import the guide's practice-ready example through Piece Library and confirm validation succeeds. No AI or provider calls are required.
+
+
+### MIDI Diagnostic musical projection and report
+
+Focused validation: `pnpm test src/components/midi/midi-diagnostic-capture.test.ts src/components/midi/midi-diagnostic-message.test.ts src/components/midi/midi-diagnostic-musical.test.ts src/components/midi/midi-diagnostic-report.test.ts src/components/midi/midi-diagnostic.test.tsx`.
+
+Coverage includes both release encodings/velocities, precise duration, repeated and overlapping notes (FIFO plus ambiguity), independent pitches/channels/inputs, missing endpoints, continuity across pause/resume and disconnect/reconnect, malformed/invalid payloads, nonfinite/backward timestamps, CC64 thresholds and repeated/intermediate values, arbitrary CC, pressure/program/pitch bend/system messages, ordinary F8/FE hiding with raw preservation, background counters after eviction, partial-evidence warnings, deterministic reports, immutable raw evidence, view-only switching, and stable clipboard fallback/retry.
+
+Manual Yamaha check: play and release C4 softly, then firmly; inspect separate velocities and held durations. Repeat with simultaneous notes and same-pitch overlaps, operate sustain, and verify key-release duration is unaffected by pedal state. Switch to Raw MIDI and confirm F8/FE bytes remain. Pause with a pending note, resume and release, then repeat across device disconnect/reconnect: neither case should be paired across the gap. Send enough background messages to overflow the ring and verify prominent partial-evidence warnings. Deny clipboard access, receive more MIDI, and ensure the selected fallback stays unchanged until retry. Check keyboard operation, details, horizontal scrolling, and tablet/mobile layouts. No AI or provider calls are needed.

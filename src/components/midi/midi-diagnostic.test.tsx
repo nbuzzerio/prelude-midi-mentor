@@ -60,6 +60,7 @@ describe("MIDI Diagnostic", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
     expect(screen.getByText("Yamaha Keys")).toBeTruthy(); expect(screen.getByText("Pedals")).toBeTruthy();
     act(() => { first.emit([0x90, 60, 35], 100); second.emit([0xb0, 64, 47], 161.432); });
+    fireEvent.click(screen.getByRole("button", { name: "Raw MIDI / All Messages" }));
     const history = screen.getByLabelText("Captured MIDI event history");
     expect(within(history).getAllByRole("row")).toHaveLength(3);
     expect(within(history).getByText("+61.432 ms")).toBeTruthy();
@@ -71,6 +72,7 @@ describe("MIDI Diagnostic", () => {
   it("pauses without disconnecting, resumes the same origin, and Clear resets origin and sequence", async () => {
     const keys = midiInput("one", "Keys"); install(midiAccess([keys]).access); render(<MidiDiagnostic />);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+    fireEvent.click(screen.getByRole("button", { name: "Raw MIDI / All Messages" }));
     act(() => keys.emit([0x90, 60, 1], 10));
     fireEvent.click(screen.getByRole("button", { name: "Pause Capture" }));
     act(() => keys.emit([0x90, 61, 2], 20));
@@ -113,4 +115,162 @@ describe("MIDI Diagnostic", () => {
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Capture copied."));
     expect(writeText).toHaveBeenCalledTimes(2); expect(writeText.mock.calls[0]?.[0]).toBe(writeText.mock.calls[1]?.[0]);
   });
+});
+
+
+it("defaults to musical instances and preserves F8/FE in Raw MIDI and Copy Capture", async () => {
+  const keys = midiInput("one", "Yamaha Keys"); install(midiAccess([keys]).access);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  render(<MidiDiagnostic writeText={writeText} />);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+  act(() => {
+    keys.emit([0xf8], 100); keys.emit([0xfe], 101);
+    keys.emit([0x90, 60, 72], 731.1); keys.emit([0xb0, 64, 127], 900);
+    keys.emit([0x90, 60, 0], 4251.2); keys.emit([0xb0, 64, 0], 4300);
+  });
+  expect(screen.getByRole("button", { name: "Musical Events" }).getAttribute("aria-pressed")).toBe("true");
+  const musical = screen.getByLabelText("Musical MIDI event history");
+  expect(within(musical).getAllByRole("row")).toHaveLength(4);
+  expect(within(musical).getByText("C4")).toBeTruthy();
+  expect(within(musical).getByText("0.631s")).toBeTruthy();
+  expect(within(musical).getByText("3.520s")).toBeTruthy();
+  expect(within(musical).getByText("Sustain Down — CC64 127")).toBeTruthy();
+  expect(within(musical).queryByText("Timing Clock")).toBeNull();
+  expect(musical.getAttribute("aria-live")).toBeNull();
+  fireEvent.click(within(musical).getByText("Note details — raw #3"));
+  expect(within(musical).getByText(/Release velocity: 0; encoding: note-on-zero/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Copy Capture" }));
+  await screen.findByText("Capture copied.");
+  const rawBefore = writeText.mock.calls[0]![0];
+  expect(rawBefore).toContain("Timing Clock"); expect(rawBefore).toContain("Active Sensing");
+  fireEvent.click(screen.getByRole("button", { name: "Raw MIDI / All Messages" }));
+  const raw = screen.getByLabelText("Captured MIDI event history");
+  expect(within(raw).getAllByRole("row")).toHaveLength(7);
+  expect(within(raw).getByText("F8")).toBeTruthy(); expect(within(raw).getByText("FE")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Musical Events" }));
+  fireEvent.click(screen.getByRole("button", { name: "Copy Capture" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+  expect(writeText.mock.calls[1]![0]).toBe(rawBefore);
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+  await screen.findByText("Report copied.");
+  expect(writeText.mock.calls[2]![0]).toContain("Prelude MIDI Diagnostic Report");
+  expect(writeText.mock.calls[2]![0]).toContain("Note attacks represented: 1; paired releases: 1");
+});
+
+it("pause/resume excludes paused MIDI and prevents note pairing across the gap", async () => {
+  const keys = midiInput("one", "Keys"); install(midiAccess([keys]).access);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  render(<MidiDiagnostic writeText={writeText} />);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+  act(() => keys.emit([0x90, 60, 72], 100));
+  fireEvent.click(screen.getByRole("button", { name: "Pause Capture" }));
+  act(() => { keys.emit([0xf8], 200); keys.emit([0xfe], 201); keys.emit([0x80, 60, 0], 300); });
+  fireEvent.click(screen.getByRole("button", { name: "Resume Capture" }));
+  act(() => keys.emit([0x80, 60, 22], 500));
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+  await screen.findByText("Report copied.");
+  const text = writeText.mock.calls[0]![0];
+  expect(text).toContain("Retained raw messages: 2"); expect(text).toContain("paired releases: 0");
+  expect(text).toContain("Unmatched attacks: 1; unmatched releases: 1");
+  expect(text).toContain("Timing Clock: not observed; count=0"); expect(text).toContain("Active Sensing: not observed; count=0");
+  expect(text).toContain("Continuity boundaries observed during this capture: 1");
+});
+
+it("disconnect/reconnect with the same input ID starts new source continuity", async () => {
+  const first = midiInput("one", "Keys"); const reconnected = midiInput("one", "Keys");
+  const ports = midiAccess([first]); install(ports.access);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  render(<MidiDiagnostic writeText={writeText} />);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+  act(() => first.emit([0x90, 60, 72], 100));
+  first.disconnect(); act(() => ports.stateChange());
+  ports.inputs.set("one", reconnected.input); act(() => ports.stateChange());
+  act(() => reconnected.emit([0x80, 60, 22], 500));
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+  await screen.findByText("Report copied.");
+  expect(writeText.mock.calls[0]![0]).toContain("Unmatched attacks: 1; unmatched releases: 1");
+  expect(writeText.mock.calls[0]![0]).toContain("paired releases: 0");
+  expect(first.listeners.size).toBe(0); expect(reconnected.listeners.size).toBe(1);
+});
+
+it.each(["Copy Capture", "Copy Report"])("freezes %s fallback during incoming MIDI, then retries with current evidence", async (action) => {
+  const keys = midiInput("one", "Keys"); install(midiAccess([keys]).access);
+  const writeText = vi.fn().mockRejectedValueOnce(new Error("Denied")).mockResolvedValue(undefined);
+  render(<MidiDiagnostic writeText={writeText} />);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+  act(() => keys.emit([0x90, 60, 72], 100));
+  fireEvent.click(screen.getByRole("button", { name: action }));
+  const label = action === "Copy Report" ? "MIDI diagnostic report" : "MIDI diagnostic capture";
+  const fallback = await screen.findByRole("textbox", { name: label }) as HTMLTextAreaElement;
+  const snapshot = writeText.mock.calls[0]![0];
+  expect(fallback.value).toBe(snapshot); expect(fallback.readOnly).toBe(true);
+  await waitFor(() => expect(document.activeElement).toBe(fallback));
+  expect(fallback.selectionStart).toBe(0); expect(fallback.selectionEnd).toBe(snapshot.length);
+  act(() => { keys.emit([0x80, 60, 22], 500); keys.emit([0xfe], 510); });
+  expect(fallback.value).toBe(snapshot);
+  fireEvent.click(screen.getByRole("button", { name: action }));
+  await screen.findByText(action === "Copy Report" ? "Report copied." : "Capture copied.");
+  expect(writeText.mock.calls[1]![0]).not.toBe(snapshot);
+  expect(screen.queryByRole("textbox", { name: label })).toBeNull();
+});
+
+it("displays truncation prominently and reset clears counters/origin/continuity", async () => {
+  const keys = midiInput("one", "Keys"); install(midiAccess([keys]).access);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  render(<MidiDiagnostic writeText={writeText} />);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+  act(() => {
+    keys.emit([0x90, 60, 72], 0); keys.emit([0xfe], 1);
+    for (let index = 0; index < 1000; index++) keys.emit([0xf8], index + 2);
+    keys.emit([0x80, 60, 2], 2000);
+  });
+  expect(screen.getByText(/Partial evidence: older raw messages were dropped/)).toBeTruthy();
+  expect(screen.getByText(/Timing Clock 1000, Active Sensing 1/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" })); await screen.findByText("Report copied.");
+  expect(writeText.mock.calls[0]![0]).toContain("Partial evidence");
+  expect(writeText.mock.calls[0]![0]).toContain("Note attacks represented: 0; paired releases: 0");
+  fireEvent.click(screen.getByRole("button", { name: "Pause Capture" }));
+  fireEvent.click(screen.getByRole("button", { name: "Resume Capture" }));
+  fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+  act(() => keys.emit([0x90, 62, 77], 10000));
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" })); await screen.findByText("Report copied.");
+  const text = writeText.mock.calls[1]![0];
+  expect(text).not.toContain("Partial evidence:"); expect(text).toContain("Timing Clock: not observed; count=0");
+  expect(text).toContain("Continuity boundaries observed during this capture: 0");
+  expect(text).toContain("Attack: 0.000000s"); expect(text).toContain("Raw sequences: attack=1");
+});
+
+it("retains unexpected background and malformed messages in the default view", async () => {
+  const keys = midiInput("one", "Keys"); install(midiAccess([keys]).access); render(<MidiDiagnostic />);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+  act(() => { keys.emit([0xf8, 1], 0); keys.emit([0xfe, 1], 1); keys.emit([0x90, 60], 2); keys.emit([0xb0, 67, 99], 3); });
+  const musical = screen.getByLabelText("Musical MIDI event history");
+  expect(within(musical).getAllByRole("row")).toHaveLength(5);
+  expect(within(musical).getByText(/Timing Clock .*extra bytes/)).toBeTruthy();
+  expect(within(musical).getByText(/Active Sensing .*extra bytes/)).toBeTruthy();
+  expect(within(musical).getByText(/Note On .*truncated bytes/)).toBeTruthy();
+});
+
+it("keeps an in-flight report snapshot through Clear and prevents concurrent writes", async () => {
+  const keys = midiInput("one", "Keys"); install(midiAccess([keys]).access);
+  let reject!: (error: Error) => void;
+  const writeText = vi.fn().mockImplementationOnce(() => new Promise<void>((_resolve, fail) => { reject = fail; })).mockResolvedValue(undefined);
+  render(<MidiDiagnostic writeText={writeText} />);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect MIDI" })); });
+  act(() => keys.emit([0x90, 60, 72], 100));
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+  const snapshot = writeText.mock.calls[0]![0];
+  expect((screen.getByRole("button", { name: "Copy Capture" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+  act(() => keys.emit([0x90, 62, 77], 500));
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+  expect(writeText).toHaveBeenCalledOnce();
+  await act(async () => reject(new Error("Denied")));
+  const fallback = await screen.findByRole("textbox", { name: "MIDI diagnostic report" }) as HTMLTextAreaElement;
+  expect(fallback.value).toBe(snapshot); expect(fallback.value).toContain("C4 / MIDI 60");
+  expect(fallback.value).not.toContain("D4 / MIDI 62");
+  fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+  await screen.findByText("Report copied.");
+  expect(writeText.mock.calls[1]![0]).toContain("D4 / MIDI 62");
+  expect(writeText.mock.calls[1]![0]).not.toContain("C4 / MIDI 60");
 });
