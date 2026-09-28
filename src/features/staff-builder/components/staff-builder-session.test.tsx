@@ -1,3 +1,4 @@
+import { createStaffBuilderLlmSpecification } from "../staff-builder-llm-specification";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
@@ -62,7 +63,7 @@ beforeEach(() => {
     disconnect() {}
   });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); Reflect.deleteProperty(navigator, "clipboard"); });
 
 function dismissIntroduction() {
   fireEvent.click(screen.getByRole("button", { name: "Begin" }));
@@ -78,7 +79,7 @@ function createPiece(title = "Minuet") {
 
 function savedValidScore(title = "Practice Study"): StaffBuilderScore {
   return {
-    schemaVersion: 3 as const, annotations: [], id: `saved-${title}`, title, createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    schemaVersion: 4 as const, annotations: [], id: `saved-${title}`, title, createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 96, initialKeySignatureId: "c-major" as const, initialTimeSignature: "4/4" as const, ties: [], measures: [{ id: "m1", events: [
       { id: "treble", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: "tp", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] },
       { id: "bass", kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } },
@@ -932,4 +933,77 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear library data" }));
     expect(storage.values.has(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(false);
   });
+});
+
+it.each([false, true])("copies a new piece's unsaved editor score without storage/history mutation (clipboard failure: %s)", async (clipboardFails) => {
+  const storage = new MemoryStorage();
+
+  const writeText = clipboardFails ? vi.fn().mockRejectedValue(new Error("Denied")) : vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, get: () => ({ writeText }) });
+  render(<StaffBuilderSession storage={storage} />);
+  dismissIntroduction();
+  createPiece("Copy Study");
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Tempo" }), { target: { value: "112" } });
+  fireEvent.blur(screen.getByRole("spinbutton", { name: "Tempo" }));
+  fireEvent.click(screen.getByText("Measure 1 display clefs: Upper Treble \u00b7 Lower Bass"));
+  fireEvent.change(screen.getByLabelText("Lower staff display clef"), { target: { value: "treble" } });
+  const snapshot = new Map(storage.values);
+  const setItem = vi.spyOn(storage, "setItem");
+  const removeItem = vi.spyOn(storage, "removeItem");
+  const undoDisabled = (screen.getByRole("button", { name: "Undo last score edit" }) as HTMLButtonElement).disabled;
+  fireEvent.click(screen.getByRole("button", { name: "Copy Score for AI" }));
+  if (clipboardFails) await screen.findByRole("textbox", { name: "Staff Builder score JSON" });
+  else await screen.findByText("Score JSON copied.");
+  const { parseStaffBuilderPieceFileText } = await import("../persistence/staff-builder-piece-file");
+  const currentDraft = JSON.parse(snapshot.get(STAFF_BUILDER_STORAGE_KEYS.draft)!).score;
+  expect(parseStaffBuilderPieceFileText(writeText.mock.calls[0]![0])).toEqual({ ok: true, score: currentDraft });
+  expect(currentDraft.tempoBpm).toBe(112);
+  expect(currentDraft.measures[0].clefChanges).toEqual({ bass: "treble" });
+  expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(snapshot.get(STAFF_BUILDER_STORAGE_KEYS.library));
+  expect(setItem).not.toHaveBeenCalled();
+  expect(removeItem).not.toHaveBeenCalled();
+  expect(storage.values).toEqual(snapshot);
+  expect((screen.getByRole("button", { name: "Undo last score edit" }) as HTMLButtonElement).disabled).toBe(undoDisabled);
+});
+
+
+it.each([false, true])("keeps editor and storage unchanged throughout guide preview, copy, failure, retry, and close (failure: %s)", async (fails) => {
+  const storage = new MemoryStorage();
+  const existing = savedValidScore("Existing Piece");
+  storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 4, pieces: [existing], practiceMetadataByPieceId: { [existing.id]: { lastPracticedAt: "2026-09-28T12:00:00.000Z" } } }));
+  const writeText = vi.fn();
+  if (fails) writeText.mockRejectedValueOnce(new Error("Denied"));
+  writeText.mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  render(<StaffBuilderSession storage={storage} />);
+  dismissIntroduction(); createPiece("Authoring Help Study");
+  fireEvent.click(screen.getByRole("button", { name: "C, MIDI 60" }));
+  fireEvent.click(screen.getByRole("button", { name: "Lock pitches and continue" }));
+  const snapshot = new Map(storage.values);
+  const setItem = vi.spyOn(storage, "setItem");
+  const removeItem = vi.spyOn(storage, "removeItem");
+  const undo = screen.getByRole("button", { name: "Undo last score edit" }) as HTMLButtonElement;
+  const undoBefore = undo.disabled;
+  const redo = screen.getByRole("button", { name: "Redo last score edit" }) as HTMLButtonElement;
+  const redoBefore = redo.disabled;
+  const trigger = screen.getByRole("button", { name: "Staff Builder AI authoring guide" });
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByText("Read the authoring guide"));
+  fireEvent.click(screen.getByRole("button", { name: "Copy for AI" }));
+  if (fails) {
+    await screen.findByRole("textbox", { name: "Staff Builder AI authoring guide text" });
+    fireEvent.click(screen.getByRole("button", { name: "Copy for AI" }));
+  }
+  await screen.findByText("Authoring guide copied.");
+  for (const call of writeText.mock.calls) expect(call).toEqual([createStaffBuilderLlmSpecification()]);
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(document.activeElement).toBe(trigger);
+  expect(storage.values).toEqual(snapshot);
+  expect(setItem).not.toHaveBeenCalled(); expect(removeItem).not.toHaveBeenCalled();
+  expect(undo.disabled).toBe(undoBefore); expect(redo.disabled).toBe(redoBefore);
+  fireEvent.click(screen.getByRole("button", { name: "Copy Score for AI" }));
+  await screen.findByText("Score JSON copied.");
+  const { parseStaffBuilderPieceFileText } = await import("../persistence/staff-builder-piece-file");
+  expect(parseStaffBuilderPieceFileText(writeText.mock.calls.at(-1)![0])).toEqual({ ok: true, score: JSON.parse(snapshot.get(STAFF_BUILDER_STORAGE_KEYS.draft)!).score });
+  expect(storage.values).toEqual(snapshot);
 });

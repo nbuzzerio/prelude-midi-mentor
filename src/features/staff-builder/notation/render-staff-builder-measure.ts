@@ -79,7 +79,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const baseTrebleY = singleStaff ? 95 : TREBLE_Y;
   const baseBassY = singleStaff ? 95 : BASS_Y;
   const vertical = getStaffBuilderVerticalGeometry({
-    pitchSources: [...projection.staves.treble, ...projection.staves.bass].flatMap((item) => item.kind === "notes" ? [{ staff: item.staff, pitches: item.pitches }] : []),
+    pitchSources: [...projection.staves.treble, ...projection.staves.bass].flatMap((item) => item.kind === "notes" ? [{ staff: item.staff, clef: projection.clefs[item.staff], pitches: item.pitches }] : []),
     baseHeight: BASE_RENDER_HEIGHT,
     trebleStaveY: baseTrebleY,
     bassStaveY: baseBassY,
@@ -91,8 +91,8 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   renderer.resize(RENDER_WIDTH, vertical.height);
   const context = renderer.getContext();
   const staveWidth = RENDER_WIDTH - STAVE_X - STAVE_RIGHT_PADDING;
-  const trebleStave = new Stave(STAVE_X, vertical.trebleStaveY, staveWidth).addClef("treble");
-  const bassStave = new Stave(STAVE_X, vertical.bassStaveY, staveWidth).addClef("bass");
+  const trebleStave = new Stave(STAVE_X, vertical.trebleStaveY, staveWidth).addClef(projection.clefs.treble);
+  const bassStave = new Stave(STAVE_X, vertical.bassStaveY, staveWidth).addClef(projection.clefs.bass);
   const clefEndX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
   trebleStave.addKeySignature(projection.vexflowKeySignature);
   bassStave.addKeySignature(projection.vexflowKeySignature);
@@ -109,8 +109,8 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
   }
 
-  const trebleVoices = createStaffBuilderVexFlowVoices(projection.voices.treble, projection.timeSignature);
-  const bassVoices = createStaffBuilderVexFlowVoices(projection.voices.bass, projection.timeSignature);
+  const trebleVoices = createStaffBuilderVexFlowVoices(projection.voices.treble, projection.timeSignature, projection.clefs.treble);
+  const bassVoices = createStaffBuilderVexFlowVoices(projection.voices.bass, projection.timeSignature, projection.clefs.bass);
   applyStaffBuilderVexFlowAccidentals(trebleVoices, projection.vexflowKeySignature);
   applyStaffBuilderVexFlowAccidentals(bassVoices, projection.vexflowKeySignature);
   const trebleBeams = createStaffBuilderVexFlowBeams(trebleVoices);

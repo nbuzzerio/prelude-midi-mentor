@@ -7,7 +7,7 @@ import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const pitch = (id: string, midiNumber = 61) => ({ id, midiNumber, letter: "C" as const, accidental: "sharp" as const, octave: 4 });
 const event = (id: string, staff: "treble" | "bass", startTick: number, rhythm: StaffBuilderEvent["rhythm"] = { status: "unresolved" }): StaffBuilderEvent => ({ id, kind: "notes", staff, startTick, rhythm, pitches: [pitch(`${id}-pitch`)] });
-function score(events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore { return { schemaVersion: 3, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }, { id: "m2", events: [event("later", "treble", 0)] }], ties }; }
+function score(events: readonly StaffBuilderEvent[], ties: StaffBuilderScore["ties"] = []): StaffBuilderScore { return { schemaVersion: 4, annotations: [], id: "score", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events }, { id: "m2", events: [event("later", "treble", 0)] }], ties }; }
 const now = { now: () => "2026-01-02T00:00:00.000Z" };
 
 describe("Staff Builder rhythm operations", () => {
@@ -179,7 +179,7 @@ describe("Staff Builder rhythm operations", () => {
     const tiedPitch = pitch("tied-pitch", 61);
     const destinationPitch = { ...tiedPitch, id: "destination-pitch" };
     const validTied: StaffBuilderScore = {
-      schemaVersion: 3, annotations: [], id: "tied", title: "Tie safety", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
+      schemaVersion: 4, annotations: [], id: "tied", title: "Tie safety", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100,
       initialKeySignatureId: "c-major", initialTimeSignature: "4/4",
       measures: [
         { id: "m1", events: [

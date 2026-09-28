@@ -3,7 +3,7 @@ import type { StaffBuilderScore } from "./staff-builder-types";
 import { duplicateStaffBuilderScore } from "./staff-builder-duplication";
 
 const source: StaffBuilderScore = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   id: "source",
   title: "Study",
   createdAt: "2026-01-01T00:00:00.000Z",

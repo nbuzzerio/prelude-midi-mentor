@@ -40,7 +40,7 @@ function piece(targetsByMeasure: readonly (readonly (readonly number[])[])[] = [
     sourceScoreId: "score", sourceScoreUpdatedAt: "now", title: "Input study", tempoBpm: 96,
     measures: targetsByMeasure.map((targetSets, measureIndex) => ({
       measureIndex, sourceMeasureId: `m${measureIndex}`, absoluteStartTick: measureIndex * 1920, capacityTicks: 1920,
-      keySignatureId: "c-major", timeSignature: "4/4", sourceEvents: [], restEventIds: targetSets.length ? [] : [`rest-${measureIndex}`],
+      keySignatureId: "c-major", timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, sourceEvents: [], restEventIds: targetSets.length ? [] : [`rest-${measureIndex}`],
       targets: targetSets.map((notes, targetIndex) => target(measureIndex, targetIndex, notes)),
     })),
   };

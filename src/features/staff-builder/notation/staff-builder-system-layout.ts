@@ -79,6 +79,7 @@ export const DEFAULT_STAFF_BUILDER_VERTICAL_LAYOUT_RESERVATIONS: StaffBuilderVer
 const SYSTEM_START_OVERHEAD = 72;
 const KEY_CHANGE_OVERHEAD = 24;
 const TIME_CHANGE_OVERHEAD = 20;
+const CLEF_CHANGE_OVERHEAD = 40;
 const COMPLEXITY_WIDTH_UNIT = 12;
 
 function requireNonNegative(value: number, name: string): void {
@@ -182,7 +183,9 @@ export function estimateStaffBuilderMeasureLayout(
   if (constraints.minimumMeasureWidth <= 0 || constraints.maximumMeasureWidth < constraints.minimumMeasureWidth) throw new Error("Invalid measure width constraints.");
   const measure = score.measures[measureIndex];
   if (!measure) throw new Error(`Unknown measure index ${measureIndex}.`);
-  const { capacityTicks, keySignatureId } = resolveStaffBuilderMeasureContext(score, measureIndex);
+  const { capacityTicks, keySignatureId, clefs } = resolveStaffBuilderMeasureContext(score, measureIndex);
+  const previousClefs = measureIndex > 0 ? resolveStaffBuilderMeasureContext(score, measureIndex - 1).clefs : clefs;
+  const clefChangeOverhead = (["treble", "bass"] as const).some((staff) => clefs[staff] !== previousClefs[staff]) ? CLEF_CHANGE_OVERHEAD : 0;
   const signals = measureSignals(measure, capacityTicks, keySignatureId);
   const capacityInQuarters = capacityTicks / STAFF_BUILDER_TICKS_PER_QUARTER;
   const rhythmicDensity = signals.onsets.length / Math.max(1, capacityInQuarters);
@@ -196,7 +199,7 @@ export function estimateStaffBuilderMeasureLayout(
   const systemStartOverhead = startsSystem ? SYSTEM_START_OVERHEAD : 0;
   const signatureChangeOverhead = startsSystem ? 0
     : (measure.keySignatureChange === undefined ? 0 : KEY_CHANGE_OVERHEAD)
-      + (measure.timeSignatureChange === undefined ? 0 : TIME_CHANGE_OVERHEAD);
+      + (measure.timeSignatureChange === undefined ? 0 : TIME_CHANGE_OVERHEAD) + clefChangeOverhead;
   const requestedWidth = Math.min(constraints.maximumMeasureWidth, Math.max(constraints.minimumMeasureWidth,
     constraints.minimumMeasureWidth + complexityWeight * COMPLEXITY_WIDTH_UNIT + systemStartOverhead + signatureChangeOverhead));
   return {
@@ -307,7 +310,10 @@ export function layoutStaffBuilderScoreSystems(score: StaffBuilderScore, constra
 
   let documentY = 0;
   const systems = packed.map((estimates, systemIndex): StaffBuilderSystemLayout => {
-    const pitchSources = estimates.flatMap(({ measureIndex }) => score.measures[measureIndex]?.events.flatMap((event) => event.kind === "notes" ? [{ staff: event.staff, pitches: event.pitches }] : []) ?? []);
+    const pitchSources = estimates.flatMap(({ measureIndex }) => {
+      const clefs = resolveStaffBuilderMeasureContext(score, measureIndex).clefs;
+      return score.measures[measureIndex]?.events.flatMap((event) => event.kind === "notes" ? [{ staff: event.staff, clef: clefs[event.staff], pitches: event.pitches }] : []) ?? [];
+    });
     const systemEventIds = new Set(estimates.flatMap(({ measureIndex }) => score.measures[measureIndex]?.events.map(({ id }) => id) ?? []));
     const hasLyricCues = getStaffBuilderLyricCues(score, systemEventIds).length > 0;
     const range = getStaffBuilderVerticalGeometry({ pitchSources, baseHeight: constraints.baseMusicHeight, trebleStaveY: 15, bassStaveY: constraints.baseMusicHeight - 105, topLaneReservation: hasLyricCues ? STAFF_BUILDER_LYRIC_LANE_RESERVATION : 0 });

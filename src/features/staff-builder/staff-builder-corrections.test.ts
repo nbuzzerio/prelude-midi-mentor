@@ -4,7 +4,7 @@ import type { StaffBuilderScore } from "./staff-builder-types";
 import { validateStaffBuilderScore } from "./staff-builder-validation";
 
 const factories = () => { let id = 0; return { createId: () => `new-${++id}`, now: () => "2026-01-02T00:00:00.000Z" }; };
-const base = (): StaffBuilderScore => ({ schemaVersion: 3, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [{ id: "from", kind: "notes", staff: "treble", startTick: 1440, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "fp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }, { id: "fe", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] }] }, { id: "m2", events: [] }], ties: [] });
+const base = (): StaffBuilderScore => ({ schemaVersion: 4, annotations: [], id: "s", title: "Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [{ id: "from", kind: "notes", staff: "treble", startTick: 1440, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "fp", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }, { id: "fe", midiNumber: 64, letter: "E", accidental: "natural", octave: 4 }] }] }, { id: "m2", events: [] }], ties: [] });
 
 describe("Staff Builder corrections", () => {
   it("returns only an exact supported duration for the remaining measure span", () => {

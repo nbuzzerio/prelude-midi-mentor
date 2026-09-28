@@ -1,3 +1,4 @@
+import { Stave } from "vexflow";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,7 +7,7 @@ import { StaffBuilderStudyView } from "./staff-builder-study-view";
 import { ALL_STAFF_BUILDER_ANNOTATION_LAYERS, type StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
 
 const score: StaffBuilderScore = {
-  schemaVersion: 3, annotations: [{ id: "ignored", kind: "study-note", anchor: { kind: "measure", measureId: "m0" }, text: "Not in Phase 5A" }], id: "study", title: "Clean Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  schemaVersion: 4, annotations: [{ id: "ignored", kind: "study-note", anchor: { kind: "measure", measureId: "m0" }, text: "Not in Phase 5A" }], id: "study", title: "Clean Study", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
   tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [],
   measures: Array.from({ length: 4 }, (_value, index) => ({ id: `m${index}`, events: [] })),
 };
@@ -147,3 +148,13 @@ describe("StaffBuilderStudyView", () => {
 function containerSemanticTrees() {
   return document.querySelectorAll("[data-staff-builder-score-semantics]").length;
 }
+
+it("shows authored clef changes through the shared Study View system renderer", () => {
+  const current: StaffBuilderScore = { ...score, measures: score.measures.map((measure, i) => ({ ...measure, ...(i === 1 ? { clefChanges: { bass: "treble" as const } } : {}) })) };
+  const draws = vi.spyOn(Stave.prototype, "draw");
+  const { container } = render(<StaffBuilderStudyView visibleAnnotationLayers={ALL_STAFF_BUILDER_ANNOTATION_LAYERS} onLayerVisibilityChange={vi.fn()} onShowAllAnnotationLayers={vi.fn()} onHideAllAnnotationLayers={vi.fn()} onExit={vi.fn()} score={current} />);
+  act(() => resize?.(1100));
+  expect(draws.mock.instances.some((stave) => (stave as Stave).getClef() === "treble")).toBe(true);
+  expect(draws.mock.instances.slice(-8).filter((_stave, i) => i % 2 === 1).map((stave) => (stave as Stave).getClef())).toEqual(["bass", "treble", "treble", "treble"]);
+  expect(container.querySelectorAll(".vf-clef")).toHaveLength(3);
+});

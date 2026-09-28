@@ -164,7 +164,7 @@ Completed features include:
 
 ## Staff Builder
 
-- Application-owned canonical schema v3 multi-measure grand-staff score model; persisted/imported v1 and v2 scores migrate into v3 at the validation boundary
+- Application-owned canonical schema v4 multi-measure grand-staff score model; persisted/imported v1/v2/v3 scores migrate into v4 at the validation boundary
 - MIDI and virtual-keyboard Capture Notes with rhythmic positioning and staff routing
 - Direct duration, rest, tie, spelling, staff, key, and time correction
 - Validation with guided corrections and learner-facing issue text
@@ -176,6 +176,10 @@ Completed features include:
 - Deterministic event, measure, position, and piece playback with playback-follow visualization
 - Direct notation interaction, radial controls, responsive score scaling, and a mobile keyboard bottom sheet
 - Automatic derived same-staff rhythmic voices with no persisted voice IDs or beginner-facing Voice controls
+
+The Staff Builder **Copy Score for AI** action beside Piece Library copies the current editor score, including unsaved authored edits, using the same pure, pretty-printed schema-v4 JSON as `.prelude.json` export. It reuses `serializeStaffBuilderPiece` and the existing import validator; editor state and library usage metadata remain excluded. Clipboard failure exposes a labeled, focused, selected read-only textarea for manual copying. No AI service is contacted.
+
+Staff Builder score schema v4 adds optional measure-level `clefChanges`, for example `{"bass":"treble"}`. Keys remain the semantic staff identities `treble` (upper) and `bass` (lower); values select treble or bass display clef independently. Changes take effect at the measure start and carry forward until superseded. There are no mid-measure changes. Historical scores default to upper Treble/lower Bass; legacy migrations preserve existing annotation/arpeggiation behavior. Explicit redundant changes survive canonical export. The current-measure Display clefs disclosure supports explicit selection or Inherit/Default removal, with Undo and autosave. Clef editing never changes pitches, MIDI values, spelling, timing, staff assignment, ties, or annotations. System and print-range starts resolve prior context; changes inside systems render at their measure boundary. Piece Practice propagates display context without changing grading. Library-v4 and draft-v3 envelopes and historical storage keys remain unchanged.
 
 ## Blocking Piece Practice
 
@@ -232,7 +236,7 @@ The package version is 2.8.5 for the Phase 0 Raw MIDI Diagnostic Viewer. The dia
 
 The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
 
-Staff Builder owns its schema v3 score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, annotations, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Historical local-storage keys retain `-v1` names for compatibility and must not be renamed merely because the current schema is v3. Piece Practice owns transient projection, check-based blocking state, input, and read-only presentation without copying the score or coupling back into the editor.
+Staff Builder owns its schema v4 score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, annotations, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Historical local-storage keys retain `-v1` names for compatibility and must not be renamed merely because the current score schema is v4. Piece Practice owns transient projection, check-based blocking state, input, and read-only presentation without copying the score or coupling back into the editor.
 
 The current automated baseline is established by `pnpm verify`; exact passing test-file and test counts are recorded in the v2.7.0 release handoff. Physical Web MIDI, installed-PWA behavior, real offline behavior, browser printing, and representative browser/device behavior still require manual validation where relevant.
 
@@ -332,3 +336,12 @@ Project documentation consists of:
 
 New contributors should read these documents before beginning
 development.
+
+
+### Staff Builder AI Authoring Guide
+
+The compact **?** beside **Copy Score for AI** opens the AI Authoring Guide. **Copy Score for AI** copies the current canonical v4 score, including unsaved edits. The guide dialog's **Copy for AI** copies a self-contained authoring contract for creating new importable scores in a fresh AI conversation. Save returned raw JSON as a `.prelude.json` file and use **Import Piece** in Piece Library.
+
+The deterministic guide draws from Staff Builder's shared capabilities and explains all portable fields, measure-context inheritance, notes/chords/rests, rhythm, pitch spelling, upward arpeggiation, ties, and study annotations. It distinguishes structural import acceptance from musical validation and practice readiness. Clefs are display context only: staff identity, pitch, MIDI, and grading remain unchanged.
+
+The accessible dialog supports keyboard focus containment, Escape/Close, and focus restoration. Clipboard failure provides the exact guide in a selected read-only textarea for manual copying. Opening or copying the guide does not edit or save a score and performs no network requests.

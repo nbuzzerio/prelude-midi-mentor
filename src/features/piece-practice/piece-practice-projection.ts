@@ -151,6 +151,7 @@ export function projectStaffBuilderPieceForPractice(score: StaffBuilderScore): P
       capacityTicks: context.capacityTicks,
       keySignatureId: context.keySignatureId,
       timeSignature: context.timeSignature,
+      clefs: context.clefs,
       sourceEvents,
       restEventIds: sourceEvents.filter(({ kind }) => kind === "rest").map(({ sourceEventId }) => sourceEventId).sort(),
       targets,

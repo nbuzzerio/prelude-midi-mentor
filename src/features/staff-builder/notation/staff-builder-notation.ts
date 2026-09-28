@@ -15,6 +15,7 @@ import type {
   StaffBuilderEvent,
   StaffBuilderPitch,
   StaffBuilderScore,
+  StaffBuilderMeasureContext,
   StaffBuilderStaff,
 } from "../staff-builder-types";
 import { deriveStaffBuilderVoices } from "../staff-builder-voices";
@@ -83,6 +84,8 @@ export type StaffBuilderMeasureProjection = Readonly<{
   vexflowKeySignature: string;
   timeSignature: StaffBuilderTimeSignature;
   capacityTicks: number;
+  clefs: StaffBuilderMeasureContext["clefs"];
+  clefChanges: StaffBuilderScore["measures"][number]["clefChanges"];
   introducesKeySignature: boolean;
   introducesTimeSignature: boolean;
   staves: Readonly<Record<StaffBuilderStaff, readonly StaffBuilderProjectedTickable[]>>;
@@ -377,6 +380,8 @@ export function projectStaffBuilderMeasure(score: StaffBuilderScore, measureInde
     vexflowKeySignature: key.vexflowKeySignature,
     timeSignature: context.timeSignature,
     capacityTicks: context.capacityTicks,
+    clefs: context.clefs,
+    clefChanges: measure.clefChanges,
     introducesKeySignature: measure.keySignatureChange !== undefined,
     introducesTimeSignature: measure.timeSignatureChange !== undefined,
     staves: { treble, bass },

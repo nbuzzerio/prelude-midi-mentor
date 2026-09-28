@@ -55,7 +55,7 @@ function measure(measureIndex: number, targetCount: number): PiecePracticeMeasur
     absoluteStartTick: measureIndex * 1920,
     capacityTicks: 1920,
     keySignatureId: "c-major",
-    timeSignature: "4/4",
+    timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" },
     sourceEvents: [],
     restEventIds: targetCount === 0 ? [`rest-${measureIndex}`] : [],
     targets: Array.from({ length: targetCount }, (_value, targetIndex) => target(measureIndex, targetIndex)),
@@ -74,7 +74,7 @@ function piece(targetCounts: readonly number[] = [2, 1]): PiecePracticePiece {
 
 function projectedPolyphonicPiece(): PiecePracticePiece {
   const source: StaffBuilderScore = {
-    schemaVersion: 3, annotations: [], id: "polyphonic-score", title: "Polyphonic study",
+    schemaVersion: 4, annotations: [], id: "polyphonic-score", title: "Polyphonic study",
     createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 96, initialKeySignatureId: "c-major", initialTimeSignature: "6/8", ties: [],
     measures: [{ id: "m1", events: [
@@ -94,7 +94,7 @@ function projectedTiedBoundaryPiece(withTickZeroAttack = false): PiecePracticePi
   const note = (id: string, startTick: number, duration: "quarter" | "whole", midiNumber: number) => ({ id, kind: "notes" as const, staff: "treble" as const, startTick, rhythm: { status: "final" as const, duration }, pitches: [{ id: `${id}p`, midiNumber, letter: midiNumber === 67 ? "G" as const : "C" as const, accidental: "natural" as const, octave: midiNumber === 72 ? 5 : 4 }] });
   const fullBassRest = (id: string) => ({ id, kind: "rest" as const, staff: "bass" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const } });
   const source: StaffBuilderScore = {
-    schemaVersion: 3, annotations: [], id: "tied-score", title: "Tied boundary", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    schemaVersion: 4, annotations: [], id: "tied-score", title: "Tied boundary", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 96, initialKeySignatureId: "c-major", initialTimeSignature: "4/4",
     measures: [
       { id: "m1", events: [note("cover1", 0, "whole", 72), note("origin", 1440, "quarter", 60), fullBassRest("bass1")] },
@@ -121,7 +121,7 @@ function checkedPiece(checks: readonly PiecePracticeCheck[], tempoBpm = 120): Pi
     expectedMidiNumbers: [...new Set(checks.flatMap(({ expectedMidiNumbers }) => expectedMidiNumbers))].sort((a, b) => a - b),
     attackedPitches,
   };
-  return { sourceScoreId: "rolled", sourceScoreUpdatedAt: "now", title: "Rolled", tempoBpm, measures: [{ measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", sourceEvents: [], restEventIds: [], targets: [target] }] };
+  return { sourceScoreId: "rolled", sourceScoreUpdatedAt: "now", title: "Rolled", tempoBpm, measures: [{ measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, sourceEvents: [], restEventIds: [], targets: [target] }] };
 }
 
 function check(kind: "normal" | "rolled-chord", id: string, midiNumbers: readonly number[]): PiecePracticeCheck {

@@ -107,6 +107,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     return score.measures[measureIndex]?.events.some(({ id }) => id === eventId) ?? false;
   });
   const semanticDescription = [
+    `Upper staff display clef: ${projection.clefs.treble}. Lower staff display clef: ${projection.clefs.bass}.`,
     `Measure ${projection.measureNumber}. Effective key: ${projection.keySignatureName}. Effective time signature: ${projection.timeSignature}.`,
     `Treble: ${projection.summary.treble}`,
     `Bass: ${projection.summary.bass}`,
@@ -397,7 +398,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           {eventAnnotationGroups.map(({ layer, items, label, eventId, anchor, index }) => <span aria-label={`${label}, ${items.length} ${items.length === 1 ? "annotation" : "annotations"}, event in measure ${projection.measureNumber}`} className="staff-builder-event-annotation-indicator" data-annotation-layer={layer} data-event-id={eventId} key={`${eventId}:${layer}`} style={{ left: anchor.x + anchor.width - 4 + index * 18, top: Math.max(2, anchor.y - 18) }}>{label === "Study Note" ? "N" : label === "Practice Mark" ? "P" : "B"}<small>{items.length}</small></span>)}
         </div>
         </div>
-        {onInputModeChange && <p className="staff-builder-touch-notation-hint">Tap a clef, key, or time signature to edit.</p>}
+        {onInputModeChange && <p className="staff-builder-touch-notation-hint">Tap a staff clef to select input routing; tap a key or time signature to edit context.</p>}
         </div>
       </div>
       {durationOverlay && selectedEvent && onAssignDuration && <StaffBuilderDurationWheel anchor={durationOverlay.anchor} bounds={durationOverlay.bounds} currentDuration={selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : undefined} eventKind={selectedEvent.kind} key={durationEventId} openedByPointer={durationOpenedByPointer} onChoose={(duration) => {

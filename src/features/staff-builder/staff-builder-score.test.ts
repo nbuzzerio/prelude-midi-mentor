@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { StaffBuilderTimeSignature } from "./staff-builder-time";
-import type { StaffBuilderScore, StaffBuilderScoreV3 } from "./staff-builder-types";
+import type { StaffBuilderScore, StaffBuilderScoreV4 } from "./staff-builder-types";
 import {
   appendStaffBuilderMeasure,
   createStaffBuilderScore,
@@ -135,9 +135,9 @@ describe("Staff Builder score", () => {
   it("creates versioned metadata and an empty first measure with stable injected values", () => {
     const current = score();
     expectTypeOf(current).toEqualTypeOf<StaffBuilderScore>();
-    expectTypeOf<StaffBuilderScore>().toEqualTypeOf<StaffBuilderScoreV3>();
+    expectTypeOf<StaffBuilderScore>().toEqualTypeOf<StaffBuilderScoreV4>();
     expect(current).toEqual({
-      schemaVersion: 3, annotations: [], id: "id-1", title: "Prelude", createdAt: "2026-01-01T00:00:00.000Z",
+      schemaVersion: 4, annotations: [], id: "id-1", title: "Prelude", createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 120, initialKeySignatureId: "c-major",
       initialTimeSignature: "4/4", measures: [{ id: "id-2", events: [] }], ties: [],
     });
@@ -161,10 +161,10 @@ describe("Staff Builder score", () => {
     let current = appendStaffBuilderMeasure(appendStaffBuilderMeasure(score(factory), factory), factory);
     current = setStaffBuilderMeasureKeySignature(current, 1, "g-major", factory);
     current = setStaffBuilderMeasureTimeSignature(current, 1, "6/8", factory);
-    expect(resolveStaffBuilderMeasureContext(current, 2)).toEqual({ keySignatureId: "g-major", timeSignature: "6/8", capacityTicks: 1440 });
+    expect(resolveStaffBuilderMeasureContext(current, 2)).toEqual({ keySignatureId: "g-major", timeSignature: "6/8", capacityTicks: 1440, clefs: { treble: "treble", bass: "bass" } });
     current = setStaffBuilderMeasureKeySignature(current, 1, null, factory);
     current = setStaffBuilderMeasureTimeSignature(current, 1, null, factory);
-    expect(resolveStaffBuilderMeasureContext(current, 2)).toEqual({ keySignatureId: "c-major", timeSignature: "4/4", capacityTicks: 1920 });
+    expect(resolveStaffBuilderMeasureContext(current, 2)).toEqual({ keySignatureId: "c-major", timeSignature: "4/4", capacityTicks: 1920, clefs: { treble: "treble", bass: "bass" } });
   });
 
   it("inserts unresolved Pass 1 notes without a duration and preserves staff independence", () => {

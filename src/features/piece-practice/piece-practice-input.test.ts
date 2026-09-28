@@ -11,7 +11,7 @@ const piece: PiecePracticePiece = {
   sourceScoreId: "score", sourceScoreUpdatedAt: "now", title: "Tied chord", tempoBpm: 96,
   measures: [{
     measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920,
-    keySignatureId: "c-major", timeSignature: "4/4", restEventIds: [], targets: [target],
+    keySignatureId: "c-major", timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, restEventIds: [], targets: [target],
     sourceEvents: [{
       sourceEventId: "chord", kind: "notes", staff: "treble", startTick: 0, absoluteStartTick: 0,
       duration: "quarter", durationTicks: 480, pitches: [

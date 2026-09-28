@@ -6,10 +6,10 @@ import { getStaffBuilderVerticalGeometry } from "@/features/staff-builder/notati
 
 const piece: PiecePracticePiece = {
   sourceScoreId: "score", sourceScoreUpdatedAt: "2026-08-10T12:00:00.000Z", title: "Display", tempoBpm: 88,
-  measures: [{ measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", restEventIds: [], targets: [], sourceEvents: [{
+  measures: [{ measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, restEventIds: [], targets: [], sourceEvents: [{
     sourceEventId: "from", kind: "notes", staff: "treble", startTick: 1440, absoluteStartTick: 1440, duration: "quarter", durationTicks: 480, arpeggiation: "up",
     pitches: [{ sourcePitchId: "from-p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: ["tie"], requiresAttack: true }, { sourcePitchId: "from-e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: [], requiresAttack: true }],
-  }] }, { measureIndex: 1, sourceMeasureId: "m2", absoluteStartTick: 1920, capacityTicks: 1440, keySignatureId: "g-major", timeSignature: "3/4", restEventIds: [], targets: [], sourceEvents: [{
+  }] }, { measureIndex: 1, sourceMeasureId: "m2", absoluteStartTick: 1920, capacityTicks: 1440, keySignatureId: "g-major", timeSignature: "3/4", clefs: { treble: "treble", bass: "bass" }, restEventIds: [], targets: [], sourceEvents: [{
     sourceEventId: "to", kind: "notes", staff: "treble", startTick: 0, absoluteStartTick: 1920, duration: "quarter", durationTicks: 480,
     pitches: [{ sourcePitchId: "to-p", midiNumber: 60, letter: "C", accidental: "natural", octave: 4, incomingTieIds: ["tie"], outgoingTieIds: [], requiresAttack: false }],
   }] }],

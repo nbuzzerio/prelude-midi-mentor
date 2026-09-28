@@ -2,6 +2,7 @@ import type { StaffBuilderSystemLayout } from "./notation/staff-builder-system-l
 import type { StaffBuilderScore } from "./staff-builder-types";
 import { getStaffBuilderVerticalGeometry } from "./notation/staff-builder-vertical-geometry";
 import { getStaffBuilderLyricCues, STAFF_BUILDER_LYRIC_LANE_RESERVATION } from "./notation/staff-builder-lyric-cues";
+import { resolveStaffBuilderMeasureContext } from "./staff-builder-score";
 
 export const STAFF_BUILDER_PRINT_PAGE_HEIGHT_MM = 279.4;
 export const STAFF_BUILDER_PRINT_PAGE_MARGIN_MM = 12;
@@ -35,7 +36,10 @@ export type StaffBuilderPrintPage = Readonly<{ pageIndex: number; includesTitle:
 
 export function projectStaffBuilderPrintSystems(score: StaffBuilderScore, systems: readonly StaffBuilderSystemLayout[]): readonly StaffBuilderPrintSystem[] {
   return systems.map((system, index) => {
-    const pitchSources = system.measures.flatMap(({ measureIndex }) => score.measures[measureIndex]?.events.flatMap((event) => event.kind === "notes" ? [{ staff: event.staff, pitches: event.pitches }] : []) ?? []);
+    const pitchSources = system.measures.flatMap(({ measureIndex }) => {
+      const { clefs } = resolveStaffBuilderMeasureContext(score, measureIndex);
+      return score.measures[measureIndex]?.events.flatMap((event) => event.kind === "notes" ? [{ staff: event.staff, clef: clefs[event.staff], pitches: event.pitches }] : []) ?? [];
+    });
     const eventIds = new Set(system.measures.flatMap(({ measureIndex }) => score.measures[measureIndex]?.events.map(({ id }) => id) ?? []));
     const hasLyrics = getStaffBuilderLyricCues(score, eventIds).length > 0;
     const visible = getStaffBuilderVerticalGeometry({

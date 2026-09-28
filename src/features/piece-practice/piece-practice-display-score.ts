@@ -1,3 +1,4 @@
+import { DEFAULT_STAFF_BUILDER_CLEFS } from "@/features/staff-builder/staff-builder-clefs";
 import type { StaffBuilderScore, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
 import type { PiecePracticePiece } from "./piece-practice-types";
 
@@ -5,6 +6,11 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
   const tieEndpoints = new Map<string, Partial<StaffBuilderTie>>();
   const measures = piece.measures.map((measure, measureIndex) => {
     const previous = piece.measures[measureIndex - 1];
+    const previousClefs = previous?.clefs ?? DEFAULT_STAFF_BUILDER_CLEFS;
+    const clefChanges = {
+      ...(measure.clefs.treble !== previousClefs.treble ? { treble: measure.clefs.treble } : {}),
+      ...(measure.clefs.bass !== previousClefs.bass ? { bass: measure.clefs.bass } : {}),
+    };
     const events = measure.sourceEvents.map((event) => {
       if (event.kind === "rest") {
         return { id: event.sourceEventId, kind: "rest" as const, staff: event.staff, startTick: event.startTick, rhythm: { status: "final" as const, duration: event.duration } };
@@ -18,6 +24,7 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
     });
     return {
       id: measure.sourceMeasureId,
+      ...(Object.keys(clefChanges).length ? { clefChanges } : {}),
       ...(measureIndex > 0 && measure.keySignatureId !== previous?.keySignatureId ? { keySignatureChange: measure.keySignatureId } : {}),
       ...(measureIndex > 0 && measure.timeSignature !== previous?.timeSignature ? { timeSignatureChange: measure.timeSignature } : {}),
       events,
@@ -28,7 +35,7 @@ export function createPiecePracticeDisplayScore(piece: PiecePracticePiece): Staf
   )).sort((left, right) => left.id.localeCompare(right.id));
   const timestamp = piece.sourceScoreUpdatedAt;
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     id: piece.sourceScoreId,
     title: piece.title,
     createdAt: timestamp,

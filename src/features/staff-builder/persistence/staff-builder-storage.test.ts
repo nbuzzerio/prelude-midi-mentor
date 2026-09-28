@@ -72,8 +72,8 @@ describe("Staff Builder guarded storage", () => {
     const legacy = { ...withoutAnnotations, schemaVersion: 1 };
     storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 1, pieces: [legacy] }));
     storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 1, savedPieceId: legacy.id, updatedAt: legacy.updatedAt, score: legacy, editorPass: "capture" }));
-    expect(readStaffBuilderLibrary(storage)).toMatchObject({ ok: true, value: { schemaVersion: 4, pieces: [{ schemaVersion: 3, annotations: [] }], practiceMetadataByPieceId: {} } });
-    expect(readStaffBuilderDraft(storage)).toMatchObject({ ok: true, value: { schemaVersion: 3, score: { schemaVersion: 3, annotations: [] } } });
+    expect(readStaffBuilderLibrary(storage)).toMatchObject({ ok: true, value: { schemaVersion: 4, pieces: [{ schemaVersion: 4, annotations: [] }], practiceMetadataByPieceId: {} } });
+    expect(readStaffBuilderDraft(storage)).toMatchObject({ ok: true, value: { schemaVersion: 3, score: { schemaVersion: 4, annotations: [] } } });
   });
 
   it("catches get, set, remove, and serialization failures", () => {

@@ -1,3 +1,4 @@
+import { DEFAULT_STAFF_BUILDER_CLEFS, type StaffBuilderClef } from "../staff-builder-clefs";
 import {
   Accidental,
   Beam,
@@ -80,7 +81,7 @@ export function staffBuilderVexFlowPitchKey(event: StaffBuilderProjectedEvent, p
   return `${pitch.letter.toLowerCase()}${accidental}/${pitch.octave}`;
 }
 
-export function createStaffBuilderVexFlowTickable(item: StaffBuilderProjectedTickable): StaffBuilderRenderedTickable {
+export function createStaffBuilderVexFlowTickable(item: StaffBuilderProjectedTickable, clef: StaffBuilderClef = DEFAULT_STAFF_BUILDER_CLEFS[item.staff]): StaffBuilderRenderedTickable {
   const duration = item.visualDuration.vexflowDuration;
   if (item.kind === "spacer") {
     const note = new GhostNote({ duration, dots: item.visualDuration.dots });
@@ -88,9 +89,9 @@ export function createStaffBuilderVexFlowTickable(item: StaffBuilderProjectedTic
     return { projection: item, note };
   }
   const keys = item.kind === "rest"
-    ? [item.staff === "treble" ? "b/4" : "d/3"]
+    ? [clef === "treble" ? "b/4" : "d/3"]
     : item.pitches.map((_pitch, index) => staffBuilderVexFlowPitchKey(item, index));
-  const note = new StaveNote({ clef: item.staff, duration: `${duration}${item.kind === "rest" ? "r" : ""}`, keys });
+  const note = new StaveNote({ clef, duration: `${duration}${item.kind === "rest" ? "r" : ""}`, keys });
   if (item.kind === "notes" && item.arpeggiation === "up") {
     note.addModifier(new Stroke(Stroke.Type.ARPEGGIO_DIRECTIONLESS, { allVoices: false }));
   }
@@ -102,11 +103,12 @@ export function createStaffBuilderVexFlowTickable(item: StaffBuilderProjectedTic
 export function createStaffBuilderVexFlowVoices(
   projections: readonly StaffBuilderProjectedVoice[],
   timeSignature: StaffBuilderMeasureProjection["timeSignature"],
+  clef?: StaffBuilderClef,
 ): readonly StaffBuilderRenderedVoice[] {
   const [numBeats, beatValue] = timeSignature.split("/").map(Number);
   const polyphonic = projections.length > 1;
   return projections.map((projection) => {
-    const tickables = projection.tickables.map(createStaffBuilderVexFlowTickable);
+    const tickables = projection.tickables.map((item) => createStaffBuilderVexFlowTickable(item, clef));
     if (polyphonic) {
       const direction = projection.voiceIndex % 2 === 0 ? Stem.UP : Stem.DOWN;
       tickables.forEach(({ note, projection: item }) => {

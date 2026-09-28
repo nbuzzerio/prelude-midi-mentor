@@ -9,7 +9,7 @@ import {
 
 function score(): StaffBuilderScore {
   return {
-    schemaVersion: 3, annotations: [],
+    schemaVersion: 4, annotations: [],
     id: "piece-id",
     title: "Polyphonic Étude",
     createdAt: "2026-08-11T12:00:00.000Z",
@@ -46,7 +46,7 @@ describe("Staff Builder piece files", () => {
     const serialized = serializeStaffBuilderPiece(source);
     expect(serialized).toBe(serializeStaffBuilderPiece(source));
     expect(serialized.endsWith("\n")).toBe(true);
-    expect(serialized).toContain('\n  "schemaVersion": 3');
+    expect(serialized).toContain('\n  "schemaVersion": 4');
     expect(serialized).not.toContain("editorPass");
     expect(serialized).not.toContain("practiceProgress");
     expect(serialized).not.toContain("lastPracticedAt");
@@ -75,16 +75,16 @@ describe("Staff Builder piece files", () => {
   it("rejects malformed JSON, malformed score data, and unsupported versions with learner-facing results", () => {
     expect(parseStaffBuilderPieceFileText("{" )).toMatchObject({ ok: false, reason: "invalid-json" });
     expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 1 }))).toMatchObject({ ok: false, reason: "invalid-score" });
-    expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 4 }))).toMatchObject({ ok: false, reason: "unsupported-version" });
+    expect(parseStaffBuilderPieceFileText(JSON.stringify({ schemaVersion: 5 }))).toMatchObject({ ok: false, reason: "unsupported-version" });
   });
 
-  it("imports V1 as V3 and round trips every Phase 1 annotation kind and anchor", () => {
+  it("imports V1 as V4 and round trips every Phase 1 annotation kind and anchor", () => {
     const current = score();
     const { annotations: _annotations, ...withoutAnnotations } = current;
     void _annotations;
     const legacy = { ...withoutAnnotations, schemaVersion: 1 };
     const parsedLegacy = parseStaffBuilderPieceFileText(JSON.stringify(legacy));
-    expect(parsedLegacy).toMatchObject({ ok: true, score: { schemaVersion: 3, annotations: [] } });
+    expect(parsedLegacy).toMatchObject({ ok: true, score: { schemaVersion: 4, annotations: [] } });
     if (parsedLegacy.ok) expect(parsedLegacy.score.measures.flatMap(({ events }) => events)).not.toEqual(expect.arrayContaining([expect.objectContaining({ arpeggiation: "up" })]));
     const annotated = {
       ...current,

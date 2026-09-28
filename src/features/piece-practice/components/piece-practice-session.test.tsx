@@ -1,3 +1,4 @@
+import { resolveStaffBuilderMeasureContext } from "@/features/staff-builder/staff-builder-score";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -76,13 +77,13 @@ function piece(): PiecePracticePiece {
   return {
     sourceScoreId: "score", sourceScoreUpdatedAt: "2026-08-10T12:00:00.000Z", title: "Hallelujah", tempoBpm: 90,
     measures: [
-      { measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", restEventIds: [], targets: [first, second], sourceEvents: [
+      { measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, restEventIds: [], targets: [first, second], sourceEvents: [
         { sourceEventId: "treble-event", kind: "notes", staff: "treble", startTick: 0, absoluteStartTick: 0, duration: "quarter", durationTicks: 480, pitches: [{ sourcePitchId: "c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: [], requiresAttack: true }] },
         { sourceEventId: "bass-event", kind: "notes", staff: "bass", startTick: 0, absoluteStartTick: 0, duration: "half", durationTicks: 960, pitches: [{ sourcePitchId: "e", midiNumber: 64, letter: "E", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: [], requiresAttack: true }] },
         { sourceEventId: "polyphonic-event", kind: "notes", staff: "treble", startTick: 480, absoluteStartTick: 480, duration: "quarter", durationTicks: 480, pitches: [{ sourcePitchId: "g", midiNumber: 67, letter: "G", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: [], requiresAttack: true }] },
       ] },
-      { measureIndex: 1, sourceMeasureId: "m2", absoluteStartTick: 1920, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", restEventIds: ["rest"], targets: [], sourceEvents: [{ sourceEventId: "rest", kind: "rest", staff: "treble", startTick: 0, absoluteStartTick: 1920, duration: "whole", durationTicks: 1920 }] },
-      { measureIndex: 2, sourceMeasureId: "m3", absoluteStartTick: 3840, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", restEventIds: [], targets: [last], sourceEvents: [{ sourceEventId: "last-event", kind: "notes", staff: "treble", startTick: 0, absoluteStartTick: 3840, duration: "whole", durationTicks: 1920, pitches: [{ sourcePitchId: "a", midiNumber: 69, letter: "A", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: [], requiresAttack: true }] }] },
+      { measureIndex: 1, sourceMeasureId: "m2", absoluteStartTick: 1920, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, restEventIds: ["rest"], targets: [], sourceEvents: [{ sourceEventId: "rest", kind: "rest", staff: "treble", startTick: 0, absoluteStartTick: 1920, duration: "whole", durationTicks: 1920 }] },
+      { measureIndex: 2, sourceMeasureId: "m3", absoluteStartTick: 3840, capacityTicks: 1920, keySignatureId: "c-major", timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, restEventIds: [], targets: [last], sourceEvents: [{ sourceEventId: "last-event", kind: "notes", staff: "treble", startTick: 0, absoluteStartTick: 3840, duration: "whole", durationTicks: 1920, pitches: [{ sourcePitchId: "a", midiNumber: 69, letter: "A", accidental: "natural", octave: 4, incomingTieIds: [], outgoingTieIds: [], requiresAttack: true }] }] },
     ],
   };
 }
@@ -93,7 +94,7 @@ function realisticPolyphonicScore(): StaffBuilderScore {
     pitches: pitches.map((source) => ({ ...source, accidental: "natural" as const })),
   });
   return {
-    schemaVersion: 3, annotations: [], id: "realistic-6-8", title: "Six-Eight Practice Study", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
+    schemaVersion: 4, annotations: [], id: "realistic-6-8", title: "Six-Eight Practice Study", createdAt: "2026-08-10T12:00:00.000Z", updatedAt: "2026-08-10T12:00:00.000Z",
     tempoBpm: 72, initialKeySignatureId: "c-major", initialTimeSignature: "6/8",
     measures: [
       { id: "measure-1", events: [
@@ -469,4 +470,19 @@ describe("PiecePracticeSession", () => {
     expect(sourceScore).toEqual(sourceBefore);
     expect(projection.piece).toEqual(projectedBefore);
   });
+});
+
+it("passes inherited clefs to active and diagnostic notation without changing expected MIDI targets", () => {
+  const original = piece();
+  const changed: PiecePracticePiece = { ...original, measures: original.measures.map((measure, i) => ({ ...measure, clefs: i === 0 ? { treble: "bass", bass: "treble" } : { treble: "treble", bass: "treble" } })) };
+  start(changed, 3);
+  const display = mocks.scoreProps!.score as StaffBuilderScore;
+  expect(resolveStaffBuilderMeasureContext(display, 2).clefs).toEqual({ treble: "treble", bass: "treble" });
+  expect(mocks.inputOptions!.piece.measures.map(({ targets }) => targets)).toEqual(original.measures.map(({ targets }) => targets));
+  act(() => submit([99]));
+  act(() => submit(original.measures[2]!.targets[0]!.expectedMidiNumbers));
+  expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
+  const detail = screen.getByLabelText("Measure-by-measure results").querySelector("details");
+  if (detail) detail.open = true;
+  expect(resolveStaffBuilderMeasureContext(mocks.scoreProps!.score as StaffBuilderScore, 2).clefs).toEqual({ treble: "treble", bass: "treble" });
 });

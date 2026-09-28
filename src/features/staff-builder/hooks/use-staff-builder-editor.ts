@@ -1,3 +1,4 @@
+import type { StaffBuilderClef } from "../staff-builder-clefs";
 import { useCallback, useMemo, useState } from "react";
 import {
   commitStaffBuilderPendingCapture,
@@ -10,10 +11,10 @@ import {
   type StaffBuilderPendingCapture,
   routeStaffBuilderCapturePitch,
 } from "../staff-builder-capture";
-import { deleteStaffBuilderMeasure, insertStaffBuilderMeasure, resolveStaffBuilderMeasureContext, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
+import { deleteStaffBuilderMeasure, insertStaffBuilderMeasure, resolveStaffBuilderMeasureContext, setStaffBuilderMeasureClef, setStaffBuilderMeasureKeySignature, setStaffBuilderMeasureTimeSignature, updateStaffBuilderTempo } from "../staff-builder-score";
 import { reconcileStaffBuilderAnnotations } from "../staff-builder-annotations";
 import { deleteStaffBuilderEvent, getInitialStaffBuilderRhythmSelection, reconcileStaffBuilderEventSelection, setStaffBuilderEventDuration, type StaffBuilderEventSelection, type StaffBuilderRhythmState } from "../staff-builder-rhythm";
-import type { StaffBuilderScore } from "../staff-builder-types";
+import type { StaffBuilderScore, StaffBuilderStaff } from "../staff-builder-types";
 import { stepDurationToTicks, type StaffBuilderDuration, type StaffBuilderStepDuration, type StaffBuilderTimeSignature } from "../staff-builder-time";
 import type { MusicKeyId } from "@/lib/music/keys";
 import { createStaffBuilderTies, fillAllStaffBuilderGapsWithRests, fillStaffBuilderGapWithRests, removeStaffBuilderTie, setStaffBuilderInitialKey, setStaffBuilderInitialTime, splitStaffBuilderEventAcrossBarline } from "../staff-builder-corrections";
@@ -436,6 +437,9 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     return applyHistoryMutation(result.score);
   }, [applyHistoryMutation, issues, score]);
 
+  const setMeasureClef = useCallback((measureIndex: number, staff: StaffBuilderStaff, clef: StaffBuilderClef | null) => {
+    return applyHistoryMutation(setStaffBuilderMeasureClef(score, measureIndex, staff, clef));
+  }, [applyHistoryMutation, score]);
   const setMeasureKey = useCallback((measureIndex: number, keyId: MusicKeyId | null) => {
     const next = measureIndex === 0 && keyId !== null ? setStaffBuilderInitialKey(score, keyId) : setStaffBuilderMeasureKeySignature(score, measureIndex, keyId);
     return applyHistoryMutation(next);
@@ -508,6 +512,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     },
     applyScoreMutation: applyHistoryMutation,
     setTempo,
+    setMeasureClef,
     setMeasureKey,
     setMeasureTime,
     createTies: (fromEventId: string, toEventId: string, fromPitchIds: readonly string[]) => {

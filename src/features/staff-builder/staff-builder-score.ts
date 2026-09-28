@@ -1,3 +1,5 @@
+import { STAFF_BUILDER_SCORE_SCHEMA_VERSION } from "./staff-builder-contract";
+import { DEFAULT_STAFF_BUILDER_CLEFS, isStaffBuilderClef, type StaffBuilderClef } from "./staff-builder-clefs";
 import { getMusicKeyDefinition, type MusicKeyId } from "@/lib/music/keys";
 import { spellKeyAwareMidiNumber } from "@/lib/music/key-aware-spelling";
 import {
@@ -62,7 +64,7 @@ export function createStaffBuilderScore(options: Readonly<{
   const factories = options.factories ?? defaultFactories;
   const timestamp = factories.now();
   return {
-    schemaVersion: 3,
+    schemaVersion: STAFF_BUILDER_SCORE_SCHEMA_VERSION,
     id: factories.createId(),
     title: options.title,
     createdAt: timestamp,
@@ -149,12 +151,14 @@ export function resolveStaffBuilderMeasureContext(score: StaffBuilderScore, meas
   }
   let keySignatureId = score.initialKeySignatureId;
   let timeSignature = score.initialTimeSignature;
+  let clefs: Readonly<Record<StaffBuilderStaff, StaffBuilderClef>> = DEFAULT_STAFF_BUILDER_CLEFS;
   for (let index = 0; index <= measureIndex; index += 1) {
     const measure = score.measures[index];
     if (measure?.keySignatureChange) keySignatureId = measure.keySignatureChange;
     if (measure?.timeSignatureChange) timeSignature = measure.timeSignatureChange;
+    if (measure?.clefChanges) clefs = { ...clefs, ...measure.clefChanges };
   }
-  return { keySignatureId, timeSignature, capacityTicks: getMeasureCapacityTicks(timeSignature) };
+  return { keySignatureId, timeSignature, capacityTicks: getMeasureCapacityTicks(timeSignature), clefs };
 }
 
 function requireStartTick(score: StaffBuilderScore, measureIndex: number, startTick: number): void {
@@ -250,4 +254,20 @@ export function getStaffBuilderEventsInScoreOrder(score: StaffBuilderScore): rea
       || (left.event.staff === right.event.staff ? 0 : left.event.staff === "treble" ? -1 : 1)
       || left.event.id.localeCompare(right.event.id))
     .map(({ event }) => event);
+}
+
+/** Changes display context only; event and pitch data retain their original identities. */
+export function setStaffBuilderMeasureClef(score: StaffBuilderScore, measureIndex: number, staff: StaffBuilderStaff, clef: StaffBuilderClef | null, factories: StaffBuilderFactories = defaultFactories): StaffBuilderScore {
+  if (staff !== "treble" && staff !== "bass") throw new Error("Unsupported Staff Builder staff.");
+  if (clef !== null && !isStaffBuilderClef(clef)) throw new Error("Unsupported Staff Builder clef.");
+  const measure = score.measures[measureIndex];
+  if (!measure) throw new Error(`Unknown measure index ${measureIndex}.`);
+  if (measure.clefChanges?.[staff] === (clef ?? undefined)) return score;
+  return updateMeasure(score, measureIndex, factories, (current) => {
+    const { clefChanges, ...rest } = current;
+    const next = { ...clefChanges };
+    if (clef === null) delete next[staff];
+    else next[staff] = clef;
+    return Object.keys(next).length ? { ...rest, clefChanges: next } : rest;
+  });
 }

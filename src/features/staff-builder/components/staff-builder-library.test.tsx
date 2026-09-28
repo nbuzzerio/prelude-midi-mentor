@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderLibrary } from "./staff-builder-library";
 
-const piece: StaffBuilderScore = { schemaVersion: 3, annotations: [], id: "saved", title: "Saved Piece", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [{ id: "m1", events: [] }] };
+const piece: StaffBuilderScore = { schemaVersion: 4, annotations: [], id: "saved", title: "Saved Piece", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [{ id: "m1", events: [] }] };
 afterEach(cleanup);
 
 describe("StaffBuilderLibrary", () => {

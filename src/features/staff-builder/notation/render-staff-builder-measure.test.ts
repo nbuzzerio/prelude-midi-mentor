@@ -6,7 +6,7 @@ import { projectStaffBuilderPendingPreview } from "./staff-builder-notation";
 
 function score(): StaffBuilderScore {
   return {
-    schemaVersion: 3, annotations: [], id: "score", title: "Renderer", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 4, annotations: [], id: "score", title: "Renderer", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "g-major", initialTimeSignature: "4/4",
     measures: [{ id: "measure", events: [
       { id: "chord", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "dotted-eighth" }, pitches: [
@@ -401,4 +401,17 @@ describe("renderStaffBuilderMeasure", () => {
     });
     expect(JSON.stringify(current)).toBe(before);
   });
+});
+
+it("renders pending previews in the effective clef without changing MIDI input or authored pitches", () => {
+  const base = score();
+  const current: StaffBuilderScore = { ...base, measures: [{ ...base.measures[0]!, clefChanges: { bass: "treble" } }] };
+  const pending = { treble: [], bass: [60] };
+  const preview = projectStaffBuilderPendingPreview(current, 0, 0, pending, "quarter");
+  const clefs = vi.spyOn(Stave.prototype, "addClef");
+  renderStaffBuilderMeasure(document.createElement("div"), preview.renderScore, 0);
+  expect(clefs.mock.calls.map(([clef]) => clef)).toEqual(["treble", "treble"]);
+  expect(preview.events.bass?.kind === "notes" && preview.events.bass.pitches[0]).toMatchObject({ midiNumber: 60, letter: "C", octave: 4 });
+  expect(pending).toEqual({ treble: [], bass: [60] });
+  expect(current.measures[0]!.events).toEqual(base.measures[0]!.events);
 });

@@ -342,7 +342,7 @@ Automated coverage includes:
 
 Automated coverage includes:
 
-- canonical schema v3 score-domain invariants, v1/v2 migration, unsupported/corrupt data, measure context, meter capacity, notes, chords, rests, ties, annotations, and upward arpeggiation
+- canonical schema v4 score-domain invariants, v1/v2/v3 migration, unsupported/corrupt data, measure context, meter capacity, notes, chords, rests, ties, annotations, and upward arpeggiation
 - Capture Notes routing, rhythmic cursor movement, pending input, replacement, and rest insertion
 - Rhythm Correction selection, duration, event type, staff, spelling, independent incoming/outgoing pitch-level ties, long chains, partial chord ties, deletion, and score history
 - validation, guided corrections, draft persistence, validated Save, and local project recovery
@@ -357,6 +357,10 @@ Automated coverage includes:
 - accessible score semantics, direct notation controls, disclosures, and workspace integration
 - annotation editing/layers and multi-system Study View layout, semantics, and geometry
 - rolled-chord editing, schema validation, notation projection, playback, and accessible descriptions
+
+Staff Builder Copy Score for AI coverage verifies actual clipboard text against canonical export and import round trips, title/timestamps/tempo, measures, both staffs, notes/chords/rests, unresolved rhythm, upward arpeggiation, study notes and lyric cues, schema v4 and measure clef changes, exclusion of non-portable metadata, score immutability, current unsaved editor changes, unchanged storage/history, and accessible clipboard-failure selection and retry. Manual browser checks should include keyboard/touch activation, clipboard permission denial, manual copying, and screen-reader status feedback.
+
+Measure-clef regression coverage verifies v1/v2/v3-to-v4 defaults, all four combinations, independent carry-forward/removal, redundant authored changes, insertion/deletion inheritance, canonical files/library/drafts/duplication/Copy Score, current-measure controls and Undo, Middle C/chord/roll/rest/tie/annotation immutability, system/range starts, visible in-system changes, ledger-line reservations, pending previews, Study/print rendering, and invariant Piece Practice MIDI targets, grading, diagnostics, and evidence. Manual QA should exercise keyboard/touch selection, system breaks and print ranges, high/low ledger lines under both clefs, and physical MIDI grading after clef edits.
 
 ### Block 13 — Blocking Piece Practice
 
@@ -630,3 +634,12 @@ Manual QA: open Sequences - Scales and verify Random first. Switch to Repertoire
 Runtime-ref continuation tests retain original and Repair evidence across fresh phrases and Review retries, reject concurrent continuation calls, and confirm that no new countdown or notification appears. Non-continuous results do not notify. Existing review, interval-analytics, recorder, audio, and Mobile Play suites continue guarding their respective feature behavior. Reusable settings controls remain tested independently of the performance engine.
 
 Manual QA: open Melody directly and check standalone defaults; change staff/key/tempo/length and start a phrase (pitch/rhythm difficulty remain the existing easy-only settings). Enable Continuous Practice with a one-minute duration and confirm the countdown starts with the normal Start/count-in. Let the deadline expire during or between phrases; confirm the final phrase/result is retained in Review. Retry a reviewed phrase and check Original versus Latest results. Return to Settings and start again; also try New Timed Session and standalone Mobile Play. Standalone Melody exposes no host continuation button; Practice Session invokes that API through its own Bonus action, as covered by automated host tests.
+
+
+### Staff Builder AI guide validation
+
+`staff-builder-llm-specification.test.ts` verifies deterministic output, parity with current domain values, every embedded example through the real piece importer, practice-ready examples through musical validation, v4 clef/pitch round trips, and the distinction between import acceptance and practice readiness. Parser regression probes cover unknown-field canonicalization, IDs/timestamps, unsupported values, and lyric-cue restrictions.
+
+`staff-builder-guide-dialog.test.tsx` covers exact clipboard output, failure/manual selection, retry, concurrent-copy prevention, modal focus, Escape/Close, and focus restoration. `staff-builder-session.test.tsx` verifies guide preview/copy/failure/retry leave editor history and all stored draft/library/metadata data unchanged, and retains the separate current-score copy path.
+
+Manual checks: open the ? dialog on desktop/tablet/mobile; inspect the expandable guide; copy into a text editor; deny clipboard access and manually copy the selected text; verify Escape/Close returns focus. Import the guide's practice-ready example through Piece Library and confirm validation succeeds. No AI or provider calls are required.

@@ -1,3 +1,4 @@
+import { DEFAULT_STAFF_BUILDER_CLEFS, type StaffBuilderClef } from "../staff-builder-clefs";
 import type { StaffBuilderPitch, StaffBuilderStaff } from "../staff-builder-types";
 
 export type StaffBuilderVerticalGeometry = Readonly<{
@@ -10,6 +11,7 @@ export type StaffBuilderVerticalGeometry = Readonly<{
 
 export type StaffBuilderVerticalPitchSource = Readonly<{
   staff: StaffBuilderStaff;
+  clef?: StaffBuilderClef;
   pitches: readonly Pick<StaffBuilderPitch, "letter" | "octave">[];
 }>;
 
@@ -42,7 +44,7 @@ export function getStaffBuilderVerticalGeometry(options: Readonly<{
   for (const source of options.pitchSources) {
     if (visibleStaff !== "grand" && source.staff !== visibleStaff) continue;
     const staveY = source.staff === "treble" ? options.trebleStaveY : options.bassStaveY;
-    const referenceStep = source.staff === "treble" ? TREBLE_TOP_LINE_STEP : BASS_TOP_LINE_STEP;
+    const referenceStep = (source.clef ?? DEFAULT_STAFF_BUILDER_CLEFS[source.staff]) === "treble" ? TREBLE_TOP_LINE_STEP : BASS_TOP_LINE_STEP;
     for (const pitch of source.pitches) {
       const noteheadCenterY = staveY + STAVE_TOP_LINE_OFFSET - (writtenStep(pitch) - referenceStep) * HALF_STEP_HEIGHT;
       minimumY = Math.min(minimumY, noteheadCenterY - glyphAndStemExtent);

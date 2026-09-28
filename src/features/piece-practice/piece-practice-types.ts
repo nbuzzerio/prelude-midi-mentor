@@ -1,7 +1,7 @@
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { StaffBuilderDuration, StaffBuilderTimeSignature } from "@/features/staff-builder/staff-builder-time";
 import type { StaffBuilderIssue } from "@/features/staff-builder/staff-builder-validation";
-import type { StaffBuilderAccidental, StaffBuilderAnnotation, StaffBuilderArpeggiation, StaffBuilderStaff } from "@/features/staff-builder/staff-builder-types";
+import type { StaffBuilderAccidental, StaffBuilderAnnotation, StaffBuilderArpeggiation, StaffBuilderStaff, StaffBuilderMeasureContext } from "@/features/staff-builder/staff-builder-types";
 import type { NoteLetter } from "@/lib/music/note-utils";
 
 export type PiecePracticeSourcePitch = Readonly<{
@@ -76,6 +76,7 @@ export type PiecePracticeMeasure = Readonly<{
   capacityTicks: number;
   keySignatureId: MusicKeyId;
   timeSignature: StaffBuilderTimeSignature;
+  clefs: StaffBuilderMeasureContext["clefs"];
   sourceEvents: readonly PiecePracticeSourceEvent[];
   restEventIds: readonly string[];
   targets: readonly PiecePracticeTarget[];

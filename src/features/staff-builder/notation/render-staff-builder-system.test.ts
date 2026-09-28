@@ -13,7 +13,7 @@ const measure = (id: string, events = [note(`${id}-event`)]): StaffBuilderMeasur
 
 function score(measures: readonly StaffBuilderMeasure[], overrides: Partial<StaffBuilderScore> = {}): StaffBuilderScore {
   return {
-    schemaVersion: 3, annotations: [], id: "score", title: "System", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 4, annotations: [], id: "score", title: "System", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures, ...overrides,
   };
 }
@@ -54,7 +54,6 @@ describe("renderStaffBuilderSystem", () => {
   });
   it("renders adjacent measures with one system start and aligned explicit boundaries", () => {
     const current = score([measure("m1"), measure("m2"), measure("m3")]);
-    const clefs = vi.spyOn(Stave.prototype, "addClef");
     const keys = vi.spyOn(Stave.prototype, "addKeySignature");
     const times = vi.spyOn(Stave.prototype, "addTimeSignature");
     const connectors = vi.spyOn(StaveConnector.prototype, "setType");
@@ -62,7 +61,7 @@ describe("renderStaffBuilderSystem", () => {
     const result = renderStaffBuilderSystem(container, current, layout(current));
     expect(container.querySelectorAll("svg")).toHaveLength(1);
     expect(container.querySelector("svg")).toMatchObject({ ariaHidden: "true" });
-    expect(clefs).toHaveBeenCalledTimes(2);
+    expect(container.querySelectorAll(".vf-clef")).toHaveLength(2);
     expect(keys).toHaveBeenCalledTimes(2);
     expect(times).toHaveBeenCalledTimes(2);
     expect(connectors.mock.calls.map(([type]) => type)).toEqual([
@@ -159,4 +158,27 @@ describe("renderStaffBuilderSystem", () => {
     expect(() => renderStaffBuilderSystem(document.createElement("div"), current, layout(current, [0], 20)))
       .toThrow(/measure m1.*index 0.*allocated width 20/i);
   });
+});
+
+it("draws effective system-start clefs, visible later changes, and unchanged Middle C pitches", () => {
+  const current = score([
+    measure("m0", [note("n0", ["p0"], 0, "bass")]),
+    { ...measure("m1", [note("n1", ["p1"], 0, "bass")]), clefChanges: { bass: "treble" } },
+    measure("m2", [note("n2", ["p2"], 0, "bass")]),
+    { ...measure("m3", [note("n3", ["p3"], 0, "bass")]), clefChanges: { bass: "bass" } },
+  ]);
+  const before = structuredClone(current);
+  const draws = vi.spyOn(Stave.prototype, "draw");
+  const container = document.createElement("div");
+  const rendered = renderStaffBuilderSystem(container, current, layout(current, [0, 1, 2, 3], 1400));
+  expect(container.querySelectorAll(".vf-clef")).toHaveLength(4);
+  expect(draws.mock.instances.map((stave) => (stave as Stave).getClef())).toEqual(["treble", "bass", "treble", "treble", "treble", "treble", "treble", "bass"]);
+  expect(rendered.pitches.get("p1")!.y).toBeGreaterThan(rendered.pitches.get("p0")!.y);
+  expect(rendered.pitches.get("p2")!.y).toBe(rendered.pitches.get("p1")!.y);
+  expect(rendered.pitches.get("p3")!.y).toBe(rendered.pitches.get("p0")!.y);
+  draws.mockClear();
+  renderStaffBuilderSystem(container, current, layout(current, [2, 3]));
+  expect(container.querySelectorAll(".vf-clef")).toHaveLength(3);
+  expect(draws.mock.instances.map((stave) => (stave as Stave).getClef())).toEqual(["treble", "treble", "treble", "bass"]);
+  expect(current).toEqual(before);
 });

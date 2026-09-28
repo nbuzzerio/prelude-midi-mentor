@@ -32,7 +32,7 @@ function measure(id: string, events: readonly StaffBuilderEvent[] = []): StaffBu
 
 function score(measures: readonly StaffBuilderMeasure[]): StaffBuilderScore {
   return {
-    schemaVersion: 3, annotations: [], id: "score", title: "Layout", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 4, annotations: [], id: "score", title: "Layout", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures,
   };
 }
@@ -289,4 +289,18 @@ describe("Staff Builder system layout", () => {
     expect(translateStaffBuilderMeasureBoundsToSystem({ x: 7, y: 9, width: 13, height: 17 }, placement)).toEqual({ ...systemPoint, width: 13, height: 17 });
     expect(translateStaffBuilderSystemBoundsToDocument({ ...systemPoint, width: 13, height: 17 }, system)).toEqual({ ...documentPoint, width: 13, height: 17 });
   });
+});
+
+it("reserves clef-change width only for effective changes and retains inherited range context", () => {
+  const current = score([
+    { id: "m0", events: [] },
+    { id: "m1", events: [], clefChanges: { bass: "treble" } },
+    { id: "m2", events: [], clefChanges: { bass: "treble" } },
+  ]);
+  const changed = estimateStaffBuilderMeasureLayout(current, 1, constraints, false);
+  const redundant = estimateStaffBuilderMeasureLayout(current, 2, constraints, false);
+  expect(changed.signatureChangeOverhead).toBeGreaterThan(redundant.signatureChangeOverhead);
+  const range = layoutStaffBuilderScoreSystems(current, constraints, [2]);
+  expect(range.systems[0]!.measures[0]!.measureIndex).toBe(2);
+  expect(estimateStaffBuilderMeasureLayout(current, 2, constraints, true).systemStartOverhead).toBeGreaterThan(0);
 });

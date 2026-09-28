@@ -1,10 +1,12 @@
+import { STAFF_BUILDER_SCORE_SCHEMA_VERSION, STAFF_BUILDER_STAFFS, STAFF_BUILDER_ACCIDENTALS, STAFF_BUILDER_ARPEGGIATIONS, STAFF_BUILDER_EVENT_KINDS, STAFF_BUILDER_RHYTHM_KINDS, STAFF_BUILDER_ANNOTATION_KINDS, STAFF_BUILDER_ANCHOR_KINDS, STAFF_BUILDER_PRACTICE_MARK_CATEGORIES, STAFF_BUILDER_BOOKMARK_CATEGORIES } from "./staff-builder-contract";
+import type { StaffBuilderClef } from "./staff-builder-clefs";
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { NoteLetter } from "@/lib/music/note-utils";
 import type { StaffBuilderDuration, StaffBuilderTimeSignature } from "./staff-builder-time";
 
-export type StaffBuilderStaff = "treble" | "bass";
-export type StaffBuilderAccidental = "flat" | "natural" | "sharp";
-export type StaffBuilderArpeggiation = "up";
+export type StaffBuilderStaff = (typeof STAFF_BUILDER_STAFFS)[number];
+export type StaffBuilderAccidental = (typeof STAFF_BUILDER_ACCIDENTALS)[number];
+export type StaffBuilderArpeggiation = (typeof STAFF_BUILDER_ARPEGGIATIONS)[number];
 
 export type StaffBuilderPitch = Readonly<{
   id: string;
@@ -15,9 +17,9 @@ export type StaffBuilderPitch = Readonly<{
 }>;
 
 export type StaffBuilderEventRhythm =
-  | Readonly<{ status: "unresolved" }>
+  | Readonly<{ status: typeof STAFF_BUILDER_RHYTHM_KINDS.unresolved }>
   | Readonly<{
-      status: "final";
+      status: typeof STAFF_BUILDER_RHYTHM_KINDS.final;
       duration: StaffBuilderDuration;
     }>;
 
@@ -29,14 +31,14 @@ type StaffBuilderEventBase = Readonly<{
 }>;
 
 export type StaffBuilderNoteEvent = StaffBuilderEventBase & Readonly<{
-  kind: "notes";
+  kind: typeof STAFF_BUILDER_EVENT_KINDS.notes;
   pitches: readonly StaffBuilderPitch[];
   arpeggiation?: StaffBuilderArpeggiation;
 }>;
 
 export type StaffBuilderRestEvent = StaffBuilderEventBase & Readonly<{
-  kind: "rest";
-  rhythm: Extract<StaffBuilderEventRhythm, { status: "final" }>;
+  kind: typeof STAFF_BUILDER_EVENT_KINDS.rest;
+  rhythm: Extract<StaffBuilderEventRhythm, { status: typeof STAFF_BUILDER_RHYTHM_KINDS.final }>;
 }>;
 
 export type StaffBuilderEvent = StaffBuilderNoteEvent | StaffBuilderRestEvent;
@@ -45,6 +47,7 @@ export type StaffBuilderMeasure = Readonly<{
   id: string;
   keySignatureChange?: MusicKeyId;
   timeSignatureChange?: StaffBuilderTimeSignature;
+  clefChanges?: Readonly<Partial<Record<StaffBuilderStaff, StaffBuilderClef>>>;
   events: readonly StaffBuilderEvent[];
 }>;
 
@@ -57,8 +60,8 @@ export type StaffBuilderTie = Readonly<{
 }>;
 
 export type StaffBuilderAnnotationAnchor =
-  | Readonly<{ kind: "event"; eventId: string }>
-  | Readonly<{ kind: "measure"; measureId: string }>;
+  | Readonly<{ kind: typeof STAFF_BUILDER_ANCHOR_KINDS.event; eventId: string }>
+  | Readonly<{ kind: typeof STAFF_BUILDER_ANCHOR_KINDS.measure; measureId: string }>;
 
 type StaffBuilderAnnotationBase = Readonly<{
   id: string;
@@ -66,32 +69,27 @@ type StaffBuilderAnnotationBase = Readonly<{
 }>;
 
 export type StaffBuilderStudyNoteAnnotation = StaffBuilderAnnotationBase & Readonly<{
-  kind: "study-note";
+  kind: typeof STAFF_BUILDER_ANNOTATION_KINDS.studyNote;
   text: string;
 }>;
 
 export type StaffBuilderLyricCueAnnotation = StaffBuilderAnnotationBase & Readonly<{
-  kind: "lyric-cue";
+  kind: typeof STAFF_BUILDER_ANNOTATION_KINDS.lyricCue;
   text: string;
 }>;
 
-export type StaffBuilderPracticeMarkCategory =
-  | "needs-work"
-  | "rhythm"
-  | "hands-separate"
-  | "check-fingering"
-  | "other";
+export type StaffBuilderPracticeMarkCategory = (typeof STAFF_BUILDER_PRACTICE_MARK_CATEGORIES)[number];
 
 export type StaffBuilderPracticeMarkAnnotation = StaffBuilderAnnotationBase & Readonly<{
-  kind: "practice-mark";
+  kind: typeof STAFF_BUILDER_ANNOTATION_KINDS.practiceMark;
   category: StaffBuilderPracticeMarkCategory;
   text?: string;
 }>;
 
-export type StaffBuilderBookmarkCategory = "interesting" | "needs-work" | "question" | "revisit";
+export type StaffBuilderBookmarkCategory = (typeof STAFF_BUILDER_BOOKMARK_CATEGORIES)[number];
 
 export type StaffBuilderBookmarkAnnotation = StaffBuilderAnnotationBase & Readonly<{
-  kind: "bookmark";
+  kind: typeof STAFF_BUILDER_ANNOTATION_KINDS.bookmark;
   category: StaffBuilderBookmarkCategory;
 }>;
 
@@ -103,7 +101,7 @@ export type StaffBuilderAnnotation =
 
 type LegacyStaffBuilderNoteEvent = Omit<StaffBuilderNoteEvent, "arpeggiation">;
 type LegacyStaffBuilderEvent = LegacyStaffBuilderNoteEvent | StaffBuilderRestEvent;
-type LegacyStaffBuilderMeasure = Omit<StaffBuilderMeasure, "events"> & Readonly<{
+type LegacyStaffBuilderMeasure = Omit<StaffBuilderMeasure, "events" | "clefChanges"> & Readonly<{
   events: readonly LegacyStaffBuilderEvent[];
 }>;
 
@@ -126,14 +124,19 @@ export type StaffBuilderScoreV2 = StaffBuilderScoreBase<2, LegacyStaffBuilderMea
   annotations: readonly StaffBuilderAnnotation[];
 }>;
 
-export type StaffBuilderScoreV3 = StaffBuilderScoreBase<3, StaffBuilderMeasure> & Readonly<{
+export type StaffBuilderScoreV3 = StaffBuilderScoreBase<3, Omit<StaffBuilderMeasure, "clefChanges">> & Readonly<{
   annotations: readonly StaffBuilderAnnotation[];
 }>;
 
-export type StaffBuilderScore = StaffBuilderScoreV3;
+export type StaffBuilderScoreV4 = StaffBuilderScoreBase<typeof STAFF_BUILDER_SCORE_SCHEMA_VERSION, StaffBuilderMeasure> & Readonly<{
+  annotations: readonly StaffBuilderAnnotation[];
+}>;
+
+export type StaffBuilderScore = StaffBuilderScoreV4;
 
 export type StaffBuilderMeasureContext = Readonly<{
   keySignatureId: MusicKeyId;
   timeSignature: StaffBuilderTimeSignature;
   capacityTicks: number;
+  clefs: Readonly<Record<StaffBuilderStaff, StaffBuilderClef>>;
 }>;

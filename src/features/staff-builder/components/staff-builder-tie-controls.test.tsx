@@ -16,7 +16,7 @@ describe("Staff Builder tie controls", () => {
     const first = chord("first", 0, "1");
     const middle = chord("middle", 480, "2");
     const last = chord("last", 960, "3");
-    const score: StaffBuilderScore = { schemaVersion: 3, annotations: [], id: "score", title: "Bells", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [first, middle, last] }], ties: [] };
+    const score: StaffBuilderScore = { schemaVersion: 4, annotations: [], id: "score", title: "Bells", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [first, middle, last] }], ties: [] };
     const create = vi.fn();
     render(<StaffBuilderTieControls event={middle} measureIndex={0} onCreateTies={create} onRemoveTie={vi.fn()} onSplitAndTie={vi.fn()} score={score} />);
     fireEvent.click(screen.getByLabelText("D5 (MIDI 74)"));
@@ -32,7 +32,7 @@ describe("Staff Builder tie controls", () => {
     const first = chord("first", 0, "1");
     const middle = chord("middle", 480, "2");
     const last = chord("last", 960, "3");
-    const score: StaffBuilderScore = { schemaVersion: 3, annotations: [], id: "score", title: "Chain", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [first, middle, last] }], ties: [
+    const score: StaffBuilderScore = { schemaVersion: 4, annotations: [], id: "score", title: "Chain", createdAt: "x", updatedAt: "x", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m1", events: [first, middle, last] }], ties: [
       { id: "tie-in", fromEventId: "first", fromPitchId: "d-1", toEventId: "middle", toPitchId: "d-2" },
       { id: "tie-out", fromEventId: "middle", fromPitchId: "d-2", toEventId: "last", toPitchId: "d-3" },
     ] };

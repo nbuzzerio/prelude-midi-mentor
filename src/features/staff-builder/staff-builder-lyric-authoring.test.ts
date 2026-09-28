@@ -3,7 +3,7 @@ import type { StaffBuilderScore } from "./staff-builder-types";
 import { commitStaffBuilderLyricCue, resolveStaffBuilderLyricTarget } from "./staff-builder-lyric-authoring";
 
 const note = (id: string) => ({ id, kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "quarter" as const }, pitches: [{ id: `${id}-p`, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] });
-const base = (events = [note("a")]): StaffBuilderScore => ({ schemaVersion: 3, id: "s", title: "Song", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m", events }], ties: [], annotations: [] });
+const base = (events = [note("a")]): StaffBuilderScore => ({ schemaVersion: 4, id: "s", title: "Song", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", measures: [{ id: "m", events }], ties: [], annotations: [] });
 
 describe("Staff Builder lyric authoring", () => {
   it("resolves a sole event, no event, ambiguity, and selected disambiguation", () => {

@@ -123,9 +123,15 @@ export function renderStaffBuilderSystem(
       .setBegBarType(Barline.type.NONE).setEndBarType(Barline.type.NONE);
 
     if (placementIndex === 0) {
-      trebleStave.addClef("treble").addKeySignature(projection.vexflowKeySignature).addTimeSignature(projection.timeSignature);
-      bassStave.addClef("bass").addKeySignature(projection.vexflowKeySignature).addTimeSignature(projection.timeSignature);
+      trebleStave.addClef(projection.clefs.treble).addKeySignature(projection.vexflowKeySignature).addTimeSignature(projection.timeSignature);
+      bassStave.addClef(projection.clefs.bass).addKeySignature(projection.vexflowKeySignature).addTimeSignature(projection.timeSignature);
     } else {
+      for (const [staff, stave] of [["treble", trebleStave], ["bass", bassStave]] as const) {
+        // VexFlow's setter creates a glyph. Keep the clef context but suppress
+        // that glyph on measures where the effective clef has not changed.
+        stave.setClef(projection.clefs[staff]);
+        if (projection.clefs[staff] === previousProjection?.clefs[staff]) stave.getModifiers().pop();
+      }
       if (projection.keySignatureId !== previousProjection?.keySignatureId) {
         trebleStave.addKeySignature(projection.vexflowKeySignature, previousProjection?.vexflowKeySignature);
         bassStave.addKeySignature(projection.vexflowKeySignature, previousProjection?.vexflowKeySignature);
@@ -154,8 +160,8 @@ export function renderStaffBuilderSystem(
     }
     new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.SINGLE_RIGHT).setContext(context).draw();
 
-    const trebleVoices = createStaffBuilderVexFlowVoices(projection.voices.treble, projection.timeSignature);
-    const bassVoices = createStaffBuilderVexFlowVoices(projection.voices.bass, projection.timeSignature);
+    const trebleVoices = createStaffBuilderVexFlowVoices(projection.voices.treble, projection.timeSignature, projection.clefs.treble);
+    const bassVoices = createStaffBuilderVexFlowVoices(projection.voices.bass, projection.timeSignature, projection.clefs.bass);
     applyStaffBuilderVexFlowAccidentals(trebleVoices, projection.vexflowKeySignature);
     applyStaffBuilderVexFlowAccidentals(bassVoices, projection.vexflowKeySignature);
     const trebleBeams = createStaffBuilderVexFlowBeams(trebleVoices);

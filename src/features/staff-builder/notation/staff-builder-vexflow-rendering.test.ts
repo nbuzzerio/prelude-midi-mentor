@@ -119,3 +119,19 @@ describe("Staff Builder shared VexFlow rendering", () => {
     expect(accidentals).toHaveBeenCalledWith(voices.map(({ voice: vexVoice }) => vexVoice), "G");
   });
 });
+
+it("changes note/rest notation clef without changing their musical projection", () => {
+  const middleC = event({ pitches: [{ id: "c", midiNumber: 60, letter: "C", accidental: "natural", octave: 4 }] });
+  const before = structuredClone(middleC);
+  const treble = createStaffBuilderVexFlowTickable(middleC, "treble");
+  const bass = createStaffBuilderVexFlowTickable(middleC, "bass");
+  expect(treble.note.getKeys()).toEqual(["c/4"]);
+  expect(bass.note.getKeys()).toEqual(["c/4"]);
+  expect(treble.note.getKeyProps()[0]!.line).not.toBe(bass.note.getKeyProps()[0]!.line);
+  expect(treble.projection).toBe(middleC);
+  expect(bass.projection).toBe(middleC);
+  const rest = event({ kind: "rest", staff: "bass", pitches: [] });
+  expect(createStaffBuilderVexFlowTickable(rest, "treble").note.getKeys()).toEqual(["b/4"]);
+  expect(createStaffBuilderVexFlowTickable(rest, "bass").note.getKeys()).toEqual(["d/3"]);
+  expect(middleC).toEqual(before);
+});

@@ -3,7 +3,7 @@ import type { StaffBuilderScore } from "./staff-builder-types";
 import { sortStaffBuilderLibraryPieces } from "./staff-builder-library-sorting";
 
 const piece = (id: string, title: string, updatedAt: string): StaffBuilderScore => ({
-  schemaVersion: 3, annotations: [], id, title, createdAt: "2026-01-01T00:00:00.000Z", updatedAt,
+  schemaVersion: 4, annotations: [], id, title, createdAt: "2026-01-01T00:00:00.000Z", updatedAt,
   tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [{ id: `m-${id}`, events: [] }],
 });
 

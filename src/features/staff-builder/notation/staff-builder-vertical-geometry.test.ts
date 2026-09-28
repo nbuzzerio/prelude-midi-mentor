@@ -60,3 +60,12 @@ describe("Staff Builder vertical notation geometry", () => {
     expect(editor(source).bottomReservation).toBeGreaterThan(0);
   });
 });
+
+it("reserves ledger-line space by display clef independently of staff placement", () => {
+  const options = { baseHeight: 300, trebleStaveY: 55, bassStaveY: 155 };
+  const pitches = [{ letter: "C" as const, octave: 0 }];
+  const ordinary = getStaffBuilderVerticalGeometry({ ...options, pitchSources: [{ staff: "bass", clef: "bass", pitches }] });
+  const changed = getStaffBuilderVerticalGeometry({ ...options, pitchSources: [{ staff: "bass", clef: "treble", pitches }] });
+  expect(changed.bottomReservation).toBeGreaterThan(ordinary.bottomReservation);
+  expect(changed.bassStaveY).toBe(ordinary.bassStaveY);
+});

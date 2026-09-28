@@ -1,3 +1,4 @@
+import { Stave } from "vexflow";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "../staff-builder-types";
@@ -6,7 +7,7 @@ import { STAFF_BUILDER_PRINT_CANVAS_WIDTH_PX, STAFF_BUILDER_PRINT_CONTENT_WIDTH_
 
 function score(measureCount: number): StaffBuilderScore {
   return {
-    schemaVersion: 3, annotations: [], id: "print", title: "Complete print", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 4, annotations: [], id: "print", title: "Complete print", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [],
     measures: Array.from({ length: measureCount }, (_value, index) => ({ id: `m${index + 1}`, events: [] })),
   };
@@ -67,4 +68,13 @@ describe("StaffBuilderPrintScore", () => {
     expect(Number.parseFloat(label.style.top)).toBeGreaterThan(ordinaryLabelTop);
     expect(Number.parseFloat(document.style.height) - Number.parseFloat(label.style.top)).toBe(STAFF_BUILDER_PRINT_MEASURE_LABEL_LANE_HEIGHT);
   });
+});
+
+it("prints inherited clefs at range/system starts and actual changes within a system", () => {
+  const base = score(5);
+  const current: StaffBuilderScore = { ...base, measures: base.measures.map((measure, i) => ({ ...measure, ...(i === 1 ? { clefChanges: { bass: "treble" as const } } : i === 3 ? { clefChanges: { bass: "bass" as const } } : {}) })) };
+  const draws = vi.spyOn(Stave.prototype, "draw");
+  const { container } = render(<StaffBuilderPrintScore measureIndexes={[2, 3, 4]} measuresPerLine={4} score={current} />);
+  expect(container.querySelectorAll(".vf-clef")).toHaveLength(3);
+  expect(draws.mock.instances.map((stave) => (stave as Stave).getClef())).toEqual(["treble", "treble", "treble", "bass", "treble", "bass"]);
 });
