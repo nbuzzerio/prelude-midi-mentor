@@ -16,6 +16,17 @@ export type PiecePracticeExpectedPitchSnapshot = Readonly<{
   octave: number;
 }>;
 
+/** One physical Note On, before chord collection can deduplicate pitches. Not grading input. */
+export type PiecePracticeAttackEvidence = Readonly<{
+  sequence: number;
+  measureIndex: number;
+  sourceMeasureId: string;
+  targetId: string;
+  midiNumber: number;
+  attackVelocity: number;
+  occurredAtActiveMs: number;
+}>;
+
 type PiecePracticeEvidenceLocation = Readonly<{
   sequence: number;
   measureIndex: number;

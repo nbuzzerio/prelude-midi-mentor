@@ -7,7 +7,7 @@ import { usePiecePracticeInput } from "./use-piece-practice-input";
 
 const midiMock = vi.hoisted(() => ({
   mountCount: 0, unmountCount: 0,
-  options: null as null | { onHeldNotesChanged?: (notes: ReadonlySet<number>) => void; onNotePlayed: (midiNumber: number) => void },
+  options: null as null | { onHeldNotesChanged?: (notes: ReadonlySet<number>) => void; onNotePlayed: (midiNumber: number, attackVelocity?: number) => void },
 }));
 
 vi.mock("@/hooks/use-app-midi-input", () => ({
@@ -64,10 +64,10 @@ function initial(source: PiecePracticePiece): PiecePracticeSessionState {
   return result.state;
 }
 
-function setup(source = piece()) {
+function setup(source = piece(), now?: () => number) {
   let state = initial(source);
   const onSessionStateChange = vi.fn((next: PiecePracticeSessionState) => { state = next; });
-  const rendered = renderHook(({ sessionState }) => usePiecePracticeInput({ piece: source, sessionState, onSessionStateChange }), {
+  const rendered = renderHook(({ sessionState }) => usePiecePracticeInput({ piece: source, sessionState, onSessionStateChange, now }), {
     initialProps: { sessionState: state },
   });
   const sync = () => rendered.rerender({ sessionState: state });
@@ -410,5 +410,55 @@ describe("usePiecePracticeInput", () => {
     act(() => vi.advanceTimersByTime(938));
     expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { completed: false, accumulatedMidiNumbers: [] }]);
     expect(view.getState().mistakeEvidence).toHaveLength(1);
+  });
+});
+
+
+describe("Piece Practice optional physical attack evidence", () => {
+  beforeEach(() => { vi.useFakeTimers(); midiMock.options = null; });
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+  const attack = (midiNumber: number, velocity: number) => act(() => midiMock.options?.onNotePlayed(midiNumber, velocity));
+
+  it("keeps each block-chord attack, including repeated pitch, before deduplication", () => {
+    const view = setup(piece([[[60, 64, 67]]]));
+    midiHeld(60, 64, 67);
+    attack(60, 54); view.sync(); attack(64, 49); attack(60, 81); attack(67, 45);
+    act(() => vi.advanceTimersByTime(225));
+    expect(view.getState().status).toBe("piece-complete");
+    expect(view.getState().attackEvidence?.map(({ midiNumber, attackVelocity }) => [midiNumber, attackVelocity])).toEqual([[60, 54], [64, 49], [60, 81], [67, 45]]);
+    expect(view.getState().attackEvidence?.every(({ targetId }) => targetId === "m0:attack:0")).toBe(true);
+  });
+
+  it("retains independent rolled and simultaneous normal-check velocities once each", () => {
+    const view = setup(rolledPiece());
+    attack(48, 38); attack(72, 104); attack(52, 51); attack(55, 63);
+    expect(view.getState().status).toBe("piece-complete");
+    expect(view.getState().attackEvidence?.map(({ attackVelocity }) => attackVelocity)).toEqual([38, 104, 51, 63]);
+  });
+
+  it("keeps repeated attempts at the same pitch separate", () => {
+    const view = setup(piece([[[60]]]));
+    attack(61, 40); attack(61, 99); attack(60, 72);
+    expect(view.getState().attackEvidence?.map(({ attackVelocity }) => attackVelocity)).toEqual([40, 99, 72]);
+    expect(view.getState().mistakeEvidence).toHaveLength(2);
+  });
+
+  it("leaves virtual input usable without fabricated velocity", () => {
+    const view = setup(piece([[[60]]]));
+    act(() => view.result.current.onVirtualNoteToggle(60));
+    expect(view.getState().status).toBe("piece-complete");
+    expect(view.getState().attackEvidence).toBeUndefined();
+  });
+
+  it.each([
+    { name: "single with mistake", source: () => piece([[[60]]]), attacks: [61, 60] },
+    { name: "block chord", source: () => piece([[[60, 64, 67]]]), attacks: [60, 64, 67] },
+    { name: "rolled chord with normal check", source: () => rolledPiece(), attacks: [48, 72, 52, 55] },
+  ])("produces identical grading and timing for $name with or without metadata", ({ source, attacks }) => {
+    const plain = setup(source(), () => 0); attacks.forEach(midiNote); act(() => vi.advanceTimersByTime(225));
+    const expected = plain.getState(); plain.unmount();
+    const enhanced = setup(source(), () => 0); attacks.forEach((note, index) => attack(note, 30 + index)); act(() => vi.advanceTimersByTime(225));
+    const actual = { ...enhanced.getState() }; delete actual.attackEvidence;
+    expect(actual).toEqual(expected);
   });
 });

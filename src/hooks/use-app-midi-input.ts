@@ -13,7 +13,7 @@ export function useAppMidiInput(consumer: AppMidiConsumer): Omit<AppMidiContextV
   const { registerConsumer } = context;
   useEffect(() => registerConsumer({
     onHeldNotesChanged: (notes) => consumerRef.current.onHeldNotesChanged?.(notes),
-    onNotePlayed: (midiNumber) => consumerRef.current.onNotePlayed?.(midiNumber),
+    onNotePlayed: (midiNumber, attackVelocity) => consumerRef.current.onNotePlayed?.(midiNumber, attackVelocity),
     onSustainPedalChanged: (isDown) =>
       consumerRef.current.onSustainPedalChanged?.(isDown),
   }), [registerConsumer]);

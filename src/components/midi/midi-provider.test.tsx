@@ -10,7 +10,7 @@ const lowLevel = vi.hoisted(() => ({
   connectMidi: vi.fn(async () => undefined),
   options: null as null | Readonly<{
     onHeldNotesChanged?: (notes: ReadonlySet<number>) => void;
-    onNotePlayed: (midiNumber: number) => void;
+    onNotePlayed: (midiNumber: number, attackVelocity?: number) => void;
     onSustainPedalChanged?: (isDown: boolean) => void;
   }>,
   ownerCount: 0,
@@ -30,7 +30,7 @@ vi.mock("@/hooks/use-midi", () => ({
 function Consumer({ label, onHeld, onNote, onSustain = vi.fn() }: Readonly<{
   label: string;
   onHeld: (notes: ReadonlySet<number>) => void;
-  onNote: (midiNumber: number) => void;
+  onNote: (midiNumber: number, attackVelocity?: number) => void;
   onSustain?: (isDown: boolean) => void;
 }>) {
   const midi = useAppMidiInput({ onHeldNotesChanged: onHeld, onNotePlayed: onNote, onSustainPedalChanged: onSustain });
@@ -64,12 +64,12 @@ describe("MidiProvider", () => {
     );
     act(() => lowLevel.options?.onNotePlayed(60));
     expect(first).not.toHaveBeenCalled();
-    expect(second).toHaveBeenCalledWith(60);
+    expect(second).toHaveBeenCalledWith(60, undefined);
 
     rerender(<MidiProvider><Consumer key="second" label="Second" onHeld={vi.fn()} onNote={second} /></MidiProvider>);
     act(() => lowLevel.options?.onNotePlayed(62));
     expect(first).not.toHaveBeenCalled();
-    expect(second).toHaveBeenLastCalledWith(62);
+    expect(second).toHaveBeenLastCalledWith(62, undefined);
   });
 
   it("routes sustain changes only to the active consumer", () => {
@@ -100,7 +100,7 @@ describe("MidiProvider", () => {
       lowLevel.options?.onHeldNotesChanged?.(new Set([60]));
       lowLevel.options?.onNotePlayed(60);
     });
-    expect(firstNote).toHaveBeenCalledWith(60);
+    expect(firstNote).toHaveBeenCalledWith(60, undefined);
 
     rerender(<MidiProvider><Consumer key="second" label="Second" onHeld={secondHeld} onNote={secondNote} /></MidiProvider>);
     expect(secondHeld).toHaveBeenLastCalledWith(new Set([60]));
@@ -116,7 +116,7 @@ describe("MidiProvider", () => {
     rerender(<MidiProvider><Consumer label="Feature" onHeld={vi.fn()} onNote={currentCallback} /></MidiProvider>);
     act(() => lowLevel.options?.onNotePlayed(67));
     expect(oldCallback).not.toHaveBeenCalled();
-    expect(currentCallback).toHaveBeenCalledWith(67);
+    expect(currentCallback).toHaveBeenCalledWith(67, undefined);
     expect(lowLevel.ownerCount).toBe(1);
   });
 
@@ -136,4 +136,12 @@ describe("MidiProvider", () => {
     act(() => lowLevel.options?.onNotePlayed(69));
     expect(onNote).toHaveBeenCalledTimes(1);
   });
+});
+
+
+it("forwards optional velocity through the existing shared provider and consumer hook", () => {
+  const onNote = vi.fn();
+  render(<MidiProvider><Consumer label="Velocity" onHeld={vi.fn()} onNote={onNote} /></MidiProvider>);
+  act(() => { lowLevel.options?.onNotePlayed(60, 91); lowLevel.options?.onNotePlayed(60, 42); });
+  expect(onNote.mock.calls).toEqual([[60, 91], [60, 42]]);
 });

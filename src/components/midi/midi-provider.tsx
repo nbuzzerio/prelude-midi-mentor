@@ -12,8 +12,8 @@ export function MidiProvider({ children }: Readonly<{ children: ReactNode }>) {
     activeConsumerRef.current?.consumer.onHeldNotesChanged?.(new Set(snapshot));
   }, []);
 
-  const handleNotePlayed = useCallback((midiNumber: number) => {
-    activeConsumerRef.current?.consumer.onNotePlayed?.(midiNumber);
+  const handleNotePlayed = useCallback((midiNumber: number, attackVelocity?: number) => {
+    activeConsumerRef.current?.consumer.onNotePlayed?.(midiNumber, attackVelocity);
   }, []);
 
   const handleSustainPedalChanged = useCallback((isDown: boolean) => {

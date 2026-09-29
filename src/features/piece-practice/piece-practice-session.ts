@@ -6,6 +6,7 @@ import {
   getPiecePracticeHesitationThresholdMs,
   getPiecePracticeTargetExpectedWindowMs,
   snapshotPiecePracticePitches,
+  type PiecePracticeAttackEvidence,
   type PiecePracticeMeasureDiagnostic,
   type PiecePracticeMeasureTiming,
   type PiecePracticeMistakeEvidence,
@@ -40,6 +41,8 @@ export type PiecePracticeSessionState = Readonly<{
   currentMeasureCompletedTargetCount: number;
   completedMeasureCount: number;
   completedMeasureIndexes: readonly number[];
+  /** Optional for legacy/non-MIDI sessions; transient, never authored score data. */
+  attackEvidence?: readonly PiecePracticeAttackEvidence[];
   mistakeEvidence: readonly PiecePracticeMistakeEvidence[];
   skipEvidence: readonly PiecePracticeSkipEvidence[];
   targetTimings: readonly PiecePracticeTargetTiming[];
@@ -101,6 +104,20 @@ function effectiveEndMeasureIndex(piece: PiecePracticePiece, state: Pick<PiecePr
 function activeElapsedAt(state: PiecePracticeSessionState, atMs: number): number {
   requireTimestamp(atMs);
   return state.activeElapsedMs + (state.clockPaused ? 0 : Math.max(0, atMs - state.activeSinceMs));
+}
+
+/** Evidence only: do not snapshot the grading clock or alter check progress. */
+export function recordPiecePracticeMidiAttack(
+  piece: PiecePracticePiece, state: PiecePracticeSessionState,
+  midiNumber: number, attackVelocity: number | undefined, atMs: number,
+): PiecePracticeSessionState {
+  const target = getCurrentPiecePracticeTarget(piece, state);
+  if (!target || state.clockPaused || !Number.isInteger(attackVelocity) || attackVelocity === undefined || attackVelocity < 1 || attackVelocity > 127) return state;
+  const previous = state.attackEvidence ?? [];
+  return { ...state, attackEvidence: [...previous, {
+    sequence: previous.length, measureIndex: target.measureIndex, sourceMeasureId: target.sourceMeasureId,
+    targetId: target.id, midiNumber, attackVelocity, occurredAtActiveMs: activeElapsedAt(state, atMs),
+  }] };
 }
 
 function snapshotClock(state: PiecePracticeSessionState, atMs: number): PiecePracticeSessionState {

@@ -92,6 +92,9 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It does not grade BPM, note-hold duration, rhythmic timing, or continuous performance; those remain separate possible future Accuracy-mode work.
 
+Completed Piece Practice results offer Copy Report alongside print/PDF. Include MIDI attack strength defaults off and controls report presentation only. Physical Note On velocities (1-127) are retained separately for each attack, including repeated pitches and rolled chords, as transient evidence associated with the current practice target. Enabling the option includes exact values and a count/range; virtual input has no fabricated velocity. This does not grade dynamics, infer hands/balance, or change pitch/timing grading, and no raw MIDI recording is stored. Failed clipboard access exposes a selected read-only report for manual copying.
+
+
 ### Real-Time Input and Feedback
 
 - Physical MIDI keyboard support

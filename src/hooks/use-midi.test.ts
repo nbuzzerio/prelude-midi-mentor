@@ -239,8 +239,8 @@ describe("useMidi", () => {
       emitMidiMessage([0x90, 64, 100]);
     });
 
-    expect(onNotePlayed).toHaveBeenNthCalledWith(1, 60);
-    expect(onNotePlayed).toHaveBeenNthCalledWith(2, 64);
+    expect(onNotePlayed).toHaveBeenNthCalledWith(1, 60, 100);
+    expect(onNotePlayed).toHaveBeenNthCalledWith(2, 64, 100);
 
     expect(onHeldNotesChanged).toHaveBeenNthCalledWith(1, new Set([60]));
 
@@ -329,7 +329,7 @@ describe("useMidi", () => {
       emitMidiMessage([0x95, 72, 100]);
     });
 
-    expect(onNotePlayed).toHaveBeenCalledWith(72);
+    expect(onNotePlayed).toHaveBeenCalledWith(72, 100);
   });
 
   it("ignores incomplete and unrelated MIDI messages", async () => {
@@ -410,7 +410,7 @@ describe("useMidi", () => {
     expect(initialOnNotePlayed).not.toHaveBeenCalled();
 
     expect(updatedOnHeldNotesChanged).toHaveBeenCalledWith(new Set([60]));
-    expect(updatedOnNotePlayed).toHaveBeenCalledWith(60);
+    expect(updatedOnNotePlayed).toHaveBeenCalledWith(60, 100);
     expect(input.addEventListener).toHaveBeenCalledTimes(1);
     expect(input.removeEventListener).not.toHaveBeenCalled();
     expect(access.addEventListener).toHaveBeenCalledTimes(1);
@@ -534,7 +534,7 @@ describe("useMidi", () => {
       second.emitMidiMessage([0x90, 64, 100]);
     });
     expect(onNotePlayed).toHaveBeenCalledTimes(1);
-    expect(onNotePlayed).toHaveBeenCalledWith(64);
+    expect(onNotePlayed).toHaveBeenCalledWith(64, 100);
   });
 
   it("treats a disconnected port retained by MIDIAccess as unavailable and clears held notes", async () => {
@@ -592,4 +592,21 @@ describe("useMidi", () => {
 
     expect(onNotePlayed).not.toHaveBeenCalled();
   });
+});
+
+
+it("preserves exact independent physical velocities and never reports releases as attacks", async () => {
+  const input = createMidiInput();
+  const midi = createMidiAccess([input.input]);
+  installRequestMidiAccess(() => Promise.resolve(midi.access));
+  const onNotePlayed = vi.fn();
+  const view = renderHook(() => useMidi({ onNotePlayed }));
+  await act(async () => { await view.result.current.connectMidi(); });
+  act(() => {
+    input.emitMidiMessage([0x90, 48, 54]); input.emitMidiMessage([0x90, 55, 49]);
+    input.emitMidiMessage([0x90, 60, 45]); input.emitMidiMessage([0x90, 48, 0]);
+    input.emitMidiMessage([0x80, 55, 90]); input.emitMidiMessage([0x90, 48, 107]);
+  });
+  expect(onNotePlayed.mock.calls).toEqual([[48, 54], [55, 49], [60, 45], [48, 107]]);
+  view.unmount(); Reflect.deleteProperty(navigator, "requestMIDIAccess");
 });

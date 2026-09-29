@@ -3,7 +3,7 @@ import type { MidiConnectionStatus } from "@/hooks/use-midi";
 
 export type AppMidiConsumer = Readonly<{
   onHeldNotesChanged?: (heldNotes: ReadonlySet<number>) => void;
-  onNotePlayed?: (midiNumber: number) => void;
+  onNotePlayed?: (midiNumber: number, attackVelocity?: number) => void;
   onSustainPedalChanged?: (isDown: boolean) => void;
 }>;
 

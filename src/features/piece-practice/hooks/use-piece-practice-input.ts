@@ -3,6 +3,7 @@ import { CHORD_ATTEMPT_GRACE_MS, useChordAttempt } from "@/hooks/use-chord-attem
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import {
   getCurrentPiecePracticeTarget,
+  recordPiecePracticeMidiAttack,
   expirePiecePracticeRolledChecks,
   getPiecePracticeRolledWindowMs,
   skipCurrentPiecePracticeTarget,
@@ -133,9 +134,15 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     finalizeMidiChordAttemptRef.current = finalizeMidiChordAttempt;
   }, [finalizeMidiChordAttempt]);
 
-  const handleMidiNotePlayed = useCallback((midiNumber: number) => {
+  const handleMidiNotePlayed = useCallback((midiNumber: number, attackVelocity?: number) => {
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);
     if (!target) return;
+    const current = sessionStateRef.current;
+    const withEvidence = recordPiecePracticeMidiAttack(piece, current, midiNumber, attackVelocity, now());
+    if (withEvidence !== current) {
+      sessionStateRef.current = withEvidence;
+      onSessionStateChange(withEvidence);
+    }
     clearVirtualSelection();
     const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
@@ -161,7 +168,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     clearAttempt();
     chordTargetIdRef.current = target.id;
     startAttempt(midiNumber);
-  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, isAttemptActive, piece, startAttempt, submitAttack, submitPitch]);
+  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, isAttemptActive, now, onSessionStateChange, piece, startAttempt, submitAttack, submitPitch]);
 
   const handleMidiHeldNotesChanged = useCallback((heldNotes: ReadonlySet<number>) => {
     const next = new Set(heldNotes);

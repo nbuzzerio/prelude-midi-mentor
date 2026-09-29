@@ -9,7 +9,7 @@ export type MidiConnectionStatus =
 
 type UseMidiOptions = Readonly<{
   onHeldNotesChanged?: (heldNotes: ReadonlySet<number>) => void;
-  onNotePlayed: (midiNumber: number) => void;
+  onNotePlayed: (midiNumber: number, attackVelocity?: number) => void;
   onSustainPedalChanged?: (isDown: boolean) => void;
 }>;
 
@@ -102,7 +102,8 @@ export function useMidi({
       if (isNoteOn) {
         heldNotes.add(noteNumber);
         publishHeldNotes();
-        onNotePlayedRef.current(noteNumber);
+        // Preserve note handling even for malformed data; only valid MIDI velocities are evidence.
+        onNotePlayedRef.current(noteNumber, velocity <= 127 ? velocity : undefined);
         return;
       }
 

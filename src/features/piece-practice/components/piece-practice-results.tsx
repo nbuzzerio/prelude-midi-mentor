@@ -5,11 +5,11 @@ import { StaffBuilderPrintScore } from "@/features/staff-builder/components/staf
 import { StaffBuilderScoreView, type StaffBuilderDiagnosticHighlight } from "@/features/staff-builder/components/staff-builder-score-view";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import {
-  formatPiecePracticeMidiPitch,
   formatPiecePracticeWrittenPitch,
   selectPiecePracticeMeasureDiagnosticChips,
   type PiecePracticeMistakeEvidence,
 } from "../piece-practice-evidence";
+import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, mistakeText } from "../piece-practice-report";
 import { getPiecePracticeMeasureResults, type PiecePracticeSessionState } from "../piece-practice-session";
 
 type ReportOptions = Readonly<{
@@ -41,30 +41,6 @@ function resultPresentation(result: ReturnType<typeof getPiecePracticeMeasureRes
   if (result.mistakeCount) return "mistake";
   if (result.hesitationCount) return "hesitation";
   return result.skippedTargetCount ? "skip-only" : "clean";
-}
-
-function mistakeText(evidence: PiecePracticeMistakeEvidence) {
-  const expected = evidence.expectedPitches.map(formatPiecePracticeWrittenPitch).join(", ") || "None";
-  if (evidence.kind === "normal-attempt") return {
-    expected,
-    played: evidence.receivedMidiNumbers.map(formatPiecePracticeMidiPitch).join(", ") || "No new notes",
-    missing: evidence.missingMidiNumbers.map((midiNumber) => evidence.expectedPitches.find((pitch) => pitch.midiNumber === midiNumber)).map((pitch, index) => pitch ? formatPiecePracticeWrittenPitch(pitch) : formatPiecePracticeMidiPitch(evidence.missingMidiNumbers[index]!)),
-    extra: evidence.extraMidiNumbers.map(formatPiecePracticeMidiPitch),
-    held: evidence.unexpectedHeldMidiNumbers.map(formatPiecePracticeMidiPitch),
-    label: "Unsuccessful attempt",
-  };
-  if (evidence.kind === "rolled-unexpected-pitch") return {
-    expected,
-    played: formatPiecePracticeMidiPitch(evidence.receivedMidiNumber),
-    missing: [], extra: [formatPiecePracticeMidiPitch(evidence.receivedMidiNumber)], held: [],
-    label: "Unexpected pitch during rolled chord",
-  };
-  return {
-    expected,
-    played: evidence.accumulatedMidiNumbers.map(formatPiecePracticeMidiPitch).join(", ") || "No completed roll",
-    missing: evidence.missingMidiNumbers.map((midiNumber) => evidence.expectedPitches.find((pitch) => pitch.midiNumber === midiNumber)).map((pitch, index) => pitch ? formatPiecePracticeWrittenPitch(pitch) : formatPiecePracticeMidiPitch(evidence.missingMidiNumbers[index]!)), extra: [], held: [],
-    label: "Rolled chord timed out",
-  };
 }
 
 function diagnosticHighlights(state: PiecePracticeSessionState, measureIndex: number): readonly StaffBuilderDiagnosticHighlight[] {
@@ -139,7 +115,7 @@ function ReportOptionsDialog({ onCancel, onGenerate }: Readonly<{ onCancel: () =
   </div>;
 }
 
-function PracticeReport({ displayScore, options, rangeText, state, title }: Readonly<{ displayScore: StaffBuilderScore; options: ReportOptions; rangeText: string; state: PiecePracticeSessionState; title: string }>) {
+function PracticeReport({ displayScore, options, rangeText, state, title, includeAttackStrength }: Readonly<{ displayScore: StaffBuilderScore; options: ReportOptions; rangeText: string; state: PiecePracticeSessionState; title: string; includeAttackStrength: boolean }>) {
   const results = getPiecePracticeMeasureResults(state);
   const included = results.filter((item) => options.scope === "excerpt" || item.isProblem);
   const elapsed = state.completedAtActiveMs ?? state.activeElapsedMs;
@@ -152,10 +128,29 @@ function PracticeReport({ displayScore, options, rangeText, state, title }: Read
       {options.chronologicalMistakes ? <MistakeList evidence={state.mistakeEvidence.filter((item) => item.measureIndex === result.measureIndex)} /> : null}
       {options.hesitationHighlights ? <ul>{state.targetTimings.filter((item) => item.measureIndex === result.measureIndex && item.isHesitation).map((timing) => <li key={timing.sequence}>Slow response: {timing.expectedPitches.map(formatPiecePracticeWrittenPitch).join(", ") || "target"} — {seconds(timing.responseDurationMs)}; threshold {seconds(timing.hesitationThresholdMs)}; expected window {seconds(timing.expectedWindowMs)}</li>)}</ul> : null}
     </section>)}
+    {includeAttackStrength ? <section><h2>MIDI attack velocity</h2><p>Physical MIDI Note On evidence only; no dynamics assessment.</p><ol>{(state.attackEvidence ?? []).map((attack) => <li key={attack.sequence}>{formatPiecePracticeAttackEvidence(attack)}</li>)}</ol>{!state.attackEvidence?.length ? <p>No MIDI attack velocity evidence available.</p> : null}</section> : null}
   </section>;
 }
 
 export function PiecePracticeResults({ displayScore, rangeText, state, title }: Readonly<{ displayScore: StaffBuilderScore; rangeText: string; state: PiecePracticeSessionState; title: string }>) {
+  const [includeAttackStrength, setIncludeAttackStrength] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied" | "failed">("idle");
+  const [fallbackText, setFallbackText] = useState("");
+  const fallbackRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (copyStatus === "failed") { fallbackRef.current?.focus(); fallbackRef.current?.select(); }
+  }, [copyStatus, fallbackText]);
+  const copyReport = async () => {
+    const text = formatPiecePracticeReport({ title, rangeText, state, includeAttackStrength });
+    setCopyStatus("copying");
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(text);
+      setFallbackText(""); setCopyStatus("copied");
+    } catch {
+      setFallbackText(text); setCopyStatus("failed");
+    }
+  };
   const [problemsOnly, setProblemsOnly] = useState(false);
   const [reportDialog, setReportDialog] = useState(false);
   const [reportOptions, setReportOptions] = useState<ReportOptions | null>(null);
@@ -170,7 +165,12 @@ export function PiecePracticeResults({ displayScore, rangeText, state, title }: 
       ? <details className="piece-practice-measure-result" data-has-problems data-result-presentation={resultPresentation(result)}><summary><strong>Measure {result.measureNumber}</strong><span>{result.mistakeCount ? `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}` : "No mistakes"} · {seconds(result.activeDurationMs)}{result.hesitationCount ? ` · ${result.hesitationCount} slow` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</span><PracticeDiagnosticChips chips={selectPiecePracticeMeasureDiagnosticChips(result)} label={`Measure ${result.measureNumber} diagnostic shorthand`} /></summary><ResultMeasure displayScore={displayScore} measureIndex={result.measureIndex} state={state} /></details>
       : <div className="piece-practice-measure-result" data-result-presentation="clean"><strong>Measure {result.measureNumber}</strong><span>No mistakes · {seconds(result.activeDurationMs)}</span></div>}</li>)}</ul> : <p>No problem measures in this attempt.</p>}
     <button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" onClick={() => setReportDialog(true)} ref={reportButton} type="button">Generate Report</button>
+    <label className="flex min-h-11 items-center gap-2"><input checked={includeAttackStrength} onChange={(event) => setIncludeAttackStrength(event.target.checked)} type="checkbox" />Include MIDI attack strength</label>
+    <p className="text-sm text-zinc-300">Adds exact physical MIDI attack velocities to copied and printed reports. This does not assess dynamics.</p>
+    <button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" disabled={copyStatus === "copying"} onClick={() => void copyReport()} type="button">Copy Report</button>
+    <p aria-live="polite" role="status">{copyStatus === "copied" ? "Report copied." : ""}</p>
+    {copyStatus === "failed" ? <div><p role="alert">Clipboard access was unavailable. Copy the selected report below manually.</p><label htmlFor="piece-practice-report-copy">Piece Practice report</label><textarea className="min-h-48 w-full" id="piece-practice-report-copy" readOnly ref={fallbackRef} value={fallbackText} /></div> : null}
     {reportDialog ? <ReportOptionsDialog onCancel={() => { setReportDialog(false); reportButton.current?.focus(); }} onGenerate={(options) => { setReportDialog(false); setReportOptions(options); }} /> : null}
-    {reportOptions ? <PracticeReport displayScore={displayScore} options={reportOptions} rangeText={rangeText} state={state} title={title} /> : null}
+    {reportOptions ? <PracticeReport includeAttackStrength={includeAttackStrength} displayScore={displayScore} options={reportOptions} rangeText={rangeText} state={state} title={title} /> : null}
   </section>;
 }
