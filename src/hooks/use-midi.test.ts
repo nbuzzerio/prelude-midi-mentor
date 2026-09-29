@@ -4,6 +4,11 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useMidi } from "./use-midi";
+import { useState } from "react";
+import { MidiProvider } from "@/components/midi/midi-provider";
+import { createPiecePracticeSession } from "@/features/piece-practice/piece-practice-session";
+import { usePiecePracticeInput } from "@/features/piece-practice/hooks/use-piece-practice-input";
+import type { PiecePracticePiece } from "@/features/piece-practice/piece-practice-types";
 
 type MidiMessageListener = (event: MIDIMessageEvent) => void;
 type MidiStateChangeListener = () => void;
@@ -29,9 +34,10 @@ function createMidiInput(name = "Test MIDI Keyboard") {
     ),
   } as unknown as MIDIInput;
 
-  const emitMidiMessage = (data: number[]) => {
+  const emitMidiMessage = (data: number[], timeStamp?: number) => {
     midiMessageListener?.({
       data: Uint8Array.from(data),
+      ...(timeStamp === undefined ? {} : { timeStamp }),
     } as MIDIMessageEvent);
   };
 
@@ -98,6 +104,85 @@ function installRequestMidiAccess(implementation: () => Promise<MIDIAccess>) {
 
   return requestMIDIAccess;
 }
+
+describe("physical release observations", () => {
+  afterEach(() => { Reflect.deleteProperty(navigator, "requestMIDIAccess"); vi.restoreAllMocks(); });
+
+  it("grades real MIDI legato across CC64 using physical keys and captures releases independently", async () => {
+    const source: PiecePracticePiece = { sourceScoreId: "score", sourceScoreUpdatedAt: "now", title: "Pedal transition", tempoBpm: 96,
+      measures: [{ measureIndex: 0, sourceMeasureId: "m1", absoluteStartTick: 0, capacityTicks: 1920, keySignatureId: "c-major",
+        timeSignature: "4/4", clefs: { treble: "treble", bass: "bass" }, sourceEvents: [], restEventIds: [],
+        targets: [81, 79, 77].map((midiNumber, index) => ({ id: `attack:${index * 480}`, measureIndex: 0, sourceMeasureId: "m1",
+          startTick: index * 480, absoluteStartTick: index * 480, sourceEventIds: [], expectedMidiNumbers: [midiNumber], attackedPitches: [],
+          checks: [{ id: `check:${index}`, kind: "normal", sourceEventIds: [], expectedMidiNumbers: [midiNumber], attackedPitches: [] }] })) }] };
+    const session = createPiecePracticeSession(source, { startMeasureIndex: 0, startedAtMs: performance.now() });
+    if (!session.ok) throw new Error(session.reason);
+    const { input, emitMidiMessage } = createMidiInput(); const { access } = createMidiAccess([input]); installRequestMidiAccess(async () => access);
+    const view = renderHook(() => {
+      const [state, setState] = useState(session.state);
+      const practice = usePiecePracticeInput({ piece: source, sessionState: state, onSessionStateChange: setState });
+      return { state, practice };
+    }, { wrapper: MidiProvider });
+    await act(async () => view.result.current.practice.connectMidi());
+    act(() => {
+      emitMidiMessage([0xb0, 64, 127]); emitMidiMessage([0x90, 81, 80]); emitMidiMessage([0x90, 79, 66]);
+      emitMidiMessage([0x80, 81, 32]); emitMidiMessage([0x90, 77, 54]);
+    });
+    expect(view.result.current.state).toMatchObject({ status: "piece-complete", completedTargetCount: 3, mistakeEvidence: [] });
+    expect(view.result.current.practice.midiHeldNotes).toEqual(new Set([79, 77]));
+    expect(view.result.current.state.releaseEvidence?.[0]).toMatchObject({ midiNumber: 81, encoding: "note-off", releaseVelocity: 32 });
+    act(() => emitMidiMessage([0x90, 79, 0]));
+    expect(view.result.current.practice.midiHeldNotes).toEqual(new Set([77]));
+    expect(view.result.current.state.releaseEvidence?.[1]).toMatchObject({ midiNumber: 79, encoding: "note-on-zero" });
+  });
+
+  it.each([
+    { bytes: [0x82, 72, 41], encoding: "note-off", releaseVelocity: 41 },
+    { bytes: [0x92, 72, 0], encoding: "note-on-zero", releaseVelocity: undefined },
+  ])("preserves $encoding evidence and browser source timing without treating releases as attacks", async ({ bytes, encoding, releaseVelocity }) => {
+    const onNotePlayed = vi.fn(); const onNoteReleased = vi.fn(); const onHeldNotesChanged = vi.fn();
+    const { input, emitMidiMessage } = createMidiInput(); const { access } = createMidiAccess([input]);
+    installRequestMidiAccess(async () => access);
+    const view = renderHook(() => useMidi({ onNotePlayed, onNoteReleased, onHeldNotesChanged }));
+    await act(async () => view.result.current.connectMidi());
+    act(() => { emitMidiMessage([0x92, 72, 93], 100.25); emitMidiMessage(bytes, 140.75); });
+    expect(onNotePlayed.mock.calls).toEqual([[72, 93, 100.25]]);
+    expect(onNoteReleased).toHaveBeenCalledWith({ midiNumber: 72, encoding, sourceTimeStampMs: 140.75,
+      ...(releaseVelocity === undefined ? {} : { releaseVelocity }) });
+    expect(onHeldNotesChanged).toHaveBeenLastCalledWith(new Set());
+  });
+
+  it("collapses duplicate pitches across attacks/channels/inputs; the first release empties the Set", async () => {
+    const first = createMidiInput("First"); const second = createMidiInput("Second");
+    const { access } = createMidiAccess([first.input, second.input]); installRequestMidiAccess(async () => access);
+    const onNotePlayed = vi.fn(); const onHeldNotesChanged = vi.fn(); const onNoteReleased = vi.fn();
+    const view = renderHook(() => useMidi({ onNotePlayed, onHeldNotesChanged, onNoteReleased }));
+    await act(async () => view.result.current.connectMidi());
+    act(() => { first.emitMidiMessage([0x90, 72, 55]); second.emitMidiMessage([0x91, 72, 88]); });
+    expect(onHeldNotesChanged).toHaveBeenLastCalledWith(new Set([72]));
+    expect(onNotePlayed.mock.calls).toEqual([[72, 55], [72, 88]]);
+    act(() => first.emitMidiMessage([0x80, 72, 21]));
+    expect(onHeldNotesChanged).toHaveBeenLastCalledWith(new Set());
+    act(() => second.emitMidiMessage([0x81, 72, 32]));
+    expect(onHeldNotesChanged).toHaveBeenLastCalledWith(new Set());
+    expect(onNoteReleased).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes released physical keys under CC64 and never fabricates releases on disconnect or teardown", async () => {
+    const { input, emitMidiMessage } = createMidiInput(); const connection = createMidiAccess([input]);
+    installRequestMidiAccess(async () => connection.access);
+    const onNoteReleased = vi.fn(); const onHeldNotesChanged = vi.fn(); const onSustainPedalChanged = vi.fn();
+    const view = renderHook(() => useMidi({ onNotePlayed: vi.fn(), onNoteReleased, onHeldNotesChanged, onSustainPedalChanged }));
+    await act(async () => view.result.current.connectMidi());
+    act(() => { emitMidiMessage([0xb0, 64, 127]); emitMidiMessage([0x90, 81, 80]); emitMidiMessage([0x80, 81, 12]); });
+    expect(onHeldNotesChanged).toHaveBeenLastCalledWith(new Set());
+    expect(onSustainPedalChanged.mock.calls).toEqual([[true]]);
+    act(() => { emitMidiMessage([0x90, 79, 66]); connection.removeInput("input-0"); connection.emitStateChange(); });
+    expect(onHeldNotesChanged).toHaveBeenLastCalledWith(new Set());
+    expect(onNoteReleased).toHaveBeenCalledTimes(1);
+    view.unmount(); expect(onNoteReleased).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("useMidi", () => {
   beforeEach(() => {

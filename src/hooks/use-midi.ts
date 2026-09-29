@@ -7,9 +7,17 @@ export type MidiConnectionStatus =
   | "unsupported"
   | "error";
 
+export type MidiReleaseObservation = Readonly<{
+  midiNumber: number;
+  encoding: "note-off" | "note-on-zero";
+  releaseVelocity?: number;
+  sourceTimeStampMs?: number;
+}>;
+
 type UseMidiOptions = Readonly<{
   onHeldNotesChanged?: (heldNotes: ReadonlySet<number>) => void;
-  onNotePlayed: (midiNumber: number, attackVelocity?: number) => void;
+  onNotePlayed: (midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => void;
+  onNoteReleased?: (release: MidiReleaseObservation) => void;
   onSustainPedalChanged?: (isDown: boolean) => void;
 }>;
 
@@ -23,6 +31,7 @@ type UseMidiResult = Readonly<{
 export function useMidi({
   onHeldNotesChanged,
   onNotePlayed,
+  onNoteReleased,
   onSustainPedalChanged,
 }: UseMidiOptions): UseMidiResult {
   const [status, setStatus] = useState<MidiConnectionStatus>("disconnected");
@@ -36,6 +45,7 @@ export function useMidi({
   const sustainPedalDownRef = useRef(false);
   const onHeldNotesChangedRef = useRef(onHeldNotesChanged);
   const onNotePlayedRef = useRef(onNotePlayed);
+  const onNoteReleasedRef = useRef(onNoteReleased);
   const onSustainPedalChangedRef = useRef(onSustainPedalChanged);
 
   useEffect(() => {
@@ -45,6 +55,10 @@ export function useMidi({
   useEffect(() => {
     onNotePlayedRef.current = onNotePlayed;
   }, [onNotePlayed]);
+
+  useEffect(() => {
+    onNoteReleasedRef.current = onNoteReleased;
+  }, [onNoteReleased]);
 
   useEffect(() => {
     onSustainPedalChangedRef.current = onSustainPedalChanged;
@@ -98,18 +112,27 @@ export function useMidi({
       const isNoteOn = command === 0x90 && velocity > 0;
       const isNoteOff =
         command === 0x80 || (command === 0x90 && velocity === 0);
+      const sourceTimeStampMs = Number.isFinite(event.timeStamp) && event.timeStamp >= 0 ? event.timeStamp : undefined;
 
       if (isNoteOn) {
         heldNotes.add(noteNumber);
         publishHeldNotes();
         // Preserve note handling even for malformed data; only valid MIDI velocities are evidence.
-        onNotePlayedRef.current(noteNumber, velocity <= 127 ? velocity : undefined);
+        const attackVelocity = velocity <= 127 ? velocity : undefined;
+        if (sourceTimeStampMs === undefined) onNotePlayedRef.current(noteNumber, attackVelocity);
+        else onNotePlayedRef.current(noteNumber, attackVelocity, sourceTimeStampMs);
         return;
       }
 
       if (isNoteOff) {
         heldNotes.delete(noteNumber);
         publishHeldNotes();
+        onNoteReleasedRef.current?.({
+          midiNumber: noteNumber,
+          encoding: command === 0x80 ? "note-off" : "note-on-zero",
+          ...(command === 0x80 && velocity <= 127 ? { releaseVelocity: velocity } : {}),
+          ...(sourceTimeStampMs === undefined ? {} : { sourceTimeStampMs }),
+        });
       }
     };
 

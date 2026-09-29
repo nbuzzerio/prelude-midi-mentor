@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, type ReactNode } from "react";
-import { useMidi } from "@/hooks/use-midi";
+import { useMidi, type MidiReleaseObservation } from "@/hooks/use-midi";
 import { AppMidiContext, type AppMidiConsumer, type AppMidiContextValue } from "./midi-context";
 
 export function MidiProvider({ children }: Readonly<{ children: ReactNode }>) {
@@ -12,15 +12,21 @@ export function MidiProvider({ children }: Readonly<{ children: ReactNode }>) {
     activeConsumerRef.current?.consumer.onHeldNotesChanged?.(new Set(snapshot));
   }, []);
 
-  const handleNotePlayed = useCallback((midiNumber: number, attackVelocity?: number) => {
-    activeConsumerRef.current?.consumer.onNotePlayed?.(midiNumber, attackVelocity);
+  const handleNotePlayed = useCallback((midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => {
+    const callback = activeConsumerRef.current?.consumer.onNotePlayed;
+    if (sourceTimeStampMs === undefined) callback?.(midiNumber, attackVelocity);
+    else callback?.(midiNumber, attackVelocity, sourceTimeStampMs);
+  }, []);
+
+  const handleNoteReleased = useCallback((release: MidiReleaseObservation) => {
+    activeConsumerRef.current?.consumer.onNoteReleased?.(release);
   }, []);
 
   const handleSustainPedalChanged = useCallback((isDown: boolean) => {
     activeConsumerRef.current?.consumer.onSustainPedalChanged?.(isDown);
   }, []);
 
-  const midi = useMidi({ onHeldNotesChanged: handleHeldNotesChanged, onNotePlayed: handleNotePlayed, onSustainPedalChanged: handleSustainPedalChanged });
+  const midi = useMidi({ onHeldNotesChanged: handleHeldNotesChanged, onNotePlayed: handleNotePlayed, onNoteReleased: handleNoteReleased, onSustainPedalChanged: handleSustainPedalChanged });
 
   const registerConsumer = useCallback((consumer: AppMidiConsumer) => {
     const token = Symbol("app-midi-consumer");

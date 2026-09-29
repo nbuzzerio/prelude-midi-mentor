@@ -4,6 +4,11 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Corrected Piece Practice pitch grading for natural predecessor-key release overlap using an initial named 250 ms policy, immediate single-note acceptance, nonrenewing transition deadlines, and chord eligibility based on actual attacks rather than timer delivery.
+- Added observational physical release evidence and optional browser source timestamps while preserving separate attack velocities, pitch-only held Set semantics, authored continuation/roll allowances, and CC64 independence.
+- Made Piece Practice live feedback, completed results, Copy Report, and print/PDF note-name-first using existing authored/key-aware spelling. Added the default-off `Show MIDI details` option independently from velocity inclusion.
+- Kept package version at 2.8.5 by owner instruction pending manual QA and release reconciliation; no release/tag/commit preparation is implied by these changes.
+
 - Added the permanent Phase 0 Raw MIDI Diagnostic mode with independent multi-input Web MIDI observation, length-tolerant decoding, browser-relative timestamps, a bounded 1,000-event history, pause/clear controls, and copyable diagnostic evidence without changing feature MIDI contracts or Piece Practice.
 - Added accessible Practice Diagnostic Shorthand chips derived from engine-native evidence: Pitch, Identification, Hesitation, Retried, and Skipped, plus neutral numeric Melody Pitch/Movement/Timing metrics without new thresholds or grading semantics.
 - Added compact Piece Library sorting by Recently Played, Recently Updated, or Alphabetical, backed by honest browser-local practice timestamps recorded only when a saved score successfully enters Piece Practice.

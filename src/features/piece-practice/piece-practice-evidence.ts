@@ -1,6 +1,10 @@
 import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-builder-time";
 import type { PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
+import { getFullNoteName } from "@/lib/music/note-utils";
+import { spellKeyAwareMidiNumber } from "@/lib/music/key-aware-spelling";
+import type { MusicKeyId } from "@/lib/music/keys";
+import type { MidiReleaseObservation } from "@/hooks/use-midi";
 
 export const PIECE_PRACTICE_HESITATION_MINIMUM_MS = 2_500;
 export const PIECE_PRACTICE_HESITATION_MULTIPLIER = 3;
@@ -25,6 +29,13 @@ export type PiecePracticeAttackEvidence = Readonly<{
   midiNumber: number;
   attackVelocity: number;
   occurredAtActiveMs: number;
+  sourceTimeStampMs?: number;
+}>;
+
+/** Observed releases only: no instance pairing, duration inference, or grading. */
+export type PiecePracticeReleaseEvidence = MidiReleaseObservation & Readonly<{
+  sequence: number;
+  occurredAtActiveMs: number;
 }>;
 
 type PiecePracticeEvidenceLocation = Readonly<{
@@ -44,6 +55,7 @@ export type PiecePracticeMistakeEvidence =
       missingMidiNumbers: readonly number[];
       extraMidiNumbers: readonly number[];
       unexpectedHeldMidiNumbers: readonly number[];
+      predecessorPitches?: readonly PiecePracticeExpectedPitchSnapshot[];
     }>)
   | (PiecePracticeEvidenceLocation & Readonly<{
       kind: "rolled-unexpected-pitch";
@@ -161,7 +173,20 @@ export function formatPiecePracticeWrittenPitch(pitch: PiecePracticeExpectedPitc
   return `${pitch.letter}${accidental}${pitch.octave}`;
 }
 
-export function formatPiecePracticeMidiPitch(midiNumber: number): string {
-  const names = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
-  return `MIDI ${midiNumber} (${names[midiNumber % 12]}${Math.floor(midiNumber / 12) - 1})`;
+export type PiecePracticePitchPresentation = Readonly<{
+  expectedPitches?: readonly PiecePracticeExpectedPitchSnapshot[];
+  predecessorPitches?: readonly PiecePracticeExpectedPitchSnapshot[];
+  keySignatureId?: MusicKeyId;
+  showMidiDetails?: boolean;
+}>;
+
+/** One presentation resolver; numeric evidence and authored score data stay unchanged. */
+export function formatPiecePracticeMidiPitch(midiNumber: number, context: PiecePracticePitchPresentation = {}): string {
+  const authored = context.expectedPitches?.find((pitch) => pitch.midiNumber === midiNumber)
+    ?? context.predecessorPitches?.find((pitch) => pitch.midiNumber === midiNumber);
+  const keyAware = !authored && context.keySignatureId
+    ? spellKeyAwareMidiNumber({ midiNumber, context: { type: "key", keyId: context.keySignatureId } }) : null;
+  const name = authored ? formatPiecePracticeWrittenPitch(authored)
+    : keyAware ? `${keyAware.name}${keyAware.octave}` : getFullNoteName(midiNumber);
+  return context.showMidiDetails ? `${name} (MIDI ${midiNumber})` : name;
 }

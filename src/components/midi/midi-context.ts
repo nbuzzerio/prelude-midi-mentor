@@ -1,9 +1,10 @@
 import { createContext } from "react";
-import type { MidiConnectionStatus } from "@/hooks/use-midi";
+import type { MidiConnectionStatus, MidiReleaseObservation } from "@/hooks/use-midi";
 
 export type AppMidiConsumer = Readonly<{
   onHeldNotesChanged?: (heldNotes: ReadonlySet<number>) => void;
-  onNotePlayed?: (midiNumber: number, attackVelocity?: number) => void;
+  onNotePlayed?: (midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => void;
+  onNoteReleased?: (release: MidiReleaseObservation) => void;
   onSustainPedalChanged?: (isDown: boolean) => void;
 }>;
 

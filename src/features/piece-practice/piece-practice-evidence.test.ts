@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { derivePiecePracticeMeasureDiagnostics, getPiecePracticeHesitationThresholdMs, PIECE_PRACTICE_HESITATION_EXPECTED_WINDOW_CAP_MS, PIECE_PRACTICE_HESITATION_MINIMUM_MS, PIECE_PRACTICE_HESITATION_MULTIPLIER, selectPiecePracticeMeasureDiagnosticChips } from "./piece-practice-evidence";
+import { formatPiecePracticeMidiPitch, type PiecePracticeExpectedPitchSnapshot } from "./piece-practice-evidence";
+
+describe("Piece Practice pitch presentation", () => {
+  const bFlat: PiecePracticeExpectedPitchSnapshot = { sourceEventId: "event", sourcePitchId: "bb", staff: "treble", midiNumber: 70, letter: "B", accidental: "flat", octave: 4 };
+
+  it("uses note names and octaves for unexpected F5, A5, and D6 without losing numeric detail", () => {
+    expect([77, 81, 86].map((midi) => formatPiecePracticeMidiPitch(midi))).toEqual(["F5", "A5", "D6"]);
+    expect([77, 81, 86].map((midi) => formatPiecePracticeMidiPitch(midi, { showMidiDetails: true }))).toEqual(["F5 (MIDI 77)", "A5 (MIDI 81)", "D6 (MIDI 86)"]);
+  });
+
+  it("prefers authored target spelling, then predecessor, then key context, then canonical naming", () => {
+    const aSharp = { ...bFlat, letter: "A" as const, accidental: "sharp" as const };
+    expect(formatPiecePracticeMidiPitch(70, { expectedPitches: [bFlat], predecessorPitches: [aSharp], keySignatureId: "g-major" })).toBe("B♭4");
+    expect(formatPiecePracticeMidiPitch(70, { predecessorPitches: [bFlat], keySignatureId: "g-major" })).toBe("B♭4");
+    expect(formatPiecePracticeMidiPitch(70, { keySignatureId: "f-major" })).toBe("B♭4");
+    expect(formatPiecePracticeMidiPitch(70, { keySignatureId: "g-major" })).toBe("A♯4");
+    expect(formatPiecePracticeMidiPitch(70)).toBe("A♯4");
+  });
+
+  it("preserves authored written octave for enharmonic C-flat", () => {
+    expect(formatPiecePracticeMidiPitch(59, { expectedPitches: [{ ...bFlat, midiNumber: 59, letter: "C", octave: 4 }] })).toBe("C♭4");
+  });
+});
 
 describe("Piece Practice diagnostic evidence", () => {
   it("uses named forgiving hesitation constants with a floor and capped musical window", () => {

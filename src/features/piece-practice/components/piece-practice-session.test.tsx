@@ -143,6 +143,16 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it("uses F5, A5, and D6 for played, extra, and held live feedback", () => {
+    start();
+    const grade = { correct: false, expectedMidiNumbers: [60, 64], receivedMidiNumbers: [77, 81, 86], missingMidiNumbers: [60, 64], extraMidiNumbers: [77, 81, 86], unexpectedHeldMidiNumbers: [77, 81, 86], expectedWrittenPitches: piece().measures[0]!.targets[0]!.attackedPitches };
+    mocks.feedback = { status: "incorrect", source: "midi", grade };
+    act(() => mocks.inputOptions!.onSessionStateChange({ ...mocks.inputOptions!.sessionState }));
+    expect(screen.getByText("Played: F5, A5, D6")).toBeTruthy();
+    expect(screen.getByText("Extra: F5, A5, D6")).toBeTruthy();
+    expect(screen.getByText("Other notes still held: F5, A5, D6")).toBeTruthy();
+    expect(screen.queryByText(/MIDI 77/)).toBeNull();
+  });
   it("classifies result rows by existing diagnostics and exposes the compact textual key", () => {
     const mistake = (measureIndex: number, sequence: number) => ({
       kind: "normal-attempt" as const, sequence, measureIndex, sourceMeasureId: `m${measureIndex + 1}`, targetId: `t${measureIndex}`, checkId: `c${measureIndex}`, occurredAtActiveMs: 100,
@@ -233,7 +243,7 @@ describe("PiecePracticeSession", () => {
     act(() => submit([60, 65]));
     expect(screen.getByText("Incorrect — try the same target again.")).toBeTruthy();
     expect(screen.getByText("Missing: E4")).toBeTruthy();
-    expect(screen.getByText("Extra: MIDI 65")).toBeTruthy();
+    expect(screen.getByText("Extra: F4")).toBeTruthy();
     expect(screen.getByText("Target 1 of 2")).toBeTruthy();
     expect(within(screen.getByRole("status")).getByText(/Incorrect/)).toBeTruthy();
     expect(mocks.incorrect).toHaveBeenCalledTimes(1);
@@ -305,7 +315,7 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(within(results).getByText("Measure 3").closest("summary")!);
     fireEvent.click(within(results).getByText("Show mistakes"));
     expect(within(results).getByText("Expected: A4")).toBeTruthy();
-    expect(within(results).getByText(/Played: MIDI 68/)).toBeTruthy();
+    expect(within(results).getByText(/Played: A♭4/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     expect(screen.getByRole("dialog", { name: "Generate Report" })).toBeTruthy();
     expect((screen.getByLabelText("Problem measures only") as HTMLInputElement).checked).toBe(true);

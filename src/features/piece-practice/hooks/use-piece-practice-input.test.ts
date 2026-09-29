@@ -1,13 +1,15 @@
 import { act, renderHook } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPiecePracticeSession, type PiecePracticeSessionState } from "../piece-practice-session";
+import { createPiecePracticeSession, pausePiecePracticeClock, resumePiecePracticeClock, restartCurrentPiecePracticeMeasure, restartPiecePractice, type PiecePracticeSessionState } from "../piece-practice-session";
+import type { MidiConnectionStatus, MidiReleaseObservation } from "@/hooks/use-midi";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
 import { usePiecePracticeInput } from "./use-piece-practice-input";
 
 const midiMock = vi.hoisted(() => ({
   mountCount: 0, unmountCount: 0,
-  options: null as null | { onHeldNotesChanged?: (notes: ReadonlySet<number>) => void; onNotePlayed: (midiNumber: number, attackVelocity?: number) => void },
+  status: "connected" as MidiConnectionStatus,
+  options: null as null | { onHeldNotesChanged?: (notes: ReadonlySet<number>) => void; onNotePlayed: (midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => void; onNoteReleased?: (release: MidiReleaseObservation) => void },
 }));
 
 vi.mock("@/hooks/use-app-midi-input", () => ({
@@ -17,7 +19,7 @@ vi.mock("@/hooks/use-app-midi-input", () => ({
       midiMock.mountCount += 1;
       return () => { midiMock.unmountCount += 1; };
     }, []);
-    return { connectMidi: vi.fn(), deviceName: "Test MIDI", error: null, status: "connected" as const };
+    return { connectMidi: vi.fn(), deviceName: "Test MIDI", error: null, status: midiMock.status };
   },
 }));
 
@@ -81,6 +83,181 @@ function midiHeld(...notes: number[]) {
 function midiNote(note: number) {
   act(() => midiMock.options?.onNotePlayed(note));
 }
+
+describe("Piece Practice physical transition grace", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(0); midiMock.status = "connected"; midiMock.options = null; });
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); midiMock.status = "connected"; });
+
+  function practice(source = piece([[[81], [79], [77], [76]]]), now = () => Date.now()) {
+    const view = setup(source, now);
+    const held = new Set<number>();
+    const press = (note: number, velocity = 66, sourceTimeStampMs?: number) => {
+      held.add(note);
+      act(() => {
+        midiMock.options?.onHeldNotesChanged?.(new Set(held));
+        midiMock.options?.onNotePlayed(note, velocity, sourceTimeStampMs);
+      });
+      view.sync();
+    };
+    const release = (note: number, encoding: MidiReleaseObservation["encoding"] = "note-off", releaseVelocity?: number) => {
+      held.delete(note);
+      act(() => {
+        midiMock.options?.onHeldNotesChanged?.(new Set(held));
+        midiMock.options?.onNoteReleased?.({ midiNumber: note, encoding, ...(releaseVelocity === undefined ? {} : { releaseVelocity }) });
+      });
+      view.sync();
+    };
+    const tick = (ms: number) => { act(() => vi.advanceTimersByTime(ms)); view.sync(); };
+    return { ...view, press, release, tick };
+  }
+
+  it("accepts a detached A5 to G5 transition", () => {
+    const view = practice(); view.press(81); view.release(81); view.tick(251); view.press(79);
+    expect(view.getState().completedTargetCount).toBe(2); expect(view.getState().mistakeEvidence).toEqual([]);
+  });
+
+  it("accepts legato immediately even when predecessor completion was more than 250ms ago, without retrospective failure", () => {
+    const view = practice(); view.press(81); view.tick(251); view.press(79);
+    expect(view.getState().completedTargetCount).toBe(2);
+    view.tick(500); expect(view.getState().completedTargetCount).toBe(2); expect(view.getState().mistakeEvidence).toEqual([]);
+    view.release(81); expect(view.getState().mistakeEvidence).toEqual([]);
+    expect(view.getState().releaseEvidence?.[0]).toMatchObject({ midiNumber: 81, occurredAtActiveMs: 751 });
+  });
+
+  it("accepts several connected notes without falling behind", () => {
+    const view = practice(); view.press(81); view.tick(251); view.press(79); view.tick(42); view.release(81);
+    view.tick(243); view.press(77); view.tick(40); view.release(79); view.tick(219); view.press(76); view.release(77);
+    expect(view.getState()).toMatchObject({ completedTargetCount: 4, status: "piece-complete", mistakeEvidence: [] });
+    expect(view.getState().attackEvidence?.map(({ midiNumber }) => midiNumber)).toEqual([81, 79, 77, 76]);
+  });
+
+  it.each([20, 260])("does not grant an older A5 another transition allowance at the next observation after %sms", (delay) => {
+    const view = practice(); view.press(81); view.press(79); view.tick(delay); view.press(77);
+    expect(view.getState().completedTargetCount).toBe(2);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, unexpectedHeldMidiNumbers: [81] });
+  });
+
+  it("starts grace on the first attack and never renews it on retries, snapshots, other attacks, or releases", () => {
+    const view = practice(piece([[[81], [79, 77]]])); view.press(81); view.press(79); view.tick(225);
+    expect(view.getState().mistakeEvidence).toHaveLength(1);
+    view.tick(26); midiHeld(81, 79); view.release(99); view.press(79); view.tick(10); view.press(77); view.tick(215);
+    expect(view.getState().completedTargetCount).toBe(1);
+    expect(view.result.current.feedback.grade).toMatchObject({ missingMidiNumbers: [], extraMidiNumbers: [], unexpectedHeldMidiNumbers: [81] });
+  });
+
+  it.each([81, 82])("fails a wrong NEW %s attack immediately even with correct chord attacks and eligible held carryover", (wrong) => {
+    const view = practice(piece([[[81], [79, 77]]])); view.press(81); view.press(79); view.press(77); view.press(wrong);
+    expect(view.getState().mistakeEvidence).toHaveLength(1);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, extraMidiNumbers: [wrong], missingMidiNumbers: [] });
+    expect(view.getState().completedTargetCount).toBe(1);
+  });
+
+  it("fails a new predecessor A5 attack against single G5 immediately; a later correct G5 cannot erase the mistake", () => {
+    const view = practice(); view.press(81); view.press(81);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, extraMidiNumbers: [81], missingMidiNumbers: [79] });
+    view.press(79); expect(view.getState().completedTargetCount).toBe(2); expect(view.getState().mistakeEvidence).toHaveLength(1);
+  });
+
+  it.each([
+    { name: "chord to chord", previous: [81, 85], current: [79, 83] },
+    { name: "chord to note", previous: [81, 85], current: [79] },
+    { name: "note to chord", previous: [81], current: [79, 83] },
+  ])("accepts eligible $name overlap", ({ previous, current }) => {
+    const view = practice(piece([[previous, current]])); previous.forEach((pitch) => view.press(pitch));
+    if (previous.length > 1) view.tick(225);
+    view.tick(100); current.forEach((pitch) => view.press(pitch));
+    if (current.length > 1) view.tick(225);
+    expect(view.getState()).toMatchObject({ completedTargetCount: 2, status: "piece-complete", mistakeEvidence: [] });
+  });
+
+  it("uses actual chord attack times instead of a timer callback arriving after 250ms", () => {
+    let observedAt = 0;
+    const view = practice(piece([[[81], [79, 77]]]), () => observedAt);
+    view.press(81); observedAt = 1000; view.press(79); observedAt = 1080; view.press(77);
+    observedAt = 1275; view.tick(225);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+  });
+
+  it("retains eligibility for a retry attacked inside the original grace even when collection finishes later", () => {
+    const view = practice(piece([[[81], [79, 77]]])); view.press(81); view.press(79); view.tick(225);
+    view.tick(15); view.press(79); view.tick(5); view.press(77); view.tick(220);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 2 });
+    expect(view.getState().mistakeEvidence).toHaveLength(1);
+  });
+
+  it("does not excuse actual late chord attacks merely because the timer was late", () => {
+    let observedAt = 0;
+    const view = practice(piece([[[81], [79, 77]]]), () => observedAt);
+    view.press(81); observedAt = 1000; view.press(79); observedAt = 1260; view.press(77); view.tick(225);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, unexpectedHeldMidiNumbers: [81] });
+  });
+
+  it("records the entire rolled target as predecessor only after its last check completes", () => {
+    const rolled = rolledPiece(); const first = rolled.measures[0]!.targets[0]!;
+    const source = { ...rolled, measures: [{ ...rolled.measures[0]!, targets: [first, target(0, 1, [79])] }] };
+    const view = practice(source); [48, 72, 52].forEach((pitch) => view.press(pitch));
+    expect(view.getState().completedTargetCount).toBe(0);
+    view.press(55); expect(view.getState().completedTargetCount).toBe(1);
+    view.press(79); expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+  });
+
+  it.each(["measure", "piece"] as const)("clears predecessor and release evidence according to Restart %s semantics", (scope) => {
+    const source = piece([[[81], [79]]]); const view = practice(source); view.press(81); view.release(99);
+    const restarted = scope === "measure" ? restartCurrentPiecePracticeMeasure(source, view.getState(), Date.now())
+      : restartPiecePractice(source, view.getState(), Date.now());
+    act(() => { view.result.current.resetInput(); view.onSessionStateChange(restarted); }); view.sync();
+    view.press(79); expect(view.result.current.feedback.grade).toMatchObject({ correct: false, extraMidiNumbers: [79] });
+    if (scope === "piece") expect(view.getState().releaseEvidence).toBeUndefined();
+    else expect(view.getState().releaseEvidence).toHaveLength(1);
+  });
+
+  it("clears predecessor on skip without granting a skipped target predecessor status", () => {
+    const view = practice(); view.press(81); act(() => view.result.current.skipCurrentTarget()); view.sync(); view.press(77);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, unexpectedHeldMidiNumbers: [81] });
+  });
+
+  it("requires repeated C5 attacks but keeps the existing first-release-clears-Set limitation", () => {
+    const view = practice(piece([[[72], [72], [79]]])); view.press(72, 54); view.press(72, 91);
+    expect(view.getState().completedTargetCount).toBe(2); expect(view.result.current.midiHeldNotes).toEqual(new Set([72]));
+    view.release(72); expect(view.result.current.midiHeldNotes.size).toBe(0); view.release(72); view.press(79);
+    expect(view.getState()).toMatchObject({ completedTargetCount: 3, mistakeEvidence: [] });
+    expect(view.getState().attackEvidence?.map(({ attackVelocity }) => attackVelocity)).toEqual([54, 91, 66]);
+    expect(view.getState().releaseEvidence?.map(({ midiNumber }) => midiNumber)).toEqual([72, 72]);
+  });
+
+  it("does not revive predecessor eligibility after a new excerpt/session reset", () => {
+    const source = piece([[[81]], [[79], [77]]]); const view = practice(source); view.press(81);
+    const newSession = createPiecePracticeSession(source, { startMeasureIndex: 1, endMeasureIndex: 1, startedAtMs: 1000 });
+    if (!newSession.ok) throw new Error(newSession.reason);
+    act(() => view.onSessionStateChange(newSession.state)); view.sync(); view.press(79);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, unexpectedHeldMidiNumbers: [81] });
+    expect(view.getState().completedTargetCount).toBe(0);
+  });
+
+  it("clears predecessor across pause/resume, ignores paused input, and does not revive grace", () => {
+    const view = practice(); view.press(81);
+    act(() => view.onSessionStateChange(pausePiecePracticeClock(view.getState(), Date.now()))); view.sync();
+    view.press(79); view.release(99); expect(view.getState().completedTargetCount).toBe(1); expect(view.getState().releaseEvidence).toBeUndefined();
+    view.tick(1000); act(() => view.onSessionStateChange(resumePiecePracticeClock(view.getState(), Date.now()))); view.sync(); view.press(79);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, unexpectedHeldMidiNumbers: [81] });
+  });
+
+  it("clears predecessor on disconnect/reconnect without manufacturing release evidence", () => {
+    const view = practice(); view.press(81); midiMock.status = "disconnected"; midiHeld(); view.sync();
+    expect(view.getState().releaseEvidence).toBeUndefined();
+    midiMock.status = "connected"; view.sync(); view.press(79);
+    expect(view.result.current.feedback.grade).toMatchObject({ correct: false, unexpectedHeldMidiNumbers: [81] });
+  });
+
+  it.each(["note-off", "note-on-zero"] as const)("retains %s release evidence and exact separate attack evidence", (encoding) => {
+    const view = practice(); view.press(81, 54, 10.25); view.tick(10); view.press(81, 91, 20.25);
+    view.tick(10); view.release(81, encoding, encoding === "note-off" ? 32 : undefined);
+    expect(view.result.current.midiHeldNotes.size).toBe(0);
+    expect(view.getState().attackEvidence?.map(({ midiNumber, attackVelocity, occurredAtActiveMs, sourceTimeStampMs }) => [midiNumber, attackVelocity, occurredAtActiveMs, sourceTimeStampMs])).toEqual([[81, 54, 0, 10.25], [81, 91, 10, 20.25]]);
+    expect(view.getState().releaseEvidence?.[0]).toMatchObject({ midiNumber: 81, encoding, occurredAtActiveMs: 20 });
+    view.release(81, encoding); expect(view.getState().releaseEvidence).toHaveLength(2);
+  });
+});
 
 describe("usePiecePracticeInput", () => {
   beforeEach(() => {

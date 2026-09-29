@@ -1,11 +1,23 @@
 # Prelude: MIDI Mentor — Testing
 
+## Piece Practice physical overlap and note presentation
+
+Focused validation: `pnpm test src/hooks/use-midi.test.ts src/components/midi/midi-provider.test.tsx src/features/piece-practice`, followed by `pnpm verify`.
+
+Regression coverage checks detached A5/G5 transitions, immediate natural legato, several connected notes without target lag, inside/exact/outside 250 ms policy boundaries, stale older notes at subsequent observations, no retrospective single-note failure, and nonrenewal across retries/attacks/snapshots/releases. Chord-to-chord, chord-to-note, and note-to-chord overlap retain required fresh attacks. Extra new pitches fail immediately even when equal to the predecessor pitch. Delayed chord callbacks cannot change eligibility from actual attack times; actual attacks after expiry remain diagnostically relevant. Existing authored-span/tie and parallel-roll checks remain covered, and only entirely completed targets establish predecessors. Lifecycle tests cover skip, measure/piece restart, excerpt/session reset, pause/resume, and disconnect/reconnect.
+
+Shared MIDI tests retain independent CC64 behavior and exercise the real provider/Piece Practice input path across pedal-held legato. Both release encodings remove physical keys and preserve their encoding; conventional release velocity and optional source timestamps remain observations. Disconnect/teardown never generate release evidence. Repeated same-pitch On/On/Off/Off behavior documents the existing Set limitation across channels/inputs and confirms separate attack/velocity events survive it.
+
+Presentation tests cover F5/A5/D6 instead of raw MIDI 77/81/86, authored target and predecessor spelling, effective key context, written octave, and rejection of unrelated score-occurrence spelling. `Show MIDI details` defaults off, adds exact raw numbers when on, and remains independent of `Include MIDI attack strength`. Completed results, clipboard reports, and print/PDF DOM all use the same note-name-first resolver without modifying raw internal evidence or grading. Source/release timing and velocity do not assess articulation, sustain, dynamics, hands, or voices.
+
+Owner manual QA remains necessary: replay the BWV 565 descending passage with natural overlap; hold an older unrelated key into a later target; retry a chord after expiry; operate sustain across releases; restart/skip and disconnect/reconnect while keys are down. Check unexpected-note names and authored flats, keyboard access to both result checkboxes, clipboard fallback, and actual browser Print / Save PDF output with each checkbox combination. No score-schema, persistence, MIDI Diagnostic, or network behavior changes are part of this task.
+
 > **Status:** v2.6.5 Staff Builder Lyric Cues authoring, Study View printing, and measure deletion prepared, ahead of the repository owner's manual deployment and tag
 
-The current automated baseline is 2,066 passing tests across 188 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session report presentation and browser print-preview QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
+The current automated baseline is 2,230 passing tests across 196 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session report presentation and browser print-preview QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
 
 > **Latest repository tag:** v2.5.0
-> **Last updated:** September 12, 2026
+> **Last updated:** September 29, 2026
 
 ## Purpose
 

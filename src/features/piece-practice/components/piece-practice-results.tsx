@@ -5,11 +5,12 @@ import { StaffBuilderPrintScore } from "@/features/staff-builder/components/staf
 import { StaffBuilderScoreView, type StaffBuilderDiagnosticHighlight } from "@/features/staff-builder/components/staff-builder-score-view";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import {
-  formatPiecePracticeWrittenPitch,
+  formatPiecePracticeMidiPitch,
   selectPiecePracticeMeasureDiagnosticChips,
   type PiecePracticeMistakeEvidence,
 } from "../piece-practice-evidence";
-import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, mistakeText } from "../piece-practice-report";
+import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, getPiecePracticeReportPitchContext, mistakeText, type PiecePracticeReportPresentation } from "../piece-practice-report";
+import type { PiecePracticePiece } from "../piece-practice-types";
 import { getPiecePracticeMeasureResults, type PiecePracticeSessionState } from "../piece-practice-session";
 
 type ReportOptions = Readonly<{
@@ -63,16 +64,16 @@ function diagnosticHighlights(state: PiecePracticeSessionState, measureIndex: nu
   return [...counts.values()];
 }
 
-function MistakeList({ evidence }: Readonly<{ evidence: readonly PiecePracticeMistakeEvidence[] }>) {
+function MistakeList({ evidence, presentation }: Readonly<{ evidence: readonly PiecePracticeMistakeEvidence[]; presentation: PiecePracticeReportPresentation }>) {
   return <ol className="piece-practice-mistake-list">
     {evidence.map((item, index) => {
-      const text = mistakeText(item);
+      const text = mistakeText(item, presentation);
       return <li key={item.sequence}><strong>Mistake {index + 1}: {text.label}</strong><p>Expected: {text.expected}</p><p>Played: {text.played}</p>{text.missing.length ? <p>Missing: {text.missing.join(", ")}</p> : null}{text.extra.length ? <p>Extra: {text.extra.join(", ")}</p> : null}{text.held.length ? <p>Unexpected held: {text.held.join(", ")}</p> : null}</li>;
     })}
   </ol>;
 }
 
-function ResultMeasure({ displayScore, measureIndex, state, showDetails = true }: Readonly<{ displayScore: StaffBuilderScore; measureIndex: number; state: PiecePracticeSessionState; showDetails?: boolean }>) {
+function ResultMeasure({ displayScore, measureIndex, state, presentation, showDetails = true }: Readonly<{ displayScore: StaffBuilderScore; measureIndex: number; state: PiecePracticeSessionState; presentation: PiecePracticeReportPresentation; showDetails?: boolean }>) {
   const result = getPiecePracticeMeasureResults(state).find((item) => item.measureIndex === measureIndex)!;
   const mistakes = state.mistakeEvidence.filter((item) => item.measureIndex === measureIndex);
   const hesitations = state.targetTimings.filter((item) => item.measureIndex === measureIndex && item.isHesitation);
@@ -80,9 +81,9 @@ function ResultMeasure({ displayScore, measureIndex, state, showDetails = true }
   return <article className="piece-practice-result-detail">
     <p className="sr-only">Measure {result.measureNumber} diagnostic detail.</p>
     {showDetails ? <><p className="sr-only">Red markers identify mistake evidence. Amber dashed markers identify slow responses. Marker tallies show repeated evidence.</p><StaffBuilderScoreView diagnosticHighlights={highlights} measureIndex={measureIndex} score={displayScore} />
-      {hesitations.length ? <ul aria-label={`Slow responses in measure ${result.measureNumber}`} className="piece-practice-hesitation-list">{hesitations.map((timing) => <li key={timing.sequence}>Slow response: {timing.expectedPitches.map(formatPiecePracticeWrittenPitch).join(", ") || "target"} — {seconds(timing.responseDurationMs)} (threshold {seconds(timing.hesitationThresholdMs)}, expected window {seconds(timing.expectedWindowMs)})</li>)}</ul> : null}
+      {hesitations.length ? <ul aria-label={`Slow responses in measure ${result.measureNumber}`} className="piece-practice-hesitation-list">{hesitations.map((timing) => <li key={timing.sequence}>Slow response: {timing.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { ...getPiecePracticeReportPitchContext(timing, presentation), expectedPitches: [pitch] })).join(", ") || "target"} — {seconds(timing.responseDurationMs)} (threshold {seconds(timing.hesitationThresholdMs)}, expected window {seconds(timing.expectedWindowMs)})</li>)}</ul> : null}
       {result.skippedTargetCount ? <p>{result.skippedTargetCount} {result.skippedTargetCount === 1 ? "target was" : "targets were"} skipped. Skips are problem signals, not mistakes or hesitations.</p> : null}
-      {mistakes.length ? <details><summary>Show mistakes</summary><MistakeList evidence={mistakes} /></details> : null}</> : null}
+      {mistakes.length ? <details><summary>Show mistakes</summary><MistakeList evidence={mistakes} presentation={presentation} /></details> : null}</> : null}
   </article>;
 }
 
@@ -115,7 +116,7 @@ function ReportOptionsDialog({ onCancel, onGenerate }: Readonly<{ onCancel: () =
   </div>;
 }
 
-function PracticeReport({ displayScore, options, rangeText, state, title, includeAttackStrength }: Readonly<{ displayScore: StaffBuilderScore; options: ReportOptions; rangeText: string; state: PiecePracticeSessionState; title: string; includeAttackStrength: boolean }>) {
+function PracticeReport({ displayScore, options, rangeText, state, title, includeAttackStrength, presentation }: Readonly<{ displayScore: StaffBuilderScore; options: ReportOptions; rangeText: string; state: PiecePracticeSessionState; title: string; includeAttackStrength: boolean; presentation: PiecePracticeReportPresentation }>) {
   const results = getPiecePracticeMeasureResults(state);
   const included = results.filter((item) => options.scope === "excerpt" || item.isProblem);
   const elapsed = state.completedAtActiveMs ?? state.activeElapsedMs;
@@ -125,15 +126,17 @@ function PracticeReport({ displayScore, options, rangeText, state, title, includ
     {options.notation && included.length ? <StaffBuilderPrintScore measureIndexes={included.map(({ measureIndex }) => measureIndex)} measuresPerLine={4} score={displayScore} /> : null}
     {included.map((result) => <section className="piece-practice-report-measure" key={result.sourceMeasureId}><h2>Measure {result.measureNumber}</h2><PracticeDiagnosticChips chips={selectPiecePracticeMeasureDiagnosticChips(result)} label={`Measure ${result.measureNumber} diagnostic shorthand`} /><p>{result.mistakeCount} mistakes{options.measureTimes ? ` · ${seconds(result.activeDurationMs)}` : ""}{result.hesitationCount ? ` · ${result.hesitationCount} hesitations` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</p>
       {options.notation && (options.mistakeHighlights || options.hesitationHighlights) ? <StaffBuilderScoreView diagnosticHighlights={diagnosticHighlights(state, result.measureIndex).filter(({ kind }) => kind === "mistake" ? options.mistakeHighlights : options.hesitationHighlights)} measureIndex={result.measureIndex} score={displayScore} /> : null}
-      {options.chronologicalMistakes ? <MistakeList evidence={state.mistakeEvidence.filter((item) => item.measureIndex === result.measureIndex)} /> : null}
-      {options.hesitationHighlights ? <ul>{state.targetTimings.filter((item) => item.measureIndex === result.measureIndex && item.isHesitation).map((timing) => <li key={timing.sequence}>Slow response: {timing.expectedPitches.map(formatPiecePracticeWrittenPitch).join(", ") || "target"} — {seconds(timing.responseDurationMs)}; threshold {seconds(timing.hesitationThresholdMs)}; expected window {seconds(timing.expectedWindowMs)}</li>)}</ul> : null}
+      {options.chronologicalMistakes ? <MistakeList evidence={state.mistakeEvidence.filter((item) => item.measureIndex === result.measureIndex)} presentation={presentation} /> : null}
+      {options.hesitationHighlights ? <ul>{state.targetTimings.filter((item) => item.measureIndex === result.measureIndex && item.isHesitation).map((timing) => <li key={timing.sequence}>Slow response: {timing.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { ...getPiecePracticeReportPitchContext(timing, presentation), expectedPitches: [pitch] })).join(", ") || "target"} — {seconds(timing.responseDurationMs)}; threshold {seconds(timing.hesitationThresholdMs)}; expected window {seconds(timing.expectedWindowMs)}</li>)}</ul> : null}
     </section>)}
-    {includeAttackStrength ? <section><h2>MIDI attack velocity</h2><p>Physical MIDI Note On evidence only; no dynamics assessment.</p><ol>{(state.attackEvidence ?? []).map((attack) => <li key={attack.sequence}>{formatPiecePracticeAttackEvidence(attack)}</li>)}</ol>{!state.attackEvidence?.length ? <p>No MIDI attack velocity evidence available.</p> : null}</section> : null}
+    {includeAttackStrength ? <section><h2>MIDI attack velocity</h2><p>Physical MIDI Note On evidence only; no dynamics assessment.</p><ol>{(state.attackEvidence ?? []).map((attack) => <li key={attack.sequence}>{formatPiecePracticeAttackEvidence(attack, presentation)}</li>)}</ol>{!state.attackEvidence?.length ? <p>No MIDI attack velocity evidence available.</p> : null}</section> : null}
   </section>;
 }
 
-export function PiecePracticeResults({ displayScore, rangeText, state, title }: Readonly<{ displayScore: StaffBuilderScore; rangeText: string; state: PiecePracticeSessionState; title: string }>) {
+export function PiecePracticeResults({ displayScore, piece, rangeText, state, title }: Readonly<{ displayScore: StaffBuilderScore; piece?: PiecePracticePiece; rangeText: string; state: PiecePracticeSessionState; title: string }>) {
   const [includeAttackStrength, setIncludeAttackStrength] = useState(false);
+  const [showMidiDetails, setShowMidiDetails] = useState(false);
+  const presentation = { piece, showMidiDetails };
   const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied" | "failed">("idle");
   const [fallbackText, setFallbackText] = useState("");
   const fallbackRef = useRef<HTMLTextAreaElement>(null);
@@ -141,7 +144,7 @@ export function PiecePracticeResults({ displayScore, rangeText, state, title }: 
     if (copyStatus === "failed") { fallbackRef.current?.focus(); fallbackRef.current?.select(); }
   }, [copyStatus, fallbackText]);
   const copyReport = async () => {
-    const text = formatPiecePracticeReport({ title, rangeText, state, includeAttackStrength });
+    const text = formatPiecePracticeReport({ title, rangeText, state, includeAttackStrength, ...presentation });
     setCopyStatus("copying");
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
@@ -162,15 +165,16 @@ export function PiecePracticeResults({ displayScore, rangeText, state, title }: 
     <div><h2 className="text-xl font-bold" id="piece-practice-measure-results-title">Measure results</h2><p className="text-sm text-zinc-300">Problem measures are emphasized for quick review.</p></div>
     <div className="piece-practice-result-controls"><label className="piece-practice-problem-filter"><input checked={problemsOnly} onChange={(event) => setProblemsOnly(event.target.checked)} type="checkbox" />Show problem measures only</label><div aria-label="Measure result color key" className="piece-practice-result-legend"><span><i data-result-presentation="mistake" />Mistake</span><span><i data-result-presentation="hesitation" />Hesitation</span><span><i data-result-presentation="both" />Both</span></div></div>
     {visible.length ? <ul aria-label="Measure-by-measure results" className="piece-practice-measure-results">{visible.map((result) => <li key={result.sourceMeasureId}>{result.isProblem
-      ? <details className="piece-practice-measure-result" data-has-problems data-result-presentation={resultPresentation(result)}><summary><strong>Measure {result.measureNumber}</strong><span>{result.mistakeCount ? `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}` : "No mistakes"} · {seconds(result.activeDurationMs)}{result.hesitationCount ? ` · ${result.hesitationCount} slow` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</span><PracticeDiagnosticChips chips={selectPiecePracticeMeasureDiagnosticChips(result)} label={`Measure ${result.measureNumber} diagnostic shorthand`} /></summary><ResultMeasure displayScore={displayScore} measureIndex={result.measureIndex} state={state} /></details>
+      ? <details className="piece-practice-measure-result" data-has-problems data-result-presentation={resultPresentation(result)}><summary><strong>Measure {result.measureNumber}</strong><span>{result.mistakeCount ? `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}` : "No mistakes"} · {seconds(result.activeDurationMs)}{result.hesitationCount ? ` · ${result.hesitationCount} slow` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</span><PracticeDiagnosticChips chips={selectPiecePracticeMeasureDiagnosticChips(result)} label={`Measure ${result.measureNumber} diagnostic shorthand`} /></summary><ResultMeasure displayScore={displayScore} measureIndex={result.measureIndex} presentation={presentation} state={state} /></details>
       : <div className="piece-practice-measure-result" data-result-presentation="clean"><strong>Measure {result.measureNumber}</strong><span>No mistakes · {seconds(result.activeDurationMs)}</span></div>}</li>)}</ul> : <p>No problem measures in this attempt.</p>}
     <button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" onClick={() => setReportDialog(true)} ref={reportButton} type="button">Generate Report</button>
+    <label className="flex min-h-11 items-center gap-2"><input checked={showMidiDetails} onChange={(event) => setShowMidiDetails(event.target.checked)} type="checkbox" />Show MIDI details</label>
     <label className="flex min-h-11 items-center gap-2"><input checked={includeAttackStrength} onChange={(event) => setIncludeAttackStrength(event.target.checked)} type="checkbox" />Include MIDI attack strength</label>
     <p className="text-sm text-zinc-300">Adds exact physical MIDI attack velocities to copied and printed reports. This does not assess dynamics.</p>
     <button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" disabled={copyStatus === "copying"} onClick={() => void copyReport()} type="button">Copy Report</button>
     <p aria-live="polite" role="status">{copyStatus === "copied" ? "Report copied." : ""}</p>
     {copyStatus === "failed" ? <div><p role="alert">Clipboard access was unavailable. Copy the selected report below manually.</p><label htmlFor="piece-practice-report-copy">Piece Practice report</label><textarea className="min-h-48 w-full" id="piece-practice-report-copy" readOnly ref={fallbackRef} value={fallbackText} /></div> : null}
     {reportDialog ? <ReportOptionsDialog onCancel={() => { setReportDialog(false); reportButton.current?.focus(); }} onGenerate={(options) => { setReportDialog(false); setReportOptions(options); }} /> : null}
-    {reportOptions ? <PracticeReport includeAttackStrength={includeAttackStrength} displayScore={displayScore} options={reportOptions} rangeText={rangeText} state={state} title={title} /> : null}
+    {reportOptions ? <PracticeReport includeAttackStrength={includeAttackStrength} displayScore={displayScore} options={reportOptions} presentation={presentation} rangeText={rangeText} state={state} title={title} /> : null}
   </section>;
 }

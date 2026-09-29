@@ -1,5 +1,25 @@
 import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 
+/** Initial empirical release-overlap allowance, not articulation grading. */
+export const PIECE_PRACTICE_RELEASE_OVERLAP_GRACE_MS = 250;
+
+export type PiecePracticeTransition = Readonly<{
+  targetId: string;
+  predecessorPitches: readonly PiecePracticeAttackedPitch[];
+  eligibleHeldMidiNumbers: readonly number[];
+  firstAttackAtMs: number | null;
+}>;
+
+export function getPiecePracticeTransitionHeldMidiNumbers(
+  transition: PiecePracticeTransition | null,
+  targetId: string,
+  logicalAttemptAtMs: number,
+): readonly number[] {
+  if (!transition || transition.targetId !== targetId || transition.firstAttackAtMs === null
+    || logicalAttemptAtMs > transition.firstAttackAtMs + PIECE_PRACTICE_RELEASE_OVERLAP_GRACE_MS) return [];
+  return transition.eligibleHeldMidiNumbers;
+}
+
 function uniqueSorted(midiNumbers: Iterable<number>): readonly number[] {
   return [...new Set(midiNumbers)].sort((left, right) => left - right);
 }

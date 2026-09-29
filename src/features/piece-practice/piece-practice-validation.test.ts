@@ -33,6 +33,13 @@ function target(expectedMidiNumbers: readonly number[] = [60], attackedPitches: 
 }
 
 describe("Piece Practice target grading", () => {
+  it("allows predecessor A5 only as held, never as a new extra or a substitute for G5", () => {
+    const current = target([79], [{ ...attacked("g5", 79, "G"), octave: 5 }]);
+    const base = { heldMidiNumbers: [81, 79], allowedHeldMidiNumbers: [81] };
+    expect(gradePiecePracticeTarget(current, { ...base, attackMidiNumbers: [79] })).toMatchObject({ correct: true });
+    expect(gradePiecePracticeTarget(current, { ...base, attackMidiNumbers: [81, 79] })).toMatchObject({ correct: false, extraMidiNumbers: [81], unexpectedHeldMidiNumbers: [] });
+    expect(gradePiecePracticeTarget(current, { ...base, attackMidiNumbers: [] })).toMatchObject({ correct: false, missingMidiNumbers: [79] });
+  });
   it("accepts an exact single pitch", () => {
     expect(gradePiecePracticeTarget(target(), { attackMidiNumbers: [60] }).correct).toBe(true);
   });

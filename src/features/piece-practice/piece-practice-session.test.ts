@@ -5,6 +5,8 @@ import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, Piec
 import {
   advancePiecePracticeNoAttackMeasure,
   createPiecePracticeSession,
+  recordPiecePracticeMidiAttack,
+  recordPiecePracticeMidiRelease,
   getCurrentPiecePracticeTarget,
   getPiecePracticeElapsedMs,
   getPiecePracticeProgress,
@@ -143,6 +145,18 @@ function accepted(source: PiecePracticePiece, state: PiecePracticeSessionState, 
 }
 
 describe("Piece Practice blocking session", () => {
+  it("retains observational release encoding/velocity/source timing without changing target, clock, or grading", () => {
+    const source = piece(); const state = initialized(source);
+    const attack = recordPiecePracticeMidiAttack(source, state, 60, 66, 1100, 123.5);
+    const released = recordPiecePracticeMidiRelease(attack, { midiNumber: 60, encoding: "note-off", releaseVelocity: 41, sourceTimeStampMs: 145.75 }, 1200);
+    expect(released.releaseEvidence).toEqual([{ sequence: 0, midiNumber: 60, encoding: "note-off", releaseVelocity: 41, sourceTimeStampMs: 145.75, occurredAtActiveMs: 200 }]);
+    const withoutRelease = { ...released }; delete withoutRelease.releaseEvidence; expect(withoutRelease).toEqual(attack);
+    expect(released.attackEvidence).toEqual([{ sequence: 0, measureIndex: 0, sourceMeasureId: "m1", targetId: "m1:attack:0", midiNumber: 60, attackVelocity: 66, occurredAtActiveMs: 100, sourceTimeStampMs: 123.5 }]);
+    expect(recordPiecePracticeMidiRelease({ ...released, clockPaused: true }, { midiNumber: 60, encoding: "note-on-zero" }, 1300).releaseEvidence).toBe(released.releaseEvidence);
+    expect(submit(source, released).state.currentTargetIndex).toBe(submit(source, state).state.currentTargetIndex);
+    expect(restartPiecePractice(source, released, 1400).releaseEvidence).toBeUndefined();
+    expect(restartCurrentPiecePracticeMeasure(source, released, 1400).releaseEvidence).toEqual(released.releaseEvidence);
+  });
   it("records authoritative chronological evidence and active measure/target time, excluding hidden time", () => {
     const source = piece([1]);
     let state = initialized(source, 0, 1_000);

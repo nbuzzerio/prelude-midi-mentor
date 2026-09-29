@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, useEffect } from "react";
 import { MidiProvider } from "./midi-provider";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
+import type { MidiReleaseObservation } from "@/hooks/use-midi";
 
 const lowLevel = vi.hoisted(() => ({
   connectMidi: vi.fn(async () => undefined),
   options: null as null | Readonly<{
     onHeldNotesChanged?: (notes: ReadonlySet<number>) => void;
-    onNotePlayed: (midiNumber: number, attackVelocity?: number) => void;
+    onNotePlayed: (midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => void;
+    onNoteReleased?: (release: MidiReleaseObservation) => void;
     onSustainPedalChanged?: (isDown: boolean) => void;
   }>,
   ownerCount: 0,
@@ -27,15 +29,31 @@ vi.mock("@/hooks/use-midi", () => ({
   },
 }));
 
-function Consumer({ label, onHeld, onNote, onSustain = vi.fn() }: Readonly<{
+function Consumer({ label, onHeld, onNote, onRelease, onSustain = vi.fn() }: Readonly<{
   label: string;
   onHeld: (notes: ReadonlySet<number>) => void;
-  onNote: (midiNumber: number, attackVelocity?: number) => void;
+  onNote: (midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => void;
+  onRelease?: (release: MidiReleaseObservation) => void;
   onSustain?: (isDown: boolean) => void;
 }>) {
-  const midi = useAppMidiInput({ onHeldNotesChanged: onHeld, onNotePlayed: onNote, onSustainPedalChanged: onSustain });
+  const midi = useAppMidiInput({ onHeldNotesChanged: onHeld, onNotePlayed: onNote, onNoteReleased: onRelease, onSustainPedalChanged: onSustain });
   return <button onClick={() => void midi.connectMidi()} type="button">{label}: {midi.status} {midi.deviceName}</button>;
 }
+
+it("routes releases and optional source attack timing to the current consumer only, without replay on registration", () => {
+  const first = vi.fn(); const second = vi.fn(); const attacks = vi.fn();
+  const view = render(<MidiProvider><Consumer key="first" label="First" onHeld={vi.fn()} onNote={attacks} onRelease={first} /></MidiProvider>);
+  const release: MidiReleaseObservation = { midiNumber: 72, encoding: "note-on-zero", sourceTimeStampMs: 150 };
+  act(() => { lowLevel.options?.onNotePlayed(72, 80, 100); lowLevel.options?.onNoteReleased?.(release); });
+  expect(attacks).toHaveBeenCalledWith(72, 80, 100); expect(first).toHaveBeenCalledWith(release);
+  view.rerender(<MidiProvider><Consumer key="second" label="Second" onHeld={vi.fn()} onNote={vi.fn()} onRelease={second} /></MidiProvider>);
+  expect(second).not.toHaveBeenCalled();
+  act(() => lowLevel.options?.onNoteReleased?.(release));
+  expect(first).toHaveBeenCalledTimes(1); expect(second).toHaveBeenCalledTimes(1);
+  view.rerender(<MidiProvider><div>No consumer</div></MidiProvider>);
+  act(() => lowLevel.options?.onNoteReleased?.(release)); expect(second).toHaveBeenCalledTimes(1);
+  cleanup();
+});
 
 describe("MidiProvider", () => {
   beforeEach(() => {

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CHORD_ATTEMPT_GRACE_MS, useChordAttempt } from "@/hooks/use-chord-attempt";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
+import type { MidiReleaseObservation } from "@/hooks/use-midi";
 import {
   getCurrentPiecePracticeTarget,
   recordPiecePracticeMidiAttack,
+  recordPiecePracticeMidiRelease,
   expirePiecePracticeRolledChecks,
   getPiecePracticeRolledWindowMs,
   skipCurrentPiecePracticeTarget,
@@ -12,14 +14,15 @@ import {
   type PiecePracticeSessionState,
 } from "../piece-practice-session";
 import type { PiecePracticeGrade } from "../piece-practice-validation";
-import type { PiecePracticePiece } from "../piece-practice-types";
-import { getPiecePracticeAllowedHeldMidiNumbers } from "../piece-practice-input";
+import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
+import { getPiecePracticeAllowedHeldMidiNumbers, getPiecePracticeTransitionHeldMidiNumbers, type PiecePracticeTransition } from "../piece-practice-input";
 
 export type PiecePracticeInputSource = "midi" | "virtual";
 export type PiecePracticeInputFeedback = Readonly<{
   status: "idle" | "correct" | "incorrect";
   source: PiecePracticeInputSource | null;
   grade: PiecePracticeGrade | null;
+  predecessorPitches?: readonly PiecePracticeAttackedPitch[];
 }>;
 
 export type UsePiecePracticeInputOptions = Readonly<{
@@ -41,11 +44,9 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   const midiHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
   const virtualSelectionRef = useRef<Set<number>>(new Set());
   const chordTargetIdRef = useRef<string | null>(null);
+  const chordTimingRef = useRef<{ startedAtMs: number; lastAttackAtMs: number; attacks: Set<number> } | null>(null);
+  const transitionRef = useRef<PiecePracticeTransition | null>(null);
   const finalizeMidiChordAttemptRef = useRef<(midiNumbers: ReadonlySet<number>) => void>(() => undefined);
-
-  useEffect(() => {
-    sessionStateRef.current = sessionState;
-  }, [sessionState]);
 
   const clearVirtualSelection = useCallback(() => {
     virtualSelectionRef.current = new Set();
@@ -65,11 +66,13 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
 
   const clearTransientAttempts = useCallback(() => {
     chordTargetIdRef.current = null;
+    chordTimingRef.current = null;
     clearAttempt();
     clearVirtualSelection();
   }, [clearAttempt, clearVirtualSelection]);
 
   const resetInput = useCallback(() => {
+    transitionRef.current = null;
     clearTransientAttempts();
     setFeedback(IDLE_FEEDBACK);
   }, [clearTransientAttempts]);
@@ -77,6 +80,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   const skipCurrentTarget = useCallback(() => {
     const result = skipCurrentPiecePracticeTarget(piece, sessionStateRef.current, now());
     if (!result.skipped) return false;
+    transitionRef.current = null;
     clearTransientAttempts();
     setFeedback(IDLE_FEEDBACK);
     sessionStateRef.current = result.state;
@@ -84,27 +88,43 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     return true;
   }, [clearTransientAttempts, now, onSessionStateChange, piece]);
 
-  const submitAttack = useCallback((source: PiecePracticeInputSource, attackMidiNumbers: Iterable<number>, heldMidiNumbers: Iterable<number> = []) => {
+  const rememberSuccessfulTarget = useCallback((target: PiecePracticeTarget, source: PiecePracticeInputSource, state: PiecePracticeSessionState) => {
+    const next = getCurrentPiecePracticeTarget(piece, state);
+    transitionRef.current = source === "midi" && next ? {
+      targetId: next.id,
+      predecessorPitches: target.attackedPitches,
+      eligibleHeldMidiNumbers: target.expectedMidiNumbers.filter((pitch) => midiHeldNotesRef.current.has(pitch)),
+      firstAttackAtMs: null,
+    } : null;
+  }, [piece]);
+
+  const submitAttack = useCallback((source: PiecePracticeInputSource, attackMidiNumbers: Iterable<number>, heldMidiNumbers: Iterable<number> = [], logicalAttemptAtMs = now()) => {
     const currentState = sessionStateRef.current;
     const target = getCurrentPiecePracticeTarget(piece, currentState);
     if (!target) return;
+    const predecessorPitches = transitionRef.current?.targetId === target.id ? transitionRef.current.predecessorPitches : [];
     const allowedHeldMidiNumbers = getPiecePracticeAllowedHeldMidiNumbers({
       piece,
       target,
-      additionalAllowedMidiNumbers: target.checks.filter(({ kind }) => kind === "rolled-chord").flatMap(({ expectedMidiNumbers }) => expectedMidiNumbers),
+      additionalAllowedMidiNumbers: [
+        ...target.checks.filter(({ kind }) => kind === "rolled-chord").flatMap(({ expectedMidiNumbers }) => expectedMidiNumbers),
+        ...(source === "midi" ? getPiecePracticeTransitionHeldMidiNumbers(transitionRef.current, target.id, logicalAttemptAtMs) : []),
+      ],
     });
     const result = submitPiecePracticeAttempt(piece, currentState, {
       targetId: target.id,
       attempt: { attackMidiNumbers, heldMidiNumbers, allowedHeldMidiNumbers },
       atMs: now(),
+      predecessorPitches,
     });
     if (!result.accepted) return;
     sessionStateRef.current = result.state;
     const advanced = getCurrentPiecePracticeTarget(piece, result.state)?.id !== target.id;
-    setFeedback({ status: !result.grade.correct ? "incorrect" : advanced ? "correct" : "idle", source: advanced || !result.grade.correct ? source : null, grade: result.grade });
+    if (result.grade.correct && advanced) rememberSuccessfulTarget(target, source, result.state);
+    setFeedback({ status: !result.grade.correct ? "incorrect" : advanced ? "correct" : "idle", source: advanced || !result.grade.correct ? source : null, grade: result.grade, predecessorPitches });
     clearTransientAttempts();
     onSessionStateChange(result.state);
-  }, [clearTransientAttempts, now, onSessionStateChange, piece]);
+  }, [clearTransientAttempts, now, onSessionStateChange, piece, rememberSuccessfulTarget]);
 
   const submitPitch = useCallback((source: PiecePracticeInputSource, midiNumber: number) => {
     const currentState = sessionStateRef.current;
@@ -117,28 +137,38 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     if (result.state !== currentState) onSessionStateChange(result.state);
     if (result.incorrect) setFeedback({ status: "incorrect", source, grade: null });
     else if (advanced) {
+      rememberSuccessfulTarget(target, source, result.state);
       setFeedback({ status: "correct", source, grade: null });
       clearTransientAttempts();
     }
     return { target, matched: result.matched, incorrect: result.incorrect, advanced };
-  }, [clearTransientAttempts, now, onSessionStateChange, piece]);
+  }, [clearTransientAttempts, now, onSessionStateChange, piece, rememberSuccessfulTarget]);
 
   const finalizeMidiChordAttempt = useCallback((midiNumbers: ReadonlySet<number>) => {
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);
     if (!target || chordTargetIdRef.current !== target.id) return;
-    chordTargetIdRef.current = null;
-    submitAttack("midi", midiNumbers, midiHeldNotesRef.current);
+    const timing = chordTimingRef.current;
+    if (!timing) return;
+    // Timer delivery is not performance evidence. Actual late attacks still matter.
+    const logicalAttemptAtMs = Math.max(timing.startedAtMs, timing.lastAttackAtMs);
+    submitAttack("midi", midiNumbers, midiHeldNotesRef.current, logicalAttemptAtMs);
   }, [piece, submitAttack]);
 
   useEffect(() => {
     finalizeMidiChordAttemptRef.current = finalizeMidiChordAttempt;
   }, [finalizeMidiChordAttempt]);
 
-  const handleMidiNotePlayed = useCallback((midiNumber: number, attackVelocity?: number) => {
+  const handleMidiNotePlayed = useCallback((midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => {
+    if (sessionStateRef.current.clockPaused) return;
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);
     if (!target) return;
+    const atMs = now();
+    const transition = transitionRef.current;
+    if (transition?.targetId === target.id && transition.firstAttackAtMs === null) {
+      transitionRef.current = { ...transition, firstAttackAtMs: atMs };
+    }
     const current = sessionStateRef.current;
-    const withEvidence = recordPiecePracticeMidiAttack(piece, current, midiNumber, attackVelocity, now());
+    const withEvidence = recordPiecePracticeMidiAttack(piece, current, midiNumber, attackVelocity, atMs, sourceTimeStampMs);
     if (withEvidence !== current) {
       sessionStateRef.current = withEvidence;
       onSessionStateChange(withEvidence);
@@ -147,6 +177,11 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
     const normalCheck = target.checks.find((check) => check.kind === "normal" && pendingIds.has(check.id));
+    if (normalCheck && rolledChecks.length === 0 && !normalCheck.expectedMidiNumbers.includes(midiNumber)) {
+      // Held allowance never excuses a wrong new attack, including the predecessor pitch.
+      submitAttack("midi", [...(chordTimingRef.current?.attacks ?? []), midiNumber], midiHeldNotesRef.current, atMs);
+      return;
+    }
     if (rolledChecks.length > 0) {
       const result = submitPitch("midi", midiNumber);
       if (result.advanced || result.incorrect || !normalCheck || !normalCheck.expectedMidiNumbers.includes(midiNumber)) return;
@@ -162,27 +197,69 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       return;
     }
     if (isAttemptActive() && chordTargetIdRef.current === target.id) {
+      if (chordTimingRef.current) {
+        chordTimingRef.current.lastAttackAtMs = atMs;
+        chordTimingRef.current.attacks.add(midiNumber);
+      }
       addNoteToAttempt(midiNumber);
       return;
     }
     clearAttempt();
     chordTargetIdRef.current = target.id;
+    chordTimingRef.current = { startedAtMs: atMs, lastAttackAtMs: atMs, attacks: new Set([midiNumber]) };
     startAttempt(midiNumber);
   }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, isAttemptActive, now, onSessionStateChange, piece, startAttempt, submitAttack, submitPitch]);
 
   const handleMidiHeldNotesChanged = useCallback((heldNotes: ReadonlySet<number>) => {
     const next = new Set(heldNotes);
+    if (transitionRef.current) transitionRef.current = {
+      ...transitionRef.current,
+      eligibleHeldMidiNumbers: transitionRef.current.eligibleHeldMidiNumbers.filter((pitch) => next.has(pitch)),
+    };
     midiHeldNotesRef.current = next;
     setMidiHeldNotes(next);
   }, []);
 
-  const midi = useAppMidiInput({ onHeldNotesChanged: handleMidiHeldNotesChanged, onNotePlayed: handleMidiNotePlayed });
+  const handleMidiNoteReleased = useCallback((release: MidiReleaseObservation) => {
+    const current = sessionStateRef.current;
+    const next = recordPiecePracticeMidiRelease(current, release, now());
+    if (next === current) return;
+    sessionStateRef.current = next;
+    onSessionStateChange(next);
+  }, [now, onSessionStateChange]);
+
+  const midi = useAppMidiInput({ onHeldNotesChanged: handleMidiHeldNotesChanged, onNotePlayed: handleMidiNotePlayed, onNoteReleased: handleMidiNoteReleased });
+  const previousMidiStatusRef = useRef(midi.status);
+  useEffect(() => {
+    if (midi.status !== previousMidiStatusRef.current) {
+      transitionRef.current = null;
+      clearTransientAttempts();
+    }
+    previousMidiStatusRef.current = midi.status;
+  }, [clearTransientAttempts, midi.status]);
+
+  const previousSessionRef = useRef(sessionState);
+  useEffect(() => {
+    const previous = previousSessionRef.current;
+    const target = getCurrentPiecePracticeTarget(piece, sessionState);
+    if (previous.clockPaused !== sessionState.clockPaused || previous.startedAtMs !== sessionState.startedAtMs
+      || previous.startMeasureIndex !== sessionState.startMeasureIndex || previous.endMeasureIndex !== sessionState.endMeasureIndex
+      || sessionState.completedTargetCount < previous.completedTargetCount || sessionState.skippedTargetCount !== previous.skippedTargetCount
+      || sessionState.targetTimings.length < previous.targetTimings.length
+      || (transitionRef.current && transitionRef.current.targetId !== target?.id)) {
+      transitionRef.current = null;
+      clearTransientAttempts();
+    }
+    sessionStateRef.current = sessionState;
+    previousSessionRef.current = sessionState;
+  }, [clearTransientAttempts, piece, sessionState]);
 
   const onVirtualNoteToggle = useCallback((midiNumber: number) => {
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);
-    if (!target) return;
+    if (!target || sessionStateRef.current.clockPaused) return;
     clearAttempt();
     chordTargetIdRef.current = null;
+    chordTimingRef.current = null;
     const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
     const normalCheck = target.checks.find((check) => check.kind === "normal" && pendingIds.has(check.id));

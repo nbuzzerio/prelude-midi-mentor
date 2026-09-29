@@ -1,12 +1,15 @@
 import { gradePiecePracticeTarget, type PiecePracticeAttempt, type PiecePracticeGrade } from "./piece-practice-validation";
 import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 import { getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
+import type { MidiReleaseObservation } from "@/hooks/use-midi";
 import {
   derivePiecePracticeMeasureDiagnostics,
   getPiecePracticeHesitationThresholdMs,
   getPiecePracticeTargetExpectedWindowMs,
   snapshotPiecePracticePitches,
   type PiecePracticeAttackEvidence,
+  type PiecePracticeReleaseEvidence,
+  type PiecePracticeExpectedPitchSnapshot,
   type PiecePracticeMeasureDiagnostic,
   type PiecePracticeMeasureTiming,
   type PiecePracticeMistakeEvidence,
@@ -43,6 +46,7 @@ export type PiecePracticeSessionState = Readonly<{
   completedMeasureIndexes: readonly number[];
   /** Optional for legacy/non-MIDI sessions; transient, never authored score data. */
   attackEvidence?: readonly PiecePracticeAttackEvidence[];
+  releaseEvidence?: readonly PiecePracticeReleaseEvidence[];
   mistakeEvidence: readonly PiecePracticeMistakeEvidence[];
   skipEvidence: readonly PiecePracticeSkipEvidence[];
   targetTimings: readonly PiecePracticeTargetTiming[];
@@ -109,7 +113,7 @@ function activeElapsedAt(state: PiecePracticeSessionState, atMs: number): number
 /** Evidence only: do not snapshot the grading clock or alter check progress. */
 export function recordPiecePracticeMidiAttack(
   piece: PiecePracticePiece, state: PiecePracticeSessionState,
-  midiNumber: number, attackVelocity: number | undefined, atMs: number,
+  midiNumber: number, attackVelocity: number | undefined, atMs: number, sourceTimeStampMs?: number,
 ): PiecePracticeSessionState {
   const target = getCurrentPiecePracticeTarget(piece, state);
   if (!target || state.clockPaused || !Number.isInteger(attackVelocity) || attackVelocity === undefined || attackVelocity < 1 || attackVelocity > 127) return state;
@@ -117,6 +121,18 @@ export function recordPiecePracticeMidiAttack(
   return { ...state, attackEvidence: [...previous, {
     sequence: previous.length, measureIndex: target.measureIndex, sourceMeasureId: target.sourceMeasureId,
     targetId: target.id, midiNumber, attackVelocity, occurredAtActiveMs: activeElapsedAt(state, atMs),
+    ...(sourceTimeStampMs !== undefined && Number.isFinite(sourceTimeStampMs) && sourceTimeStampMs >= 0 ? { sourceTimeStampMs } : {}),
+  }] };
+}
+
+/** Keep real releases after the last attack as well; never change the grading clock. */
+export function recordPiecePracticeMidiRelease(
+  state: PiecePracticeSessionState, release: MidiReleaseObservation, atMs: number,
+): PiecePracticeSessionState {
+  if (state.clockPaused) return state;
+  const previous = state.releaseEvidence ?? [];
+  return { ...state, releaseEvidence: [...previous, {
+    ...release, sequence: previous.length, occurredAtActiveMs: activeElapsedAt(state, atMs),
   }] };
 }
 
@@ -243,6 +259,7 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
   targetId: string;
   attempt: PiecePracticeAttempt;
   atMs?: number;
+  predecessorPitches?: readonly PiecePracticeExpectedPitchSnapshot[];
 }>): SubmitPiecePracticeAttemptResult {
   const target = getCurrentPiecePracticeTarget(piece, state);
   if (!target) return { accepted: false, reason: "not-practicing", state };
@@ -266,6 +283,7 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
         missingMidiNumbers: grade.missingMidiNumbers,
         extraMidiNumbers: grade.extraMidiNumbers,
         unexpectedHeldMidiNumbers: grade.unexpectedHeldMidiNumbers,
+        ...(input.predecessorPitches?.length ? { predecessorPitches: input.predecessorPitches } : {}),
       }, atMs),
     };
   }

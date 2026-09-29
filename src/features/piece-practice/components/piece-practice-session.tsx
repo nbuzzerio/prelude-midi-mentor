@@ -19,15 +19,10 @@ import {
 } from "../piece-practice-session";
 import type { PiecePracticeAttackedPitch, PiecePracticePiece } from "../piece-practice-types";
 import { PiecePracticeResults } from "./piece-practice-results";
+import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
 
 function writtenPitchName(pitch: PiecePracticeAttackedPitch): string {
-  const accidental = pitch.accidental === "sharp" ? "♯" : pitch.accidental === "flat" ? "♭" : "";
-  return `${pitch.letter}${accidental}${pitch.octave}`;
-}
-
-function midiFeedbackName(midiNumber: number, targetPitches: readonly PiecePracticeAttackedPitch[]): string {
-  const source = targetPitches.find((pitch) => pitch.midiNumber === midiNumber);
-  return source ? writtenPitchName(source) : `MIDI ${midiNumber}`;
+  return formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] });
 }
 
 function formatElapsed(elapsedMs: number): string {
@@ -175,14 +170,19 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         <div><dt className="text-sm text-zinc-400">Mistakes</dt><dd className="text-xl font-bold">{progress.incorrectAttemptCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
-      <PiecePracticeResults displayScore={displayScore} rangeText={rangeText} state={sessionState} title={piece.title} />
+      <PiecePracticeResults displayScore={displayScore} piece={piece} rangeText={rangeText} state={sessionState} title={piece.title} />
       <div className="flex flex-wrap gap-3"><button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={restartWholePiece} type="button">Practice Again</button>{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold" onClick={onExit} type="button">Exit Piece Practice</button></div>
     </section>;
   }
 
-  const received = grade?.receivedMidiNumbers.map((midi) => midiFeedbackName(midi, target?.attackedPitches ?? [])) ?? [];
-  const missing = grade?.missingMidiNumbers.map((midi) => midiFeedbackName(midi, target?.attackedPitches ?? [])) ?? [];
-  const extra = grade?.extraMidiNumbers.map((midi) => midiFeedbackName(midi, target?.attackedPitches ?? [])) ?? [];
+  const feedbackPitchName = (midiNumber: number) => formatPiecePracticeMidiPitch(midiNumber, {
+    expectedPitches: grade?.expectedWrittenPitches ?? target?.attackedPitches,
+    predecessorPitches: feedback.predecessorPitches,
+    keySignatureId: measure?.keySignatureId,
+  });
+  const received = grade?.receivedMidiNumbers.map(feedbackPitchName) ?? [];
+  const missing = grade?.missingMidiNumbers.map(feedbackPitchName) ?? [];
+  const extra = grade?.extraMidiNumbers.map(feedbackPitchName) ?? [];
   const failedNotes = feedback.status === "incorrect" ? new Set(grade?.receivedMidiNumbers ?? []) : new Set<number>();
   const lastAnswer = feedback.status === "idle" || !grade ? null : { midiNumbers: new Set(grade.receivedMidiNumbers), result: feedback.status };
   const activeNotes = new Set([...input.virtualSelectedMidiNumbers, ...input.midiChordAttemptMidiNumbers]);
@@ -204,7 +204,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         </div> : null}
         <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} />
         {feedback.status === "correct" ? <p className="rounded-md border border-green-600 bg-green-950 p-3 font-semibold text-green-200">✓ Correct</p> : null}
-        {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map((midi) => `MIDI ${midi}`).join(", ")}</p> : null}</div> : null}
+        {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map(feedbackPitchName).join(", ")}</p> : null}</div> : null}
         {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" onClick={input.skipCurrentTarget} type="button">Skip Target</button> : null}
         {sessionState.status === "awaiting-explicit-measure-advance" ? <button className="justify-self-start rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={() => {
           const result = advancePiecePracticeNoAttackMeasure(piece, sessionState, now());
