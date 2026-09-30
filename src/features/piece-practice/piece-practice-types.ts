@@ -3,6 +3,7 @@ import type { StaffBuilderDuration, StaffBuilderTimeSignature } from "@/features
 import type { StaffBuilderIssue } from "@/features/staff-builder/staff-builder-validation";
 import type { StaffBuilderAccidental, StaffBuilderAnnotation, StaffBuilderArpeggiation, StaffBuilderStaff, StaffBuilderMeasureContext } from "@/features/staff-builder/staff-builder-types";
 import type { NoteLetter } from "@/lib/music/note-utils";
+import type { PiecePracticeAssessmentFocus } from "./piece-practice-assessment";
 
 export type PiecePracticeSourcePitch = Readonly<{
   sourcePitchId: string;
@@ -83,6 +84,8 @@ export type PiecePracticeMeasure = Readonly<{
 }>;
 
 export type PiecePracticePiece = Readonly<{
+  /** Run-specific projection policy; omitted legacy projections assess both staves. */
+  assessmentFocus?: PiecePracticeAssessmentFocus;
   sourceScoreId: string;
   sourceScoreUpdatedAt: string;
   title: string;

@@ -35,6 +35,21 @@ const view = (state = completed()) => <PiecePracticeResults displayScore={{} as 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Piece Practice note-name-first results and reports", () => {
+  it("labels completed results, Copy Report, and print from run assessment state", async () => {
+    const state = { ...completed(), assessmentFocus: "lower" as const };
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(view(state));
+    expect(screen.getByText("Assessment: Lower Staff")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+    await screen.findByText("Report copied.");
+    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining("Assessment: Lower Staff"));
+    fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+    fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
+    expect(within(screen.getByLabelText("Study practice report")).getByText("Assessment: Lower Staff")).toBeTruthy();
+    expect(report(completed())).toContain("Assessment: Both Staves");
+  });
+
   it("describes a skipped, unarmed first target as not timed in Copy Report and print", () => {
     const skipped = skipCurrentPiecePracticeTarget(piece, initial(), 8_000);
     if (!skipped.skipped) throw new Error("Expected the first target to be skipped");

@@ -2,6 +2,7 @@ import { formatPiecePracticeMidiPitch, type PiecePracticeAttackEvidence, type Pi
 import { getPiecePracticeMeasureResults, type PiecePracticeSessionState } from "./piece-practice-session";
 import type { PiecePracticePiece } from "./piece-practice-types";
 import { getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
+import { piecePracticeAssessmentLabel } from "./piece-practice-assessment";
 
 export type PiecePracticeReportPresentation = Readonly<{ piece?: PiecePracticePiece; showMidiDetails?: boolean }>;
 
@@ -57,7 +58,7 @@ export function formatPiecePracticeReport({ title, rangeText, state, includeAtta
   const presentation = { piece, showMidiDetails };
   const results = getPiecePracticeMeasureResults(state);
   const lines = [
-    `${title} - Piece Practice report`, `Practice range: ${rangeText}`,
+    `${title} - Piece Practice report`, `Practice range: ${rangeText}`, `Assessment: ${piecePracticeAssessmentLabel(state.assessmentFocus)}`,
     `Elapsed time: ${((state.completedAtActiveMs ?? state.activeElapsedMs) / 1000).toFixed(1)}s`,
     `Mistakes: ${state.mistakeEvidence.length}`,
     `Problem measures: ${results.filter(({ isProblem }) => isProblem).map(({ measureNumber }) => measureNumber).join(", ") || "None"}`,

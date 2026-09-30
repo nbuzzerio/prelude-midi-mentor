@@ -20,6 +20,8 @@ import {
 import type { PiecePracticeAttackedPitch, PiecePracticePiece } from "../piece-practice-types";
 import { PiecePracticeResults } from "./piece-practice-results";
 import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
+import { piecePracticeAssessmentLabel, type PiecePracticeAssessmentFocus } from "../piece-practice-assessment";
+import { focusPiecePracticeProjection } from "../piece-practice-projection";
 
 function writtenPitchName(pitch: PiecePracticeAttackedPitch): string {
   return formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] });
@@ -39,8 +41,10 @@ export function PiecePracticeSession({ piece, onExit, now = monotonicNow }: Read
 }>) {
   const [selectedStartMeasure, setSelectedStartMeasure] = useState(0);
   const [selectedEndMeasure, setSelectedEndMeasure] = useState<number | null>(null);
+  const [selectedAssessmentFocus, setSelectedAssessmentFocus] = useState<PiecePracticeAssessmentFocus>("both");
   const [sessionState, setSessionState] = useState<PiecePracticeSessionState | null>(null);
   const displayScore = useMemo(() => createPiecePracticeDisplayScore(piece), [piece]);
+  const assessedPiece = useMemo(() => focusPiecePracticeProjection(piece, sessionState?.assessmentFocus ?? selectedAssessmentFocus), [piece, selectedAssessmentFocus, sessionState?.assessmentFocus]);
 
   useEffect(() => {
     const handleVisibilityChange = () => setSessionState((current) => {
@@ -55,7 +59,7 @@ export function PiecePracticeSession({ piece, onExit, now = monotonicNow }: Read
 
   if (!sessionState) {
     return <section aria-labelledby="piece-practice-setup-title" className="mx-auto grid w-full max-w-3xl gap-5 rounded-xl border border-zinc-700 bg-zinc-900 p-5 text-zinc-100">
-      <header><h1 className="text-2xl font-bold" id="piece-practice-setup-title">Practice {piece.title}</h1><p className="mt-1 text-sm text-zinc-300">Practice one measure at a time. Incorrect notes never move you forward.</p></header>
+      <header><h1 className="text-2xl font-bold" id="piece-practice-setup-title">Practice {piece.title}</h1><p className="mt-1 text-sm text-zinc-300">{selectedAssessmentFocus === "both" ? "Practice one measure at a time. Incorrect notes never move you forward." : "Practice one measure at a time. Supply every assessed-staff pitch to move forward."}</p></header>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid max-w-xs gap-2 font-medium" htmlFor="piece-practice-start-measure">Start Measure
           <select className="rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2" id="piece-practice-start-measure" onChange={(event) => {
@@ -76,9 +80,12 @@ export function PiecePracticeSession({ piece, onExit, now = monotonicNow }: Read
           </select>
         </label>
       </div>
+      <fieldset className="grid gap-2"><legend className="font-medium">Assess</legend><div className="flex flex-wrap gap-3">
+        {(["both", "upper", "lower"] as const).map((focus) => <label className="flex min-h-11 items-center gap-2 rounded-md border border-zinc-600 px-3" key={focus}><input checked={selectedAssessmentFocus === focus} name="piece-practice-assessment" onChange={() => setSelectedAssessmentFocus(focus)} type="radio" value={focus} />{piecePracticeAssessmentLabel(focus)}</label>)}
+      </div></fieldset>
       <div className="flex flex-wrap gap-3">
         <button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold hover:bg-sky-500" onClick={() => {
-          const result = createPiecePracticeSession(piece, { startMeasureIndex: selectedStartMeasure, endMeasureIndex: selectedEndMeasure, startedAtMs: now() });
+          const result = createPiecePracticeSession(assessedPiece, { startMeasureIndex: selectedStartMeasure, endMeasureIndex: selectedEndMeasure, startedAtMs: now() });
           if (result.ok) setSessionState(result.state);
         }} type="button">Start Practice</button>
         <button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold hover:bg-zinc-800" onClick={onExit} type="button">Exit Piece Practice</button>
@@ -86,7 +93,7 @@ export function PiecePracticeSession({ piece, onExit, now = monotonicNow }: Read
     </section>;
   }
 
-  return <ActivePiecePracticeSession displayScore={displayScore} now={now} onExit={onExit} onSessionStateChange={setSessionState} piece={piece} sessionState={sessionState} />;
+  return <ActivePiecePracticeSession displayScore={displayScore} now={now} onExit={onExit} onSessionStateChange={setSessionState} piece={assessedPiece} sessionState={sessionState} />;
 }
 
 function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateChange, piece, sessionState }: Readonly<{
@@ -190,7 +197,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
   return <section className={isMobilePlayMode ? "piece-practice-session piece-practice-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100" : "piece-practice-session mx-auto grid w-full max-w-6xl gap-4 text-zinc-100"}>
     {mobilePlayExit}
     <header className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-zinc-900 p-4">
-      <div><h1 className="text-2xl font-bold">{piece.title}</h1><p>Measure {sessionState.currentMeasureIndex + 1} of {piece.measures.length} · Practicing {rangeText}</p>{target ? <p>Target {(sessionState.currentTargetIndex ?? 0) + 1} of {measure?.targets.length ?? 0}</p> : null}</div>
+      <div><h1 className="text-2xl font-bold">{piece.title}</h1><p>Measure {sessionState.currentMeasureIndex + 1} of {piece.measures.length} · Practicing {rangeText}</p><p>Assessing: {piecePracticeAssessmentLabel(sessionState.assessmentFocus)}</p>{target ? <p>Target {(sessionState.currentTargetIndex ?? 0) + 1} of {measure?.targets.length ?? 0}</p> : null}</div>
       <div className="piece-practice-actions flex flex-wrap items-center gap-2"><MidiStatus deviceName={input.deviceName} error={input.error} onConnect={input.connectMidi} status={input.status} />{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={restartMeasure} type="button">Restart Measure</button><button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={restartWholePiece} type="button">Restart Piece</button><button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={onExit} type="button">Exit Piece Practice</button></div>
     </header>
     <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{statusText}</div>
@@ -202,7 +209,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
             ? <p key={check.id}>Normal {check.attackedPitches.map(writtenPitchName).join(", ")} — {progress?.completed ? "complete" : "pending"}</p>
             : <div key={check.id}><p>Rolled upward:</p><ul className="flex flex-wrap gap-x-3">{check.attackedPitches.map((pitch) => <li key={pitch.sourcePitchId}>{writtenPitchName(pitch)} {progress?.accumulatedMidiNumbers.includes(pitch.midiNumber) ? "✓" : "pending"}</li>)}</ul></div>)}
         </div> : null}
-        <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} />
+        <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} ghostedStaff={sessionState.assessmentFocus === "upper" ? "bass" : sessionState.assessmentFocus === "lower" ? "treble" : undefined} />
         {feedback.status === "correct" ? <p className="rounded-md border border-green-600 bg-green-950 p-3 font-semibold text-green-200">✓ Correct</p> : null}
         {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map(feedbackPitchName).join(", ")}</p> : null}</div> : null}
         {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" onClick={input.skipCurrentTarget} type="button">Skip Target</button> : null}

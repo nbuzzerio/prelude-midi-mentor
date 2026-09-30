@@ -2,6 +2,8 @@
 
 ## Piece Practice physical overlap and note presentation
 
+Staff Focus coverage exercises default strict Both Staves, semantic Upper/Lower filtering through clef changes, shared-pitch onsets, unassessed-only measures, boundary ties, required-pitch completion, optional physical/virtual attacks, block and rolled collectors, held notes, first-attempt timing, raw velocity/release evidence, restart lifecycle, readable ghosted notation, and assessment labels in results, Copy Report, and print/PDF. Manual QA should play each focus against a two-staff piece, including optional notes interleaved with focused chords and rolls, then inspect full-contrast printed notation and the focused assessment label.
+
 Focused validation: `pnpm test src/hooks/use-midi.test.ts src/components/midi/midi-provider.test.tsx src/features/piece-practice`, followed by `pnpm verify`.
 
 Regression coverage checks detached A5/G5 transitions, immediate natural legato, several connected notes without target lag, inside/exact/outside 250 ms policy boundaries, stale older notes at subsequent observations, no retrospective single-note failure, and nonrenewal across retries/attacks/snapshots/releases. Chord-to-chord, chord-to-note, and note-to-chord overlap retain required fresh attacks. Extra new pitches fail immediately even when equal to the predecessor pitch. Delayed chord callbacks cannot change eligibility from actual attack times; actual attacks after expiry remain diagnostically relevant. Existing authored-span/tie and parallel-roll checks remain covered, and only entirely completed targets establish predecessors. Lifecycle tests cover skip, measure/piece restart, excerpt/session reset, pause/resume, and disconnect/reconnect.

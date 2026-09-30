@@ -38,6 +38,7 @@ const IDLE_FEEDBACK: PiecePracticeInputFeedback = { status: "idle", source: null
 const monotonicNow = () => performance.now();
 
 export function usePiecePracticeInput({ piece, sessionState, onSessionStateChange, now = monotonicNow }: UsePiecePracticeInputOptions) {
+  const focusedAssessment = sessionState.assessmentFocus !== "both";
   const [feedback, setFeedback] = useState<PiecePracticeInputFeedback>(IDLE_FEEDBACK);
   const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(new Set());
   const [virtualSelectedMidiNumbers, setVirtualSelectedMidiNumbers] = useState<ReadonlySet<number>>(new Set());
@@ -175,10 +176,11 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       sessionStateRef.current = withEvidence;
       onSessionStateChange(withEvidence);
     }
-    clearVirtualSelection();
     const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
     const normalCheck = target.checks.find((check) => check.kind === "normal" && pendingIds.has(check.id));
+    if (focusedAssessment && !target.checks.some((check) => pendingIds.has(check.id) && check.expectedMidiNumbers.includes(midiNumber))) return;
+    clearVirtualSelection();
     if (normalCheck && rolledChecks.length === 0 && !normalCheck.expectedMidiNumbers.includes(midiNumber)) {
       // Held allowance never excuses a wrong new attack, including the predecessor pitch.
       submitAttack("midi", [...(chordTimingRef.current?.attacks ?? []), midiNumber], midiHeldNotesRef.current, atMs);
@@ -210,7 +212,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     chordTargetIdRef.current = target.id;
     chordTimingRef.current = { startedAtMs: atMs, lastAttackAtMs: atMs, attacks: new Set([midiNumber]) };
     startAttempt(midiNumber);
-  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, isAttemptActive, now, onSessionStateChange, piece, startAttempt, submitAttack, submitPitch]);
+  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, focusedAssessment, isAttemptActive, now, onSessionStateChange, piece, startAttempt, submitAttack, submitPitch]);
 
   const handleMidiHeldNotesChanged = useCallback((heldNotes: ReadonlySet<number>) => {
     const next = new Set(heldNotes);
@@ -265,10 +267,18 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       sessionStateRef.current = armed;
       onSessionStateChange(armed);
     }
+    const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
+    if (focusedAssessment && !target.checks.some((check) => pendingIds.has(check.id) && check.expectedMidiNumbers.includes(midiNumber))) {
+      const next = new Set(virtualSelectionRef.current);
+      if (next.has(midiNumber)) next.delete(midiNumber);
+      else next.add(midiNumber);
+      virtualSelectionRef.current = next;
+      setVirtualSelectedMidiNumbers(next);
+      return;
+    }
     clearAttempt();
     chordTargetIdRef.current = null;
     chordTimingRef.current = null;
-    const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
     const normalCheck = target.checks.find((check) => check.kind === "normal" && pendingIds.has(check.id));
     if (rolledChecks.length > 0) {
@@ -289,8 +299,11 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     else next.add(midiNumber);
     virtualSelectionRef.current = next;
     setVirtualSelectedMidiNumbers(next);
-    if (normalCheck && next.size === normalCheck.expectedMidiNumbers.length) submitAttack("virtual", next);
-  }, [clearAttempt, clearVirtualSelection, now, onSessionStateChange, piece, submitAttack, submitPitch]);
+    const assessedSelection = focusedAssessment && normalCheck
+      ? new Set([...next].filter((pitch) => normalCheck.expectedMidiNumbers.includes(pitch)))
+      : next;
+    if (normalCheck && assessedSelection.size === normalCheck.expectedMidiNumbers.length) submitAttack("virtual", assessedSelection);
+  }, [clearAttempt, clearVirtualSelection, focusedAssessment, now, onSessionStateChange, piece, submitAttack, submitPitch]);
 
   useEffect(() => {
     if (sessionState.clockPaused) return;

@@ -143,6 +143,42 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it("starts in strict Both Staves mode without staff ghosting", () => {
+    start();
+    expect(mocks.inputOptions?.sessionState.assessmentFocus).toBe("both");
+    expect(mocks.scoreProps?.ghostedStaff).toBeUndefined();
+    expect(screen.getByText("Assessing: Both Staves")).toBeTruthy();
+  });
+
+  it("defaults to Both Staves and fixes semantic focus for the active run and restarts", () => {
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} />);
+    expect((screen.getByRole("radio", { name: "Both Staves" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("radio", { name: "Lower Staff" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    expect(screen.getByText("Assessing: Lower Staff")).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: "Upper Staff" })).toBeNull();
+    expect(mocks.inputOptions?.sessionState.assessmentFocus).toBe("lower");
+    expect(mocks.inputOptions?.piece.measures[0]!.targets[0]!.expectedMidiNumbers).toEqual([64]);
+    expect(mocks.scoreProps?.ghostedStaff).toBe("treble");
+    fireEvent.click(screen.getByRole("button", { name: "Restart Measure" }));
+    expect(mocks.inputOptions?.sessionState.assessmentFocus).toBe("lower");
+    fireEvent.click(screen.getByRole("button", { name: "Restart Piece" }));
+    expect(mocks.inputOptions?.sessionState.assessmentFocus).toBe("lower");
+  });
+
+  it("retains assessment focus through completion and Practice Again", () => {
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Lower Staff" }));
+    fireEvent.change(screen.getByLabelText(/End Measure/), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    act(() => submit([64]));
+    expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
+    expect(screen.getAllByText("Assessment: Lower Staff").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    expect(screen.getByText("Assessing: Lower Staff")).toBeTruthy();
+    expect(mocks.inputOptions?.sessionState.assessmentFocus).toBe("lower");
+  });
+
   it("uses F5, A5, and D6 for played, extra, and held live feedback", () => {
     start();
     const grade = { correct: false, expectedMidiNumbers: [60, 64], receivedMidiNumbers: [77, 81, 86], missingMidiNumbers: [60, 64], extraMidiNumbers: [77, 81, 86], unexpectedHeldMidiNumbers: [77, 81, 86], expectedWrittenPitches: piece().measures[0]!.targets[0]!.attackedPitches };

@@ -5,6 +5,8 @@ import { createPiecePracticeSession, pausePiecePracticeClock, resumePiecePractic
 import type { MidiConnectionStatus, MidiReleaseObservation } from "@/hooks/use-midi";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
 import { usePiecePracticeInput } from "./use-piece-practice-input";
+import { focusPiecePracticeProjection } from "../piece-practice-projection";
+import type { PiecePracticeAssessmentFocus } from "../piece-practice-assessment";
 
 const midiMock = vi.hoisted(() => ({
   mountCount: 0, unmountCount: 0,
@@ -58,6 +60,16 @@ function rolledPiece(normalMidiNumbers: readonly number[] = [72]): PiecePractice
     { id: `${original.id}:rolled:left`, kind: "rolled-chord" as const, direction: "up" as const, sourceEventIds: ["left"], expectedMidiNumbers: [48, 52, 55], attackedPitches: rolledPitches },
   ];
   return { ...source, measures: [{ ...source.measures[0]!, targets: [{ ...original, checks }] }] };
+}
+
+function staffedPiece(source: PiecePracticePiece, focus: PiecePracticeAssessmentFocus, lowerMidiNumbers: readonly number[]): PiecePracticePiece {
+  const lower = new Set(lowerMidiNumbers);
+  const withStaff = { ...source, measures: source.measures.map((measure) => ({ ...measure, targets: measure.targets.map((item) => ({
+    ...item,
+    attackedPitches: item.attackedPitches.map((pitch) => ({ ...pitch, staff: lower.has(pitch.midiNumber) ? "bass" as const : "treble" as const })),
+    checks: item.checks.map((check) => ({ ...check, attackedPitches: check.attackedPitches.map((pitch) => ({ ...pitch, staff: lower.has(pitch.midiNumber) ? "bass" as const : "treble" as const })) })),
+  })) })) };
+  return focusPiecePracticeProjection(withStaff, focus);
 }
 
 function initial(source: PiecePracticePiece): PiecePracticeSessionState {
@@ -641,6 +653,109 @@ describe("usePiecePracticeInput", () => {
     act(() => vi.advanceTimersByTime(938));
     expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { completed: false, accumulatedMidiNumbers: [] }]);
     expect(view.getState().mistakeEvidence).toHaveLength(1);
+  });
+});
+
+describe("Piece Practice Staff Focus input", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(0); midiMock.options = null; midiMock.status = "connected"; });
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it("requires the upper semantic staff while ignoring a lower optional attack", () => {
+    const source = staffedPiece(piece([[[81, 60]]]), "upper", [60]);
+    const view = setup(source, () => Date.now());
+    midiNote(60); view.sync();
+    expect(view.getState()).toMatchObject({ status: "practicing", assessmentFocus: "upper" });
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
+    midiNote(81);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+  });
+
+  it("keeps optional physical attacks and held keys observational while a required single remains missing", () => {
+    const source = staffedPiece(piece([[[81, 60]]]), "lower", [60]);
+    const view = setup(source, () => Date.now());
+    act(() => vi.advanceTimersByTime(8_000));
+    midiHeld(81);
+    act(() => midiMock.options?.onNotePlayed(81, 66, 12.5)); view.sync();
+    expect(view.getState()).toMatchObject({ status: "practicing", currentTargetActivatedAtActiveMs: 8_000 });
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
+    expect(view.getState().attackEvidence).toMatchObject([{ midiNumber: 81, attackVelocity: 66, occurredAtActiveMs: 8_000, sourceTimeStampMs: 12.5 }]);
+    act(() => midiMock.options?.onNotePlayed(99, 45)); view.sync();
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
+    act(() => vi.advanceTimersByTime(700));
+    midiHeld(81, 99, 60);
+    act(() => midiMock.options?.onNotePlayed(60, 72));
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+    expect(view.getState().targetTimings[0]).toMatchObject({ timingBasis: "first-attempt", responseDurationMs: 700 });
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
+    expect(view.getState().attackEvidence?.map(({ midiNumber }) => midiNumber)).toEqual([81, 99, 60]);
+    act(() => midiMock.options?.onNoteReleased?.({ midiNumber: 81, encoding: "note-off", releaseVelocity: 32 }));
+    expect(view.getState().releaseEvidence).toMatchObject([{ midiNumber: 81, encoding: "note-off", releaseVelocity: 32 }]);
+  });
+
+  it("keeps optional pitches out of a focused block-chord collector", () => {
+    const source = staffedPiece(piece([[[81, 34, 38, 41]]]), "lower", [34, 38, 41]);
+    const view = setup(source, () => Date.now());
+    midiNote(81); midiNote(34); view.sync();
+    expect([...view.result.current.midiChordAttemptMidiNumbers]).toEqual([34]);
+    act(() => vi.advanceTimersByTime(100));
+    midiNote(81); midiNote(38); view.sync();
+    expect([...view.result.current.midiChordAttemptMidiNumbers].sort()).toEqual([34, 38]);
+    midiNote(41);
+    act(() => vi.advanceTimersByTime(125));
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
+  });
+
+  it("still blocks an incomplete focused chord despite optional attacks", () => {
+    const source = staffedPiece(piece([[[81, 34, 38, 41]]]), "lower", [34, 38, 41]);
+    const view = setup(source, () => Date.now());
+    midiNote(34); midiNote(81); midiNote(38);
+    act(() => vi.advanceTimersByTime(225));
+    expect(view.getState()).toMatchObject({ status: "practicing", completedTargetCount: 0 });
+    expect(view.getState().mistakeEvidence).toMatchObject([{ missingMidiNumbers: [41], extraMidiNumbers: [], unexpectedHeldMidiNumbers: [] }]);
+  });
+
+  it("ignores optional attacks during a focused roll and removes an unassessed roll", () => {
+    const lower = setup(staffedPiece(rolledPiece(), "lower", [48, 52, 55]), () => Date.now());
+    midiNote(48); lower.sync();
+    midiNote(72); lower.sync();
+    expect(lower.getState().currentCheckProgress).toMatchObject([{ completed: false, accumulatedMidiNumbers: [48] }]);
+    midiNote(52); lower.sync(); midiNote(55);
+    expect(lower.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+    expect(lower.getState().mistakeEvidence).toHaveLength(0);
+    lower.unmount();
+
+    const upperSource = staffedPiece(rolledPiece(), "upper", [48, 52, 55]);
+    expect(upperSource.measures[0]!.targets[0]!.checks).toHaveLength(1);
+    const upper = setup(upperSource, () => Date.now());
+    midiNote(48); upper.sync();
+    expect(upper.getState().mistakeEvidence).toHaveLength(0);
+    midiNote(72);
+    expect(upper.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+  });
+
+  it("keeps optional virtual selections visible without poisoning assessed chord input", () => {
+    const source = staffedPiece(piece([[[81, 34, 38, 41]]]), "lower", [34, 38, 41]);
+    const view = setup(source, () => Date.now());
+    act(() => view.result.current.onVirtualNoteToggle(81)); view.sync();
+    act(() => view.result.current.onVirtualNoteToggle(99)); view.sync();
+    expect([...view.result.current.virtualSelectedMidiNumbers].sort()).toEqual([81, 99]);
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBe(0);
+    for (const note of [34, 38, 41]) { act(() => view.result.current.onVirtualNoteToggle(note)); view.sync(); }
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
+  });
+
+  it("advances focused chord-to-chord, chord-to-note, and note-to-chord transitions", () => {
+    const source = staffedPiece(piece([[[34, 38], [36, 41], [43], [45, 48]]]), "lower", [34, 38, 36, 41, 43, 45, 48]);
+    const view = setup(source, () => Date.now());
+    for (const notes of [[34, 38], [36, 41], [43], [45, 48]]) {
+      midiNote(81);
+      for (const note of notes) midiNote(note);
+      act(() => vi.advanceTimersByTime(225)); view.sync();
+    }
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 4 });
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
   });
 });
 

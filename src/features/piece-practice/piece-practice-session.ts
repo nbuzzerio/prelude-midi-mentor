@@ -2,6 +2,7 @@ import { gradePiecePracticeTarget, type PiecePracticeAttempt, type PiecePractice
 import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 import { getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
 import type { MidiReleaseObservation } from "@/hooks/use-midi";
+import type { PiecePracticeAssessmentFocus } from "./piece-practice-assessment";
 import {
   derivePiecePracticeMeasureDiagnostics,
   getPiecePracticeHesitationThresholdMs,
@@ -35,6 +36,7 @@ export type PiecePracticeCheckProgress = Readonly<{
 export type PiecePracticeSessionStatus = "practicing" | "awaiting-explicit-measure-advance" | "piece-complete";
 
 export type PiecePracticeSessionState = Readonly<{
+  assessmentFocus: PiecePracticeAssessmentFocus;
   startMeasureIndex: number;
   endMeasureIndex: number | null;
   currentMeasureIndex: number;
@@ -210,6 +212,7 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
   return {
     ok: true,
     state: stateForMeasure(piece, {
+      assessmentFocus: piece.assessmentFocus ?? "both",
       startMeasureIndex: options.startMeasureIndex,
       endMeasureIndex,
       completedTargetCount: 0,
@@ -278,7 +281,7 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
   if (!normalCheck) return { accepted: false, reason: "stale-target", state };
   const atMs = input.atMs ?? state.activeSinceMs;
   const attempted = armPiecePracticeFirstTarget(piece, state, atMs);
-  const grade = gradePiecePracticeTarget({ ...target, ...normalCheck, checks: target.checks }, input.attempt);
+  const grade = gradePiecePracticeTarget({ ...target, ...normalCheck, checks: target.checks }, input.attempt, state.assessmentFocus);
   if (!grade.correct) {
     return {
       accepted: true,
@@ -506,6 +509,7 @@ export function restartPiecePractice(piece: PiecePracticePiece, state: PiecePrac
   const measure = piece.measures[state.startMeasureIndex];
   if (!measure) return state;
   return stateForMeasure(piece, {
+    assessmentFocus: state.assessmentFocus,
     startMeasureIndex: state.startMeasureIndex,
     endMeasureIndex: state.endMeasureIndex,
     completedTargetCount: 0,

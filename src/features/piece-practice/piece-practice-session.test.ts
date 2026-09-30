@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
-import { projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
+import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
 import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 import {
   advancePiecePracticeNoAttackMeasure,
@@ -145,6 +145,42 @@ function accepted(source: PiecePracticePiece, state: PiecePracticeSessionState, 
 }
 
 describe("Piece Practice blocking session", () => {
+  it("retains run assessment focus across measure and piece restarts", () => {
+    const source = focusPiecePracticeProjection(piece([2]), "upper");
+    const first = initialized(source);
+    expect(first.assessmentFocus).toBe("upper");
+    const completed = accepted(source, first);
+    expect(restartCurrentPiecePracticeMeasure(source, completed, 4_000).assessmentFocus).toBe("upper");
+    expect(restartPiecePractice(source, completed, 5_000).assessmentFocus).toBe("upper");
+    expect(resumePiecePracticeClock(pausePiecePracticeClock(completed, 2_000), 3_000).assessmentFocus).toBe("upper");
+  });
+
+  it("requires only assessed-staff boundary reattacks at an excerpt start", () => {
+    const base = projectedTiedBoundaryPiece();
+    const upper = focusPiecePracticeProjection(base, "upper");
+    const lower = focusPiecePracticeProjection(base, "lower");
+    expect(getCurrentPiecePracticeTarget(upper, initialized(upper, 1))?.expectedMidiNumbers).toEqual([60]);
+    expect(getCurrentPiecePracticeTarget(lower, initialized(lower, 1))).toBeNull();
+    expect(initialized(lower, 1)).toMatchObject({ status: "awaiting-explicit-measure-advance", firstTargetTimingPending: true });
+  });
+
+  it("keeps first-attempt timing unarmed through a measure with only unassessed attacks", () => {
+    const base = piece([1, 1]);
+    const secondMeasure = base.measures[1]!;
+    const secondTarget = secondMeasure.targets[0]!;
+    const source = focusPiecePracticeProjection({ ...base, measures: [base.measures[0]!, {
+      ...secondMeasure,
+      targets: [{ ...secondTarget, attackedPitches: secondTarget.attackedPitches.map((pitch) => ({ ...pitch, staff: "bass" as const })), checks: secondTarget.checks.map((check) => ({ ...check, attackedPitches: check.attackedPitches.map((pitch) => ({ ...pitch, staff: "bass" as const })) })) }],
+    }] }, "lower");
+    let state = initialized(source);
+    expect(getCurrentPiecePracticeTarget(source, state)).toBeNull();
+    state = advancePiecePracticeNoAttackMeasure(source, state, 4_000).state;
+    expect(state).toMatchObject({ currentMeasureIndex: 1, firstTargetTimingPending: true, currentTargetActivatedAtActiveMs: null });
+    const result = submitPiecePracticeAttempt(source, state, { targetId: source.measures[1]!.targets[0]!.id, attempt: { attackMidiNumbers: [61] }, atMs: 9_000 });
+    if (!result.accepted) throw new Error(result.reason);
+    expect(result.state.targetTimings).toMatchObject([{ timingBasis: "first-attempt", responseDurationMs: 0 }]);
+  });
+
   it("retains observational release encoding/velocity/source timing without changing target, clock, or grading", () => {
     const source = piece(); const state = initialized(source);
     const attack = recordPiecePracticeMidiAttack(source, state, 60, 66, 1100, 123.5);

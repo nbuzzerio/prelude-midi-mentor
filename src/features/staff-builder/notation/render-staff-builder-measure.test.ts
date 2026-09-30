@@ -61,6 +61,23 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it("renders both semantic staves while ghosting only the requested one", () => {
+    const current = polyphonicScore();
+    const focused = document.createElement("div");
+    renderStaffBuilderMeasure(focused, current, 0, { ghostedStaff: "bass" });
+    const upper = focused.querySelectorAll('g[data-semantic-staff="treble"]');
+    const lower = focused.querySelectorAll('g[data-semantic-staff="bass"]');
+    expect(upper.length).toBeGreaterThan(0);
+    expect(lower.length).toBeGreaterThan(0);
+    expect([...upper].every((group) => group.getAttribute("opacity") === null)).toBe(true);
+    expect([...lower].every((group) => group.getAttribute("opacity") === "0.55")).toBe(true);
+    expect([...lower].some((group) => group.children.length > 0)).toBe(true);
+    const ordinary = document.createElement("div");
+    renderStaffBuilderMeasure(ordinary, current, 0);
+    expect(ordinary.querySelectorAll("g[data-semantic-staff]")).toHaveLength(0);
+    expect(ordinary.querySelector("svg")).toBeTruthy();
+  });
+
   it("publishes stable pitch-level anchors alongside event anchors", () => {
     const result = renderStaffBuilderMeasure(document.createElement("div"), score(), 0);
     const pitch = score().measures[0]!.events.find((event) => event.kind === "notes")?.pitches[0];

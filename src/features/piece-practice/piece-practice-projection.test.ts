@@ -3,7 +3,8 @@ import { durationToTicks, getMeasureCapacityTicks, type StaffBuilderDuration, ty
 import { insertStaffBuilderMeasure } from "@/features/staff-builder/staff-builder-score";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
 import type { NoteLetter } from "@/lib/music/note-utils";
-import { projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
+import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
+import { createPiecePracticeSession, submitPiecePracticeAttempt } from "./piece-practice-session";
 
 const NOW = "2026-08-10T12:00:00.000Z";
 const DURATIONS_DESCENDING: readonly StaffBuilderDuration[] = [
@@ -77,6 +78,62 @@ function projected(source: StaffBuilderScore) {
 }
 
 describe("Staff Builder piece-practice projection", () => {
+  it("selects semantic staff pitches at shared onsets while retaining full score context", () => {
+    const source = projected(score({ events: [
+      notes("upper", "treble", 0, "quarter", [pitch("u", 81, "A", "natural", 5)]),
+      notes("lower", "bass", 0, "quarter", [pitch("l1", 34, "B", "flat", 1), pitch("l2", 38, "D", "natural", 2), pitch("l3", 41, "F", "natural", 2)]),
+      notes("upper-later", "treble", 480, "quarter", [pitch("u2", 79, "G", "natural", 5)]),
+    ] }));
+    const both = focusPiecePracticeProjection(source, "both");
+    const upper = focusPiecePracticeProjection(source, "upper");
+    const lower = focusPiecePracticeProjection(source, "lower");
+    expect(both.measures[0]!.targets).toEqual(source.measures[0]!.targets);
+    expect(upper.measures[0]!.targets.map(({ expectedMidiNumbers }) => expectedMidiNumbers)).toEqual([[81], [79]]);
+    expect(lower.measures[0]!.targets.map(({ expectedMidiNumbers }) => expectedMidiNumbers)).toEqual([[34, 38, 41]]);
+    expect(lower.measures[0]!.targets[0]!.checks[0]).toMatchObject({ kind: "normal", sourceEventIds: ["lower"] });
+    expect(lower.measures[0]!.sourceEvents).toEqual(source.measures[0]!.sourceEvents);
+    expect(source.assessmentFocus).toBeUndefined();
+  });
+
+  it("lets one MIDI pitch represent the selected semantic staff occurrence", () => {
+    const source = projected(score({ events: [
+      notes("upper", "treble", 0, "whole", [pitch("u", 60)]),
+      notes("lower", "bass", 0, "whole", [pitch("l", 60)]),
+    ] }));
+    expect(source.measures[0]!.targets[0]!.attackedPitches).toHaveLength(2);
+    for (const focus of ["upper", "lower"] as const) {
+      const focused = focusPiecePracticeProjection(source, focus);
+      const target = focused.measures[0]!.targets[0]!;
+      expect(target.expectedMidiNumbers).toEqual([60]);
+      expect(target.attackedPitches).toHaveLength(1);
+      expect(target.attackedPitches[0]!.staff).toBe(focus === "upper" ? "treble" : "bass");
+      const started = createPiecePracticeSession(focused, { startMeasureIndex: 0, startedAtMs: 0 });
+      if (!started.ok) throw new Error(started.reason);
+      const result = submitPiecePracticeAttempt(focused, started.state, { targetId: target.id, attempt: { attackMidiNumbers: [60] }, atMs: 100 });
+      expect(result).toMatchObject({ accepted: true, grade: { correct: true }, state: { status: "piece-complete" } });
+    }
+  });
+
+  it("follows semantic staff identity even when the display clefs are exchanged", () => {
+    const original = score({ events: [
+      notes("upper", "treble", 0, "whole", [pitch("u", 60)]),
+      notes("lower", "bass", 0, "whole", [pitch("l", 48, "C", "natural", 3)]),
+    ] });
+    const changed = { ...original, measures: [{ ...original.measures[0]!, clefChanges: { treble: "bass" as const, bass: "treble" as const } }] };
+    const source = projected(changed);
+    expect(source.measures[0]!.clefs).toEqual({ treble: "bass", bass: "treble" });
+    expect(focusPiecePracticeProjection(source, "upper").measures[0]!.targets[0]!.expectedMidiNumbers).toEqual([60]);
+    expect(focusPiecePracticeProjection(source, "lower").measures[0]!.targets[0]!.expectedMidiNumbers).toEqual([48]);
+  });
+
+  it("filters rolled checks by semantic staff without changing their order requirements", () => {
+    const upper = { ...notes("upper-roll", "treble", 0, "whole", [pitch("u1", 72, "C", "natural", 5), pitch("u2", 76, "E", "natural", 5)]), arpeggiation: "up" as const };
+    const lower = { ...notes("lower-roll", "bass", 0, "whole", [pitch("l1", 48, "C", "natural", 3), pitch("l2", 52, "E", "natural", 3)]), arpeggiation: "up" as const };
+    const source = projected(score({ events: [upper, lower] }));
+    expect(focusPiecePracticeProjection(source, "upper").measures[0]!.targets[0]!.checks).toMatchObject([{ kind: "rolled-chord", sourceEventIds: ["upper-roll"], expectedMidiNumbers: [72, 76] }]);
+    expect(focusPiecePracticeProjection(source, "lower").measures[0]!.targets[0]!.checks).toMatchObject([{ kind: "rolled-chord", sourceEventIds: ["lower-roll"], expectedMidiNumbers: [48, 52] }]);
+  });
+
   it("carries existing lyric annotations without changing targets or sounding spans", () => {
     const original = score({ events: [notes("n1", "treble", 0, "whole", [pitch("p1", 60)])] });
     const annotated = { ...original, annotations: [{ id: "lyric", kind: "lyric-cue" as const, anchor: { kind: "event" as const, eventId: "n1" }, text: "Bells" }] };

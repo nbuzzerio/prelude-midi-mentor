@@ -1,4 +1,5 @@
 import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
+import { isPiecePracticeStaffAssessed } from "./piece-practice-assessment";
 
 /** Initial empirical release-overlap allowance, not articulation grading. */
 export const PIECE_PRACTICE_RELEASE_OVERLAP_GRACE_MS = 250;
@@ -31,7 +32,7 @@ export function getPiecePracticeIncomingTiedMidiNumbers(
   const measure = piece.measures[target.measureIndex];
   if (!measure) return [];
   return uniqueSorted(measure.sourceEvents.flatMap((event) => {
-    if (event.kind !== "notes" || event.startTick !== target.startTick) return [];
+    if (event.kind !== "notes" || event.startTick !== target.startTick || !isPiecePracticeStaffAssessed(piece.assessmentFocus ?? "both", event.staff)) return [];
     return event.pitches
       .filter(({ incomingTieIds, requiresAttack }) => !requiresAttack && incomingTieIds.length > 0)
       .map(({ midiNumber }) => midiNumber);
@@ -45,7 +46,7 @@ export function getPiecePracticeBoundaryReattackPitches(piece: PiecePracticePiec
     .filter(({ attackTick, endTick }) => attackTick < measure.absoluteStartTick && endTick > measure.absoluteStartTick)
     .flatMap(({ endpointKeys }) => endpointKeys));
   return measure.sourceEvents.flatMap((event): PiecePracticeAttackedPitch[] => {
-    if (event.kind !== "notes" || event.startTick !== 0) return [];
+    if (event.kind !== "notes" || event.startTick !== 0 || !isPiecePracticeStaffAssessed(piece.assessmentFocus ?? "both", event.staff)) return [];
     return event.pitches.filter((pitch) => pitch.incomingTieIds.length > 0
       && activeEndpointKeys.has(`${event.sourceEventId}:${pitch.sourcePitchId}`)).map((pitch) => ({
         sourceEventId: event.sourceEventId,

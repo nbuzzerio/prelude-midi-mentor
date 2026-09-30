@@ -11,6 +11,7 @@ import {
 } from "../piece-practice-evidence";
 import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, getPiecePracticeReportPitchContext, mistakeText, type PiecePracticeReportPresentation } from "../piece-practice-report";
 import type { PiecePracticePiece } from "../piece-practice-types";
+import { piecePracticeAssessmentLabel } from "../piece-practice-assessment";
 import { getPiecePracticeMeasureResults, type PiecePracticeSessionState } from "../piece-practice-session";
 
 type ReportOptions = Readonly<{
@@ -124,6 +125,7 @@ function PracticeReport({ displayScore, options, rangeText, state, title, includ
   const elapsed = state.completedAtActiveMs ?? state.activeElapsedMs;
   return <section aria-label={`${title} practice report`} className="piece-practice-report-document">
     <h1>{title} — Practice report</h1>
+    <p>Assessment: {piecePracticeAssessmentLabel(state.assessmentFocus)}</p>
     {options.sessionSummary ? <><p>Practice range: {rangeText}</p><p>Elapsed time: {seconds(elapsed)} · Mistakes: {state.mistakeEvidence.length} · Problem measures: {results.filter(({ isProblem }) => isProblem).map(({ measureNumber }) => measureNumber).join(", ") || "None"}</p></> : null}
     {options.notation && included.length ? <StaffBuilderPrintScore measureIndexes={included.map(({ measureIndex }) => measureIndex)} measuresPerLine={4} score={displayScore} /> : null}
     {included.map((result) => <section className="piece-practice-report-measure" key={result.sourceMeasureId}><h2>Measure {result.measureNumber}</h2><PracticeDiagnosticChips chips={selectPiecePracticeMeasureDiagnosticChips(result)} label={`Measure ${result.measureNumber} diagnostic shorthand`} /><p>{result.mistakeCount} mistakes{options.measureTimes ? ` · ${seconds(result.activeDurationMs)}` : ""}{result.hesitationCount ? ` · ${result.hesitationCount} hesitations` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</p>
@@ -165,7 +167,7 @@ export function PiecePracticeResults({ displayScore, piece, rangeText, state, ti
   const visible = problemsOnly ? results.filter(({ isProblem }) => isProblem) : results;
   useBrowserPrint(reportOptions !== null, () => { setReportOptions(null); reportButton.current?.focus(); });
   return <section aria-labelledby="piece-practice-measure-results-title" className="grid gap-3">
-    <div><h2 className="text-xl font-bold" id="piece-practice-measure-results-title">Measure results</h2><p className="text-sm text-zinc-300">Problem measures are emphasized for quick review.</p></div>
+    <div><h2 className="text-xl font-bold" id="piece-practice-measure-results-title">Measure results</h2><p>Assessment: {piecePracticeAssessmentLabel(state.assessmentFocus)}</p><p className="text-sm text-zinc-300">Problem measures are emphasized for quick review.</p></div>
     <div className="piece-practice-result-controls"><label className="piece-practice-problem-filter"><input checked={problemsOnly} onChange={(event) => setProblemsOnly(event.target.checked)} type="checkbox" />Show problem measures only</label><div aria-label="Measure result color key" className="piece-practice-result-legend"><span><i data-result-presentation="mistake" />Mistake</span><span><i data-result-presentation="hesitation" />Hesitation</span><span><i data-result-presentation="both" />Both</span></div></div>
     {visible.length ? <ul aria-label="Measure-by-measure results" className="piece-practice-measure-results">{visible.map((result) => <li key={result.sourceMeasureId}>{result.isProblem
       ? <details className="piece-practice-measure-result" data-has-problems data-result-presentation={resultPresentation(result)}><summary><strong>Measure {result.measureNumber}</strong><span>{result.mistakeCount ? `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}` : "No mistakes"} · {seconds(result.activeDurationMs)}{result.hesitationCount ? ` · ${result.hesitationCount} slow` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}</span><PracticeDiagnosticChips chips={selectPiecePracticeMeasureDiagnosticChips(result)} label={`Measure ${result.measureNumber} diagnostic shorthand`} /></summary><ResultMeasure displayScore={displayScore} measureIndex={result.measureIndex} presentation={presentation} state={state} /></details>

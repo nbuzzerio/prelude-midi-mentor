@@ -3,9 +3,11 @@ import { durationToTicks } from "@/features/staff-builder/staff-builder-time";
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff } from "@/features/staff-builder/staff-builder-types";
 import { validateStaffBuilderScore } from "@/features/staff-builder/staff-builder-validation";
 import { deriveStaffBuilderSoundingSpans } from "@/features/staff-builder/staff-builder-sounding-spans";
+import { isPiecePracticeStaffAssessed, type PiecePracticeAssessmentFocus } from "./piece-practice-assessment";
 import type {
   PiecePracticeAttackedPitch,
   PiecePracticeMeasure,
+  PiecePracticePiece,
   PiecePracticeProjectionResult,
   PiecePracticeSourceEvent,
   PiecePracticeSourcePitch,
@@ -16,6 +18,39 @@ const STAFF_ORDER: Readonly<Record<StaffBuilderStaff, number>> = { treble: 0, ba
 
 function pitchEndpointKey(eventId: string, pitchId: string): string {
   return `${eventId}:${pitchId}`;
+}
+
+/** Keep authored score context intact while selecting assessable attacks before input grading. */
+export function focusPiecePracticeProjection(piece: PiecePracticePiece, focus: PiecePracticeAssessmentFocus): PiecePracticePiece {
+  if (focus === "both") return { ...piece, assessmentFocus: focus };
+  return {
+    ...piece,
+    assessmentFocus: focus,
+    measures: piece.measures.map((measure) => ({
+      ...measure,
+      targets: measure.targets.flatMap((target) => {
+        const checks = target.checks.flatMap((check) => {
+          const attackedPitches = check.attackedPitches.filter(({ staff }) => isPiecePracticeStaffAssessed(focus, staff));
+          if (attackedPitches.length === 0) return [];
+          return [{
+            ...check,
+            attackedPitches,
+            sourceEventIds: [...new Set(attackedPitches.map(({ sourceEventId }) => sourceEventId))].sort(),
+            expectedMidiNumbers: [...new Set(attackedPitches.map(({ midiNumber }) => midiNumber))].sort((left, right) => left - right),
+          }];
+        });
+        if (checks.length === 0) return [];
+        const attackedPitches = checks.flatMap(({ attackedPitches }) => attackedPitches);
+        return [{
+          ...target,
+          checks,
+          attackedPitches,
+          sourceEventIds: [...new Set(attackedPitches.map(({ sourceEventId }) => sourceEventId))].sort(),
+          expectedMidiNumbers: [...new Set(attackedPitches.map(({ midiNumber }) => midiNumber))].sort((left, right) => left - right),
+        }];
+      }),
+    })),
+  };
 }
 
 function compareEvents(left: StaffBuilderEvent, right: StaffBuilderEvent): number {
