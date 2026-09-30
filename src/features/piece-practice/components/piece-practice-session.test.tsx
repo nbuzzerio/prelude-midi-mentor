@@ -159,7 +159,7 @@ describe("PiecePracticeSession", () => {
       expectedPitches: [], receivedMidiNumbers: [61], missingMidiNumbers: [], extraMidiNumbers: [61], unexpectedHeldMidiNumbers: [],
     });
     const hesitation = (measureIndex: number, sequence: number) => ({
-      sequence, measureIndex, sourceMeasureId: `m${measureIndex + 1}`, targetId: `t${measureIndex}`, sourceEventIds: [], expectedPitches: [], activatedAtActiveMs: 0,
+      sequence, measureIndex, sourceMeasureId: `m${measureIndex + 1}`, targetId: `t${measureIndex}`, sourceEventIds: [], expectedPitches: [], timingBasis: "target-activation" as const, activatedAtActiveMs: 0,
       completedAtActiveMs: 3_000, responseDurationMs: 3_000, expectedWindowMs: 500, hesitationThresholdMs: 2_500, isHesitation: true, outcome: "completed" as const,
     });
     const state = {

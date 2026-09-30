@@ -272,6 +272,56 @@ describe("usePiecePracticeInput", () => {
     vi.useRealTimers();
   });
 
+  it("arms the first physical target on an incorrect Note On, excluding setup delay", () => {
+    vi.setSystemTime(0);
+    const view = setup(piece([[[60]]]), () => Date.now());
+    act(() => vi.advanceTimersByTime(8_000));
+    midiNote(61); view.sync();
+    expect(view.getState()).toMatchObject({ currentTargetActivatedAtActiveMs: 8_000, firstTargetTimingPending: true });
+    expect(view.getState().mistakeEvidence).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(900));
+    midiNote(60);
+    expect(view.getState().targetTimings[0]).toMatchObject({ timingBasis: "first-attempt", activatedAtActiveMs: 8_000, responseDurationMs: 900, isHesitation: false });
+    expect(view.getState().completedAtActiveMs).toBe(8_900);
+  });
+
+  it("arms the first block chord at its first physical Note On", () => {
+    vi.setSystemTime(0);
+    const view = setup(piece([[[60, 64, 67]]]), () => Date.now());
+    act(() => vi.advanceTimersByTime(8_000));
+    midiNote(60); view.sync();
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBe(8_000);
+    act(() => vi.advanceTimersByTime(100));
+    midiNote(64); midiNote(67);
+    act(() => vi.advanceTimersByTime(125));
+    expect(view.getState().targetTimings[0]).toMatchObject({ timingBasis: "first-attempt", activatedAtActiveMs: 8_000, responseDurationMs: 225 });
+  });
+
+  it("arms the first rolled target at its first physical Note On", () => {
+    vi.setSystemTime(0);
+    const view = setup(rolledPiece(), () => Date.now());
+    act(() => vi.advanceTimersByTime(8_000));
+    midiNote(48); view.sync();
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBe(8_000);
+    act(() => vi.advanceTimersByTime(100));
+    midiNote(52); view.sync();
+    midiNote(72); view.sync();
+    act(() => vi.advanceTimersByTime(100));
+    midiNote(55);
+    expect(view.getState().targetTimings[0]).toMatchObject({ timingBasis: "first-attempt", activatedAtActiveMs: 8_000, responseDurationMs: 200 });
+  });
+
+  it("arms the first virtual-keyboard target on its first selection", () => {
+    vi.setSystemTime(0);
+    const view = setup(piece([[[60, 64]]]), () => Date.now());
+    act(() => vi.advanceTimersByTime(8_000));
+    act(() => view.result.current.onVirtualNoteToggle(60)); view.sync();
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBe(8_000);
+    act(() => vi.advanceTimersByTime(300));
+    act(() => view.result.current.onVirtualNoteToggle(64));
+    expect(view.getState().targetTimings[0]).toMatchObject({ timingBasis: "first-attempt", activatedAtActiveMs: 8_000, responseDurationMs: 300 });
+  });
+
   it("submits correct and incorrect physical single notes through Phase B exactly once", () => {
     const view = setup(piece([[[60]]]));
     midiHeld(61);
@@ -281,7 +331,7 @@ describe("usePiecePracticeInput", () => {
     midiNote(60);
     expect(view.getState()).toMatchObject({ completedTargetCount: 1, status: "piece-complete" });
     midiNote(60);
-    expect(view.onSessionStateChange).toHaveBeenCalledTimes(2);
+    expect(view.onSessionStateChange).toHaveBeenCalledTimes(3);
   });
 
   it("rejects an unrelated held pitch on an otherwise correct single attack", () => {
@@ -298,7 +348,8 @@ describe("usePiecePracticeInput", () => {
     midiNote(60);
     midiNote(60);
     act(() => vi.advanceTimersByTime(224));
-    expect(view.onSessionStateChange).not.toHaveBeenCalled();
+    expect(view.onSessionStateChange).toHaveBeenCalledTimes(1);
+    expect(view.getState()).toMatchObject({ currentTargetActivatedAtActiveMs: 0, firstTargetTimingPending: true });
     midiNote(64);
     act(() => vi.advanceTimersByTime(1));
     expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
@@ -313,7 +364,7 @@ describe("usePiecePracticeInput", () => {
     midiNote(67);
     act(() => vi.advanceTimersByTime(225));
 
-    expect(view.onSessionStateChange).toHaveBeenCalledTimes(1);
+    expect(view.onSessionStateChange).toHaveBeenCalledTimes(2);
     expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
     expect(midiMock.mountCount).toBe(1);
     expect(midiMock.unmountCount).toBe(0);
@@ -336,6 +387,7 @@ describe("usePiecePracticeInput", () => {
     midiNote(60);
     const moved = { ...view.getState(), currentTargetIndex: 1 };
     view.rerender({ sessionState: moved });
+    view.onSessionStateChange.mockClear();
     act(() => vi.advanceTimersByTime(225));
     expect(view.onSessionStateChange).not.toHaveBeenCalled();
   });
@@ -344,6 +396,7 @@ describe("usePiecePracticeInput", () => {
     const view = setup(piece([[[60, 64]]]));
     midiNote(60);
     act(() => view.result.current.resetInput());
+    view.onSessionStateChange.mockClear();
     act(() => vi.advanceTimersByTime(225));
     expect(view.onSessionStateChange).not.toHaveBeenCalled();
   });
@@ -352,6 +405,7 @@ describe("usePiecePracticeInput", () => {
     const view = setup(piece([[[60, 64]]]));
     midiNote(60);
     view.unmount();
+    view.onSessionStateChange.mockClear();
     act(() => vi.advanceTimersByTime(225));
     expect(view.onSessionStateChange).not.toHaveBeenCalled();
   });
@@ -369,7 +423,7 @@ describe("usePiecePracticeInput", () => {
     expect(physical.result.current.feedback.status).toBe("idle");
     expect(physical.result.current.midiChordAttemptMidiNumbers.size).toBe(0);
     act(() => vi.advanceTimersByTime(225));
-    expect(physical.onSessionStateChange).toHaveBeenCalledTimes(2);
+    expect(physical.onSessionStateChange).toHaveBeenCalledTimes(3);
     physical.unmount();
 
     const virtual = setup(piece([[[60, 64, 67], [72]]]));
@@ -488,7 +542,7 @@ describe("usePiecePracticeInput", () => {
       midiNote(60); view.sync();
     }
     midiNote(60);
-    expect(view.onSessionStateChange).toHaveBeenCalledTimes(source.measures[0]!.targets.length ? 1 : 0);
+    expect(view.onSessionStateChange).toHaveBeenCalledTimes(source.measures[0]!.targets.length ? 2 : 0);
   });
 
   it("does not mutate the Piece Practice projection", () => {

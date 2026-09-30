@@ -3,6 +3,7 @@ import { CHORD_ATTEMPT_GRACE_MS, useChordAttempt } from "@/hooks/use-chord-attem
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import type { MidiReleaseObservation } from "@/hooks/use-midi";
 import {
+  armPiecePracticeFirstTarget,
   getCurrentPiecePracticeTarget,
   recordPiecePracticeMidiAttack,
   recordPiecePracticeMidiRelease,
@@ -168,7 +169,8 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       transitionRef.current = { ...transition, firstAttackAtMs: atMs };
     }
     const current = sessionStateRef.current;
-    const withEvidence = recordPiecePracticeMidiAttack(piece, current, midiNumber, attackVelocity, atMs, sourceTimeStampMs);
+    const armed = armPiecePracticeFirstTarget(piece, current, atMs);
+    const withEvidence = recordPiecePracticeMidiAttack(piece, armed, midiNumber, attackVelocity, atMs, sourceTimeStampMs);
     if (withEvidence !== current) {
       sessionStateRef.current = withEvidence;
       onSessionStateChange(withEvidence);
@@ -257,6 +259,12 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   const onVirtualNoteToggle = useCallback((midiNumber: number) => {
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);
     if (!target || sessionStateRef.current.clockPaused) return;
+    const current = sessionStateRef.current;
+    const armed = armPiecePracticeFirstTarget(piece, current, now());
+    if (armed !== current) {
+      sessionStateRef.current = armed;
+      onSessionStateChange(armed);
+    }
     clearAttempt();
     chordTargetIdRef.current = null;
     chordTimingRef.current = null;
@@ -282,7 +290,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     virtualSelectionRef.current = next;
     setVirtualSelectedMidiNumbers(next);
     if (normalCheck && next.size === normalCheck.expectedMidiNumbers.length) submitAttack("virtual", next);
-  }, [clearAttempt, clearVirtualSelection, piece, submitAttack, submitPitch]);
+  }, [clearAttempt, clearVirtualSelection, now, onSessionStateChange, piece, submitAttack, submitPitch]);
 
   useEffect(() => {
     if (sessionState.clockPaused) return;

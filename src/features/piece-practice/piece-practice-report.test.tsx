@@ -4,7 +4,7 @@ import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-t
 import { PiecePracticeResults } from "./components/piece-practice-results";
 import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, mistakeText } from "./piece-practice-report";
 import type { PiecePracticeExpectedPitchSnapshot } from "./piece-practice-evidence";
-import { createPiecePracticeSession, recordPiecePracticeMidiAttack, restartPiecePractice, submitPiecePracticeAttempt, type PiecePracticeSessionState } from "./piece-practice-session";
+import { createPiecePracticeSession, recordPiecePracticeMidiAttack, restartPiecePractice, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, type PiecePracticeSessionState } from "./piece-practice-session";
 import type { PiecePracticePiece } from "./piece-practice-types";
 
 vi.mock("@/hooks/use-browser-print", () => ({ useBrowserPrint: vi.fn() }));
@@ -35,6 +35,18 @@ const view = (state = completed()) => <PiecePracticeResults displayScore={{} as 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Piece Practice note-name-first results and reports", () => {
+  it("describes a skipped, unarmed first target as not timed in Copy Report and print", () => {
+    const skipped = skipCurrentPiecePracticeTarget(piece, initial(), 8_000);
+    if (!skipped.skipped) throw new Error("Expected the first target to be skipped");
+    expect(skipped.state.targetTimings[0]).toMatchObject({ timingBasis: "unarmed-skip", activatedAtActiveMs: null, responseDurationMs: null, isHesitation: false });
+    expect(report(skipped.state)).toContain("Skipped before first attempt; response not timed.");
+    render(view(skipped.state));
+    expect(screen.getByText("Skipped before first attempt; response not timed.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+    fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
+    expect(within(screen.getByLabelText("Study practice report")).getByText("Skipped before first attempt; response not timed.")).toBeTruthy();
+  });
+
   function mistakes() {
     const state = recordPiecePracticeMidiAttack(piece, initial(), 77, 54, 100);
     const failed = submitPiecePracticeAttempt(piece, state, { targetId: "target", attempt: { attackMidiNumbers: [77, 81, 86], heldMidiNumbers: [77, 81, 86] }, atMs: 200 }).state;

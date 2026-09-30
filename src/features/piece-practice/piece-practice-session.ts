@@ -57,6 +57,8 @@ export type PiecePracticeSessionState = Readonly<{
   completedAtActiveMs: number | null;
   currentMeasureEnteredAtActiveMs: number;
   currentTargetActivatedAtActiveMs: number | null;
+  /** Consumed by the first assessable target, including an unarmed skip. */
+  firstTargetTimingPending: boolean;
   currentCheckProgress: readonly PiecePracticeCheckProgress[];
   boundaryReattackPending: boolean;
   status: PiecePracticeSessionStatus;
@@ -186,7 +188,7 @@ function stateForMeasure(piece: PiecePracticePiece, base: Omit<PiecePracticeSess
     boundaryReattackPending: boundaryPitches.length > 0,
     currentMeasureCompletedTargetCount: 0,
     currentMeasureEnteredAtActiveMs: base.activeElapsedMs,
-    currentTargetActivatedAtActiveMs: hasTargets ? base.activeElapsedMs : null,
+    currentTargetActivatedAtActiveMs: hasTargets && !base.firstTargetTimingPending ? base.activeElapsedMs : null,
     status: hasTargets ? "practicing" as const : "awaiting-explicit-measure-advance" as const,
   };
   return { ...partial, currentCheckProgress: progressForTarget(targetForState(piece, partial)) };
@@ -219,6 +221,7 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
       targetTimings: [],
       measureTimings: piece.measures.slice(options.startMeasureIndex, (endMeasureIndex ?? piece.measures.length - 1) + 1).map(({ measureIndex, sourceMeasureId }) => ({ measureIndex, sourceMeasureId, activeDurationMs: 0 })),
       activeElapsedMs: 0,
+      firstTargetTimingPending: true,
       activeSinceMs: options.startedAtMs,
       clockPaused: false,
       completedAtActiveMs: null,
@@ -230,6 +233,13 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
 export function getCurrentPiecePracticeTarget(piece: PiecePracticePiece, state: PiecePracticeSessionState): PiecePracticeTarget | null {
   if (state.status !== "practicing" || state.currentTargetIndex === null) return null;
   return targetForState(piece, state);
+}
+
+/** An input attempt arms the first assessable target; preparation remains in overall elapsed time. */
+export function armPiecePracticeFirstTarget(piece: PiecePracticePiece, state: PiecePracticeSessionState, atMs: number): PiecePracticeSessionState {
+  if (!state.firstTargetTimingPending || state.currentTargetActivatedAtActiveMs !== null || state.clockPaused
+    || !getCurrentPiecePracticeTarget(piece, state)) return state;
+  return { ...state, currentTargetActivatedAtActiveMs: activeElapsedAt(state, atMs) };
 }
 
 function completeCurrentMeasure(piece: PiecePracticePiece, state: PiecePracticeSessionState, atMs: number): PiecePracticeSessionState {
@@ -266,13 +276,14 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
   if (input.targetId !== target.id) return { accepted: false, reason: "stale-target", state };
   const normalCheck = target.checks.find((check) => check.kind === "normal" && !state.currentCheckProgress.find(({ checkId }) => checkId === check.id)?.completed);
   if (!normalCheck) return { accepted: false, reason: "stale-target", state };
-  const grade = gradePiecePracticeTarget({ ...target, ...normalCheck, checks: target.checks }, input.attempt);
   const atMs = input.atMs ?? state.activeSinceMs;
+  const attempted = armPiecePracticeFirstTarget(piece, state, atMs);
+  const grade = gradePiecePracticeTarget({ ...target, ...normalCheck, checks: target.checks }, input.attempt);
   if (!grade.correct) {
     return {
       accepted: true,
       grade,
-      state: appendMistakeEvidence(state, {
+      state: appendMistakeEvidence(attempted, {
         kind: "normal-attempt",
         measureIndex: target.measureIndex,
         sourceMeasureId: target.sourceMeasureId,
@@ -288,9 +299,9 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
     };
   }
 
-  const currentCheckProgress = state.currentCheckProgress.map((progress) => progress.checkId === normalCheck.id ? { ...progress, completed: true } : progress);
-  if (!currentCheckProgress.every(({ completed }) => completed)) return { accepted: true, grade, state: snapshotClock({ ...state, currentCheckProgress }, atMs) };
-  return { accepted: true, grade, state: advanceCompletedTarget(piece, { ...state, currentCheckProgress }, atMs) };
+  const currentCheckProgress = attempted.currentCheckProgress.map((progress) => progress.checkId === normalCheck.id ? { ...progress, completed: true } : progress);
+  if (!currentCheckProgress.every(({ completed }) => completed)) return { accepted: true, grade, state: snapshotClock({ ...attempted, currentCheckProgress }, atMs) };
+  return { accepted: true, grade, state: advanceCompletedTarget(piece, { ...attempted, currentCheckProgress }, atMs) };
 }
 
 export type SubmitPiecePracticePitchResult = Readonly<{
@@ -302,8 +313,11 @@ export type SubmitPiecePracticePitchResult = Readonly<{
 
 function recordTargetTiming(piece: PiecePracticePiece, state: PiecePracticeSessionState, target: PiecePracticeTarget, atMs: number, outcome: "completed" | "skipped"): PiecePracticeSessionState {
   const current = snapshotClock(state, atMs);
-  const activatedAtActiveMs = current.currentTargetActivatedAtActiveMs ?? current.activeElapsedMs;
-  const responseDurationMs = Math.max(0, current.activeElapsedMs - activatedAtActiveMs);
+  const activatedAtActiveMs = current.currentTargetActivatedAtActiveMs ?? (current.firstTargetTimingPending ? null : current.activeElapsedMs);
+  const responseDurationMs = activatedAtActiveMs === null ? null : Math.max(0, current.activeElapsedMs - activatedAtActiveMs);
+  const timingBasis = current.firstTargetTimingPending
+    ? activatedAtActiveMs === null ? "unarmed-skip" : "first-attempt"
+    : "target-activation";
   const expectedWindowMs = getPiecePracticeTargetExpectedWindowMs(piece, target);
   const hesitationThresholdMs = getPiecePracticeHesitationThresholdMs(expectedWindowMs);
   return {
@@ -315,12 +329,13 @@ function recordTargetTiming(piece: PiecePracticePiece, state: PiecePracticeSessi
       targetId: target.id,
       sourceEventIds: target.sourceEventIds,
       expectedPitches: snapshotPiecePracticePitches(target.attackedPitches),
+      timingBasis,
       activatedAtActiveMs,
       completedAtActiveMs: current.activeElapsedMs,
       responseDurationMs,
       expectedWindowMs,
       hesitationThresholdMs,
-      isHesitation: outcome === "completed" && responseDurationMs > hesitationThresholdMs,
+      isHesitation: outcome === "completed" && responseDurationMs !== null && responseDurationMs > hesitationThresholdMs,
       outcome,
     }],
   };
@@ -338,7 +353,7 @@ function advanceCompletedTarget(piece: PiecePracticePiece, state: PiecePracticeS
     currentMeasureCompletedTargetCount: state.currentMeasureCompletedTargetCount + 1,
   }, atMs);
   const nextTargetIndex = 0;
-  const withoutBoundary = { ...timed, boundaryReattackPending: false };
+  const withoutBoundary = { ...timed, boundaryReattackPending: false, firstTargetTimingPending: false };
   return nextTargetIndex < measure.targets.length
     ? { ...withoutBoundary, currentTargetIndex: nextTargetIndex, currentTargetActivatedAtActiveMs: withoutBoundary.activeElapsedMs, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
     : completeCurrentMeasure(piece, withoutBoundary, atMs);
@@ -353,7 +368,7 @@ function advancePastAuthoredTarget(
   const measure = piece.measures[state.currentMeasureIndex];
   if (!measure || state.currentTargetIndex === null || state.currentTargetIndex < 0) return state;
   const nextTargetIndex = state.currentTargetIndex + 1;
-  const advanced = { ...state, ...counters, boundaryReattackPending: false };
+  const advanced = { ...state, ...counters, boundaryReattackPending: false, firstTargetTimingPending: false };
   return nextTargetIndex < measure.targets.length
     ? { ...advanced, currentTargetIndex: nextTargetIndex, currentTargetActivatedAtActiveMs: advanced.activeElapsedMs, currentCheckProgress: progressForTarget(measure.targets[nextTargetIndex]) }
     : completeCurrentMeasure(piece, advanced, atMs);
@@ -380,9 +395,10 @@ export function submitPiecePracticePitch(piece: PiecePracticePiece, state: Piece
   completeSingleNormalCheck?: boolean;
 }>): SubmitPiecePracticePitchResult {
   requireTimestamp(input.atMs);
-  const currentState = expirePiecePracticeRolledChecks(piece, state, input.atMs);
-  const target = getCurrentPiecePracticeTarget(piece, currentState);
-  if (!target || target.id !== input.targetId) return { accepted: false, matched: false, incorrect: false, state: currentState };
+  const expiredState = expirePiecePracticeRolledChecks(piece, state, input.atMs);
+  const target = getCurrentPiecePracticeTarget(piece, expiredState);
+  if (!target || target.id !== input.targetId) return { accepted: false, matched: false, incorrect: false, state: expiredState };
+  const currentState = armPiecePracticeFirstTarget(piece, expiredState, input.atMs);
   const pendingChecks = target.checks.filter((check) => !currentState.currentCheckProgress.find(({ checkId }) => checkId === check.id)?.completed);
   const matchingRolled = pendingChecks.filter((check): check is Extract<PiecePracticeCheck, { kind: "rolled-chord" }> => check.kind === "rolled-chord" && check.expectedMidiNumbers.includes(input.midiNumber));
   const matchingNormal = pendingChecks.find((check) => check.kind === "normal" && check.expectedMidiNumbers.includes(input.midiNumber));
@@ -474,6 +490,7 @@ export function restartCurrentPiecePracticeMeasure(piece: PiecePracticePiece, st
   const current = snapshotClock(state, atMs);
   const restarted = stateForMeasure(piece, {
     ...current,
+    firstTargetTimingPending: true,
     completedTargetCount,
     completedMeasureCount: completedMeasureIndexes.length,
     completedMeasureIndexes,
@@ -500,6 +517,7 @@ export function restartPiecePractice(piece: PiecePracticePiece, state: PiecePrac
       targetTimings: [],
       measureTimings: state.measureTimings.map((result) => ({ ...result, activeDurationMs: 0 })),
       activeElapsedMs: 0,
+      firstTargetTimingPending: true,
       activeSinceMs: startedAtMs,
       clockPaused: false,
       completedAtActiveMs: null,

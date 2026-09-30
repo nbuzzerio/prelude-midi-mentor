@@ -165,12 +165,12 @@ describe("Piece Practice blocking session", () => {
     if (!failed.accepted) throw new Error(failed.reason);
     state = pausePiecePracticeClock(failed.state, 3_000);
     state = resumePiecePracticeClock(state, 13_000);
-    const completed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [60] }, atMs: 18_000 });
+    const completed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [60] }, atMs: 19_000 });
     if (!completed.accepted) throw new Error(completed.reason);
     expect(completed.state.mistakeEvidence).toMatchObject([{ sequence: 0, kind: "normal-attempt", occurredAtActiveMs: 1_000, receivedMidiNumbers: [99], missingMidiNumbers: [60], extraMidiNumbers: [99] }]);
-    expect(completed.state.targetTimings).toMatchObject([{ responseDurationMs: 7_000, isHesitation: true, outcome: "completed" }]);
-    expect(getPiecePracticeMeasureResults(completed.state)).toMatchObject([{ activeDurationMs: 7_000, mistakeCount: 1, hesitationCount: 1, isProblem: true }]);
-    expect(getPiecePracticeElapsedMs(completed.state, 99_000)).toBe(7_000);
+    expect(completed.state.targetTimings).toMatchObject([{ timingBasis: "first-attempt", activatedAtActiveMs: 1_000, responseDurationMs: 7_000, isHesitation: true, outcome: "completed" }]);
+    expect(getPiecePracticeMeasureResults(completed.state)).toMatchObject([{ activeDurationMs: 8_000, mistakeCount: 1, hesitationCount: 1, isProblem: true }]);
+    expect(getPiecePracticeElapsedMs(completed.state, 99_000)).toBe(8_000);
   });
 
   it("accumulates measure time and evidence across Restart Measure", () => {
@@ -289,7 +289,88 @@ describe("Piece Practice blocking session", () => {
   it("initializes on the first target", () => {
     const state = initialized();
     expect(state).toMatchObject({ startMeasureIndex: 0, currentMeasureIndex: 0, currentTargetIndex: 0, status: "practicing" });
+    expect(state).toMatchObject({ firstTargetTimingPending: true, currentTargetActivatedAtActiveMs: null });
     expect(getCurrentPiecePracticeTarget(piece(), state)?.id).toBe("m1:attack:0");
+  });
+
+  it("excludes a long setup delay from the first correct single while retaining overall elapsed time", () => {
+    const source = piece([1]);
+    const result = submitPiecePracticeAttempt(source, initialized(source), {
+      targetId: source.measures[0]!.targets[0]!.id, attempt: { attackMidiNumbers: [60] }, atMs: 9_000,
+    });
+    if (!result.accepted) throw new Error(result.reason);
+    expect(result.state.targetTimings).toMatchObject([{ timingBasis: "first-attempt", activatedAtActiveMs: 8_000, responseDurationMs: 0, isHesitation: false }]);
+    expect(result.state.completedAtActiveMs).toBe(8_000);
+  });
+
+  it("arms on an incorrect first attempt and times the retry from that attempt", () => {
+    const source = piece([1]);
+    const targetId = source.measures[0]!.targets[0]!.id;
+    const failed = submitPiecePracticeAttempt(source, initialized(source), { targetId, attempt: { attackMidiNumbers: [62] }, atMs: 9_000 });
+    if (!failed.accepted) throw new Error(failed.reason);
+    expect(failed.state).toMatchObject({ currentTargetActivatedAtActiveMs: 8_000, firstTargetTimingPending: true });
+    expect(failed.state.mistakeEvidence).toMatchObject([{ occurredAtActiveMs: 8_000, extraMidiNumbers: [62] }]);
+    const corrected = submitPiecePracticeAttempt(source, failed.state, { targetId, attempt: { attackMidiNumbers: [60] }, atMs: 9_900 });
+    if (!corrected.accepted) throw new Error(corrected.reason);
+    expect(corrected.state.targetTimings).toMatchObject([{ timingBasis: "first-attempt", responseDurationMs: 900, isHesitation: false }]);
+  });
+
+  it("keeps the first target unarmed across leading rests and arbitrary range starts", () => {
+    const source = piece([1, 0, 0, 1]);
+    let state = initialized(source, 1, 1_000, 3);
+    expect(state.currentTargetActivatedAtActiveMs).toBeNull();
+    state = advancePiecePracticeNoAttackMeasure(source, state, 4_000).state;
+    state = advancePiecePracticeNoAttackMeasure(source, state, 8_000).state;
+    expect(state).toMatchObject({ currentMeasureIndex: 3, firstTargetTimingPending: true, currentTargetActivatedAtActiveMs: null });
+    const targetId = source.measures[3]!.targets[0]!.id;
+    const completed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [63] }, atMs: 10_000 });
+    if (!completed.accepted) throw new Error(completed.reason);
+    expect(completed.state.targetTimings).toMatchObject([{ timingBasis: "first-attempt", responseDurationMs: 0 }]);
+    expect(completed.state.completedAtActiveMs).toBe(9_000);
+  });
+
+  it("records an unarmed first skip without a response duration, then times the next target normally", () => {
+    const source = piece([2]);
+    const skipped = skipCurrentPiecePracticeTarget(source, initialized(source), 9_000);
+    if (!skipped.skipped) throw new Error(skipped.reason);
+    expect(skipped.state.targetTimings).toMatchObject([{ timingBasis: "unarmed-skip", activatedAtActiveMs: null, responseDurationMs: null, isHesitation: false, outcome: "skipped" }]);
+    expect(skipped.state).toMatchObject({ firstTargetTimingPending: false, currentTargetActivatedAtActiveMs: 8_000 });
+    const targetId = source.measures[0]!.targets[1]!.id;
+    const completed = submitPiecePracticeAttempt(source, skipped.state, { targetId, attempt: { attackMidiNumbers: [61] }, atMs: 10_000 });
+    if (!completed.accepted) throw new Error(completed.reason);
+    expect(completed.state.targetTimings[1]).toMatchObject({ timingBasis: "target-activation", responseDurationMs: 1_000 });
+  });
+
+  it("preserves first-target arming and active-time exclusion across pause and resume", () => {
+    const source = piece([1]);
+    const targetId = source.measures[0]!.targets[0]!.id;
+    let state = resumePiecePracticeClock(pausePiecePracticeClock(initialized(source), 2_000), 12_000);
+    expect(state).toMatchObject({ firstTargetTimingPending: true, currentTargetActivatedAtActiveMs: null });
+    const first = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [62] }, atMs: 13_000 });
+    if (!first.accepted) throw new Error(first.reason);
+    state = resumePiecePracticeClock(pausePiecePracticeClock(first.state, 13_500), 23_500);
+    const completed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [60] }, atMs: 24_400 });
+    if (!completed.accepted) throw new Error(completed.reason);
+    expect(completed.state.targetTimings).toMatchObject([{ timingBasis: "first-attempt", responseDurationMs: 1_400 }]);
+  });
+
+  it("rearms only a fresh Piece or Measure restart; later target activation remains unchanged", () => {
+    const source = piece([2]);
+    const firstId = source.measures[0]!.targets[0]!.id;
+    const secondId = source.measures[0]!.targets[1]!.id;
+    const first = submitPiecePracticeAttempt(source, initialized(source), { targetId: firstId, attempt: { attackMidiNumbers: [60] }, atMs: 9_000 });
+    if (!first.accepted) throw new Error(first.reason);
+    expect(first.state).toMatchObject({ firstTargetTimingPending: false, currentTargetActivatedAtActiveMs: 8_000 });
+    const second = submitPiecePracticeAttempt(source, first.state, { targetId: secondId, attempt: { attackMidiNumbers: [61] }, atMs: 9_900 });
+    if (!second.accepted) throw new Error(second.reason);
+    expect(second.state.targetTimings[1]).toMatchObject({ timingBasis: "target-activation", activatedAtActiveMs: 8_000, responseDurationMs: 900 });
+    const whole = restartPiecePractice(source, second.state, 20_000);
+    expect(whole).toMatchObject({ firstTargetTimingPending: true, currentTargetActivatedAtActiveMs: null });
+    const measure = restartCurrentPiecePracticeMeasure(source, first.state, 20_000);
+    expect(measure).toMatchObject({ firstTargetTimingPending: true, currentTargetActivatedAtActiveMs: null, currentTargetIndex: 0 });
+    const afterRestart = submitPiecePracticeAttempt(source, measure, { targetId: firstId, attempt: { attackMidiNumbers: [60] }, atMs: 25_000 });
+    if (!afterRestart.accepted) throw new Error(afterRestart.reason);
+    expect(afterRestart.state.targetTimings.at(-1)).toMatchObject({ timingBasis: "first-attempt", responseDurationMs: 0 });
   });
 
   it("advances a correct target to the next target", () => {

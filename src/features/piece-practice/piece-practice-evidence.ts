@@ -83,9 +83,10 @@ export type PiecePracticeTargetTiming = Readonly<{
   targetId: string;
   sourceEventIds: readonly string[];
   expectedPitches: readonly PiecePracticeExpectedPitchSnapshot[];
-  activatedAtActiveMs: number;
+  timingBasis: "first-attempt" | "target-activation" | "unarmed-skip";
+  activatedAtActiveMs: number | null;
   completedAtActiveMs: number;
-  responseDurationMs: number;
+  responseDurationMs: number | null;
   expectedWindowMs: number;
   hesitationThresholdMs: number;
   isHesitation: boolean;

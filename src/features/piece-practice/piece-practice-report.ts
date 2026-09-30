@@ -72,8 +72,14 @@ export function formatPiecePracticeReport({ title, rangeText, state, includeAtta
       if (text.held.length) lines.push(`Unexpected held: ${text.held.join(", ")}`);
     }
     for (const timing of state.targetTimings.filter(({ measureIndex, isHesitation }) => measureIndex === result.measureIndex && isHesitation)) {
+      if (timing.responseDurationMs === null) continue;
       const context = getPiecePracticeReportPitchContext(timing, presentation, timing.expectedPitches);
       lines.push(`Slow response: ${timing.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { ...context, expectedPitches: [pitch] })).join(", ")} - ${(timing.responseDurationMs / 1000).toFixed(1)}s`);
+    }
+    for (const timing of state.targetTimings) {
+      if (timing.measureIndex === result.measureIndex && timing.timingBasis === "unarmed-skip") {
+        lines.push("Skipped before first attempt; response not timed.");
+      }
     }
     if (includeAttackStrength) {
       const attacks = (state.attackEvidence ?? []).filter(({ measureIndex }) => measureIndex === result.measureIndex);
