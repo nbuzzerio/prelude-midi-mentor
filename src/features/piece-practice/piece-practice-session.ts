@@ -1,6 +1,6 @@
 import { gradePiecePracticeTarget, type PiecePracticeAttempt, type PiecePracticeGrade } from "./piece-practice-validation";
 import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
-import { getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
+import { classifyPiecePracticePitch, getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
 import type { MidiReleaseObservation } from "@/hooks/use-midi";
 import type { PiecePracticeAssessmentFocus } from "./piece-practice-assessment";
 import {
@@ -16,6 +16,7 @@ import {
   type PiecePracticeMistakeEvidence,
   type PiecePracticeMistakeEvidenceDraft,
   type PiecePracticeSkipEvidence,
+  type PiecePracticeRestartEvidence,
   type PiecePracticeTargetTiming,
 } from "./piece-practice-evidence";
 
@@ -51,6 +52,7 @@ export type PiecePracticeSessionState = Readonly<{
   releaseEvidence?: readonly PiecePracticeReleaseEvidence[];
   mistakeEvidence: readonly PiecePracticeMistakeEvidence[];
   skipEvidence: readonly PiecePracticeSkipEvidence[];
+  restartEvidence: readonly PiecePracticeRestartEvidence[];
   targetTimings: readonly PiecePracticeTargetTiming[];
   measureTimings: readonly PiecePracticeMeasureTiming[];
   activeElapsedMs: number;
@@ -74,7 +76,7 @@ export type CreatePiecePracticeSessionResult =
 export type PiecePracticeMeasureResult = PiecePracticeMeasureDiagnostic;
 
 export type SubmitPiecePracticeAttemptResult =
-  | Readonly<{ accepted: false; reason: "not-practicing" | "stale-target"; state: PiecePracticeSessionState }>
+  | Readonly<{ accepted: false; reason: "not-practicing" | "stale-target" | "optional-context"; state: PiecePracticeSessionState }>
   | Readonly<{ accepted: true; grade: PiecePracticeGrade; state: PiecePracticeSessionState }>;
 
 export type AdvancePiecePracticeMeasureResult =
@@ -221,6 +223,7 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
       completedMeasureIndexes: [],
       mistakeEvidence: [],
       skipEvidence: [],
+      restartEvidence: [],
       targetTimings: [],
       measureTimings: piece.measures.slice(options.startMeasureIndex, (endMeasureIndex ?? piece.measures.length - 1) + 1).map(({ measureIndex, sourceMeasureId }) => ({ measureIndex, sourceMeasureId, activeDurationMs: 0 })),
       activeElapsedMs: 0,
@@ -279,9 +282,12 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
   if (input.targetId !== target.id) return { accepted: false, reason: "stale-target", state };
   const normalCheck = target.checks.find((check) => check.kind === "normal" && !state.currentCheckProgress.find(({ checkId }) => checkId === check.id)?.completed);
   if (!normalCheck) return { accepted: false, reason: "stale-target", state };
+  const attackMidiNumbers = [...input.attempt.attackMidiNumbers].filter((pitch) => classifyPiecePracticePitch(piece, target, pitch) !== "optional");
+  if (!attackMidiNumbers.length) return { accepted: false, reason: "optional-context", state };
+  const heldMidiNumbers = [...(input.attempt.heldMidiNumbers ?? [])].filter((pitch) => classifyPiecePracticePitch(piece, target, pitch) !== "optional");
   const atMs = input.atMs ?? state.activeSinceMs;
   const attempted = armPiecePracticeFirstTarget(piece, state, atMs);
-  const grade = gradePiecePracticeTarget({ ...target, ...normalCheck, checks: target.checks }, input.attempt, state.assessmentFocus);
+  const grade = gradePiecePracticeTarget({ ...target, ...normalCheck, checks: target.checks }, { ...input.attempt, attackMidiNumbers, heldMidiNumbers });
   if (!grade.correct) {
     return {
       accepted: true,
@@ -398,6 +404,10 @@ export function submitPiecePracticePitch(piece: PiecePracticePiece, state: Piece
   completeSingleNormalCheck?: boolean;
 }>): SubmitPiecePracticePitchResult {
   requireTimestamp(input.atMs);
+  const currentTarget = getCurrentPiecePracticeTarget(piece, state);
+  if (currentTarget?.id === input.targetId && classifyPiecePracticePitch(piece, currentTarget, input.midiNumber) === "optional") {
+    return { accepted: false, matched: false, incorrect: false, state };
+  }
   const expiredState = expirePiecePracticeRolledChecks(piece, state, input.atMs);
   const target = getCurrentPiecePracticeTarget(piece, expiredState);
   if (!target || target.id !== input.targetId) return { accepted: false, matched: false, incorrect: false, state: expiredState };
@@ -493,6 +503,7 @@ export function restartCurrentPiecePracticeMeasure(piece: PiecePracticePiece, st
   const current = snapshotClock(state, atMs);
   const restarted = stateForMeasure(piece, {
     ...current,
+    restartEvidence: [...current.restartEvidence, { sequence: current.restartEvidence.length, measureIndex: measure.measureIndex, sourceMeasureId: measure.sourceMeasureId, occurredAtActiveMs: current.activeElapsedMs }],
     firstTargetTimingPending: true,
     completedTargetCount,
     completedMeasureCount: completedMeasureIndexes.length,
@@ -518,6 +529,7 @@ export function restartPiecePractice(piece: PiecePracticePiece, state: PiecePrac
     completedMeasureIndexes: [],
       mistakeEvidence: [],
       skipEvidence: [],
+      restartEvidence: [],
       targetTimings: [],
       measureTimings: state.measureTimings.map((result) => ({ ...result, activeDurationMs: 0 })),
       activeElapsedMs: 0,

@@ -1013,6 +1013,8 @@ A source score ID can point to a changed or deleted piece, and a generated PDF c
 - Pending active checkpoints may coalesce to their newest revision, while terminal lifecycle writes remain ordered. A newly completed report remains unload-protected until its latest completed revision is committed; a failed save requires explicit acknowledgement to leave.
 - Staff Builder library data and Practice Session persistence remain separate.
 
+The 2.8.6 cleanup ranks parsed valid runs before presenting recovery candidates and keeps invalid records available for explicit discard. Focused input first accepts required pitches, then permits exact unassessed semantic-staff sounding spans at the current assessed target tick, then grades unexpected pitches within an inclusive three-semitone register guard. Both Staves stays strict; optional context cannot arm first-target timing. Deliberate Restart Measure actions are durable process evidence within the same run, distinct from target retries and from new-run Restart Piece / Practice Again. Copy and PDF derive restart counts from that evidence. Score-view highlights render behind notation without changing target identity or grading.
+
 ---
 
 # Adding Future Decisions

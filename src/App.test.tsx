@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 
 import App from "./App";
+import { version } from "../package.json";
 import { useAppMidiInput } from "./hooks/use-app-midi-input";
 
 const appStyles = readFileSync(resolve(process.cwd(), "src/index.css"), "utf8");
@@ -132,9 +133,9 @@ describe("App focus mode", () => {
   it("exposes the package version in the persistent mode navigation", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
-    const version = within(navigation).getByLabelText("Prelude v2.8.5");
-    expect(version.textContent).toBe("v2.8.5");
-    expect(version.getAttribute("title")).toBe("Prelude v2.8.5");
+    const versionLabel = within(navigation).getByLabelText(`Prelude v${version}`);
+    expect(versionLabel.textContent).toBe(`v${version}`);
+    expect(versionLabel.getAttribute("title")).toBe(`Prelude v${version}`);
   });
 
   it("shares focus state between the visible control and keyboard shortcut", () => {

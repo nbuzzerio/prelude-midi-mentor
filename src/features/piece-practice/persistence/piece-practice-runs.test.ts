@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
-import { armPiecePracticeFirstTarget, createPiecePracticeSession, pausePiecePracticeClock, recordPiecePracticeMidiAttack, recordPiecePracticeMidiRelease, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
+import { armPiecePracticeFirstTarget, createPiecePracticeSession, pausePiecePracticeClock, recordPiecePracticeMidiAttack, recordPiecePracticeMidiRelease, restartCurrentPiecePracticeMeasure, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
 import { formatPiecePracticeReport } from "../piece-practice-report";
 import { createPiecePracticeRun, hydratePiecePracticeRun, parsePiecePracticeRun, PiecePracticeRunWriteCoordinator, revisePiecePracticeRun, selectPiecePracticeRecovery, type PiecePracticeRunRecordV1 } from "./piece-practice-runs";
 
@@ -392,7 +392,46 @@ describe("Piece Practice write coordination", () => {
     const older = createPiecePracticeRun(score, state, 100, new Date(DATE));
     const newer = createPiecePracticeRun(score, state, 100, new Date(Date.parse(DATE) + 1_000));
     const selected = selectPiecePracticeRecovery([older, newer]);
-    expect(selected.active).toEqual([newer, older]);
+    expect(selected.active.map(({ record }) => record)).toEqual([newer, older]);
     expect(selected.latestCompleted).toBeNull();
+  });
+
+  it("selects valid active and completed runs before invalid newer records without deleting them", () => {
+    const { state, piece } = setup("upper");
+    const older = createPiecePracticeRun(score, state, 100, new Date(DATE));
+    const newerValid = createPiecePracticeRun(score, state, 100, new Date(Date.parse(DATE) + 1_000));
+    const complete = submitPiecePracticeAttempt(piece, state, { targetId: piece.measures[0]!.targets[0]!.id, attempt: { attackMidiNumbers: [60] }, atMs: 120 });
+    if (!complete.accepted) throw new Error("Expected completion.");
+    const completed = createPiecePracticeRun(score, complete.state, 120, new Date(Date.parse(DATE) + 2_000));
+    const corruptCompleted = { ...completed, runId: "broken-report", sourceScore: null, completedAt: new Date(Date.parse(DATE) + 9_000).toISOString() };
+    const corruptActive = { ...older, runId: "broken-active", sourceScore: null, updatedAt: new Date(Date.parse(DATE) + 8_000).toISOString() };
+    const futureActive = { ...older, runId: "future-active", schemaVersion: 2, updatedAt: new Date(Date.parse(DATE) + 7_000).toISOString() };
+    const selected = selectPiecePracticeRecovery([corruptCompleted, corruptActive, futureActive, older, completed, newerValid]);
+    expect(selected.active.map(({ record }) => record.runId)).toEqual([newerValid.runId, older.runId]);
+    expect(selected.latestCompleted?.record.runId).toBe(completed.runId);
+    expect(selected.unrecoverable.map(({ runId, reason }) => ({ runId, reason }))).toEqual([
+      { runId: "broken-report", reason: "corrupt" }, { runId: "broken-active", reason: "corrupt" }, { runId: "future-active", reason: "unsupported" },
+    ]);
+  });
+
+  it("round trips measure restart evidence and accepts older V1 checkpoints without it", () => {
+    const { state, piece } = setup("upper");
+    const restarted = restartCurrentPiecePracticeMeasure(piece, restartCurrentPiecePracticeMeasure(piece, state, 150), 200);
+    const record = createPiecePracticeRun(score, restarted, 200);
+    const parsed = parsePiecePracticeRun(structuredClone(record));
+    expect(parsed.ok).toBe(true);
+    expect(hydratePiecePracticeRun(record, 500).restartEvidence).toEqual([
+      { sequence: 0, measureIndex: 0, sourceMeasureId: "m1", occurredAtActiveMs: 50 },
+      { sequence: 1, measureIndex: 0, sourceMeasureId: "m1", occurredAtActiveMs: 100 },
+    ]);
+    const legacy = { ...record, checkpoint: { ...record.checkpoint, restartEvidence: undefined } };
+    expect(parsePiecePracticeRun(legacy).ok).toBe(true);
+    expect(hydratePiecePracticeRun(legacy, 500).restartEvidence).toEqual([]);
+    const completed = submitPiecePracticeAttempt(piece, restarted, { targetId: piece.measures[0]!.targets[0]!.id, attempt: { attackMidiNumbers: [60] }, atMs: 250 });
+    if (!completed.accepted) throw new Error("Expected completed report.");
+    const historical = parsePiecePracticeRun(structuredClone(createPiecePracticeRun(score, completed.state, 250)));
+    expect(historical.ok).toBe(true);
+    if (historical.ok) expect(formatPiecePracticeReport({ title: "Study", rangeText: "Measure 1", state: hydratePiecePracticeRun(historical.record, 1_000) })).toContain("Restarts: 2");
+    expect(parsePiecePracticeRun({ ...record, checkpoint: { ...record.checkpoint, restartEvidence: [{ ...restarted.restartEvidence[0], sequence: 9 }] } }).ok).toBe(false);
   });
 });

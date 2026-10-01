@@ -101,6 +101,14 @@ export type PiecePracticeSkipEvidence = Readonly<{
   occurredAtActiveMs: number;
 }>;
 
+/** A deliberate Restart Measure action; distinct from retries and pitch mistakes. */
+export type PiecePracticeRestartEvidence = Readonly<{
+  sequence: number;
+  measureIndex: number;
+  sourceMeasureId: string;
+  occurredAtActiveMs: number;
+}>;
+
 export type PiecePracticeMeasureTiming = Readonly<{
   measureIndex: number;
   sourceMeasureId: string;
@@ -114,6 +122,7 @@ export type PiecePracticeMeasureDiagnostic = Readonly<{
   mistakeCount: number;
   hesitationCount: number;
   skippedTargetCount: number;
+  restartCount: number;
   activeDurationMs: number;
   isProblem: boolean;
   completedWithoutMistakes: boolean;
@@ -143,19 +152,22 @@ export function derivePiecePracticeMeasureDiagnostics(input: Readonly<{
   measureTimings: readonly PiecePracticeMeasureTiming[];
   mistakeEvidence: readonly PiecePracticeMistakeEvidence[];
   skipEvidence: readonly PiecePracticeSkipEvidence[];
+  restartEvidence?: readonly PiecePracticeRestartEvidence[];
   targetTimings: readonly PiecePracticeTargetTiming[];
 }>): readonly PiecePracticeMeasureDiagnostic[] {
   return input.measureTimings.map((timing) => {
     const mistakeCount = input.mistakeEvidence.filter(({ measureIndex }) => measureIndex === timing.measureIndex).length;
     const hesitationCount = input.targetTimings.filter(({ measureIndex, isHesitation }) => measureIndex === timing.measureIndex && isHesitation).length;
     const skippedTargetCount = input.skipEvidence.filter(({ measureIndex }) => measureIndex === timing.measureIndex).length;
+    const restartCount = (input.restartEvidence ?? []).filter(({ measureIndex }) => measureIndex === timing.measureIndex).length;
     return {
       ...timing,
       measureNumber: timing.measureIndex + 1,
       mistakeCount,
       hesitationCount,
       skippedTargetCount,
-      isProblem: mistakeCount > 0 || hesitationCount > 0 || skippedTargetCount > 0,
+      restartCount,
+      isProblem: mistakeCount > 0 || hesitationCount > 0 || skippedTargetCount > 0 || restartCount > 0,
       completedWithoutMistakes: mistakeCount === 0,
     };
   });
@@ -166,6 +178,7 @@ export function selectPiecePracticeMeasureDiagnosticChips(diagnostic: PiecePract
     ...(diagnostic.mistakeCount > 0 ? [{ id: "pitch-problem", kind: "problem", label: "Pitch", count: diagnostic.mistakeCount, accessibleText: `Pitch problem evidence: ${diagnostic.mistakeCount} ${diagnostic.mistakeCount === 1 ? "mistake" : "mistakes"} in measure ${diagnostic.measureNumber}` } as const] : []),
     ...(diagnostic.hesitationCount > 0 ? [{ id: "hesitation", kind: "problem", label: "Hesitation", count: diagnostic.hesitationCount, accessibleText: `${diagnostic.hesitationCount} tempo-aware slow ${diagnostic.hesitationCount === 1 ? "response" : "responses"} in measure ${diagnostic.measureNumber}` } as const] : []),
     ...(diagnostic.skippedTargetCount > 0 ? [{ id: "skipped", kind: "process", label: "Skipped", count: diagnostic.skippedTargetCount, accessibleText: `${diagnostic.skippedTargetCount} ${diagnostic.skippedTargetCount === 1 ? "target was" : "targets were"} skipped in measure ${diagnostic.measureNumber}` } as const] : []),
+    ...(diagnostic.restartCount > 0 ? [{ id: "restart", kind: "process", label: "Restart", count: diagnostic.restartCount, accessibleText: `${diagnostic.restartCount} deliberate measure ${diagnostic.restartCount === 1 ? "restart" : "restarts"} in measure ${diagnostic.measureNumber}` } as const] : []),
   ]);
 }
 

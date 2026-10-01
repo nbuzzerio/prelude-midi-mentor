@@ -1,6 +1,20 @@
 import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
 import { isPiecePracticeStaffAssessed } from "./piece-practice-assessment";
 
+export const STAFF_FOCUS_GUARD_SEMITONES = 3;
+
+/** Classifies a new pitch at the assessed target's score tick, independent of displayed clef. */
+export function classifyPiecePracticePitch(piece: PiecePracticePiece, target: PiecePracticeTarget, midiNumber: number): "required" | "relevant" | "optional" {
+  if (target.expectedMidiNumbers.includes(midiNumber)) return "required";
+  const focus = piece.assessmentFocus ?? "both";
+  if (focus === "both") return "relevant";
+  if ((piece.soundingSpans ?? []).some((span) => span.midiNumber === midiNumber
+    && !isPiecePracticeStaffAssessed(focus, span.staff)
+    && span.attackTick <= target.absoluteStartTick && target.absoluteStartTick < span.endTick)) return "optional";
+  if (focus === "upper") return midiNumber >= Math.min(...target.expectedMidiNumbers) - STAFF_FOCUS_GUARD_SEMITONES ? "relevant" : "optional";
+  return midiNumber <= Math.max(...target.expectedMidiNumbers) + STAFF_FOCUS_GUARD_SEMITONES ? "relevant" : "optional";
+}
+
 /** Initial empirical release-overlap allowance, not articulation grading. */
 export const PIECE_PRACTICE_RELEASE_OVERLAP_GRACE_MS = 250;
 

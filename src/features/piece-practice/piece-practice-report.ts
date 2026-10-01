@@ -65,6 +65,7 @@ export function formatPiecePracticeReport({ title, rangeText, state, includeAtta
   ];
   for (const result of results) {
     lines.push("", `Measure ${result.measureNumber}: ${result.mistakeCount} mistakes, ${result.hesitationCount} slow responses, ${result.skippedTargetCount} skipped, ${(result.activeDurationMs / 1000).toFixed(1)}s`);
+    if (result.restartCount) lines.push(`Restarts: ${result.restartCount}`);
     for (const item of state.mistakeEvidence.filter(({ measureIndex }) => measureIndex === result.measureIndex)) {
       const text = mistakeText(item, presentation);
       lines.push(text.label, `Expected: ${text.expected}`, `Played: ${text.played}`);

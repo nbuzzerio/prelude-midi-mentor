@@ -1,7 +1,7 @@
 export type PracticeDiagnosticChip = Readonly<{
-  id: "pitch-problem" | "identification" | "hesitation" | "retried" | "skipped" | "melody-pitch-metric" | "melody-movement-metric" | "melody-timing-metric";
+  id: "pitch-problem" | "identification" | "hesitation" | "retried" | "skipped" | "restart" | "melody-pitch-metric" | "melody-movement-metric" | "melody-timing-metric";
   kind: "problem" | "process" | "metric";
-  label: "Pitch" | "Identification" | "Hesitation" | "Retried" | "Skipped" | "Movement" | "Timing";
+  label: "Pitch" | "Identification" | "Hesitation" | "Retried" | "Skipped" | "Restart" | "Movement" | "Timing";
   accessibleText: string;
   count?: number;
   value?: string;

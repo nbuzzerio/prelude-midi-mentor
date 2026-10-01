@@ -676,6 +676,40 @@ describe("Piece Practice Staff Focus input", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(0); midiMock.options = null; midiMock.status = "connected"; });
   afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
 
+  it("grades a nearby wrong physical block attack and ignores a far optional attack before collection", () => {
+    const source = staffedPiece(piece([[[40, 42, 46]]]), "lower", [40, 42, 46]);
+    const view = setup(source, () => Date.now());
+    midiNote(72); view.sync();
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBeNull();
+    expect(view.result.current.midiChordAttemptMidiNumbers.size).toBe(0);
+    midiNote(40); midiNote(49); view.sync();
+    expect(view.getState().mistakeEvidence).toMatchObject([{ extraMidiNumbers: [49] }]);
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBe(0);
+  });
+
+  it("grades nearby wrong rolled Note On but does not poison the roll with far context", () => {
+    const source = staffedPiece(rolledPiece(), "lower", [48, 52, 55]);
+    const view = setup(source, () => Date.now());
+    midiNote(72); view.sync();
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBeNull();
+    midiNote(48); view.sync();
+    midiNote(58); view.sync();
+    expect(view.getState().mistakeEvidence).toMatchObject([{ kind: "rolled-unexpected-pitch", receivedMidiNumber: 58 }]);
+    expect(view.getState().currentCheckProgress[0]?.accumulatedMidiNumbers).toEqual([48]);
+  });
+
+  it("uses the same optional classification for virtual input and arms on the first relevant wrong note", () => {
+    const source = staffedPiece(piece([[[40]]]), "lower", [40]);
+    const view = setup(source, () => Date.now());
+    act(() => view.result.current.onVirtualNoteToggle(72)); view.sync();
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBeNull();
+    expect(view.getState().mistakeEvidence).toHaveLength(0);
+    act(() => vi.advanceTimersByTime(500));
+    act(() => view.result.current.onVirtualNoteToggle(43)); view.sync();
+    expect(view.getState().mistakeEvidence).toMatchObject([{ extraMidiNumbers: [43] }]);
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBe(500);
+  });
+
   it("requires the upper semantic staff while ignoring a lower optional attack", () => {
     const source = staffedPiece(piece([[[81, 60]]]), "upper", [60]);
     const view = setup(source, () => Date.now());
@@ -692,7 +726,7 @@ describe("Piece Practice Staff Focus input", () => {
     act(() => vi.advanceTimersByTime(8_000));
     midiHeld(81);
     act(() => midiMock.options?.onNotePlayed(81, 66, 12.5)); view.sync();
-    expect(view.getState()).toMatchObject({ status: "practicing", currentTargetActivatedAtActiveMs: 8_000 });
+    expect(view.getState()).toMatchObject({ status: "practicing", currentTargetActivatedAtActiveMs: null });
     expect(view.getState().mistakeEvidence).toHaveLength(0);
     expect(view.getState().attackEvidence).toMatchObject([{ midiNumber: 81, attackVelocity: 66, occurredAtActiveMs: 8_000, sourceTimeStampMs: 12.5 }]);
     act(() => midiMock.options?.onNotePlayed(99, 45)); view.sync();
@@ -701,7 +735,7 @@ describe("Piece Practice Staff Focus input", () => {
     midiHeld(81, 99, 60);
     act(() => midiMock.options?.onNotePlayed(60, 72));
     expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
-    expect(view.getState().targetTimings[0]).toMatchObject({ timingBasis: "first-attempt", responseDurationMs: 700 });
+    expect(view.getState().targetTimings[0]).toMatchObject({ timingBasis: "first-attempt", responseDurationMs: 0 });
     expect(view.getState().mistakeEvidence).toHaveLength(0);
     expect(view.getState().attackEvidence?.map(({ midiNumber }) => midiNumber)).toEqual([81, 99, 60]);
     act(() => midiMock.options?.onNoteReleased?.({ midiNumber: 81, encoding: "note-off", releaseVelocity: 32 }));
@@ -756,7 +790,7 @@ describe("Piece Practice Staff Focus input", () => {
     act(() => view.result.current.onVirtualNoteToggle(81)); view.sync();
     act(() => view.result.current.onVirtualNoteToggle(99)); view.sync();
     expect([...view.result.current.virtualSelectedMidiNumbers].sort()).toEqual([81, 99]);
-    expect(view.getState().currentTargetActivatedAtActiveMs).toBe(0);
+    expect(view.getState().currentTargetActivatedAtActiveMs).toBeNull();
     for (const note of [34, 38, 41]) { act(() => view.result.current.onVirtualNoteToggle(note)); view.sync(); }
     expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1 });
     expect(view.getState().mistakeEvidence).toHaveLength(0);

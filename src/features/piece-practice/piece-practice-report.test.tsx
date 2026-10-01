@@ -4,7 +4,7 @@ import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-t
 import { PiecePracticeResults } from "./components/piece-practice-results";
 import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, mistakeText } from "./piece-practice-report";
 import type { PiecePracticeExpectedPitchSnapshot } from "./piece-practice-evidence";
-import { createPiecePracticeSession, recordPiecePracticeMidiAttack, restartPiecePractice, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, type PiecePracticeSessionState } from "./piece-practice-session";
+import { createPiecePracticeSession, recordPiecePracticeMidiAttack, restartCurrentPiecePracticeMeasure, restartPiecePractice, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, type PiecePracticeSessionState } from "./piece-practice-session";
 import type { PiecePracticePiece } from "./piece-practice-types";
 
 vi.mock("@/hooks/use-browser-print", () => ({ useBrowserPrint: vi.fn() }));
@@ -35,6 +35,33 @@ const view = (state = completed()) => <PiecePracticeResults displayScore={{} as 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Piece Practice note-name-first results and reports", () => {
+  it("shares two deliberate restarts across Copy Report and default problem-scope PDF without counting mistakes", async () => {
+    const restarted = restartCurrentPiecePracticeMeasure(piece, restartCurrentPiecePracticeMeasure(piece, initial(), 100), 200);
+    const finished = submitPiecePracticeAttempt(piece, restarted, { targetId: "target", attempt: { attackMidiNumbers: [60] }, atMs: 300 }).state;
+    expect(finished.restartEvidence).toMatchObject([{ sequence: 0, occurredAtActiveMs: 100 }, { sequence: 1, occurredAtActiveMs: 200 }]);
+    expect(finished.mistakeEvidence).toHaveLength(0);
+    expect(finished.skipEvidence).toHaveLength(0);
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(view(finished));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Report" }));
+    await screen.findByText("Report copied.");
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Restarts: 2"));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Problem measures: 1"));
+    fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+    expect((screen.getByLabelText("Problem measures only") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
+    const printed = within(screen.getByLabelText("Study practice report"));
+    expect(printed.getByRole("heading", { name: "Measure 1" })).toBeTruthy();
+    expect(printed.getByText(/Restarts: 2/)).toBeTruthy();
+  });
+
+  it("does not turn a normal target retry into restart evidence", () => {
+    const failed = submitPiecePracticeAttempt(piece, initial(), { targetId: "target", attempt: { attackMidiNumbers: [61] }, atMs: 100 }).state;
+    const retried = submitPiecePracticeAttempt(piece, failed, { targetId: "target", attempt: { attackMidiNumbers: [60] }, atMs: 200 }).state;
+    expect(retried.restartEvidence).toEqual([]);
+    expect(report(retried)).not.toContain("Restarts:");
+  });
   it("labels completed results, Copy Report, and print from run assessment state", async () => {
     const state = { ...completed(), assessmentFocus: "lower" as const };
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);

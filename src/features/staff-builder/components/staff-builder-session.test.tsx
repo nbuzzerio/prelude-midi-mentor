@@ -197,11 +197,35 @@ describe("Staff Builder recovery entry", () => {
     const active = savedPracticeRun(savedValidScore("Unsupported"));
     runBoundary.records = [{ ...active, schemaVersion: 2 }, { ...active, runId: "corrupt-run", sourceScore: null, updatedAt: "2026-08-13T12:00:00.000Z" }];
     render(<StaffBuilderSession storage={storage} />);
-    const recovery = await screen.findByRole("region", { name: "Recovered practice session" });
-    expect(recovery.textContent).toMatch(/cannot be recovered/);
+    const recovery = await screen.findByText("Unrecoverable saved runs (2)");
+    expect(recovery.closest("details")?.textContent).toMatch(/unsupported version/);
     expect(screen.queryByRole("button", { name: "Resume Practice" })).toBeNull();
     expect(practiceBoundary.piece).toBeNull();
-    expect(within(recovery).getAllByRole("button", { name: "Discard" })).toHaveLength(2);
+    expect(within(recovery.closest("details")!).getAllByRole("button", { name: "Discard", hidden: true })).toHaveLength(2);
+  });
+
+  it("keeps valid Resume and Open Report visible behind newer invalid entries and discards only the chosen invalid run", async () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, []);
+    const active = savedPracticeRun(savedValidScore("Valid Active"));
+    const completed = savedPracticeRun(savedValidScore("Valid Report"), true);
+    const invalidActive = { ...active, runId: "invalid-active", schemaVersion: 2, updatedAt: "2026-12-31T00:00:00.000Z" };
+    const invalidCompleted = { ...completed, runId: "invalid-completed", sourceScore: null, completedAt: "2026-12-31T00:00:00.000Z" };
+    runBoundary.records = [invalidActive, invalidCompleted, active, completed];
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    render(<StaffBuilderSession storage={storage} />);
+    expect((await screen.findByRole("region", { name: "Recovered practice session" })).textContent).toContain("Valid Active");
+    expect(screen.getByRole("region", { name: "Last completed practice" }).textContent).toContain("Valid Report");
+    const invalid = screen.getByText("Unrecoverable saved runs (2)").closest("details")!;
+    expect(invalid.textContent).toContain("unsupported version");
+    expect(invalid.textContent).toContain("corrupt data");
+    fireEvent.click(within(invalid).getAllByRole("button", { name: "Discard", hidden: true })[0]!);
+    await waitFor(() => expect(runBoundary.discarded).toEqual(["invalid-active"]));
+    expect(runBoundary.records).toContain(active);
+    expect(runBoundary.records).toContain(completed);
+    expect(runBoundary.records).toContain(invalidCompleted);
+    fireEvent.click(screen.getByRole("button", { name: "Open Report" }));
+    expect(practiceBoundary.recoveredRun?.runId).toBe(completed.runId);
   });
 });
 

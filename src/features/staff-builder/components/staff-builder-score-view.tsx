@@ -376,7 +376,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
         <div className="staff-builder-notation-scroll" ref={scrollRef}>
         <div className="staff-builder-notation-presentation" style={{ width: (renderResult?.coordinateSpace.width ?? 760) * presentationScale, height: (renderResult?.coordinateSpace.height ?? 300) * presentationScale }}>
         <div className="staff-builder-notation-canvas" onPointerCancel={() => { pointerGesture.current = null; }} onPointerDown={handlePointerDown} onPointerLeave={() => setHoveredNotationControl(null)} onPointerMove={handlePointerMove} onPointerUp={(pointerEvent) => handlePointerUp(pointerEvent.pointerId, pointerEvent.clientX, pointerEvent.clientY)} ref={canvasRef} style={{ transform: `scale(${presentationScale})`, width: renderResult?.coordinateSpace.width ?? 760, height: renderResult?.coordinateSpace.height ?? 300 }} title={notationTooltip}>
-          <div ref={notationRef} />
+          <div className="staff-builder-notation-foreground" data-testid="staff-builder-notation-foreground" ref={notationRef} />
           {playbackGeometry && <div aria-hidden="true" className="staff-builder-playback-highlight" data-testid="staff-builder-playback-highlight" style={{ left: playbackGeometry.x, top: playbackGeometry.y, width: playbackGeometry.width, height: playbackGeometry.height }} />}
           {onInputModeChange && renderResult && ([
             ["treble", "trebleClef", "Use treble staff"],

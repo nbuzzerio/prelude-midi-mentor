@@ -16,7 +16,7 @@ import {
 } from "../piece-practice-session";
 import type { PiecePracticeGrade } from "../piece-practice-validation";
 import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
-import { getPiecePracticeAllowedHeldMidiNumbers, getPiecePracticeTransitionHeldMidiNumbers, type PiecePracticeTransition } from "../piece-practice-input";
+import { classifyPiecePracticePitch, getPiecePracticeAllowedHeldMidiNumbers, getPiecePracticeTransitionHeldMidiNumbers, type PiecePracticeTransition } from "../piece-practice-input";
 
 export type PiecePracticeInputSource = "midi" | "virtual";
 export type PiecePracticeInputFeedback = Readonly<{
@@ -39,7 +39,6 @@ const IDLE_FEEDBACK: PiecePracticeInputFeedback = { status: "idle", source: null
 const monotonicNow = () => performance.now();
 
 export function usePiecePracticeInput({ piece, sessionState, onSessionStateChange, resetHeldOnMount = false, now = monotonicNow }: UsePiecePracticeInputOptions) {
-  const focusedAssessment = sessionState.assessmentFocus !== "both";
   const [feedback, setFeedback] = useState<PiecePracticeInputFeedback>(IDLE_FEEDBACK);
   const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(new Set());
   const [virtualSelectedMidiNumbers, setVirtualSelectedMidiNumbers] = useState<ReadonlySet<number>>(new Set());
@@ -168,12 +167,13 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);
     if (!target) return;
     const atMs = now();
+    const classification = classifyPiecePracticePitch(piece, target, midiNumber);
     const transition = transitionRef.current;
-    if (transition?.targetId === target.id && transition.firstAttackAtMs === null) {
+    if (classification !== "optional" && transition?.targetId === target.id && transition.firstAttackAtMs === null) {
       transitionRef.current = { ...transition, firstAttackAtMs: atMs };
     }
     const current = sessionStateRef.current;
-    const armed = armPiecePracticeFirstTarget(piece, current, atMs);
+    const armed = classification === "optional" ? current : armPiecePracticeFirstTarget(piece, current, atMs);
     const withEvidence = recordPiecePracticeMidiAttack(piece, armed, midiNumber, attackVelocity, atMs, sourceTimeStampMs);
     if (withEvidence !== current) {
       sessionStateRef.current = withEvidence;
@@ -182,7 +182,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
     const normalCheck = target.checks.find((check) => check.kind === "normal" && pendingIds.has(check.id));
-    if (focusedAssessment && !target.checks.some((check) => pendingIds.has(check.id) && check.expectedMidiNumbers.includes(midiNumber))) return;
+    if (classification === "optional") return;
     clearVirtualSelection();
     if (normalCheck && rolledChecks.length === 0 && !normalCheck.expectedMidiNumbers.includes(midiNumber)) {
       // Held allowance never excuses a wrong new attack, including the predecessor pitch.
@@ -215,7 +215,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     chordTargetIdRef.current = target.id;
     chordTimingRef.current = { startedAtMs: atMs, lastAttackAtMs: atMs, attacks: new Set([midiNumber]) };
     startAttempt(midiNumber);
-  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, focusedAssessment, isAttemptActive, now, onSessionStateChange, piece, startAttempt, submitAttack, submitPitch]);
+  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, isAttemptActive, now, onSessionStateChange, piece, startAttempt, submitAttack, submitPitch]);
 
   const handleMidiHeldNotesChanged = useCallback((heldNotes: ReadonlySet<number>) => {
     const next = new Set(heldNotes);
@@ -270,14 +270,8 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   const onVirtualNoteToggle = useCallback((midiNumber: number) => {
     const target = getCurrentPiecePracticeTarget(piece, sessionStateRef.current);
     if (!target || sessionStateRef.current.clockPaused) return;
-    const current = sessionStateRef.current;
-    const armed = armPiecePracticeFirstTarget(piece, current, now());
-    if (armed !== current) {
-      sessionStateRef.current = armed;
-      onSessionStateChange(armed);
-    }
-    const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
-    if (focusedAssessment && !target.checks.some((check) => pendingIds.has(check.id) && check.expectedMidiNumbers.includes(midiNumber))) {
+    const classification = classifyPiecePracticePitch(piece, target, midiNumber);
+    if (classification === "optional") {
       const next = new Set(virtualSelectionRef.current);
       if (next.has(midiNumber)) next.delete(midiNumber);
       else next.add(midiNumber);
@@ -285,11 +279,22 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       setVirtualSelectedMidiNumbers(next);
       return;
     }
+    const current = sessionStateRef.current;
+    const armed = armPiecePracticeFirstTarget(piece, current, now());
+    if (armed !== current) {
+      sessionStateRef.current = armed;
+      onSessionStateChange(armed);
+    }
+    const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     clearAttempt();
     chordTargetIdRef.current = null;
     chordTimingRef.current = null;
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
     const normalCheck = target.checks.find((check) => check.kind === "normal" && pendingIds.has(check.id));
+    if (sessionStateRef.current.assessmentFocus !== "both" && normalCheck && rolledChecks.length === 0 && !normalCheck.expectedMidiNumbers.includes(midiNumber)) {
+      submitAttack("virtual", [midiNumber]);
+      return;
+    }
     if (rolledChecks.length > 0) {
       const result = submitPitch("virtual", midiNumber);
       if (result.advanced || result.incorrect || !normalCheck || !normalCheck.expectedMidiNumbers.includes(midiNumber)) return;
@@ -308,11 +313,9 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     else next.add(midiNumber);
     virtualSelectionRef.current = next;
     setVirtualSelectedMidiNumbers(next);
-    const assessedSelection = focusedAssessment && normalCheck
-      ? new Set([...next].filter((pitch) => normalCheck.expectedMidiNumbers.includes(pitch)))
-      : next;
-    if (normalCheck && assessedSelection.size === normalCheck.expectedMidiNumbers.length) submitAttack("virtual", assessedSelection);
-  }, [clearAttempt, clearVirtualSelection, focusedAssessment, now, onSessionStateChange, piece, submitAttack, submitPitch]);
+    const relevantSelection = new Set([...next].filter((pitch) => classifyPiecePracticePitch(piece, target, pitch) !== "optional"));
+    if (normalCheck && relevantSelection.size === normalCheck.expectedMidiNumbers.length) submitAttack("virtual", relevantSelection);
+  }, [clearAttempt, clearVirtualSelection, now, onSessionStateChange, piece, submitAttack, submitPitch]);
 
   useEffect(() => {
     if (sessionState.clockPaused) return;

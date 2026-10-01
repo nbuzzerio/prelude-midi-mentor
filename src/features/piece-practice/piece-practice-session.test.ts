@@ -216,10 +216,22 @@ describe("Piece Practice blocking session", () => {
     const failed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [99] }, atMs: 2_000 });
     if (!failed.accepted) throw new Error(failed.reason);
     state = restartCurrentPiecePracticeMeasure(source, failed.state, 3_000);
+    expect(state.restartEvidence).toEqual([{ sequence: 0, measureIndex: 0, sourceMeasureId: "m1", occurredAtActiveMs: 2_000 }]);
     const completed = submitPiecePracticeAttempt(source, state, { targetId, attempt: { attackMidiNumbers: [60] }, atMs: 4_000 });
     if (!completed.accepted) throw new Error(completed.reason);
     expect(completed.state.mistakeEvidence).toHaveLength(1);
-    expect(getPiecePracticeMeasureResults(completed.state)[0]).toMatchObject({ activeDurationMs: 3_000, mistakeCount: 1 });
+    expect(getPiecePracticeMeasureResults(completed.state)[0]).toMatchObject({ activeDurationMs: 3_000, mistakeCount: 1, restartCount: 1 });
+  });
+
+  it("counts restart-only measures as process signals and clears evidence for a new piece run", () => {
+    const source = piece([1]);
+    const first = restartCurrentPiecePracticeMeasure(source, initialized(source, 0, 1_000), 1_200);
+    const second = restartCurrentPiecePracticeMeasure(source, first, 1_400);
+    expect(second.restartEvidence).toMatchObject([{ sequence: 0, occurredAtActiveMs: 200 }, { sequence: 1, occurredAtActiveMs: 400 }]);
+    expect(second.mistakeEvidence).toEqual([]);
+    expect(second.skipEvidence).toEqual([]);
+    expect(getPiecePracticeMeasureResults(second)[0]).toMatchObject({ restartCount: 2, mistakeCount: 0, skippedTargetCount: 0, isProblem: true });
+    expect(restartPiecePractice(source, second, 2_000).restartEvidence).toEqual([]);
   });
 
   it("skips one authored onset without credit and advances through measure and piece completion", () => {

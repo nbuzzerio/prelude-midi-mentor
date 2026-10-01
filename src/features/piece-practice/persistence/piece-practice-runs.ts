@@ -10,7 +10,7 @@ export const PIECE_PRACTICE_STORE_NAME = "piece-practice-runs";
 const TERMINAL_LIMIT = 8;
 
 export type PiecePracticeRunStatus = "active" | "completed" | "ended-incomplete";
-export type PiecePracticeCheckpointV1 = Omit<PiecePracticeSessionState, "activeSinceMs" | "startedAtMs">;
+export type PiecePracticeCheckpointV1 = Omit<PiecePracticeSessionState, "activeSinceMs" | "startedAtMs" | "restartEvidence"> & Readonly<{ restartEvidence?: PiecePracticeSessionState["restartEvidence"] }>;
 export type PiecePracticeRunRecordV1 = Readonly<{
   schemaVersion: 1;
   runId: string;
@@ -30,13 +30,29 @@ export type ParsedPiecePracticeRun =
   | Readonly<{ ok: true; record: PiecePracticeRunRecordV1; piece: PiecePracticePiece }>
   | Readonly<{ ok: false; reason: "corrupt" | "unsupported" }>;
 
-export function selectPiecePracticeRecovery(records: readonly unknown[]): Readonly<{ active: readonly unknown[]; latestCompleted: unknown | null }> {
-  const runLike = records.filter((value): value is Record<string, unknown> => object(value));
-  const compare = (left: Record<string, unknown>, right: Record<string, unknown>, field: "updatedAt" | "completedAt") =>
-    String(right[field] ?? "").localeCompare(String(left[field] ?? "")) || String(right.runId ?? "").localeCompare(String(left.runId ?? ""));
+export type UnrecoverablePiecePracticeRun = Readonly<{ value: unknown; reason: "corrupt" | "unsupported"; runId: string | null; status: string | null; updatedAt: string | null }>;
+
+export function selectPiecePracticeRecovery(records: readonly unknown[]): Readonly<{
+  active: readonly Extract<ParsedPiecePracticeRun, { ok: true }>[];
+  latestCompleted: Extract<ParsedPiecePracticeRun, { ok: true }> | null;
+  unrecoverable: readonly UnrecoverablePiecePracticeRun[];
+}> {
+  const valid: Extract<ParsedPiecePracticeRun, { ok: true }>[] = [];
+  const unrecoverable: UnrecoverablePiecePracticeRun[] = [];
+  for (const value of records) {
+    const parsed = parsePiecePracticeRun(value);
+    if (parsed.ok) valid.push(parsed);
+    else unrecoverable.push({ value, reason: parsed.reason,
+      runId: object(value) && typeof value.runId === "string" ? value.runId : null,
+      status: object(value) && typeof value.status === "string" ? value.status : null,
+      updatedAt: object(value) && timestamp(value.updatedAt) ? value.updatedAt : null });
+  }
+  const compare = (left: Extract<ParsedPiecePracticeRun, { ok: true }>, right: Extract<ParsedPiecePracticeRun, { ok: true }>, field: "updatedAt" | "completedAt") =>
+    String(right.record[field] ?? "").localeCompare(String(left.record[field] ?? "")) || right.record.runId.localeCompare(left.record.runId);
   return {
-    active: runLike.filter((value) => value.status === "active").sort((left, right) => compare(left, right, "updatedAt")),
-    latestCompleted: runLike.filter((value) => value.status === "completed").sort((left, right) => compare(left, right, "completedAt"))[0] ?? null,
+    active: valid.filter(({ record }) => record.status === "active").sort((left, right) => compare(left, right, "updatedAt")),
+    latestCompleted: valid.filter(({ record }) => record.status === "completed").sort((left, right) => compare(left, right, "completedAt"))[0] ?? null,
+    unrecoverable,
   };
 }
 
@@ -105,18 +121,21 @@ function validCheckpoint(value: unknown, piece: PiecePracticePiece, config: Piec
     || typeof value.boundaryReattackPending !== "boolean"
     || !Array.isArray(value.currentCheckProgress) || !Array.isArray(value.mistakeEvidence)
     || !Array.isArray(value.skipEvidence) || !Array.isArray(value.targetTimings)
+    || (value.restartEvidence !== undefined && !Array.isArray(value.restartEvidence))
     || !Array.isArray(value.measureTimings)
     || (value.attackEvidence !== undefined && !Array.isArray(value.attackEvidence))
     || (value.releaseEvidence !== undefined && !Array.isArray(value.releaseEvidence))) return false;
   if (value.currentTargetIndex !== null && (!Number.isInteger(value.currentTargetIndex) || (value.currentTargetIndex as number) < -1)) return false;
   const state = value as PiecePracticeCheckpointV1;
-  const target = getCurrentPiecePracticeTarget(piece, { ...state, activeSinceMs: 0, startedAtMs: 0 });
+  const target = getCurrentPiecePracticeTarget(piece, { ...state, restartEvidence: state.restartEvidence ?? [], activeSinceMs: 0, startedAtMs: 0 });
   if (state.status === "practicing" && !target) return false;
   if (state.currentCheckProgress.length !== (target?.checks.length ?? 0) || state.currentCheckProgress.some((progress) =>
     !object(progress) || !target?.checks.some((check) => check.id === progress.checkId) || typeof progress.completed !== "boolean"
     || !numbers(progress.accumulatedMidiNumbers) || (progress.startedAtMs !== null && !nonnegative(progress.startedAtMs)))) return false;
   if (state.mistakeEvidence.some((item, index) => !validMistake(item, piece) || item.sequence !== index)) return false;
   if (state.skipEvidence.some((item, index) => !validEvidenceLocation(item, piece) || item.sequence !== index)) return false;
+  if (state.restartEvidence?.some((item, index) => !object(item) || item.sequence !== index || !integer(item.measureIndex)
+    || piece.measures[item.measureIndex]?.sourceMeasureId !== item.sourceMeasureId || !nonnegative(item.occurredAtActiveMs))) return false;
   if (state.targetTimings.some((item, index) => !validTargetTiming(item, piece) || item.sequence !== index)) return false;
   if (state.measureTimings.some((item) => !object(item) || !integer(item.measureIndex) || !nonnegative(item.activeDurationMs)
     || piece.measures[item.measureIndex]?.sourceMeasureId !== item.sourceMeasureId)) return false;
@@ -172,7 +191,7 @@ export function checkpointPiecePractice(state: PiecePracticeSessionState, atMs: 
 }
 
 export function hydratePiecePracticeRun(record: PiecePracticeRunRecordV1, atMs: number): PiecePracticeSessionState {
-  return { ...record.checkpoint, clockPaused: true, activeSinceMs: atMs, startedAtMs: atMs };
+  return { ...record.checkpoint, restartEvidence: record.checkpoint.restartEvidence ?? [], clockPaused: true, activeSinceMs: atMs, startedAtMs: atMs };
 }
 
 export function createPiecePracticeRun(score: StaffBuilderScore, state: PiecePracticeSessionState, atMs: number, wallClock = new Date()): PiecePracticeRunRecordV1 {

@@ -104,6 +104,21 @@ describe("StaffBuilderScoreView", () => {
     ]);
     expect(screen.queryByRole("button", { name: /chord/i })).toBeNull();
   });
+  it("keeps VexFlow notation and all diagnostic rectangles in one scaled canvas with a notation foreground", async () => {
+    const { container } = render(<StaffBuilderScoreView eventHighlights={[{ eventId: "treble-note", status: "current" }]}
+      diagnosticHighlights={[{ kind: "mistake", eventId: "treble-note" }]} measureIndex={0} score={interactiveScore()} />);
+    await waitFor(() => expect(screen.getByTestId("staff-builder-event-highlight")).toBeTruthy());
+    const canvas = container.querySelector(".staff-builder-notation-canvas")!;
+    const foreground = screen.getByTestId("staff-builder-notation-foreground");
+    const highlight = screen.getByTestId("staff-builder-event-highlight") as HTMLElement;
+    const diagnostic = canvas.querySelector<HTMLElement>(".staff-builder-diagnostic-highlight")!;
+    expect(foreground.parentElement).toBe(canvas);
+    expect(highlight.parentElement).toBe(canvas);
+    expect(diagnostic.parentElement).toBe(canvas);
+    expect(renderMeasure.mock.calls.at(-1)?.[0]).toBe(foreground);
+    expect(Number.parseFloat(highlight.style.width)).toBeGreaterThan(0);
+    expect(Number.parseFloat(diagnostic.style.height)).toBeGreaterThan(0);
+  });
   it("renders transparent-outline mistake and hesitation diagnostics without duplicating notation, while retaining tallies", async () => {
     const { container } = render(<StaffBuilderScoreView diagnosticHighlights={[
       { kind: "mistake", eventId: "treble-note", count: 3 },

@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import MidiDiagnostic from "./midi-diagnostic";
+import { version } from "../../../package.json";
 
 type MessageListener = (event: MIDIMessageEvent) => void;
 
@@ -108,7 +109,7 @@ describe("MIDI Diagnostic", () => {
     act(() => keys.emit([0x80, 60, 27], 50));
     fireEvent.click(screen.getByRole("button", { name: "Copy Capture" }));
     const fallback = await screen.findByRole("textbox", { name: "MIDI diagnostic capture" }) as HTMLTextAreaElement;
-    expect(fallback.value).toContain("Prelude version: 2.8.5");
+    expect(fallback.value).toContain(`Prelude version: ${version}`);
     expect(fallback.value).toContain("3\tNote Release\t1\tnote=60;name=C4;releaseVelocity=27;encoding=note-off\t80 3C 1B");
     expect(document.activeElement).toBe(fallback); expect(screen.getByText(/1 retained · 1 total/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Copy Capture" }));

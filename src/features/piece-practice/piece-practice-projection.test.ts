@@ -5,6 +5,7 @@ import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuil
 import type { NoteLetter } from "@/lib/music/note-utils";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
 import { createPiecePracticeSession, submitPiecePracticeAttempt } from "./piece-practice-session";
+import { classifyPiecePracticePitch } from "./piece-practice-input";
 
 const NOW = "2026-08-10T12:00:00.000Z";
 const DURATIONS_DESCENDING: readonly StaffBuilderDuration[] = [
@@ -325,6 +326,19 @@ describe("Staff Builder piece-practice projection", () => {
       expect(result.piece.measures[0]?.targets.map(({ expectedMidiNumbers }) => expectedMidiNumbers)).toEqual([[60]]);
       expect(result.piece.soundingSpans).toEqual([expect.objectContaining({ midiNumber: 60, attackTick: 0, endTick: 960, endpointKeys: ["from:from-p", "to:to-p"] })]);
     }
+  });
+
+  it("permits a tied unassessed pitch sounding at the focused target tick even inside the guard", () => {
+    const full = projected(score({ events: [
+      notes("bass-start", "bass", 0, "quarter", [pitch("b1", 62, "D")]),
+      notes("bass-tied", "bass", 480, "quarter", [pitch("b2", 62, "D")]),
+      notes("upper-target", "treble", 480, "quarter", [pitch("u", 64, "E")]),
+    ], ties: [{ id: "tie-bass", fromEventId: "bass-start", fromPitchId: "b1", toEventId: "bass-tied", toPitchId: "b2" }] }));
+    const upper = focusPiecePracticeProjection(full, "upper");
+    const target = upper.measures[0]!.targets[0]!;
+    expect(target.absoluteStartTick).toBe(480);
+    expect(classifyPiecePracticePitch(upper, target, 62)).toBe("optional");
+    expect(classifyPiecePracticePitch(upper, target, 63)).toBe("relevant");
   });
 
   it("rejects unresolved, same-position-conflicting, and overflowing source material through Staff Builder validation", () => {
