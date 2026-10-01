@@ -30,6 +30,7 @@ export type UsePiecePracticeInputOptions = Readonly<{
   piece: PiecePracticePiece;
   sessionState: PiecePracticeSessionState;
   onSessionStateChange: (state: PiecePracticeSessionState) => void;
+  resetHeldOnMount?: boolean;
   now?: () => number;
 }>;
 
@@ -37,13 +38,15 @@ const IDLE_FEEDBACK: PiecePracticeInputFeedback = { status: "idle", source: null
 
 const monotonicNow = () => performance.now();
 
-export function usePiecePracticeInput({ piece, sessionState, onSessionStateChange, now = monotonicNow }: UsePiecePracticeInputOptions) {
+export function usePiecePracticeInput({ piece, sessionState, onSessionStateChange, resetHeldOnMount = false, now = monotonicNow }: UsePiecePracticeInputOptions) {
   const focusedAssessment = sessionState.assessmentFocus !== "both";
   const [feedback, setFeedback] = useState<PiecePracticeInputFeedback>(IDLE_FEEDBACK);
   const [midiHeldNotes, setMidiHeldNotes] = useState<ReadonlySet<number>>(new Set());
   const [virtualSelectedMidiNumbers, setVirtualSelectedMidiNumbers] = useState<ReadonlySet<number>>(new Set());
   const sessionStateRef = useRef(sessionState);
   const midiHeldNotesRef = useRef<ReadonlySet<number>>(new Set());
+  const ignoreInitialHeldRef = useRef(resetHeldOnMount);
+  const ignoredHeldNotesRef = useRef<Set<number>>(new Set());
   const virtualSelectionRef = useRef<Set<number>>(new Set());
   const chordTargetIdRef = useRef<string | null>(null);
   const chordTimingRef = useRef<{ startedAtMs: number; lastAttackAtMs: number; attacks: Set<number> } | null>(null);
@@ -216,15 +219,21 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
 
   const handleMidiHeldNotesChanged = useCallback((heldNotes: ReadonlySet<number>) => {
     const next = new Set(heldNotes);
+    if (ignoreInitialHeldRef.current) {
+      ignoredHeldNotesRef.current = new Set(next);
+      ignoreInitialHeldRef.current = false;
+    }
+    const fresh = new Set([...next].filter((midiNumber) => !ignoredHeldNotesRef.current.has(midiNumber)));
     if (transitionRef.current) transitionRef.current = {
       ...transitionRef.current,
-      eligibleHeldMidiNumbers: transitionRef.current.eligibleHeldMidiNumbers.filter((pitch) => next.has(pitch)),
+      eligibleHeldMidiNumbers: transitionRef.current.eligibleHeldMidiNumbers.filter((pitch) => fresh.has(pitch)),
     };
-    midiHeldNotesRef.current = next;
-    setMidiHeldNotes(next);
+    midiHeldNotesRef.current = fresh;
+    setMidiHeldNotes(fresh);
   }, []);
 
   const handleMidiNoteReleased = useCallback((release: MidiReleaseObservation) => {
+    if (ignoredHeldNotesRef.current.delete(release.midiNumber)) return;
     const current = sessionStateRef.current;
     const next = recordPiecePracticeMidiRelease(current, release, now());
     if (next === current) return;

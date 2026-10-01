@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PiecePracticeSession } from "@/features/piece-practice/components/piece-practice-session";
 import { projectStaffBuilderPieceForPractice } from "@/features/piece-practice/piece-practice-projection";
 import type { PiecePracticePiece } from "@/features/piece-practice/piece-practice-types";
+import { piecePracticeAssessmentLabel } from "@/features/piece-practice/piece-practice-assessment";
+import { parsePiecePracticeRun, piecePracticeRunStore, selectPiecePracticeRecovery, type PiecePracticeRunRecordV1 } from "@/features/piece-practice/persistence/piece-practice-runs";
 import { StaffBuilderIntroduction } from "./staff-builder-introduction";
 import { StaffBuilderLibrary } from "./staff-builder-library";
 import { StaffBuilderPieceSetup } from "./staff-builder-piece-setup";
@@ -28,12 +30,32 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
   const [preferenceError, setPreferenceError] = useState(initialPedalPreference.ok ? null : initialPedalPreference.message);
   const state = useStaffBuilderLibrary(storage);
   const [practicePiece, setPracticePiece] = useState<PiecePracticePiece | null>(null);
+  const [practiceSourceScore, setPracticeSourceScore] = useState<StaffBuilderScore | null>(null);
+  const [openedRun, setOpenedRun] = useState<PiecePracticeRunRecordV1 | null>(null);
+  const [availableRuns, setAvailableRuns] = useState<unknown[]>([]);
+  const [runStorageError, setRunStorageError] = useState(false);
   const [practiceLaunchError, setPracticeLaunchError] = useState<string | null>(null);
   const [pieceFileStatus, setPieceFileStatus] = useState<Readonly<{ kind: "error" | "success"; message: string }> | null>(null);
   const [printPiece, setPrintPiece] = useState<StaffBuilderScore | null>(null);
   const introductionOpenerRef = useRef<HTMLButtonElement>(null);
+  const refreshRuns = () => { void piecePracticeRunStore.list().then((runs) => { setAvailableRuns(runs); setRunStorageError(false); }).catch(() => setRunStorageError(true)); };
+  useEffect(() => { refreshRuns(); }, []);
+  const { active: activeRuns, latestCompleted } = selectPiecePracticeRecovery(availableRuns);
+  const latestActive = activeRuns[0];
+  const openStoredRun = (value: unknown) => {
+    const parsed = parsePiecePracticeRun(value);
+    if (!parsed.ok) return;
+    setPracticeSourceScore(parsed.record.sourceScore);
+    setOpenedRun(parsed.record);
+    setPracticePiece(parsed.piece);
+  };
+  const discardStoredRun = (value: unknown) => {
+    if (typeof value !== "object" || value === null || !("runId" in value) || typeof value.runId !== "string") return;
+    if (!window.confirm(`Discard saved Piece Practice run ${value.runId}? This permanently removes its practice evidence.`)) return;
+    void piecePracticeRunStore.discard(value.runId).then(refreshRuns).catch(() => setRunStorageError(true));
+  };
   if (practicePiece) {
-    return <PiecePracticeSession onExit={() => setPracticePiece(null)} piece={practicePiece} />;
+    return <PiecePracticeSession key={openedRun?.runId ?? practiceSourceScore?.id ?? practicePiece.sourceScoreId} onExit={() => { setPracticePiece(null); setOpenedRun(null); refreshRuns(); }} piece={practicePiece} recoveredRun={openedRun ?? undefined} sourceScore={practiceSourceScore ?? undefined} />;
   }
   const launchPiecePractice = (score: Parameters<typeof projectStaffBuilderPieceForPractice>[0]) => {
     const projection = projectStaffBuilderPieceForPractice(score);
@@ -43,6 +65,8 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
     }
     setPracticeLaunchError(null);
     state.recordPiecePractice(score.id);
+    setPracticeSourceScore(score);
+    setOpenedRun(null);
     setPracticePiece(projection.piece);
   };
   return (
@@ -55,6 +79,29 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
       <aside className="staff-builder-storage-notice">
         <strong>Pieces are stored only in this browser and device.</strong> Clearing browser data may delete pieces. Pieces are not synced; download Prelude piece files to keep backups you can import later.
       </aside>
+
+      {runStorageError && <p role="status">Saved Piece Practice runs are unavailable in this browser. Fresh practice can continue in memory.</p>}
+      {latestActive ? <section aria-label="Recovered practice session" className="staff-builder-recovery">
+        {(() => { const parsed = parsePiecePracticeRun(latestActive); return parsed.ok ? <>
+          <strong>Recovered practice session</strong><p>{parsed.record.sourceScore.title} · {piecePracticeAssessmentLabel(parsed.record.configuration.assessmentFocus)} · Measures {parsed.record.configuration.startMeasureIndex + 1}–{(parsed.record.configuration.endMeasureIndex ?? parsed.piece.measures.length - 1) + 1}</p>
+          <p>Last saved {new Date(parsed.record.updatedAt).toLocaleString()}</p>
+          <p>Starting fresh will end other active runs after the new run is saved; their evidence remains stored.</p>
+          <button className="staff-builder-secondary-button" onClick={() => openStoredRun(latestActive)} type="button">Resume Practice</button>
+        </> : <p>This saved practice session cannot be recovered with this version ({parsed.reason}).</p>; })()}
+        <button className="staff-builder-danger-button" onClick={() => discardStoredRun(latestActive)} type="button">Discard</button>
+        {activeRuns.length > 1 && <details><summary>{activeRuns.length - 1} other active saved runs</summary><ul>{activeRuns.slice(1).map((value, index) => {
+          const parsed = parsePiecePracticeRun(value);
+          const runId = typeof value === "object" && value !== null && "runId" in value ? String(value.runId) : String(index);
+          return <li key={runId}>{parsed.ok ? <><span>{parsed.record.sourceScore.title} · {new Date(parsed.record.updatedAt).toLocaleString()}</span><button className="staff-builder-secondary-button" onClick={() => openStoredRun(value)} type="button">Resume Practice</button></> : <span>Run {runId} cannot be recovered ({parsed.reason}).</span>}<button className="staff-builder-danger-button" onClick={() => discardStoredRun(value)} type="button">Discard</button></li>;
+        })}</ul></details>}
+      </section> : null}
+      {latestCompleted ? <section aria-label="Last completed practice" className="staff-builder-recovery">
+        {(() => { const parsed = parsePiecePracticeRun(latestCompleted); return parsed.ok ? <>
+          <strong>Last completed practice</strong><p>{parsed.record.sourceScore.title} · Completed {new Date(parsed.record.completedAt!).toLocaleString()} · Assessment: {piecePracticeAssessmentLabel(parsed.record.configuration.assessmentFocus)}</p>
+          <button className="staff-builder-secondary-button" onClick={() => openStoredRun(latestCompleted)} type="button">Open Report</button>
+        </> : <p>The latest completed report cannot be opened with this version ({parsed.reason}).</p>; })()}
+        {parsePiecePracticeRun(latestCompleted).ok ? null : <button className="staff-builder-danger-button" onClick={() => discardStoredRun(latestCompleted)} type="button">Discard</button>}
+      </section> : null}
 
       <div aria-live="polite" className="space-y-2">
         {pieceFileStatus && <div className={pieceFileStatus.kind === "error" ? "staff-builder-storage-error" : "text-emerald-300"} role={pieceFileStatus.kind === "error" ? "alert" : "status"}>{pieceFileStatus.message}</div>}

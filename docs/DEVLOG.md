@@ -4,6 +4,8 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Added Phase 3 Piece Practice IndexedDB autosave and recovery with versioned score snapshots, ordered run revisions, paused clock rebase, focused-staff reconstruction, completed-report reopening, bounded retention, and failure warnings. Kept package version at 2.8.5 by owner instruction.
+- Refined Phase 3 completion durability acknowledgement and unload protection, coalesced superseded active checkpoints without dropping terminal writes, and covered Staff Builder recovery entry directly.
 - Corrected Piece Practice pitch grading for natural predecessor-key release overlap using an initial named 250 ms policy, immediate single-note acceptance, nonrenewing transition deadlines, and chord eligibility based on actual attacks rather than timer delivery.
 - Added observational physical release evidence and optional browser source timestamps while preserving separate attack velocities, pitch-only held Set semantics, authored continuation/roll allowances, and CC64 independence.
 - Made Piece Practice live feedback, completed results, Copy Report, and print/PDF note-name-first using existing authored/key-aware spelling. Added the default-off `Show MIDI details` option independently from velocity inclusion.

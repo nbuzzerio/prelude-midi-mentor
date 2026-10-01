@@ -22,6 +22,8 @@ import { PiecePracticeResults } from "./piece-practice-results";
 import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
 import { piecePracticeAssessmentLabel, type PiecePracticeAssessmentFocus } from "../piece-practice-assessment";
 import { focusPiecePracticeProjection } from "../piece-practice-projection";
+import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
+import { createPiecePracticeRun, hydratePiecePracticeRun, parsePiecePracticeRun, piecePracticeRunStore, revisePiecePracticeRun, type PiecePracticeRunRecordV1, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
 
 function writtenPitchName(pitch: PiecePracticeAttackedPitch): string {
   return formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] });
@@ -34,28 +36,154 @@ function formatElapsed(elapsedMs: number): string {
 
 const monotonicNow = () => performance.now();
 
-export function PiecePracticeSession({ piece, onExit, now = monotonicNow }: Readonly<{
+type RunSaveProgress = Readonly<{ runId: string | null; requestedRevision: number; persistedRevision: number; failedRevision: number | null }>;
+function isRunDurable(record: PiecePracticeRunRecordV1 | null, progress: RunSaveProgress): boolean {
+  return Boolean(record && progress.runId === record.runId && progress.persistedRevision >= record.revision);
+}
+
+export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStore = piecePracticeRunStore, onExit, now = monotonicNow }: Readonly<{
   piece: PiecePracticePiece;
+  sourceScore?: StaffBuilderScore;
+  recoveredRun?: PiecePracticeRunRecordV1;
+  runStore?: PiecePracticeRunStore;
   onExit: () => void;
   now?: () => number;
 }>) {
   const [selectedStartMeasure, setSelectedStartMeasure] = useState(0);
   const [selectedEndMeasure, setSelectedEndMeasure] = useState<number | null>(null);
   const [selectedAssessmentFocus, setSelectedAssessmentFocus] = useState<PiecePracticeAssessmentFocus>("both");
-  const [sessionState, setSessionState] = useState<PiecePracticeSessionState | null>(null);
+  const [sessionState, setSessionState] = useState<PiecePracticeSessionState | null>(() => recoveredRun ? hydratePiecePracticeRun(recoveredRun, now()) : null);
+  const sessionRef = useRef(sessionState);
+  const runRef = useRef<PiecePracticeRunRecordV1 | null>(recoveredRun ?? null);
+  const [saveProgress, setSaveProgress] = useState<RunSaveProgress>(() => ({
+    runId: recoveredRun?.runId ?? null, requestedRevision: recoveredRun?.revision ?? 0,
+    persistedRevision: recoveredRun?.revision ?? 0, failedRevision: null,
+  }));
+  const progressRef = useRef(saveProgress);
+  const latestSaveRef = useRef<{ runId: string; revision: number; promise: Promise<void> } | null>(null);
+  const exitAwaitingRef = useRef(false);
+  const [exitAwaitingSave, setExitAwaitingSave] = useState(false);
+  const [secondaryStorageWarning, setSecondaryStorageWarning] = useState(false);
+  const [recoveredNotice, setRecoveredNotice] = useState(Boolean(recoveredRun && recoveredRun.status === "active"));
   const displayScore = useMemo(() => createPiecePracticeDisplayScore(piece), [piece]);
   const assessedPiece = useMemo(() => focusPiecePracticeProjection(piece, sessionState?.assessmentFocus ?? selectedAssessmentFocus), [piece, selectedAssessmentFocus, sessionState?.assessmentFocus]);
 
-  useEffect(() => {
-    const handleVisibilityChange = () => setSessionState((current) => {
-      if (!current) return current;
-      return document.visibilityState === "hidden"
-        ? pausePiecePracticeClock(current, now())
-        : resumePiecePracticeClock(current, now());
+  const updateProgress = (next: RunSaveProgress) => { progressRef.current = next; setSaveProgress(next); };
+  const persist = (record: PiecePracticeRunRecordV1) => {
+    const previous = progressRef.current;
+    updateProgress({ runId: record.runId, requestedRevision: record.revision,
+      persistedRevision: previous.runId === record.runId ? previous.persistedRevision : 0, failedRevision: null });
+    const saved = runStore.save(record);
+    latestSaveRef.current = { runId: record.runId, revision: record.revision, promise: saved };
+    void saved.then(() => {
+      const current = progressRef.current;
+      if (current.runId !== record.runId) return;
+      const persistedRevision = Math.max(current.persistedRevision, record.revision);
+      updateProgress({ ...current, persistedRevision,
+        failedRevision: current.requestedRevision <= persistedRevision ? null : current.failedRevision });
+    }).catch(() => {
+      const current = progressRef.current;
+      if (current.runId === record.runId && current.requestedRevision === record.revision) {
+        updateProgress({ ...current, failedRevision: record.revision });
+      }
     });
+    return saved;
+  };
+  const commitState = (next: PiecePracticeSessionState) => {
+    if (sessionRef.current === next) return;
+    sessionRef.current = next;
+    setSessionState(next);
+    if (runRef.current?.status === "active" || runRef.current?.status === "completed") {
+      runRef.current = revisePiecePracticeRun(runRef.current, next, now(), runRef.current.status === "completed" ? "completed" : undefined);
+      persist(runRef.current);
+    }
+  };
+  const startRun = (state: PiecePracticeSessionState) => {
+    const record = createPiecePracticeRun(sourceScore ?? displayScore, state, now());
+    runRef.current = record;
+    sessionRef.current = state;
+    setSessionState(state);
+    setRecoveredNotice(false);
+    void persist(record).then(async () => {
+      if (runRef.current?.runId !== record.runId) return;
+      const records = await runStore.list();
+      if (runRef.current?.runId !== record.runId) return;
+      for (const value of records) {
+        const parsed = parsePiecePracticeRun(value);
+        if (!parsed.ok || parsed.record.status !== "active" || parsed.record.runId === record.runId) continue;
+        const paused = hydratePiecePracticeRun(parsed.record, now());
+        await runStore.save(revisePiecePracticeRun(parsed.record, paused, now(), "ended-incomplete"));
+      }
+    }, () => undefined).catch(() => setSecondaryStorageWarning(true));
+  };
+  const restartNow = () => {
+    const current = sessionRef.current;
+    if (!current) return;
+    if (runRef.current?.status === "active") {
+      runRef.current = revisePiecePracticeRun(runRef.current, current, now(), "ended-incomplete");
+      void persist(runRef.current).catch(() => setSecondaryStorageWarning(true));
+    }
+    startRun(restartPiecePractice(assessedPiece, current, now()));
+  };
+  const afterCompletedSave = async (action: () => void, actionLabel: string) => {
+    if (exitAwaitingRef.current) return;
+    exitAwaitingRef.current = true;
+    setExitAwaitingSave(true);
+    try {
+      while (!isRunDurable(runRef.current, progressRef.current)) {
+        const current = runRef.current;
+        const latest = latestSaveRef.current;
+        if (!current || current.status !== "completed" || !latest || latest.runId !== current.runId || latest.revision < current.revision) break;
+        await latest.promise.catch(() => undefined);
+        if (latestSaveRef.current === latest) break;
+      }
+      if (!isRunDurable(runRef.current, progressRef.current)
+        && !window.confirm(`The completed practice result is not safely stored. ${actionLabel} anyway?`)) return;
+      action();
+    } finally {
+      exitAwaitingRef.current = false;
+      setExitAwaitingSave(false);
+    }
+  };
+  const restartWholePiece = () => {
+    if (runRef.current?.status === "completed" && !isRunDurable(runRef.current, progressRef.current)) {
+      void afterCompletedSave(restartNow, "Start a new run");
+      return;
+    }
+    restartNow();
+  };
+  const exitPractice = () => {
+    const current = sessionRef.current;
+    if (runRef.current?.status === "completed" && !isRunDurable(runRef.current, progressRef.current)) {
+      void afterCompletedSave(onExit, "Leave Piece Practice");
+      return;
+    }
+    if (current && runRef.current?.status === "active") {
+      if (!window.confirm("End this Piece Practice run? Saved evidence will remain available, but this run will no longer be resumable.")) return;
+      runRef.current = revisePiecePracticeRun(runRef.current, current, now(), "ended-incomplete");
+      void persist(runRef.current).catch(() => setSecondaryStorageWarning(true));
+    }
+    onExit();
+  };
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const current = sessionRef.current;
+      if (!current || recoveredNotice) return;
+      commitState(document.visibilityState === "hidden"
+        ? pausePiecePracticeClock(current, now())
+        : resumePiecePracticeClock(current, now()));
+    };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [now]);
+  });
+
+  useEffect(() => {
+    if (!sessionState || (sessionState.status === "piece-complete" && isRunDurable(runRef.current, saveProgress))) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [sessionState, saveProgress]);
 
   if (!sessionState) {
     return <section aria-labelledby="piece-practice-setup-title" className="mx-auto grid w-full max-w-3xl gap-5 rounded-xl border border-zinc-700 bg-zinc-900 p-5 text-zinc-100">
@@ -86,25 +214,37 @@ export function PiecePracticeSession({ piece, onExit, now = monotonicNow }: Read
       <div className="flex flex-wrap gap-3">
         <button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold hover:bg-sky-500" onClick={() => {
           const result = createPiecePracticeSession(assessedPiece, { startMeasureIndex: selectedStartMeasure, endMeasureIndex: selectedEndMeasure, startedAtMs: now() });
-          if (result.ok) setSessionState(result.state);
+          if (result.ok) startRun(result.state);
         }} type="button">Start Practice</button>
-        <button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold hover:bg-zinc-800" onClick={onExit} type="button">Exit Piece Practice</button>
+        <button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold hover:bg-zinc-800" onClick={exitPractice} type="button">Exit Piece Practice</button>
       </div>
     </section>;
   }
 
-  return <ActivePiecePracticeSession displayScore={displayScore} now={now} onExit={onExit} onSessionStateChange={setSessionState} piece={assessedPiece} sessionState={sessionState} />;
+  return <>
+    {secondaryStorageWarning && <p role="alert">An earlier active run could not be updated in storage. Its last saved evidence remains available.</p>}
+    {saveProgress.runId !== null && saveProgress.failedRevision === saveProgress.requestedRevision && sessionState.status !== "piece-complete"
+      && <p role="alert">Practice is continuing, but crash or reload recovery is currently unavailable for this run.</p>}
+    {recoveredNotice && <div role="status"><strong>Recovered practice session</strong><p>Restored from the last saved checkpoint. MIDI key state and any in-progress chord or roll were reset.</p><button onClick={() => { commitState(resumePiecePracticeClock(sessionRef.current!, now())); setRecoveredNotice(false); }} type="button">Resume Practice</button></div>}
+    <ActivePiecePracticeSession completionSaveState={sessionState.status === "piece-complete"
+      ? saveProgress.runId !== null && saveProgress.persistedRevision >= saveProgress.requestedRevision ? "saved" : saveProgress.failedRevision === saveProgress.requestedRevision ? "failed" : "saving"
+      : null} displayScore={displayScore} exitAwaitingSave={exitAwaitingSave} now={now} onExit={exitPractice} onRestartPiece={restartWholePiece} onSessionStateChange={commitState} piece={assessedPiece} resetHeldOnMount={Boolean(recoveredRun && recoveredRun.status === "active")} sessionState={sessionState} />
+  </>;
 }
 
-function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateChange, piece, sessionState }: Readonly<{
+function ActivePiecePracticeSession({ completionSaveState, displayScore, exitAwaitingSave, now, onExit, onRestartPiece, onSessionStateChange, piece, resetHeldOnMount, sessionState }: Readonly<{
+  completionSaveState: "saved" | "saving" | "failed" | null;
   displayScore: ReturnType<typeof createPiecePracticeDisplayScore>;
+  exitAwaitingSave: boolean;
   now: () => number;
   onExit: () => void;
+  onRestartPiece: () => void;
   onSessionStateChange: (state: PiecePracticeSessionState) => void;
   piece: PiecePracticePiece;
+  resetHeldOnMount: boolean;
   sessionState: PiecePracticeSessionState;
 }>) {
-  const input = usePiecePracticeInput({ piece, sessionState, onSessionStateChange, now });
+  const input = usePiecePracticeInput({ piece, sessionState, onSessionStateChange, resetHeldOnMount, now });
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
   const completionHeadingRef = useRef<HTMLHeadingElement>(null);
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
@@ -147,9 +287,8 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
     onSessionStateChange(restarted);
   };
   const restartWholePiece = () => {
-    const restarted = restartPiecePractice(piece, sessionState, now());
     input.resetInput();
-    onSessionStateChange(restarted);
+    onRestartPiece();
   };
   const handleExitMobilePlay = () => {
     exitMobilePlay();
@@ -169,6 +308,10 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
       {mobilePlayExit}
       <div aria-live="polite" className="sr-only" role="status">Piece complete.</div>
       <h1 className="text-3xl font-bold text-green-300" ref={completionHeadingRef} tabIndex={-1}>Piece complete</h1>
+      {completionSaveState === "saving" && <p role="status">Saving the completed practice result. Browser close protection remains active until it is saved.</p>}
+      {completionSaveState === "saved" && <p role="status">Completed practice saved.</p>}
+      {completionSaveState === "failed" && <p role="alert">The completed result is available here, but it is not safely stored for crash or reload recovery.</p>}
+      {exitAwaitingSave && <p role="status">Waiting for the completed result to finish saving.</p>}
       <p>You completed {rangeText} for <strong>{piece.title}</strong>.</p>
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><dt className="text-sm text-zinc-400">Measures practiced</dt><dd className="text-xl font-bold">{progress.practicedMeasureCount}</dd></div>
@@ -178,7 +321,7 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
       <PiecePracticeResults displayScore={displayScore} piece={piece} rangeText={rangeText} state={sessionState} title={piece.title} />
-      <div className="flex flex-wrap gap-3"><button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={restartWholePiece} type="button">Practice Again</button>{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold" onClick={onExit} type="button">Exit Piece Practice</button></div>
+      <div className="flex flex-wrap gap-3"><button className="rounded-lg bg-sky-600 px-4 py-2 font-semibold" disabled={exitAwaitingSave} onClick={restartWholePiece} type="button">Practice Again</button>{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-4 py-2 font-semibold" disabled={exitAwaitingSave} onClick={onExit} type="button">Exit Piece Practice</button></div>
     </section>;
   }
 
@@ -212,8 +355,8 @@ function ActivePiecePracticeSession({ displayScore, now, onExit, onSessionStateC
         <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} ghostedStaff={sessionState.assessmentFocus === "upper" ? "bass" : sessionState.assessmentFocus === "lower" ? "treble" : undefined} />
         {feedback.status === "correct" ? <p className="rounded-md border border-green-600 bg-green-950 p-3 font-semibold text-green-200">✓ Correct</p> : null}
         {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map(feedbackPitchName).join(", ")}</p> : null}</div> : null}
-        {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" onClick={input.skipCurrentTarget} type="button">Skip Target</button> : null}
-        {sessionState.status === "awaiting-explicit-measure-advance" ? <button className="justify-self-start rounded-lg bg-sky-600 px-4 py-2 font-semibold" onClick={() => {
+        {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" disabled={sessionState.clockPaused} onClick={input.skipCurrentTarget} type="button">Skip Target</button> : null}
+        {sessionState.status === "awaiting-explicit-measure-advance" ? <button className="justify-self-start rounded-lg bg-sky-600 px-4 py-2 font-semibold" disabled={sessionState.clockPaused} onClick={() => {
           const result = advancePiecePracticeNoAttackMeasure(piece, sessionState, now());
           if (result.advanced) { input.resetInput(); onSessionStateChange(result.state); }
         }} type="button">Next Measure</button> : null}

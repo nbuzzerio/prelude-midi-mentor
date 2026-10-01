@@ -271,6 +271,22 @@ describe("Piece Practice physical transition grace", () => {
   });
 });
 
+describe("Piece Practice recovered physical state", () => {
+  it("ignores provider-held notes from before recovery and their eventual release", () => {
+    const source = piece();
+    let state = initial(source);
+    const view = renderHook(() => usePiecePracticeInput({ piece: source, sessionState: state, resetHeldOnMount: true,
+      now: () => 100, onSessionStateChange: (next) => { state = next; } }));
+    act(() => midiMock.options?.onHeldNotesChanged?.(new Set([60])));
+    expect([...view.result.current.midiHeldNotes]).toEqual([]);
+    act(() => midiMock.options?.onHeldNotesChanged?.(new Set()));
+    act(() => midiMock.options?.onNoteReleased?.({ midiNumber: 60, encoding: "note-off", releaseVelocity: 12 }));
+    expect(state.releaseEvidence).toBeUndefined();
+    act(() => midiMock.options?.onHeldNotesChanged?.(new Set([60])));
+    expect([...view.result.current.midiHeldNotes]).toEqual([60]);
+  });
+});
+
 describe("usePiecePracticeInput", () => {
   beforeEach(() => {
     vi.useFakeTimers();

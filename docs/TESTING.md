@@ -659,6 +659,19 @@ Manual QA: open Melody directly and check standalone defaults; change staff/key/
 Manual checks: open the ? dialog on desktop/tablet/mobile; inspect the expandable guide; copy into a text editor; deny clipboard access and manually copy the selected text; verify Escape/Close returns focus. Import the guide's practice-ready example through Piece Library and confirm validation succeeds. No AI or provider calls are required.
 
 
+### Piece Practice durable autosave and recovery
+
+Focused automated validation: `pnpm test src/features/piece-practice/persistence/piece-practice-runs.test.ts src/features/piece-practice/components/piece-practice-session.test.tsx src/features/staff-builder/components/staff-builder-session.test.tsx`. The persistence suite covers V1 score snapshots, focus, unarmed and armed timing, clock rebase, evidence round trips, strict rejection, stale-revision guarding, revision 2 through 100 active-write coalescing, terminal supersession and cross-run ordering, terminal retention, bounded retry, and explicit discard. Component tests cover initial save, authoritative checkpoint transitions, Restart Measure/Piece identity, confirmed/cancelled Exit, held and failed final completion saves, unload protection through final commit, historical completion, and paused focused recovery. Staff Builder tests directly cover Resume, Open Report, persisted snapshot/focus, selected-run Discard, and corrupt/future-version rejection. The native IndexedDB adapter and physical browser lifecycle still need device QA.
+
+Manual Chromebook QA after deployment:
+
+1. Start a run, play partway, reload, then resume from the recovery card. Repeat after mistakes, while paused, and in Upper/Lower Staff focus; verify the focus label and unassessed-staff ghosting.
+2. Start and reload without playing. Verify the first target remains unarmed. Reload after its first attack and verify paused/closed time is excluded from active time and response timing.
+3. Reload during a block chord and during a roll. Retry those incomplete inputs; completed checks and evidence should remain, but the old input window should be gone. Verify no synthetic release is reported.
+4. Complete a run, leave without printing, return, and open Last completed practice. Edit or delete the source library piece and repeat. Check note spelling, Copy Report, Show MIDI details, attack-strength values, and Print / Save PDF from the recovered report.
+5. Try Exit and Cancel, then Exit and confirm. Check that a completed run exits without a PDF prompt, browser reload shows the native active-run warning, and a fresh start or Restart Piece uses a new run ID.
+6. If practical, disable browser storage or exhaust its quota and verify practice continues with a clear unsaved warning. Create more than eight terminal runs and confirm the oldest terminal record is removed while an active run remains recoverable.
+
 ### MIDI Diagnostic musical projection and report
 
 Focused validation: `pnpm test src/components/midi/midi-diagnostic-capture.test.ts src/components/midi/midi-diagnostic-message.test.ts src/components/midi/midi-diagnostic-musical.test.ts src/components/midi/midi-diagnostic-report.test.ts src/components/midi/midi-diagnostic.test.tsx`.

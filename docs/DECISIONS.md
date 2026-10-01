@@ -995,6 +995,26 @@ Solo-piano notation commonly sustains one event beneath later attacks on the sam
 
 ---
 
+# 2026-09 — Piece Practice Evidence Is Durable Source Data
+
+## Decision
+
+Piece Practice keeps versioned, structured run records in a feature-owned IndexedDB store. Each record includes an immutable canonical Staff Builder score snapshot and an authoritative checkpoint. Reports and print/PDF views are regenerated from that data.
+
+## Reason
+
+A source score ID can point to a changed or deleted piece, and a generated PDF cannot resume a run or preserve all MIDI evidence. A score snapshot retains the actual notation, clefs, pitch spelling, and assessment context practiced. Serialized revisions and an IndexedDB transaction guard protect newer evidence from older async writes.
+
+## Consequences
+
+- Recovery is accurate only through the last committed checkpoint; closed-browser time is excluded and the run opens paused.
+- Incomplete chord/roll input windows restart cleanly without inventing mistakes or Note Off events.
+- Eight terminal runs are retained by default; active runs and invalid records are not silently evicted.
+- Pending active checkpoints may coalesce to their newest revision, while terminal lifecycle writes remain ordered. A newly completed report remains unload-protected until its latest completed revision is committed; a failed save requires explicit acknowledgement to leave.
+- Staff Builder library data and Practice Session persistence remain separate.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:

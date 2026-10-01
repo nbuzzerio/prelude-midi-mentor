@@ -1,17 +1,29 @@
 import { createStaffBuilderLlmSpecification } from "../staff-builder-llm-specification";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import StaffBuilderSession from "./staff-builder-session";
 import { shouldSustainPedalLock } from "../staff-builder-capture";
+import { createPiecePracticeSession, submitPiecePracticeAttempt } from "@/features/piece-practice/piece-practice-session";
+import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "@/features/piece-practice/piece-practice-projection";
+import { createPiecePracticeRun, type PiecePracticeRunRecordV1 } from "@/features/piece-practice/persistence/piece-practice-runs";
 
-const { fileBoundary, midiBoundary, practiceBoundary } = vi.hoisted(() => ({
+const { fileBoundary, midiBoundary, practiceBoundary, runBoundary } = vi.hoisted(() => ({
   fileBoundary: { download: vi.fn(), read: vi.fn() },
   midiBoundary: { onNote: null as ((midiNumber: number) => void) | null, onSustain: null as ((isDown: boolean) => void) | null, registrations: 0 },
-  practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, projectionScores: [] as import("../staff-builder-types").StaffBuilderScore[], forceFailure: false },
+  practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, sourceScore: null as null | import("../staff-builder-types").StaffBuilderScore, recoveredRun: null as null | import("@/features/piece-practice/persistence/piece-practice-runs").PiecePracticeRunRecordV1, projectionScores: [] as import("../staff-builder-types").StaffBuilderScore[], forceFailure: false },
+  runBoundary: { records: [] as unknown[], discarded: [] as string[] },
 }));
+vi.mock("@/features/piece-practice/persistence/piece-practice-runs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/piece-practice/persistence/piece-practice-runs")>();
+  return { ...actual, piecePracticeRunStore: {
+    async list() { return [...runBoundary.records]; },
+    async save(record: unknown) { runBoundary.records.push(record); },
+    async discard(runId: string) { runBoundary.discarded.push(runId); runBoundary.records = runBoundary.records.filter((value) => typeof value !== "object" || value === null || !("runId" in value) || value.runId !== runId); },
+  } };
+});
 vi.mock("../persistence/staff-builder-piece-file-browser", () => ({
   downloadStaffBuilderPiece: fileBoundary.download,
   readStaffBuilderPieceFile: fileBoundary.read,
@@ -24,13 +36,15 @@ vi.mock("../hooks/use-staff-builder-input", () => ({
     return { connectMidi: vi.fn(), deviceName: "Test MIDI", error: null, status: "connected" as const };
   },
 }));
-vi.mock("@/features/piece-practice/components/piece-practice-session", () => ({ PiecePracticeSession: ({ piece, onExit }: { piece: import("@/features/piece-practice/piece-practice-types").PiecePracticePiece; onExit: () => void }) => {
+vi.mock("@/features/piece-practice/components/piece-practice-session", () => ({ PiecePracticeSession: ({ piece, sourceScore, recoveredRun, onExit }: { piece: import("@/features/piece-practice/piece-practice-types").PiecePracticePiece; sourceScore?: import("../staff-builder-types").StaffBuilderScore; recoveredRun?: import("@/features/piece-practice/persistence/piece-practice-runs").PiecePracticeRunRecordV1; onExit: () => void }) => {
   practiceBoundary.piece = piece;
+  practiceBoundary.sourceScore = sourceScore ?? null;
+  practiceBoundary.recoveredRun = recoveredRun ?? null;
   return <section><h1>Blocking Piece Practice: {piece.title}</h1><button onClick={onExit} type="button">Exit Piece Practice</button></section>;
 } }));
 vi.mock("@/features/piece-practice/piece-practice-projection", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/piece-practice/piece-practice-projection")>();
-  return { projectStaffBuilderPieceForPractice: (score: import("../staff-builder-types").StaffBuilderScore) => {
+  return { ...actual, projectStaffBuilderPieceForPractice: (score: import("../staff-builder-types").StaffBuilderScore) => {
     practiceBoundary.projectionScores.push(score);
     return practiceBoundary.forceFailure ? { ok: false as const, issues: [] } : actual.projectStaffBuilderPieceForPractice(score);
   } };
@@ -47,8 +61,12 @@ beforeEach(() => {
   fileBoundary.download.mockReset();
   fileBoundary.read.mockReset();
   practiceBoundary.piece = null;
+  practiceBoundary.sourceScore = null;
+  practiceBoundary.recoveredRun = null;
   practiceBoundary.projectionScores = [];
   practiceBoundary.forceFailure = false;
+  runBoundary.records = [];
+  runBoundary.discarded = [];
   midiBoundary.onNote = null;
   midiBoundary.onSustain = null;
   midiBoundary.registrations = 0;
@@ -108,6 +126,84 @@ function seedLibrary(storage: MemoryStorage, pieces: readonly StaffBuilderScore[
   storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 3, pieces }));
   storage.values.set(STAFF_BUILDER_STORAGE_KEYS.introductionDismissed, "true");
 }
+
+function savedPracticeRun(score: StaffBuilderScore, completed = false): PiecePracticeRunRecordV1 {
+  const projected = projectStaffBuilderPieceForPractice(score);
+  if (!projected.ok) throw new Error("Expected a practiceable score.");
+  const focused = focusPiecePracticeProjection(projected.piece, "upper");
+  const started = createPiecePracticeSession(focused, { startMeasureIndex: 0, startedAtMs: 100 });
+  if (!started.ok) throw new Error("Expected a practice session.");
+  let state = started.state;
+  if (completed) {
+    const first = focused.measures[0]!.targets[0]!;
+    const result = submitPiecePracticeAttempt(focused, state, { targetId: first.id, attempt: { attackMidiNumbers: [60] } });
+    if (!result.accepted) throw new Error("Expected a completed attempt.");
+    state = result.state;
+  }
+  return createPiecePracticeRun(score, state, 200);
+}
+
+describe("Staff Builder recovery entry", () => {
+  it("offers Resume and Discard for the newest valid active run and opens its saved snapshot and focus", async () => {
+    const storage = new MemoryStorage();
+    const saved = savedValidScore("Stored Study");
+    seedLibrary(storage, [{ ...saved, title: "Edited Library Study", updatedAt: "2026-08-11T12:00:00.000Z" }]);
+    const older = savedPracticeRun(savedValidScore("Older Study"));
+    const newest = savedPracticeRun(saved);
+    runBoundary.records = [{ ...older, updatedAt: "2026-08-09T12:00:00.000Z" }, { ...newest, updatedAt: "2026-08-12T12:00:00.000Z" }];
+    render(<StaffBuilderSession storage={storage} />);
+    const recovery = await screen.findByRole("region", { name: "Recovered practice session" });
+    expect(recovery.textContent).toContain("Stored Study");
+    expect(within(recovery).getAllByRole("button", { name: "Resume Practice" })).toHaveLength(2);
+    expect(within(recovery).getAllByRole("button", { name: "Discard" })).toHaveLength(2);
+    fireEvent.click(within(recovery).getAllByRole("button", { name: "Resume Practice" })[0]!);
+    expect(practiceBoundary.piece?.title).toBe("Stored Study");
+    expect(practiceBoundary.sourceScore).toEqual(saved);
+    expect(practiceBoundary.recoveredRun?.runId).toBe(newest.runId);
+    expect(practiceBoundary.recoveredRun?.configuration.assessmentFocus).toBe("upper");
+  });
+
+  it("offers Open Report for the latest completed run and passes its persisted record", async () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, []);
+    const completed = savedPracticeRun(savedValidScore("Finished Study"), true);
+    runBoundary.records = [completed];
+    render(<StaffBuilderSession storage={storage} />);
+    const report = await screen.findByRole("region", { name: "Last completed practice" });
+    expect(report.textContent).toContain("Finished Study");
+    fireEvent.click(screen.getByRole("button", { name: "Open Report" }));
+    expect(practiceBoundary.recoveredRun).toEqual(completed);
+    expect(practiceBoundary.sourceScore).toEqual(completed.sourceScore);
+  });
+
+  it("discards only the selected run and keeps other saved runs", async () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, []);
+    const active = savedPracticeRun(savedValidScore("Unfinished"));
+    const completed = savedPracticeRun(savedValidScore("Finished"), true);
+    runBoundary.records = [active, completed];
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    render(<StaffBuilderSession storage={storage} />);
+    await screen.findByRole("region", { name: "Recovered practice session" });
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() => expect(runBoundary.discarded).toEqual([active.runId]));
+    expect(runBoundary.records).toEqual([completed]);
+    expect(screen.getByRole("button", { name: "Open Report" })).toBeTruthy();
+  });
+
+  it("does not hydrate corrupt or future-version active data", async () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, []);
+    const active = savedPracticeRun(savedValidScore("Unsupported"));
+    runBoundary.records = [{ ...active, schemaVersion: 2 }, { ...active, runId: "corrupt-run", sourceScore: null, updatedAt: "2026-08-13T12:00:00.000Z" }];
+    render(<StaffBuilderSession storage={storage} />);
+    const recovery = await screen.findByRole("region", { name: "Recovered practice session" });
+    expect(recovery.textContent).toMatch(/cannot be recovered/);
+    expect(screen.queryByRole("button", { name: "Resume Practice" })).toBeNull();
+    expect(practiceBoundary.piece).toBeNull();
+    expect(within(recovery).getAllByRole("button", { name: "Discard" })).toHaveLength(2);
+  });
+});
 
 describe("Staff Builder session", () => {
   it("enters a clean Study View, preserves editor state, suppresses MIDI, and restores focus", async () => {
