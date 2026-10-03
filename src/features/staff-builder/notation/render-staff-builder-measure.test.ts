@@ -61,6 +61,50 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it.each([
+    ["B", 5, 83, "treble"], ["C", 6, 84, "treble"], ["D", 6, 86, "treble"],
+    ["G", 6, 91, "treble"], ["A", 6, 93, "treble"], ["B", 6, 95, "treble"],
+    ["A", 1, 33, "bass"], ["C", 2, 36, "bass"], ["D", 2, 38, "bass"],
+  ] as const)("separates %s%d ledger presentation from unchanged %s MIDI/%s interaction bounds", (letter, octave, midiNumber, staff) => {
+    const current: StaffBuilderScore = { ...score(), initialKeySignatureId: "c-major", ties: [], measures: [{ id: "m", events: [{
+      id: "ledger", kind: "notes", staff, startTick: 0, rhythm: { status: "final", duration: "quarter" },
+      pitches: [{ id: "p", letter, octave, midiNumber, accidental: "natural" }],
+    }] }] };
+    assertLedgerBounds(current);
+  });
+
+  it.each(["treble", "bass"] as const)("includes displaced %s chord ledger strokes without expanding interaction bounds", (staff) => {
+    const octave = staff === "treble" ? 6 : 2;
+    const baseMidi = staff === "treble" ? 84 : 36;
+    const current: StaffBuilderScore = { ...score(), initialKeySignatureId: "c-major", ties: [], measures: [{ id: "m", events: [{
+      id: "ledger", kind: "notes", staff, startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [
+        { id: "c", letter: "C", octave, midiNumber: baseMidi, accidental: "natural" },
+        { id: "d", letter: "D", octave, midiNumber: baseMidi + 2, accidental: "natural" },
+      ],
+    }] }] };
+    assertLedgerBounds(current);
+  });
+
+  it("retains accidental/stem bounds and ordinary note/rest geometry", () => {
+    const current = score();
+    const container = document.createElement("div");
+    const result = renderStaffBuilderMeasure(container, current, 0);
+    const chord = result.anchors.events.get("chord")!;
+    expect(chord.highlightBounds).toEqual({ x: chord.x, y: chord.y, width: chord.width, height: chord.height });
+    expect(result.anchors.events.get("rest")?.highlightBounds).toBeUndefined();
+  });
+
+  it("contains both ledger ranges and accidentals in a spanning chord", () => {
+    const current: StaffBuilderScore = { ...score(), initialKeySignatureId: "c-major", ties: [], measures: [{ id: "m", events: [{
+      id: "ledger", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [
+        { id: "low", letter: "C", octave: 3, midiNumber: 48, accidental: "natural" },
+        { id: "sharp", letter: "C", octave: 6, midiNumber: 85, accidental: "sharp" },
+        { id: "high", letter: "A", octave: 6, midiNumber: 93, accidental: "natural" },
+      ],
+    }] }] };
+    assertLedgerBounds(current);
+  });
+
   it("renders both semantic staves while ghosting only the requested one", () => {
     const current = polyphonicScore();
     const focused = document.createElement("div");
@@ -419,6 +463,34 @@ describe("renderStaffBuilderMeasure", () => {
     expect(JSON.stringify(current)).toBe(before);
   });
 });
+
+function assertLedgerBounds(current: StaffBuilderScore) {
+  const before = structuredClone(current);
+  const draw = vi.spyOn(StaveNote.prototype, "draw");
+  const container = document.createElement("div");
+  const result = renderStaffBuilderMeasure(container, current, 0);
+  const anchor = result.anchors.authoritativeEvents.get("ledger")!;
+  const note = draw.mock.contexts.find((candidate): candidate is StaveNote => candidate instanceof StaveNote && !candidate.isRest())!;
+  const original = note.getBoundingBox();
+  expect({ x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }).toEqual({
+    x: original.getX(), y: original.getY(), width: Math.max(1, original.getW()), height: Math.max(1, original.getH()),
+  });
+  const bounds = anchor.highlightBounds!;
+  const ledgers = [...container.querySelectorAll('path[stroke="#444"]')];
+  expect(ledgers.length).toBeGreaterThan(0);
+  for (const path of ledgers) {
+    const coordinates = path.getAttribute("d")!.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    const radius = Number(path.getAttribute("stroke-width")) / 2;
+    for (let index = 0; index < coordinates.length; index += 2) {
+      // SVG rounds coordinates to two decimal places; allow that rounding only.
+      expect(coordinates[index]! + 0.01).toBeGreaterThanOrEqual(bounds.x);
+      expect(coordinates[index]! - 0.01).toBeLessThanOrEqual(bounds.x + bounds.width);
+      expect(coordinates[index + 1]! - radius + 0.01).toBeGreaterThanOrEqual(bounds.y);
+      expect(coordinates[index + 1]! + radius - 0.01).toBeLessThanOrEqual(bounds.y + bounds.height);
+    }
+  }
+  expect(current).toEqual(before);
+}
 
 it("renders pending previews in the effective clef without changing MIDI input or authored pitches", () => {
   const base = score();

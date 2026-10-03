@@ -138,7 +138,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
     setSelectionGeometry(selectedAnchor ? { x: selectedAnchor.x - 5, y: selectedAnchor.y - 5, width: selectedAnchor.width + 10, height: selectedAnchor.height + 10 } : null);
     setHighlightGeometries(eventHighlights.flatMap(({ eventId, status }) => {
       const anchor = result.anchors.authoritativeEvents.get(eventId);
-      return anchor ? [{ eventId, status, geometry: { x: anchor.x - 6, y: anchor.y - 6, width: anchor.width + 12, height: anchor.height + 12 } }] : [];
+      const bounds = anchor?.highlightBounds ?? anchor;
+      return bounds ? [{ eventId, status, geometry: { x: bounds.x - 6, y: bounds.y - 6, width: bounds.width + 12, height: bounds.height + 12 } }] : [];
     }));
     setDiagnosticGeometries(diagnosticHighlights.flatMap((highlight) => {
       const anchor = highlight.pitchId

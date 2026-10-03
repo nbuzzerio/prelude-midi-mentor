@@ -1,5 +1,21 @@
 # Prelude: MIDI Mentor — Testing
 
+## Ledger-line indicator readability
+
+VexFlow event bounding boxes exclude ledger lines. Event anchors therefore retain their original interaction geometry and publish separate optional `highlightBounds` that enclose ledger strokes (including stroke thickness, staff-side lines, and displaced chord heads). Only event-highlight rectangles consume those bounds. Selection, touch targets, pointer ownership, palettes, diagnostics, playback, and capture cursors retain their existing geometry and behavior; all existing highlight states retain the notation foreground layering and colors.
+
+Focused rendering tests cover B5/C6/D6/G6/A6/B6, lower A1/C2/D2, displaced upper/lower chords, and a chord spanning both ledger ranges with an accidental. They compare actual SVG ledger stroke coordinates with presentation bounds and assert unchanged VexFlow interaction bounds and score data. Real-renderer score-view tests cover all six event-highlight statuses, active/inactive notation, foreground/background CSS, scaled clearance at 480/570/760px, adjacent-note/chord pointer selection, unchanged touch/selection rectangles, and chord duration editing. Mocked canvas metrics in Vitest establish geometry invariants, not visual legibility; local Chrome raster inspection with real VexFlow fonts complements those tests. Device QA remains required.
+
+Focused validation: `pnpm test src/features/staff-builder/components/staff-builder-score-view-ledger.test.tsx src/features/staff-builder/components/staff-builder-score-view.test.tsx src/features/staff-builder/notation/render-staff-builder-measure.test.ts src/features/staff-builder/notation/staff-builder-vexflow-rendering.test.ts src/features/staff-builder/notation/staff-builder-vertical-geometry.test.ts`, then `pnpm verify`.
+
+Chromebook/Yamaha QA after deployment:
+
+- Practice B5/C6/D6 and G6/A6/B6; count every ledger line while each target is active, then compare inactive notation. Confirm the indicator remains easy to locate.
+- Repeat at browser zoom 75%, 100%, 125%, and 150%, and with narrow/wide layouts; marker and notation must scale together without clipping or pitch movement.
+- Repeat for low A1/C2/D2 and upper/lower chords, including adjacent chord heads, accidentals, beamed notes, and ties.
+- Check Piece Practice advancement and success/error highlighting, plus staff-focus ghosting and result diagnostics. Confirm authored pitches are still graded as before.
+- In Staff Builder, select closely spaced notes and chords by touch and keyboard, edit their durations, and inspect selection, capture cursor, and playback highlighting.
+
 ## Piece Practice physical overlap and note presentation
 
 Staff Focus coverage exercises default strict Both Staves, semantic Upper/Lower filtering through clef changes, shared-pitch onsets, unassessed-only measures, boundary ties, required-pitch completion, optional physical/virtual attacks, block and rolled collectors, held notes, first-attempt timing, raw velocity/release evidence, restart lifecycle, readable ghosted notation, and assessment labels in results, Copy Report, and print/PDF. Optional input uses an exact unassessed sounding span at the current assessed score tick before the inclusive three-semitone register guard; optional attacks do not arm the first target. Manual Chromebook/Yamaha QA should play nearby wrong notes and far authored accompaniment around focused chords and rolls, test the first unarmed target, then inspect high A5/B-flat5/C6/D6 and low bass ledger lines with accidentals, stems, beams, and ties at several zoom levels. Highlight borders and diagnostic markers must stay behind notation. Confirm restart-only measures appear in default PDF scope and Copy/PDF show matching counts; print notation should have no live target highlight.

@@ -32,6 +32,8 @@ export type StaffBuilderEventAnchor = Readonly<{
   y: number;
   width: number;
   height: number;
+  /** Presentation only: includes ledger strokes; never use for editor hit-testing. */
+  highlightBounds?: Readonly<{ x: number; y: number; width: number; height: number }>;
 }>;
 
 export type StaffBuilderPitchAnchor = Readonly<{
@@ -176,9 +178,35 @@ export function createStaffBuilderEventAnchors(rendered: readonly StaffBuilderRe
       y: bounds.getY(),
       width: Math.max(1, bounds.getW()),
       height: Math.max(1, bounds.getH()),
+      ...(projection.kind === "notes" && note instanceof StaveNote ? { highlightBounds: getLedgerAwareHighlightBounds(note) } : {}),
     });
   }
   return anchors;
+}
+
+function getLedgerAwareHighlightBounds(note: StaveNote) {
+  // VexFlow's bounding box covers glyphs and stems, but not drawLedgerLines().
+  const bounds = note.getBoundingBox();
+  let left = bounds.getX();
+  let right = left + bounds.getW();
+  let top = bounds.getY();
+  let bottom = top + bounds.getH();
+  const heads = note.getNoteHeadBounds();
+  const ledgerYs: number[] = [];
+  const stave = note.checkStave();
+  if (heads.highestLine >= 6) ledgerYs.push(stave.getYForNote(6), stave.getYForNote(Math.floor(heads.highestLine)));
+  if (heads.lowestLine <= 0) ledgerYs.push(stave.getYForNote(0), stave.getYForNote(Math.ceil(heads.lowestLine)));
+  if (ledgerYs.length > 0) {
+    const headXs = [heads.nonDisplacedX, heads.displacedX].filter((x): x is number => x !== undefined);
+    const extension = note.renderOptions.strokePx;
+    const strokeRadius = (note.getLedgerLineStyle().lineWidth ?? stave.getDefaultLedgerLineStyle().lineWidth ?? 2) / 2;
+    // Include displaced chord heads as well as the staff-side ledger lines.
+    left = Math.min(left, Math.min(...headXs) - extension);
+    right = Math.max(right, Math.max(...headXs) + note.getGlyphWidth() + extension);
+    top = Math.min(top, Math.min(...ledgerYs) - strokeRadius);
+    bottom = Math.max(bottom, Math.max(...ledgerYs) + strokeRadius);
+  }
+  return { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 }
 
 export function createStaffBuilderPitchAnchors(rendered: readonly StaffBuilderRenderedTickable[]): ReadonlyMap<string, StaffBuilderPitchAnchor> {
