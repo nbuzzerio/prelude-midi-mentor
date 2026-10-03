@@ -7,6 +7,7 @@ import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-
 import { usePiecePracticeInput } from "./use-piece-practice-input";
 import { focusPiecePracticeProjection } from "../piece-practice-projection";
 import type { PiecePracticeAssessmentFocus } from "../piece-practice-assessment";
+import { formatPiecePracticeReport } from "../piece-practice-report";
 
 const midiMock = vi.hoisted(() => ({
   mountCount: 0, unmountCount: 0,
@@ -670,6 +671,185 @@ describe("usePiecePracticeInput", () => {
     expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { completed: false, accumulatedMidiNumbers: [] }]);
     expect(view.getState().mistakeEvidence).toHaveLength(1);
   });
+});
+
+describe("Piece Practice rolled input source isolation", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(0); midiMock.status = "connected"; midiMock.options = null; });
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  function practice(source = rolledPiece(), now = () => Date.now()) {
+    const view = setup(source, now);
+    const physical: number[] = [];
+    const play = (input: "midi" | "virtual", midiNumber: number) => {
+      act(() => {
+        if (input === "midi") {
+          physical.push(midiNumber);
+          midiMock.options?.onNotePlayed(midiNumber, 65, now());
+        } else view.result.current.onVirtualNoteToggle(midiNumber);
+      });
+      view.sync();
+    };
+    const tick = (ms: number) => { act(() => vi.advanceTimersByTime(ms)); view.sync(); };
+    return { ...view, play, tick, physical };
+  }
+
+  it.each(["midi", "virtual"] as const)("discards a partial %s roll on source change while preserving a completed normal check and real evidence", (first) => {
+    const second = first === "midi" ? "virtual" : "midi";
+    const source = rolledPiece();
+    const view = practice(source);
+    view.play(first, 72);
+    view.play(first, 48);
+    view.tick(10); view.play(first, 48);
+    expect(view.getState().currentCheckProgress[1]).toMatchObject({ accumulatedMidiNumbers: [48], startedAtMs: 0 });
+    view.tick(10); view.play(second, 52);
+    view.tick(180); view.play(second, 55); view.play(second, 52);
+    expect(view.getState()).toMatchObject({ status: "practicing", mistakeEvidence: [] });
+    expect(view.getState().currentCheckProgress).toMatchObject([
+      { completed: true }, { completed: false, accumulatedMidiNumbers: [52, 55], startedAtMs: 20 },
+    ]);
+    view.play(second, 48);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", completedTargetCount: 1, mistakeEvidence: [] });
+    expect(view.getState().attackEvidence?.map(({ midiNumber }) => midiNumber)).toEqual(view.physical);
+    expect(view.getState().attackEvidence?.map(({ sequence }) => sequence)).toEqual(view.physical.map((_, index) => index));
+    expect(view.getState().attackEvidence?.every(({ attackVelocity }) => attackVelocity === 65)).toBe(true);
+    const report = formatPiecePracticeReport({ title: source.title, rangeText: "1", state: view.getState(), piece: source, includeAttackStrength: true });
+    expect(report).toContain("Mistakes: 0");
+    expect(report).toContain("velocity 65");
+  });
+
+  it.each(["midi", "virtual"] as const)("retains a completed parallel rolled check when switching away from %s", (first) => {
+    const base = rolledPiece([72, 76]);
+    const original = base.measures[0]!.targets[0]!;
+    const source: PiecePracticePiece = { ...base, measures: [{ ...base.measures[0]!, targets: [{ ...original,
+      checks: original.checks.map((check) => check.kind === "normal" ? { ...check, kind: "rolled-chord", direction: "up" } : check),
+    }] }] };
+    const view = practice(source);
+    const second = first === "midi" ? "virtual" : "midi";
+    view.play(first, 72); view.play(first, 76); view.play(first, 48);
+    view.play(second, 52); view.play(second, 55);
+    expect(view.getState().currentCheckProgress).toMatchObject([
+      { completed: true, accumulatedMidiNumbers: [72, 76] },
+      { completed: false, accumulatedMidiNumbers: [52, 55] },
+    ]);
+    view.play(second, 48);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+  });
+
+  it("retains source ownership after a shared pitch completes the parallel normal check", () => {
+    const base = rolledPiece();
+    const original = base.measures[0]!.targets[0]!;
+    const source: PiecePracticePiece = { ...base, measures: [{ ...base.measures[0]!, targets: [{ ...original,
+      expectedMidiNumbers: [48, 52, 55],
+      attackedPitches: original.attackedPitches.map((pitch) => pitch.midiNumber === 72 ? { ...pitch, midiNumber: 48 } : pitch),
+      checks: original.checks.map((check) => check.kind === "normal" ? { ...check, expectedMidiNumbers: [48],
+        attackedPitches: check.attackedPitches.map((pitch) => ({ ...pitch, midiNumber: 48 })) } : check),
+    }] }] };
+    const view = practice(source);
+    view.play("midi", 48); view.tick(20); view.play("midi", 52);
+    expect(view.getState().currentCheckProgress).toMatchObject([
+      { completed: true }, { accumulatedMidiNumbers: [48, 52], startedAtMs: 0 },
+    ]);
+    view.play("virtual", 55);
+    expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { accumulatedMidiNumbers: [55] }]);
+    view.play("virtual", 48); view.play("virtual", 52);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+  });
+
+  it("resets all incomplete parallel rolls and lets one fresh shared attack satisfy both", () => {
+    const base = rolledPiece([72, 76]);
+    const original = base.measures[0]!.targets[0]!;
+    const replacePitch = (pitch: PiecePracticeTarget["attackedPitches"][number]) => ({
+      ...pitch, midiNumber: pitch.midiNumber === 72 ? 48 : pitch.midiNumber === 76 ? 64 : pitch.midiNumber,
+    });
+    const source: PiecePracticePiece = { ...base, measures: [{ ...base.measures[0]!, targets: [{ ...original,
+      expectedMidiNumbers: [48, 52, 55, 64], attackedPitches: original.attackedPitches.map(replacePitch),
+      checks: original.checks.map((check) => check.kind === "normal" ? { ...check, kind: "rolled-chord", direction: "up",
+        expectedMidiNumbers: [48, 64], attackedPitches: check.attackedPitches.map(replacePitch) } : check),
+    }] }] };
+    const view = practice(source);
+    view.play("midi", 48);
+    expect(view.getState().currentCheckProgress).toMatchObject([{ accumulatedMidiNumbers: [48] }, { accumulatedMidiNumbers: [48] }]);
+    view.play("virtual", 52); view.play("virtual", 64); view.play("virtual", 55);
+    expect(view.getState().currentCheckProgress).toMatchObject([
+      { completed: false, accumulatedMidiNumbers: [64] }, { completed: false, accumulatedMidiNumbers: [52, 55] },
+    ]);
+    view.play("virtual", 48);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+  });
+
+  it("keeps a completed block chord while clearing its parallel roll on source change", () => {
+    const view = practice(rolledPiece([72, 76]));
+    view.play("midi", 48); view.play("midi", 72); view.play("midi", 76); view.tick(225);
+    expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { accumulatedMidiNumbers: [48], startedAtMs: 0 }]);
+    view.play("virtual", 52); view.play("virtual", 55);
+    expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { accumulatedMidiNumbers: [52, 55] }]);
+    view.play("virtual", 48);
+    expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+  });
+
+  it.each((["upper", "lower"] as const).flatMap((focus) => (["midi", "virtual"] as const).map((first) => ({ focus, first }))))(
+    "isolates $focus focused rolls from $first while optional input leaves collection untouched", ({ focus, first }) => {
+      const source = staffedPiece(rolledPiece(), focus, focus === "lower" ? [48, 52, 55] : [72]);
+      const view = practice(source);
+      const second = first === "midi" ? "virtual" : "midi";
+      view.play(first, 48); view.play(second, focus === "upper" ? 12 : 99); view.play(first, 52);
+      expect(view.getState().currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [48, 52], startedAtMs: 0 });
+      view.play(second, 55);
+      expect(view.getState()).toMatchObject({ status: "practicing", mistakeEvidence: [] });
+      expect(view.getState().currentCheckProgress[0]).toMatchObject({ accumulatedMidiNumbers: [55] });
+      view.play(second, 48); view.play(second, 52);
+      expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+      expect(view.getState().attackEvidence?.map(({ midiNumber }) => midiNumber)).toEqual(view.physical);
+    },
+  );
+
+  it.each(["midi", "virtual"] as const)("expires a fresh roll after switching from %s without renewing on duplicates", (first) => {
+    const view = practice({ ...rolledPiece(), tempoBpm: 120 });
+    const second = first === "midi" ? "virtual" : "midi";
+    view.play(first, 72); view.play(first, 48); view.tick(100);
+    view.play(second, 52); view.tick(600); view.play(second, 52); view.tick(149);
+    expect(view.getState().mistakeEvidence).toEqual([]);
+    view.tick(1);
+    expect(view.getState().mistakeEvidence).toMatchObject([
+      { kind: "rolled-timeout", accumulatedMidiNumbers: [52], missingMidiNumbers: [48, 55], windowMs: 750 },
+    ]);
+    expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { accumulatedMidiNumbers: [], startedAtMs: null }]);
+    view.play(second, 55); view.play(second, 48); view.play(second, 52);
+    expect(view.getState().status).toBe("piece-complete");
+    expect(view.getState().mistakeEvidence).toHaveLength(1);
+  });
+
+  it.each(["midi", "virtual"] as const)("retains an already due %s timeout when the other source arrives before timer delivery", (first) => {
+    let atMs = 0;
+    const view = practice({ ...rolledPiece(), tempoBpm: 120 }, () => atMs);
+    const second = first === "midi" ? "virtual" : "midi";
+    view.play(first, 72); view.play(first, 48);
+    atMs = 750;
+    view.play(second, 52);
+    expect(view.getState().mistakeEvidence).toMatchObject([{ kind: "rolled-timeout", accumulatedMidiNumbers: [48], missingMidiNumbers: [52, 55] }]);
+    expect(view.getState().currentCheckProgress).toMatchObject([{ completed: true }, { accumulatedMidiNumbers: [52], startedAtMs: 750 }]);
+    atMs = 1499; view.play(second, 55); view.play(second, 48);
+    expect(view.getState().status).toBe("piece-complete");
+    expect(view.getState().mistakeEvidence).toHaveLength(1);
+  });
+
+  it.each((["measure", "piece"] as const).flatMap((restart) => (["midi", "virtual"] as const).map((first) => ({ restart, first }))))(
+    "clears partial rolls on $restart restart after $first input", ({ restart, first }) => {
+      const source = rolledPiece();
+      const view = practice(source);
+      const second = first === "midi" ? "virtual" : "midi";
+      view.play(first, 72); view.play(first, 48);
+      act(() => view.onSessionStateChange(restart === "measure"
+        ? restartCurrentPiecePracticeMeasure(source, view.getState(), 0)
+        : restartPiecePractice(source, view.getState(), 0)));
+      view.sync();
+      view.play(second, 72); view.play(second, 52); view.play(second, 55);
+      expect(view.getState().status).toBe("practicing");
+      expect(view.getState().currentCheckProgress[1]).toMatchObject({ accumulatedMidiNumbers: [52, 55] });
+      view.play(second, 48);
+      expect(view.getState()).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+    },
+  );
 });
 
 describe("Piece Practice Staff Focus input", () => {

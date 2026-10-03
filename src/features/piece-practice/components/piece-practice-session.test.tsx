@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
-import { createPiecePracticeSession, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt } from "../piece-practice-session";
+import { createPiecePracticeSession, getCurrentPiecePracticeTarget, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
 import { createPiecePracticeRun, type PiecePracticeRunRecordV1, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
 import type { PiecePracticeInputFeedback } from "../hooks/use-piece-practice-input";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
@@ -322,6 +322,59 @@ describe("PiecePracticeSession", () => {
     expect(mocks.scoreProps?.ghostedStaff).toBe("treble");
     fireEvent.click(screen.getByRole("button", { name: "Resume Practice" }));
     expect(mocks.inputOptions?.sessionState.clockPaused).toBe(false);
+  });
+
+  it.each([false, true])("persists repaired legacy completion with storageFailure=%s before acknowledging durability", async (storageFailure) => {
+    const date = "2026-09-30T12:00:00.000Z";
+    const pitches = [
+      { id: "c", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 },
+      { id: "e", midiNumber: 64, letter: "E" as const, accidental: "natural" as const, octave: 4 },
+    ];
+    const source: StaffBuilderScore = {
+      schemaVersion: 4, id: "legacy-roll", title: "Tied roll", createdAt: date, updatedAt: date,
+      tempoBpm: 120, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", annotations: [],
+      measures: [{ id: "m1", events: [
+        { id: "origin", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "half" }, pitches, arpeggiation: "up" },
+        { id: "continuation", kind: "notes", staff: "treble", startTick: 960, rhythm: { status: "final", duration: "half" }, pitches, arpeggiation: "up" },
+        { id: "rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "half" } },
+        { id: "parallel", kind: "notes", staff: "bass", startTick: 960, rhythm: { status: "final", duration: "half" },
+          pitches: [{ id: "g", midiNumber: 55, letter: "G", accidental: "natural", octave: 3 }] },
+      ] }],
+      ties: pitches.map(({ id }) => ({ id: `${id}-tie`, fromEventId: "origin", fromPitchId: id, toEventId: "continuation", toPitchId: id })),
+    };
+    const projected = projectStaffBuilderPieceForPractice(source);
+    if (!projected.ok) throw new Error("Expected legacy roll projection.");
+    const created = createPiecePracticeSession(projected.piece, { startMeasureIndex: 0, startedAtMs: 0 });
+    if (!created.ok) throw new Error(created.reason);
+    let state = created.state;
+    for (const midiNumber of [60, 64]) state = submitPiecePracticePitch(projected.piece, state, {
+      targetId: getCurrentPiecePracticeTarget(projected.piece, state)!.id, midiNumber, atMs: 10,
+    }).state;
+    state = { ...state, currentCheckProgress: state.currentCheckProgress.map((progress, index) => ({ ...progress, completed: index === 0 })) };
+    const legacy = createPiecePracticeRun(source, state, 40);
+    const { store, resolveCompletion, rejectCompletion } = heldCompletionStore();
+    const onExit = vi.fn();
+    render(<PiecePracticeSession now={() => 50_000} onExit={onExit} piece={projected.piece} recoveredRun={legacy} runStore={store} sourceScore={source} />);
+    expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
+    expect(screen.getByText(/Saving the completed practice result/)).toBeTruthy();
+    expect(screen.queryByText("Completed practice saved.")).toBeNull();
+    expect(unloadIsProtected()).toBe(true);
+    if (storageFailure) {
+      await act(async () => { rejectCompletion(new Error("quota")); });
+      expect(screen.getByRole("alert").textContent).toContain("not safely stored for crash or reload recovery");
+      expect(unloadIsProtected()).toBe(true);
+      expect(store.records).toHaveLength(0);
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "Exit Piece Practice" }));
+      expect(onExit).not.toHaveBeenCalled();
+      await act(async () => { resolveCompletion(); });
+      expect(onExit).toHaveBeenCalledOnce();
+      expect(store.records).toHaveLength(1);
+      expect(store.records[0]).toMatchObject({ runId: legacy.runId, revision: legacy.revision + 1, status: "completed", checkpoint: { completedTargetCount: 2, mistakeEvidence: [] } });
+      expect(screen.getByText("Completed practice saved.")).toBeTruthy();
+      expect(unloadIsProtected()).toBe(false);
+    }
+    expect(legacy.status).toBe("active");
   });
 
   it("reopens completed results and printable report from the stored score alone", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
-import { armPiecePracticeFirstTarget, createPiecePracticeSession, pausePiecePracticeClock, recordPiecePracticeMidiAttack, recordPiecePracticeMidiRelease, restartCurrentPiecePracticeMeasure, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
+import { armPiecePracticeFirstTarget, createPiecePracticeSession, getCurrentPiecePracticeTarget, pausePiecePracticeClock, recordPiecePracticeMidiAttack, recordPiecePracticeMidiRelease, restartCurrentPiecePracticeMeasure, resumePiecePracticeClock, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
 import { formatPiecePracticeReport } from "../piece-practice-report";
 import { createPiecePracticeRun, hydratePiecePracticeRun, parsePiecePracticeRun, PiecePracticeRunWriteCoordinator, revisePiecePracticeRun, selectPiecePracticeRecovery, type PiecePracticeRunRecordV1 } from "./piece-practice-runs";
 
@@ -24,7 +24,104 @@ function setup(assessmentFocus: "both" | "upper" | "lower" = "both") {
   return { piece, state: created.state };
 }
 
+function tiedRolledScore(fullyTied = true): StaffBuilderScore {
+  const pitches = [
+    { id: "c4", midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 },
+    { id: "e4", midiNumber: 64, letter: "E" as const, accidental: "natural" as const, octave: 4 },
+  ];
+  return { ...score, measures: [
+    { id: "m1", events: [
+      { ...score.measures[0].events[0], id: "origin", kind: "notes", pitches, arpeggiation: "up" },
+      { id: "rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
+    ] },
+    { id: "m2", events: [
+      { ...score.measures[0].events[0], id: "continuation", kind: "notes", pitches, arpeggiation: "up" },
+      { ...score.measures[0].events[1], id: "parallel" },
+    ] },
+  ], ties: pitches.filter(({ id }) => fullyTied || id === "c4").map(({ id }) => ({
+    id: `${id}-tie`, fromEventId: "origin", fromPitchId: id, toEventId: "continuation", toPitchId: id,
+  })) };
+}
+
 describe("Piece Practice durable run V1", () => {
+  it.each([1, 2, 3])("hydrates a validated V1 run containing a legacy schema-%s score snapshot", (schemaVersion) => {
+    const { state } = setup();
+    const current = createPiecePracticeRun(score, state, 120);
+    const legacy = { ...current, sourceScore: { ...current.sourceScore, schemaVersion,
+      ...(schemaVersion === 1 ? { annotations: undefined } : {}),
+    } };
+    const parsed = parsePiecePracticeRun(legacy);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    expect(hydratePiecePracticeRun(parsed.record, 10_000)).toMatchObject({
+      clockPaused: true, activeElapsedMs: 20, currentCheckProgress: current.checkpoint.currentCheckProgress,
+    });
+  });
+
+  it.each([false, true])("recovers a legacy empty roll with parallelCompleted=%s without changing check IDs/counts", (parallelCompleted) => {
+    const source = tiedRolledScore();
+    const projected = projectStaffBuilderPieceForPractice(source);
+    if (!projected.ok) throw new Error("Expected tied roll projection.");
+    const piece = projected.piece;
+    const created = createPiecePracticeSession(piece, { startMeasureIndex: 0, startedAtMs: 0 });
+    if (!created.ok) throw new Error(created.reason);
+    let state = created.state;
+    for (const midiNumber of [60, 64]) {
+      const target = getCurrentPiecePracticeTarget(piece, state)!;
+      state = recordPiecePracticeMidiAttack(piece, state, midiNumber, 75, 10);
+      state = submitPiecePracticePitch(piece, state, { targetId: target.id, midiNumber, atMs: 10 }).state;
+    }
+    const target = getCurrentPiecePracticeTarget(piece, state)!;
+    expect(target.checks).toMatchObject([{ kind: "normal" }, { kind: "rolled-chord", expectedMidiNumbers: [] }]);
+    if (parallelCompleted) state = recordPiecePracticeMidiAttack(piece, state, 48, 88, 30, 123);
+    // V1 records from before this correction kept the empty check incomplete.
+    const legacy = { ...state, currentCheckProgress: state.currentCheckProgress.map((progress) => ({
+      ...progress, completed: progress.checkId === target.checks[0].id && parallelCompleted,
+    })) };
+    const record = createPiecePracticeRun(source, legacy, 40);
+    const before = structuredClone(record);
+    const parsed = parsePiecePracticeRun(record);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    expect(parsed.piece.measures[1].targets[0].checks.map(({ id }) => id)).toEqual(record.checkpoint.currentCheckProgress.map(({ checkId }) => checkId));
+    let restored = hydratePiecePracticeRun(parsed.record, 10_000);
+    expect(restored).toMatchObject({ clockPaused: true, activeElapsedMs: 40, mistakeEvidence: [] });
+    expect(restored.attackEvidence).toEqual(record.checkpoint.attackEvidence);
+    expect(record).toEqual(before);
+    if (!parallelCompleted) {
+      expect(restored.currentCheckProgress).toMatchObject([{ completed: false }, { completed: true }]);
+      restored = resumePiecePracticeClock(restored, 10_000);
+      restored = submitPiecePracticeAttempt(piece, restored, {
+        targetId: target.id, attempt: { attackMidiNumbers: [48], heldMidiNumbers: [60, 64], allowedHeldMidiNumbers: [60, 64] }, atMs: 10_010,
+      }).state;
+    }
+    expect(restored).toMatchObject({ status: "piece-complete", completedTargetCount: 2, mistakeEvidence: [] });
+    expect(formatPiecePracticeReport({ title: source.title, rangeText: "1-2", state: restored, piece, includeAttackStrength: true })).toContain("Mistakes: 0");
+    expect(parsePiecePracticeRun(revisePiecePracticeRun(record, restored, 10_010)).ok).toBe(true);
+    expect(parsePiecePracticeRun({ ...record, checkpoint: { ...record.checkpoint, currentCheckProgress: record.checkpoint.currentCheckProgress.slice(0, 1) } }).ok).toBe(false);
+    expect(parsePiecePracticeRun({ ...record, checkpoint: { ...record.checkpoint, currentCheckProgress: record.checkpoint.currentCheckProgress.map((progress) => ({ ...progress, checkId: "unknown" })) } }).ok).toBe(false);
+  });
+
+  it("keeps a partially tied roll incomplete across V1 recovery until its untied pitch is attacked", () => {
+    const source = tiedRolledScore(false);
+    const projected = projectStaffBuilderPieceForPractice(source);
+    if (!projected.ok) throw new Error("Expected partial tie projection.");
+    const piece = projected.piece;
+    const created = createPiecePracticeSession(piece, { startMeasureIndex: 0, startedAtMs: 0 });
+    if (!created.ok) throw new Error(created.reason);
+    let state = created.state;
+    for (const midiNumber of [60, 64]) state = submitPiecePracticePitch(piece, state, { targetId: piece.measures[0].targets[0].id, midiNumber, atMs: 10 }).state;
+    const record = createPiecePracticeRun(source, state, 40);
+    expect(parsePiecePracticeRun(record).ok).toBe(true);
+    state = resumePiecePracticeClock(hydratePiecePracticeRun(record, 10_000), 10_000);
+    const target = getCurrentPiecePracticeTarget(piece, state)!;
+    expect(target.checks[1]).toMatchObject({ expectedMidiNumbers: [64] });
+    state = submitPiecePracticeAttempt(piece, state, { targetId: target.id, attempt: { attackMidiNumbers: [48] }, atMs: 10_010 }).state;
+    expect(state.currentCheckProgress).toMatchObject([{ completed: true }, { completed: false }]);
+    state = submitPiecePracticePitch(piece, state, { targetId: target.id, midiNumber: 64, atMs: 10_020 }).state;
+    expect(state).toMatchObject({ status: "piece-complete", mistakeEvidence: [] });
+  });
+
   it("creates an active versioned snapshot before the first note and preserves focus", () => {
     const { state } = setup("lower");
     const record = createPiecePracticeRun(score, state, 100);

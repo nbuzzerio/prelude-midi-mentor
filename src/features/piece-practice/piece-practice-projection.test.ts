@@ -4,7 +4,7 @@ import { insertStaffBuilderMeasure } from "@/features/staff-builder/staff-builde
 import type { StaffBuilderEvent, StaffBuilderPitch, StaffBuilderScore, StaffBuilderStaff, StaffBuilderTie } from "@/features/staff-builder/staff-builder-types";
 import type { NoteLetter } from "@/lib/music/note-utils";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
-import { createPiecePracticeSession, submitPiecePracticeAttempt } from "./piece-practice-session";
+import { createPiecePracticeSession, getCurrentPiecePracticeTarget, restartCurrentPiecePracticeMeasure, restartPiecePractice, submitPiecePracticeAttempt, submitPiecePracticePitch } from "./piece-practice-session";
 import { classifyPiecePracticePitch } from "./piece-practice-input";
 
 const NOW = "2026-08-10T12:00:00.000Z";
@@ -127,12 +127,56 @@ describe("Staff Builder piece-practice projection", () => {
     expect(focusPiecePracticeProjection(source, "lower").measures[0]!.targets[0]!.expectedMidiNumbers).toEqual([48]);
   });
 
-  it("filters rolled checks by semantic staff without changing their order requirements", () => {
+  it("filters rolled checks by semantic staff without changing their required pitches", () => {
     const upper = { ...notes("upper-roll", "treble", 0, "whole", [pitch("u1", 72, "C", "natural", 5), pitch("u2", 76, "E", "natural", 5)]), arpeggiation: "up" as const };
     const lower = { ...notes("lower-roll", "bass", 0, "whole", [pitch("l1", 48, "C", "natural", 3), pitch("l2", 52, "E", "natural", 3)]), arpeggiation: "up" as const };
     const source = projected(score({ events: [upper, lower] }));
     expect(focusPiecePracticeProjection(source, "upper").measures[0]!.targets[0]!.checks).toMatchObject([{ kind: "rolled-chord", sourceEventIds: ["upper-roll"], expectedMidiNumbers: [72, 76] }]);
     expect(focusPiecePracticeProjection(source, "lower").measures[0]!.targets[0]!.checks).toMatchObject([{ kind: "rolled-chord", sourceEventIds: ["lower-roll"], expectedMidiNumbers: [48, 52] }]);
+  });
+
+  it.each([
+    ...(["both", "upper", "lower"] as const).flatMap((focus) =>
+      (["treble", "bass"] as const).flatMap((rollStaff) => [false, true].flatMap((fullyTied) =>
+        [false, true].map((parallelRoll) => ({ focus, rollStaff, fullyTied, parallelRoll }))))),
+  ])("completes $focus practice with $rollStaff rolls, fullyTied=$fullyTied and parallelRoll=$parallelRoll", ({ focus, rollStaff, fullyTied, parallelRoll }) => {
+    const origin = { ...notes("origin", rollStaff, 0, "half", [pitch("c", 60), pitch("e", 64, "E")]), arpeggiation: "up" as const };
+    const continuation = { ...notes("continuation", rollStaff, 960, "half", [pitch("c2", 60), pitch("e2", 64, "E")]), arpeggiation: "up" as const };
+    const parallel = { ...notes("parallel", rollStaff === "treble" ? "bass" : "treble", 960, "half", [pitch("shared-c", 60), pitch("g", 67, "G")]),
+      ...(parallelRoll ? { arpeggiation: "up" as const } : {}) };
+    const source = score({ events: [origin, continuation, parallel], ties: [
+      { id: "c-tie", fromEventId: "origin", fromPitchId: "c", toEventId: "continuation", toPitchId: "c2" },
+      ...(fullyTied ? [{ id: "e-tie", fromEventId: "origin", fromPitchId: "e", toEventId: "continuation", toPitchId: "e2" }] : []),
+    ] });
+    const both = projected(source);
+    const continuationCheck = both.measures[0]!.targets[1]!.checks.find(({ id }) => id === "m1:attack:960:rolled:continuation")!;
+    expect(continuationCheck).toMatchObject({ id: "m1:attack:960:rolled:continuation", expectedMidiNumbers: fullyTied ? [] : [64] });
+    const focused = focusPiecePracticeProjection(both, focus);
+    const created = createPiecePracticeSession(focused, { startMeasureIndex: 0, startedAtMs: 0 });
+    if (!created.ok) throw new Error(created.reason);
+    let state = created.state;
+    let atMs = 10;
+    const finish = () => {
+      while (state.status === "practicing") {
+        const target = getCurrentPiecePracticeTarget(focused, state)!;
+        const pendingRolls = target.checks.filter(({ kind }) => kind === "rolled-chord");
+        for (const midiNumber of new Set(pendingRolls.flatMap(({ expectedMidiNumbers }) => expectedMidiNumbers))) {
+          state = submitPiecePracticePitch(focused, state, { targetId: target.id, midiNumber, atMs: atMs++ }).state;
+        }
+        const normal = target.checks.find(({ kind }) => kind === "normal");
+        if (normal) state = submitPiecePracticeAttempt(focused, state, {
+          targetId: target.id, attempt: { attackMidiNumbers: normal.expectedMidiNumbers }, atMs: atMs++,
+        }).state;
+        expect(getCurrentPiecePracticeTarget(focused, state)?.id).not.toBe(target.id);
+      }
+      expect(state).toMatchObject({ status: "piece-complete", mistakeEvidence: [], completedTargetCount: focused.measures[0]!.targets.length });
+    };
+    finish();
+    state = restartCurrentPiecePracticeMeasure(focused, state, atMs++);
+    finish();
+    state = restartPiecePractice(focused, state, atMs++);
+    finish();
+    expect(source.measures[0]!.events.find(({ id }) => id === "continuation")).toEqual(continuation);
   });
 
   it("carries existing lyric annotations without changing targets or sounding spans", () => {

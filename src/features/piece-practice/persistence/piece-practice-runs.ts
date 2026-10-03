@@ -1,7 +1,7 @@
 import { parseStaffBuilderScore } from "@/features/staff-builder/persistence/staff-builder-schema";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
-import { getCurrentPiecePracticeTarget, getPiecePracticeElapsedMs, type PiecePracticeSessionState } from "../piece-practice-session";
+import { getCurrentPiecePracticeTarget, getPiecePracticeElapsedMs, resolvePiecePracticeEmptyRolledChecks, type PiecePracticeSessionState } from "../piece-practice-session";
 import type { PiecePracticePiece } from "../piece-practice-types";
 
 export const PIECE_PRACTICE_DB_NAME = "prelude-piece-practice";
@@ -191,7 +191,13 @@ export function checkpointPiecePractice(state: PiecePracticeSessionState, atMs: 
 }
 
 export function hydratePiecePracticeRun(record: PiecePracticeRunRecordV1, atMs: number): PiecePracticeSessionState {
-  return { ...record.checkpoint, restartEvidence: record.checkpoint.restartEvidence ?? [], clockPaused: true, activeSinceMs: atMs, startedAtMs: atMs };
+  const score = parseStaffBuilderScore(record.sourceScore);
+  if (!score.ok) throw new Error("Cannot hydrate an invalid Piece Practice score snapshot.");
+  const projected = projectStaffBuilderPieceForPractice(score.value);
+  if (!projected.ok) throw new Error("Cannot hydrate an invalid Piece Practice score snapshot.");
+  const piece = focusPiecePracticeProjection(projected.piece, record.configuration.assessmentFocus);
+  const state = { ...record.checkpoint, restartEvidence: record.checkpoint.restartEvidence ?? [], clockPaused: true, activeSinceMs: atMs, startedAtMs: atMs };
+  return resolvePiecePracticeEmptyRolledChecks(piece, state, atMs);
 }
 
 export function createPiecePracticeRun(score: StaffBuilderScore, state: PiecePracticeSessionState, atMs: number, wallClock = new Date()): PiecePracticeRunRecordV1 {

@@ -56,7 +56,8 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
   const sessionRef = useRef(sessionState);
   const runRef = useRef<PiecePracticeRunRecordV1 | null>(recoveredRun ?? null);
   const [saveProgress, setSaveProgress] = useState<RunSaveProgress>(() => ({
-    runId: recoveredRun?.runId ?? null, requestedRevision: recoveredRun?.revision ?? 0,
+    runId: recoveredRun?.runId ?? null,
+    requestedRevision: (recoveredRun?.revision ?? 0) + (recoveredRun?.status === "active" && sessionState?.status === "piece-complete" ? 1 : 0),
     persistedRevision: recoveredRun?.revision ?? 0, failedRevision: null,
   }));
   const progressRef = useRef(saveProgress);
@@ -98,6 +99,15 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
       persist(runRef.current);
     }
   };
+  useEffect(() => {
+    const record = runRef.current;
+    const state = sessionRef.current;
+    // Hydration can finish a legacy run blocked solely by an empty tied roll.
+    if (recoveredRun?.status === "active" && record?.status === "active" && state?.status === "piece-complete") {
+      runRef.current = revisePiecePracticeRun(record, state, now());
+      persist(runRef.current);
+    }
+  });
   const startRun = (state: PiecePracticeSessionState) => {
     const record = createPiecePracticeRun(sourceScore ?? displayScore, state, now());
     runRef.current = record;

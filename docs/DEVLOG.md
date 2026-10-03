@@ -4,6 +4,7 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Corrected tied-only rolled checks to require no new attack while preserving projected IDs/counts and V1 checkpoint validation. Recovery resolves legacy empty checks and durably saves runs previously blocked after their real checks completed. Isolated incomplete rolled collection by MIDI/virtual grading source while retaining completed parallel checks, physical evidence, Staff Focus optional input, and due timeouts. Kept version 2.8.6 by owner instruction.
 - Corrected active score-highlight rectangles to enclose upper/lower ledger strokes, including displaced chord heads, using separate presentation bounds. Preserved editor hit-testing, touch targets, selections, notation geometry, and practice behavior. Kept version 2.8.6 by owner instruction.
 - Tightened Piece Practice recovery selection, semantic Staff Focus guard classification, notation highlight layering, and durable Restart Measure reporting for the 2.8.6 cleanup.
 - Added Phase 3 Piece Practice IndexedDB autosave and recovery with versioned score snapshots, ordered run revisions, paused clock rebase, focused-staff reconstruction, completed-report reopening, bounded retention, and failure warnings. Kept package version at 2.8.5 by owner instruction.

@@ -9,6 +9,7 @@ import {
   recordPiecePracticeMidiRelease,
   expirePiecePracticeRolledChecks,
   getPiecePracticeRolledWindowMs,
+  resetPiecePracticeIncompleteRolledChecks,
   skipCurrentPiecePracticeTarget,
   submitPiecePracticePitch,
   submitPiecePracticeAttempt,
@@ -50,12 +51,29 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
   const chordTargetIdRef = useRef<string | null>(null);
   const chordTimingRef = useRef<{ startedAtMs: number; lastAttackAtMs: number; attacks: Set<number> } | null>(null);
   const transitionRef = useRef<PiecePracticeTransition | null>(null);
+  const rolledSourceRef = useRef<{ targetId: string; source: PiecePracticeInputSource } | null>(null);
   const finalizeMidiChordAttemptRef = useRef<(midiNumbers: ReadonlySet<number>) => void>(() => undefined);
 
   const clearVirtualSelection = useCallback(() => {
     virtualSelectionRef.current = new Set();
     setVirtualSelectedMidiNumbers(new Set());
   }, []);
+
+  const prepareRolledSource = useCallback((source: PiecePracticeInputSource, atMs: number) => {
+    const current = sessionStateRef.current;
+    const target = getCurrentPiecePracticeTarget(piece, current);
+    if (!target) return;
+    const owner = rolledSourceRef.current;
+    if (owner?.targetId !== target.id || owner.source !== source) {
+      const next = resetPiecePracticeIncompleteRolledChecks(piece, current, atMs);
+      if (next !== current) {
+        sessionStateRef.current = next;
+        onSessionStateChange(next);
+      }
+    }
+    // Ordinary-check completion clears its collector, but must retain ownership of a parallel roll.
+    rolledSourceRef.current = { targetId: target.id, source };
+  }, [onSessionStateChange, piece]);
 
   const {
     addNoteToAttempt,
@@ -179,10 +197,11 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       sessionStateRef.current = withEvidence;
       onSessionStateChange(withEvidence);
     }
+    if (classification === "optional") return;
+    prepareRolledSource("midi", atMs);
     const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     const rolledChecks = target.checks.filter((check) => check.kind === "rolled-chord" && pendingIds.has(check.id));
     const normalCheck = target.checks.find((check) => check.kind === "normal" && pendingIds.has(check.id));
-    if (classification === "optional") return;
     clearVirtualSelection();
     if (normalCheck && rolledChecks.length === 0 && !normalCheck.expectedMidiNumbers.includes(midiNumber)) {
       // Held allowance never excuses a wrong new attack, including the predecessor pitch.
@@ -215,7 +234,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     chordTargetIdRef.current = target.id;
     chordTimingRef.current = { startedAtMs: atMs, lastAttackAtMs: atMs, attacks: new Set([midiNumber]) };
     startAttempt(midiNumber);
-  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, isAttemptActive, now, onSessionStateChange, piece, startAttempt, submitAttack, submitPitch]);
+  }, [addNoteToAttempt, clearAttempt, clearVirtualSelection, isAttemptActive, now, onSessionStateChange, piece, prepareRolledSource, startAttempt, submitAttack, submitPitch]);
 
   const handleMidiHeldNotesChanged = useCallback((heldNotes: ReadonlySet<number>) => {
     const next = new Set(heldNotes);
@@ -285,6 +304,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
       sessionStateRef.current = armed;
       onSessionStateChange(armed);
     }
+    prepareRolledSource("virtual", now());
     const pendingIds = new Set(sessionStateRef.current.currentCheckProgress.filter(({ completed }) => !completed).map(({ checkId }) => checkId));
     clearAttempt();
     chordTargetIdRef.current = null;
@@ -315,7 +335,7 @@ export function usePiecePracticeInput({ piece, sessionState, onSessionStateChang
     setVirtualSelectedMidiNumbers(next);
     const relevantSelection = new Set([...next].filter((pitch) => classifyPiecePracticePitch(piece, target, pitch) !== "optional"));
     if (normalCheck && relevantSelection.size === normalCheck.expectedMidiNumbers.length) submitAttack("virtual", relevantSelection);
-  }, [clearAttempt, clearVirtualSelection, now, onSessionStateChange, piece, submitAttack, submitPitch]);
+  }, [clearAttempt, clearVirtualSelection, now, onSessionStateChange, piece, prepareRolledSource, submitAttack, submitPitch]);
 
   useEffect(() => {
     if (sessionState.clockPaused) return;

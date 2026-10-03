@@ -104,7 +104,27 @@ function requireTimestamp(timestampMs: number): void {
 }
 
 function progressForTarget(target: PiecePracticeTarget | null | undefined): readonly PiecePracticeCheckProgress[] {
-  return target?.checks.map(({ id }) => ({ checkId: id, completed: false, accumulatedMidiNumbers: [], startedAtMs: null })) ?? [];
+  return target?.checks.map((check) => ({
+    checkId: check.id,
+    completed: check.kind === "rolled-chord" && check.expectedMidiNumbers.length === 0,
+    accumulatedMidiNumbers: [], startedAtMs: null,
+  })) ?? [];
+}
+
+/** Keep projected IDs/counts compatible with V1 runs; tied-only rolls need no attack. */
+export function resolvePiecePracticeEmptyRolledChecks(piece: PiecePracticePiece, state: PiecePracticeSessionState, atMs: number): PiecePracticeSessionState {
+  const target = getCurrentPiecePracticeTarget(piece, state);
+  if (!target) return state;
+  let changed = false;
+  const currentCheckProgress = state.currentCheckProgress.map((progress) => {
+    const check = target.checks.find(({ id }) => id === progress.checkId);
+    if (progress.completed || check?.kind !== "rolled-chord" || check.expectedMidiNumbers.length !== 0) return progress;
+    changed = true;
+    return { ...progress, completed: true, accumulatedMidiNumbers: [], startedAtMs: null };
+  });
+  if (!changed) return state;
+  const resolved = { ...state, currentCheckProgress };
+  return currentCheckProgress.every(({ completed }) => completed) ? advanceCompletedTarget(piece, resolved, atMs) : resolved;
 }
 
 function effectiveEndMeasureIndex(piece: PiecePracticePiece, state: Pick<PiecePracticeSessionState, "endMeasureIndex">): number {
@@ -482,6 +502,21 @@ export function expirePiecePracticeRolledChecks(piece: PiecePracticePiece, state
     missingMidiNumbers: check.expectedMidiNumbers.filter((midiNumber) => !accumulatedMidiNumbers.includes(midiNumber)),
     windowMs,
   }, atMs), { ...state, currentCheckProgress });
+}
+
+/** Switching grading sources discards partial rolls, retaining due timeouts and completed checks. */
+export function resetPiecePracticeIncompleteRolledChecks(piece: PiecePracticePiece, state: PiecePracticeSessionState, atMs: number): PiecePracticeSessionState {
+  const current = expirePiecePracticeRolledChecks(piece, state, atMs);
+  const target = getCurrentPiecePracticeTarget(piece, current);
+  if (!target) return current;
+  let changed = false;
+  const currentCheckProgress = current.currentCheckProgress.map((progress) => {
+    const check = target.checks.find(({ id }) => id === progress.checkId);
+    if (progress.completed || check?.kind !== "rolled-chord" || (progress.startedAtMs === null && progress.accumulatedMidiNumbers.length === 0)) return progress;
+    changed = true;
+    return { ...progress, accumulatedMidiNumbers: [], startedAtMs: null };
+  });
+  return changed ? { ...current, currentCheckProgress } : current;
 }
 
 export function advancePiecePracticeNoAttackMeasure(piece: PiecePracticePiece, state: PiecePracticeSessionState, atMs = state.activeSinceMs): AdvancePiecePracticeMeasureResult {
