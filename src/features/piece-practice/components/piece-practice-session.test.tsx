@@ -223,7 +223,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText(/Saving the completed practice result/)).toBeTruthy();
     expect(screen.getByText(/Focused result is not safely stored/)).toBeTruthy();
     expect(unloadIsProtected()).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     await act(async () => { focused.resolve(); });
     expect(mocks.inputOptions!.sessionState).toBe(originalState);
     expect(screen.getByText("Completed practice saved.")).toBeTruthy();
@@ -239,7 +239,7 @@ describe("PiecePracticeSession", () => {
       render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} />);
       fireEvent.click(screen.getByRole("button", { name: "Practice measure 1" }));
       const abandoned = writes.at(-1)!;
-      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
       const restored = mocks.inputOptions!.sessionState;
       expect(restored.skipEvidence).toEqual(original.record.checkpoint.skipEvidence);
       expect(unloadIsProtected()).toBe(false);
@@ -253,7 +253,7 @@ describe("PiecePracticeSession", () => {
       expect(screen.getByText(/Saving the completed practice result/)).toBeTruthy();
       expect(unloadIsProtected()).toBe(true);
       expect(screen.queryByRole("region", { name: "Measure 1 practice comparison" })).toBeNull();
-      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
       await act(async () => { pending.resolve(); });
       expect(mocks.inputOptions!.sessionState).toBe(restored);
       expect(screen.getByRole("region", { name: "Measure 2 practice comparison" })).toBeTruthy();
@@ -279,7 +279,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.queryByText("Completed practice saved.")).toBeNull();
     expect(unloadIsProtected()).toBe(true);
     await act(async () => { completed.resolve(); });
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     expect(mocks.inputOptions!.sessionState.skipEvidence).toEqual(original.record.checkpoint.skipEvidence);
     expect(screen.queryByText(/Focused result is not safely stored/)).toBeNull();
     expect(unloadIsProtected()).toBe(false);
@@ -298,7 +298,7 @@ describe("PiecePracticeSession", () => {
       fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
       await screen.findByRole("button", { name: "Restart Piece" });
       expect(confirm).toHaveBeenCalledWith("The completed practice result is not safely stored. Start a new run anyway?");
-      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
       const comparison = screen.getByRole("region", { name: "Measure 2 practice comparison" });
       expect(within(comparison).getByText(/Focused result is not safely stored/)).toBeTruthy();
       expect(screen.getByText("Completed practice saved.")).toBeTruthy();
@@ -306,7 +306,7 @@ describe("PiecePracticeSession", () => {
       fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
       completeBySkipping();
       await act(async () => { writes.at(-1)!.resolve(); });
-      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
       expect(screen.queryByText(/Focused result is not safely stored/)).toBeNull();
     } finally { confirm.mockRestore(); }
   });
@@ -322,11 +322,11 @@ describe("PiecePracticeSession", () => {
       const original = writes.at(-1)!;
       await act(async () => { original.reject(new Error("Original failed")); });
       fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
-      await screen.findByRole("button", { name: "Return to Improve" });
+      await screen.findByRole("button", { name: "Return to Targeted Practice" });
       act(() => submit([69]));
       await act(async () => { writes.at(-1)!.resolve(); });
       expect(screen.getByText("Completed practice saved.")).toBeTruthy();
-      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
       expect(mocks.inputOptions!.sessionState).toBe(originalState);
       expect(screen.queryByText("Completed practice saved.")).toBeNull();
       expect(screen.getByText(/not safely stored for crash or reload recovery/)).toBeTruthy();
@@ -335,7 +335,7 @@ describe("PiecePracticeSession", () => {
     } finally { confirm.mockRestore(); }
   });
 
-  it("recovers a focused attempt through the existing V1 parser paused, without inventing a persisted Improve relationship", () => {
+  it("recovers a focused attempt through the existing V1 parser paused, without inventing a persisted Targeted Practice relationship", () => {
     const original = completedSavedRun(); const store = runStore();
     const rendered = render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} />);
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
@@ -347,7 +347,7 @@ describe("PiecePracticeSession", () => {
     render(<PiecePracticeSession now={() => 100_000} onExit={vi.fn()} piece={parsed.piece} recoveredRun={parsed.record} runStore={store} />);
     expect(screen.getByText("Recovered practice session")).toBeTruthy();
     expect(mocks.inputOptions?.sessionState).toMatchObject({ startMeasureIndex: 1, endMeasureIndex: 1, assessmentFocus: "both", clockPaused: true });
-    expect(screen.queryByRole("button", { name: "Return to Improve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Return to Targeted Practice" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Resume Practice" }));
     expect(mocks.inputOptions?.sessionState.clockPaused).toBe(false);
   });
@@ -359,7 +359,7 @@ describe("PiecePracticeSession", () => {
     expect(container.querySelectorAll(".mobile-play-mode")).toHaveLength(1);
     expect(screen.getAllByTestId("piano-keyboard")).toHaveLength(1);
     act(() => submit([69])); await screen.findByText("Completed practice saved.");
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     expect(container.querySelectorAll(".mobile-play-mode")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Practice measure 3" }));
@@ -397,14 +397,14 @@ describe("PiecePracticeSession", () => {
     await screen.findByText("Completed practice saved.");
     let comparison = screen.getByRole("region", { name: "Measure 3 practice comparison" });
     expect(within(comparison).getAllByText("Skipped targets").map((dt) => dt.nextElementSibling?.textContent)).toEqual(["1", "0"]);
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     expect(mocks.inputOptions?.sessionState).toBe(originalState);
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Practice measure 3" }));
     expect(screen.getByText(/Original results restored/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
     act(() => submit([60])); act(() => submit([69]));
     await screen.findByText("Completed practice saved.");
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     comparison = screen.getByRole("region", { name: "Measure 3 practice comparison" });
     expect(within(comparison).getAllByText("Mistakes").map((dt) => dt.nextElementSibling?.textContent)).toEqual(["0", "1"]);
     expect(screen.getAllByRole("region", { name: /practice comparison/ })).toHaveLength(1);
@@ -419,12 +419,12 @@ describe("PiecePracticeSession", () => {
     render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} sourceScore={original.score} />);
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
     completeBySkipping();
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     expect(screen.getByText("Waiting for the completed result to finish saving.")).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Improve" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Targeted Practice" })).toBeNull();
     expect(unloadIsProtected()).toBe(true);
     await act(async () => { resolveCompletion(); });
-    await screen.findByRole("region", { name: "Improve" });
+    await screen.findByRole("region", { name: "Targeted Practice" });
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Practice measure 2" }));
     expect(unloadIsProtected()).toBe(false);
     expect(screen.getByRole("region", { name: "Measure 2 practice comparison" })).toBeTruthy();
@@ -438,13 +438,13 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
     completeBySkipping();
     await act(async () => { rejectCompletion(new Error("Storage unavailable")); });
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith("The completed practice result is not safely stored. Return to Improve anyway?"));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith("The completed practice result is not safely stored. Return to Targeted Practice anyway?"));
     expect(screen.getByRole("region", { name: "Measure 2 practice comparison" })).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Improve" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Targeted Practice" })).toBeNull();
     confirm.mockReturnValue(true);
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
-    await screen.findByRole("region", { name: "Improve" });
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+    await screen.findByRole("region", { name: "Targeted Practice" });
     expect(screen.getByText("Completed practice saved.")).toBeTruthy();
     expect(within(screen.getByRole("region", { name: "Measure 2 practice comparison" })).getByText(/Focused result is not safely stored/)).toBeTruthy();
     expect(unloadIsProtected()).toBe(false);
@@ -471,12 +471,12 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
     expect(mocks.inputOptions?.sessionState.startMeasureIndex).toBe(2);
     expect(mocks.inputOptions?.sessionState.endMeasureIndex).toBe(2);
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     expect(screen.getByText(/ended before completion; no completed comparison was added/)).toBeTruthy();
     expect(screen.getByRole("region", { name: "Measure 3 practice comparison" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
     expect(mocks.inputOptions?.sessionState.startMeasureIndex).toBe(0);
-    expect(screen.queryByRole("button", { name: "Return to Improve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Return to Targeted Practice" })).toBeNull();
     completeBySkipping();
     expect(screen.queryByRole("region", { name: /practice comparison/ })).toBeNull();
     confirm.mockRestore();
@@ -509,10 +509,10 @@ describe("PiecePracticeSession", () => {
     expect(screen.getAllByTestId("piano-keyboard")).toHaveLength(1);
     expect(original).toEqual(originalCopy);
     expect(unloadIsProtected()).toBe(true);
-    expect(screen.getByRole("button", { name: "Return to Improve" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Return to Targeted Practice" })).toBeTruthy();
   });
 
-  it("waits for the original completed revision before launching Improve and rejects duplicate launch clicks", async () => {
+  it("waits for the original completed revision before launching Targeted Practice and rejects duplicate launch clicks", async () => {
     const { store, resolveCompletion } = heldCompletionStore();
     render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
     fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
@@ -523,11 +523,11 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("Waiting for the completed result to finish saving.")).toBeTruthy();
     expect(store.records.every(({ runId }) => runId === originalId)).toBe(true);
     await act(async () => { resolveCompletion(); });
-    await screen.findByRole("button", { name: "Return to Improve" });
+    await screen.findByRole("button", { name: "Return to Targeted Practice" });
     expect(new Set(store.records.map(({ runId }) => runId)).size).toBe(2);
   });
 
-  it("requires explicit acknowledgement after a failed original save before starting Improve", async () => {
+  it("requires explicit acknowledgement after a failed original save before starting Targeted Practice", async () => {
     const { store, rejectCompletion } = heldCompletionStore();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
@@ -536,11 +536,11 @@ describe("PiecePracticeSession", () => {
     await act(async () => { rejectCompletion(new Error("Full")); });
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 1" }));
     await waitFor(() => expect(confirm).toHaveBeenCalledWith("The completed practice result is not safely stored. Start focused practice anyway?"));
-    expect(screen.queryByRole("button", { name: "Return to Improve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Return to Targeted Practice" })).toBeNull();
     expect(unloadIsProtected()).toBe(true);
     confirm.mockReturnValue(true);
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 1" }));
-    await screen.findByRole("button", { name: "Return to Improve" });
+    await screen.findByRole("button", { name: "Return to Targeted Practice" });
     confirm.mockRestore();
   });
 
@@ -554,15 +554,15 @@ describe("PiecePracticeSession", () => {
     const originalState = mocks.inputOptions!.sessionState;
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
     mocks.resetInput.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     expect(mocks.resetInput).not.toHaveBeenCalled();
     expect(mocks.inputOptions?.sessionState.status).toBe("practicing");
     confirm.mockReturnValue(true);
-    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
     expect(mocks.inputOptions?.sessionState).toBe(originalState);
     expect(store.records.at(-1)?.status).toBe("ended-incomplete");
     expect(onExit).not.toHaveBeenCalled();
-    expect(screen.getByRole("region", { name: "Improve" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Targeted Practice" })).toBeTruthy();
     expect(mocks.inputMounts).toBe(1);
     confirm.mockRestore();
   });

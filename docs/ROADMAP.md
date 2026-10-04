@@ -307,7 +307,7 @@ Piece Practice has explicit Mobile Play during an active session; narrow/coarse 
 
 ---
 
-## Improve — PROVISIONAL MVP implemented
+## Targeted Practice — PROVISIONAL MVP implemented
 
 - [x] Optional recommendations in completed Piece Practice results, including reopened reports
 - [x] Deterministic native evidence ranking and exact mistake/skip/restart/hesitation explanations

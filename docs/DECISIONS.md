@@ -1017,11 +1017,11 @@ The 2.8.6 cleanup ranks parsed valid runs before presenting recovery candidates 
 
 ---
 
-# 2026-10 — Improve MVP Uses Completed Native Evidence (PROVISIONAL)
+# 2026-10 — Targeted Practice MVP Uses Completed Native Evidence (PROVISIONAL)
 
 ## Decision
 
-The owner authorized a provisional Improve workflow on October 4, 2026. Completed Piece Practice results recommend original measures by descending mistake, skip, deliberate-restart and recorded-hesitation counts, using score order for ties. The named code policy is provisional, not an established pedagogical standard. Every eligible measure remains selectable; there is no numerical ability/difficulty score.
+The owner authorized a provisional Targeted Practice workflow on October 4, 2026, originally named "Improve". The terminology was subsequently changed to reserve "Improv" for a future improvisation mode; behavior remains unchanged. Completed Piece Practice results recommend original measures by descending mistake, skip, deliberate-restart and recorded-hesitation counts, using score order for ties. The named code policy is provisional, not an established pedagogical standard. Every eligible measure remains selectable; there is no numerical ability/difficulty score.
 
 Focused practice uses one original measure, the original score snapshot and Staff Focus, and the existing Piece Practice engine. It creates a separate ordinary run while retaining an in-tab route back to the original report. The latest completed focused evidence may be compared with the original measure's native counts, with explicit differences in passage starts and repetitions.
 

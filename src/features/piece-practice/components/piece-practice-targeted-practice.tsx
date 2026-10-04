@@ -3,7 +3,7 @@ import { StaffBuilderScoreView } from "@/features/staff-builder/components/staff
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { piecePracticeAssessmentLabel } from "../piece-practice-assessment";
 import type { PiecePracticeMeasureDiagnostic } from "../piece-practice-evidence";
-import { comparePiecePracticeImprove, selectPiecePracticeImprove, type PiecePracticeImproveComparison } from "../piece-practice-improve";
+import { comparePiecePracticeTargetedPractice, selectPiecePracticeTargetedPractice, type PiecePracticeTargetedPracticeComparison } from "../piece-practice-targeted-practice";
 import type { PiecePracticeSessionState } from "../piece-practice-session";
 
 function evidenceReasons(result: PiecePracticeMeasureDiagnostic): string[] {
@@ -26,7 +26,7 @@ function Counts({ label, result }: Readonly<{ label: string; result: PiecePracti
   </div>;
 }
 
-export function PiecePracticeImproveComparisonView({ comparison, focusedResultUnsaved = false }: Readonly<{ comparison: PiecePracticeImproveComparison; focusedResultUnsaved?: boolean }>) {
+export function PiecePracticeTargetedPracticeComparisonView({ comparison, focusedResultUnsaved = false }: Readonly<{ comparison: PiecePracticeTargetedPracticeComparison; focusedResultUnsaved?: boolean }>) {
   return <section aria-label={`Measure ${comparison.original.measureNumber} practice comparison`} className="grid gap-3">
     <h3 className="font-bold">Measure {comparison.original.measureNumber}: practice comparison</h3>
     <div className="grid gap-3 sm:grid-cols-2"><Counts label="Original run" result={comparison.original} /><Counts label="Latest completed focused run" result={comparison.focused} /></div>
@@ -50,7 +50,7 @@ function Recommendation({ result, score, state, disabled, onPractice, latest, la
   const practiceButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (focusRequested && !disabled) practiceButton.current?.focus(); }, [focusRequested, disabled]);
   const notationId = useId();
-  const comparison = latest ? comparePiecePracticeImprove(state, latest, result.measureIndex) : null;
+  const comparison = latest ? comparePiecePracticeTargetedPractice(state, latest, result.measureIndex) : null;
   return <li className="grid min-w-0 gap-3 rounded-lg border border-zinc-600 p-3">
     <h3 className="text-lg font-semibold">Measure {result.measureNumber}</h3>
     <p>Recorded in the original run: {evidenceReasons(result).join("; ")}.</p>
@@ -60,11 +60,11 @@ function Recommendation({ result, score, state, disabled, onPractice, latest, la
     </div>
     {!measureAvailable && <p>This measure is unavailable in the score snapshot. Its recorded evidence is shown above.</p>}
     <div aria-label={`Measure ${result.measureNumber} notation`} className="min-w-0 overflow-x-auto" hidden={!showNotation || !measureAvailable} id={notationId} role="region" tabIndex={0}>{showNotation && measureAvailable && <StaffBuilderScoreView measureIndex={result.measureIndex} score={score} ghostedStaff={state.assessmentFocus === "upper" ? "bass" : state.assessmentFocus === "lower" ? "treble" : undefined} />}</div>
-    {comparison && <PiecePracticeImproveComparisonView comparison={comparison} focusedResultUnsaved={latestUnsaved} />}
+    {comparison && <PiecePracticeTargetedPracticeComparisonView comparison={comparison} focusedResultUnsaved={latestUnsaved} />}
   </li>;
 }
 
-export function PiecePracticeImprove({ state, score, disabled = false, onPractice, latestResults = [], unsavedMeasureIndices = [], focusMeasureIndex = null }: Readonly<{
+export function PiecePracticeTargetedPractice({ state, score, disabled = false, onPractice, latestResults = [], unsavedMeasureIndices = [], focusMeasureIndex = null }: Readonly<{
   state: PiecePracticeSessionState;
   score: StaffBuilderScore;
   disabled?: boolean;
@@ -74,9 +74,9 @@ export function PiecePracticeImprove({ state, score, disabled = false, onPractic
   focusMeasureIndex?: number | null;
 }>) {
   const headingId = useId();
-  const recommendations = selectPiecePracticeImprove(state);
+  const recommendations = selectPiecePracticeTargetedPractice(state);
   return <section aria-labelledby={headingId} className="grid min-w-0 gap-3 rounded-xl border border-sky-700/70 p-4">
-    <h2 className="text-xl font-bold" id={headingId} tabIndex={-1}>Improve</h2>
+    <h2 className="text-xl font-bold" id={headingId} tabIndex={-1}>Targeted Practice</h2>
     <p>Revisit measures using evidence from this completed run. Assessment: {piecePracticeAssessmentLabel(state.assessmentFocus)}.</p>
     <details className="text-sm text-zinc-300"><summary className="min-h-11 cursor-pointer py-2 font-semibold">How measures are suggested · provisional</summary>
       <p>Higher mistake counts come first, then skipped targets, measure restarts, and recorded slow responses. Ties use score order. Measures with mistakes, skips or restarts come before measures with slow responses alone. These provisional suggestions are not difficulty or ability scores.</p>

@@ -1,12 +1,12 @@
 # Prelude: MIDI Mentor — Testing
 
-## Improve PROVISIONAL MVP
+## Targeted Practice PROVISIONAL MVP
 
-Focused validation: `pnpm test src/features/piece-practice/piece-practice-improve.test.ts src/features/piece-practice/components/piece-practice-improve.test.tsx src/features/piece-practice/components/piece-practice-session.test.tsx`, followed by `pnpm verify`.
+Focused validation: `pnpm test src/features/piece-practice/piece-practice-targeted-practice.test.ts src/features/piece-practice/components/piece-practice-targeted-practice.test.tsx src/features/piece-practice/components/piece-practice-session.test.tsx`, followed by `pnpm verify`.
 
 The selector tests exercise completed-range eligibility, transparent count priority, score-order ties, native rolled-failure counts, no fabricated retry/time/velocity evidence, immutability, and compatible/incompatible comparisons. UI tests cover actual reasons, provisional-policy text, lazy semantic-staff notation, named keyboard-accessible controls, disabled/unavailable states, clean/incomplete runs and descriptive count comparison.
 
-Session regressions cover fresh focused run identity/evidence, exact original range/snapshot/focus, one input owner, pending/failed original and focused saves, duplicate launch, cancelled/confirmed unfinished return, keyboard focus restoration, repeated passage comparison, incoming boundary ties, ordinary V1 paused recovery, Mobile Play continuity, targetless restart-only measures and ordinary Practice Again reset. Existing full-suite MIDI/roll/tie/Staff Focus/report/recovery tests remain authoritative; Improve does not alter those engines.
+Session regressions cover fresh focused run identity/evidence, exact original range/snapshot/focus, one input owner, pending/failed original and focused saves, duplicate launch, cancelled/confirmed unfinished return, keyboard focus restoration, repeated passage comparison, incoming boundary ties, ordinary V1 paused recovery, Mobile Play continuity, targetless restart-only measures and ordinary Practice Again reset. Existing full-suite MIDI/roll/tie/Staff Focus/report/recovery tests remain authoritative; Targeted Practice does not alter those engines.
 
 The final owner-audit regressions deliberately settle older original, abandoned focused and pre-restart checkpoint promises after another focused run completes. Both late success and late failure must leave the current result's save status, unload protection and evidence intact. They also verify restoration of an acknowledged unsaved original, and preserve an explicit unsaved comparison notice through failed-save acknowledgement, return and unfinished repetition until a successfully saved replacement completes.
 
@@ -16,7 +16,7 @@ Manual Chromebook/Yamaha checklist (still required):
 2. Use Practice measure N under Both/Upper/Lower Staff Focus. Confirm original measure numbering, spelling, lyrics/clefs/meter, boundary ties, ordinary/rolled chords, optional accompaniment and expected keyboard input.
 3. Return both before and after completion. Cancel an unfinished return while a chord is partly collected, then continue. Verify original evidence remains intact, completion counts stay descriptive, and repeated attempts replace only that measure's latest completed comparison.
 4. Use keyboard and screen reader through recommendation, notation expansion, launch, completion and return. Confirm visible focus, touch targets, scrollable notation and accessible comparison labels at portrait/landscape/zoom sizes.
-5. Enter/exit Mobile Play across the whole path; verify one input session, audio and Yamaha sustain/overlap/hotplug behavior. Exercise ordinary Piece Practice without using Improve.
+5. Enter/exit Mobile Play across the whole path; verify one input session, audio and Yamaha sustain/overlap/hotplug behavior. Exercise ordinary Piece Practice without using Targeted Practice.
 6. Reload during focused practice and resume paused through ordinary recovery. Reopen a completed report after changing/deleting its library piece; preserve the practiced snapshot. Verify pending/failed save protection where reproducible.
 7. Inspect Copy Report and browser Print/Save PDF for original and focused runs separately. Verify cached offline VKB and installed PWA. Comparison/navigation links are intentionally in-tab only and are not part of copied/printed reports.
 
