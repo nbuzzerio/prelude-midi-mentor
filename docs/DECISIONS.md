@@ -2,6 +2,17 @@
 
 > This document records important product and architectural decisions made during the development of Prelude.
 
+## Chromatic Tuner Phase 2 — provisional standalone microphone input
+
+- Owner approved the production standalone MVP while physical microphone QA remains pending, and explicitly retained version 2.8.6. Improv remains the next major musical feature priority; the roadmap is unchanged.
+- Use the measured main-thread AnalyserNode/direct MPM architecture. Port pure logic into feature-local production TypeScript with no `.dev` imports and no additional dependencies. YIN remains a spike comparison rather than an extra production detector.
+- Keep microphone observations separate from MIDI and grading. Numeric equal-tempered semitone coordinates do not constitute MIDI attacks or releases. Reuse the existing no-key spelling convention rather than adding instrument-specific naming.
+- Offer all chromatic pitch classes within an explicit 120–2300 Hz MVP range. Reference pitch is A4=440 Hz. Instrument calibration, wider-range validation, device selection and polyphony are deferred.
+- Show uncertainty honestly: retain a labelled last pitch briefly, then clear it. Use repeated evidence, octave dwell, decay gating and explicit clocks. A stable high-periodicity reading can still be an octave wrong; do not present quality as confidence in musical identity.
+- Give the tuner exclusive foreground capture. Use only an active-run boolean notification from the existing persistent Practice Session builder; active hidden, completion and Bonus runs block listening. Do not redesign host foreground state or MIDI ownership.
+- Stop and release capture on navigation/background/interruption; require explicit restart. Never route microphone samples to speakers, retain raw audio, or upload it. Other playback can still interfere acoustically.
+- Consider a Worker only if target-device detector computation causes interaction stalls. Consider AudioWorklet capture if realistic main-thread sampling gaps defeat freshness. Neither fixes harmonic ambiguity. Physical Chromebook/Android and violin/ocarina QA is required before claiming instrument reliability.
+
 ## Melody Mode Phase 1
 
 - Melody is top-level continuous practice; mistakes never block.

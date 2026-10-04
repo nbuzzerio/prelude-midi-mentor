@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   addPracticeSessionPreset, createPracticeSessionPreset, EMPTY_PRACTICE_SESSION_LIBRARY,
   loadPracticeSessionLibrary, savePracticeSessionLibrary, setLastUsedPracticeSessionPreset, type PracticeSessionStorage,
@@ -16,7 +16,7 @@ const defaultCreateId: PracticeSessionIdFactory = () => crypto.randomUUID();
 
 type LoadBlock = Readonly<{ reason: "unavailable" | "corrupt" | "unsupported"; message: string }>;
 
-export default function PracticeSessionBuilder({ active = true, storage = browserStorage(), createId = defaultCreateId, createRunId = defaultCreateId, createExerciseToken = defaultCreateId, now = Date.now }: Readonly<{ active?: boolean; storage?: PracticeSessionStorage; createId?: PracticeSessionIdFactory; createRunId?: () => string; createExerciseToken?: () => string; now?: () => number }>) {
+export default function PracticeSessionBuilder({ active = true, onActiveRunChange, storage = browserStorage(), createId = defaultCreateId, createRunId = defaultCreateId, createExerciseToken = defaultCreateId, now = Date.now }: Readonly<{ active?: boolean; onActiveRunChange?: (active: boolean) => void; storage?: PracticeSessionStorage; createId?: PracticeSessionIdFactory; createRunId?: () => string; createExerciseToken?: () => string; now?: () => number }>) {
   const initial = useMemo(() => loadPracticeSessionLibrary(storage), [storage]);
   const [workingLibrary, setWorkingLibrary] = useState<PracticeSessionLibrary>(initial.ok ? initial.value : EMPTY_PRACTICE_SESSION_LIBRARY);
   const [savedLibrary, setSavedLibrary] = useState<PracticeSessionLibrary | null>(initial.ok ? initial.value : null);
@@ -30,6 +30,9 @@ export default function PracticeSessionBuilder({ active = true, storage = browse
   const importButtonRef = useRef<HTMLButtonElement>(null);
   const guideButtonRef = useRef<HTMLButtonElement>(null);
   const [run, dispatchRun] = useReducer(practiceSessionRunReducer, null);
+  const runActive = run?.status === "active";
+  // A hidden active host still owns its engine. Report only this fact; do not alter the run.
+  useLayoutEffect(() => { onActiveRunChange?.(runActive); }, [onActiveRunChange, runActive]);
   const dirty = savedLibrary === null ? replacementAuthorized : JSON.stringify(workingLibrary) !== JSON.stringify(savedLibrary);
   const retry = () => {
     const result = loadPracticeSessionLibrary(storage);

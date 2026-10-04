@@ -10,15 +10,17 @@ import { MidiProvider } from "./components/midi/midi-provider";
 import MelodySession from "./features/melody/components/melody-session";
 import PracticeSessionBuilder from "./features/practice-session/components/practice-session-builder";
 import MidiDiagnostic from "./components/midi/midi-diagnostic";
+import TunerSession from "./features/tuner/components/tuner-session";
 import { version } from "../package.json";
 
-type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session" | "midi-diagnostic";
+type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session" | "midi-diagnostic" | "tuner";
 
 export default function App() {
   const [practiceSection, setPracticeSection] =
     useState<PracticeSection>("freeplay");
+  const [practiceRunActive, setPracticeRunActive] = useState(false);
   const { exitFocusMode, isFocusMode, toggleFocusMode } = useFocusMode(
-    practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody" && practiceSection !== "practice-session",
+    practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody" && practiceSection !== "practice-session" && practiceSection !== "tuner",
   );
 
   let content;
@@ -69,6 +71,10 @@ export default function App() {
 
     case "midi-diagnostic":
       content = <MidiDiagnostic />;
+      break;
+
+    case "tuner":
+      content = <TunerSession available={!practiceRunActive} />;
       break;
 
     default:
@@ -182,6 +188,16 @@ export default function App() {
         </button>
 
         <button
+          aria-label="Chromatic Tuner"
+          aria-pressed={practiceSection === "tuner"}
+          className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "tuner" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+          onClick={() => { exitFocusMode(); setPracticeSection("tuner"); }}
+          type="button"
+        >
+          Tuner
+        </button>
+
+        <button
           aria-label="MIDI Diagnostic"
           aria-pressed={practiceSection === "midi-diagnostic"}
           className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "midi-diagnostic" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
@@ -202,7 +218,7 @@ export default function App() {
       </nav>
 
       <div hidden={practiceSection !== "practice-session"}>
-        <PracticeSessionBuilder active={practiceSection === "practice-session"} />
+        <PracticeSessionBuilder active={practiceSection === "practice-session"} onActiveRunChange={setPracticeRunActive} />
       </div>
       {content}
     </main></MidiProvider>

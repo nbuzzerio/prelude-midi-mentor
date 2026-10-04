@@ -1,6 +1,5 @@
-/// <reference types="vitest/config" />
-
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { VitePWA } from "vite-plugin-pwa";
@@ -77,6 +76,7 @@ export default defineConfig({
 
   test: {
     environment: "jsdom",
+    exclude: [...configDefaults.exclude, ".dev/microphone-spike/**/*.test.mjs"],
   },
 
   resolve: {

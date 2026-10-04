@@ -4,9 +4,13 @@ import { PRACTICE_SESSION_LIBRARY_STORAGE_KEY, type PracticeSessionStorage } fro
 import { PRACTICE_SESSION_BUILDER_OPTIONS } from "../practice-session-builder-options";
 import PracticeSessionBuilder from "./practice-session-builder";
 import { MINIMAL_WEEKLY_PRACTICE_EXAMPLE } from "../import/weekly-practice-examples";
+import type { ActivePracticeSessionRun, PracticeSessionRunEvent } from "../practice-session-runtime";
 
 vi.mock("./practice-session-runtime", () => ({
-  PracticeSessionRuntime: ({ run }: { run: { snapshot: { presetName: string } } }) => <p>Running {run.snapshot.presetName}</p>,
+  PracticeSessionRuntime: ({ run, dispatch }: { run: ActivePracticeSessionRun; dispatch: (event: PracticeSessionRunEvent) => void }) => {
+    const scope = { runId: run.runId, exerciseToken: run.activeExerciseToken, exerciseId: run.snapshot.exercises[run.activeExerciseIndex]!.id };
+    return <><p>Running {run.snapshot.presetName}</p><span>{run.completionPresentation}</span><button onClick={() => { dispatch({ type: "UNIT_COMPLETED", ...scope, at: 2 }); dispatch({ type: "UNIT_COMPLETED", ...scope, at: 2 }); }}>Test target reached</button><button onClick={() => dispatch({ type: "KEEP_PLAYING", ...scope, at: 3 })}>Test Bonus</button><button onClick={() => dispatch({ type: "END", ...scope, endedAt: 4 })}>Test End</button></>;
+  },
   PracticeSessionSummary: () => <p>Summary</p>,
 }));
 
@@ -25,6 +29,20 @@ const readyLibrary = (lastUsedPresetId: string | null = null) => ({
 });
 
 describe("Practice Session builder", () => {
+  it("reports active ownership through hidden, target-complete and Bonus states, then releases it at summary", () => {
+    const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify(readyLibrary()));
+    const onActiveRunChange = vi.fn();
+    const view = render(<PracticeSessionBuilder onActiveRunChange={onActiveRunChange} storage={storage} />);
+    expect(onActiveRunChange).toHaveBeenLastCalledWith(false);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" })); expect(onActiveRunChange).toHaveBeenLastCalledWith(true);
+    view.rerender(<PracticeSessionBuilder active={false} onActiveRunChange={onActiveRunChange} storage={storage} />);
+    expect(onActiveRunChange.mock.calls).toEqual([[false], [true]]);
+    fireEvent.click(screen.getByRole("button", { name: "Test target reached" })); expect(screen.getByText("target-complete")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Test Bonus" })); expect(screen.getByText("bonus")).toBeTruthy();
+    expect(onActiveRunChange.mock.calls).toEqual([[false], [true]]);
+    fireEvent.click(screen.getByRole("button", { name: "Test End" })); expect(screen.getByText("Summary")).toBeTruthy();
+    expect(onActiveRunChange.mock.calls).toEqual([[false], [true], [false]]);
+  });
   it("opens the adjacent AI guide without storage changes and restores its own trigger focus", async () => {
     const storage = new MemoryStorage(); render(<PracticeSessionBuilder storage={storage} />);
     const help = screen.getByRole("button", { name: "How to generate a Weekly Practice plan with AI" });

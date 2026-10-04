@@ -65,9 +65,9 @@ vi.mock("./features/melody/components/melody-session", () => ({
 }));
 
 vi.mock("./features/practice-session/components/practice-session-builder", () => ({
-  default: function MockPracticeSessionBuilder({ active }: { active: boolean }) {
+  default: function MockPracticeSessionBuilder({ active, onActiveRunChange }: { active: boolean; onActiveRunChange?: (active: boolean) => void }) {
     const [edited, setEdited] = useState(false);
-    return <div><span>Practice Sessions builder</span><button onClick={() => setEdited(true)} type="button">{edited ? "Unsaved edit retained" : "Unsaved builder control"}</button><span>{active ? "Builder active" : "Builder inactive"}</span></div>;
+    return <div><span>Practice Sessions builder</span><button onClick={() => setEdited(true)} type="button">{edited ? "Unsaved edit retained" : "Unsaved builder control"}</button><span>{active ? "Builder active" : "Builder inactive"}</span><button onClick={() => onActiveRunChange?.(true)} type="button">Start hosted test run</button><button onClick={() => onActiveRunChange?.(false)} type="button">End hosted test run</button></div>;
   },
 }));
 
@@ -76,6 +76,20 @@ vi.mock("./components/midi/midi-diagnostic", () => ({
 }));
 
 describe("App focus mode", () => {
+  it("keeps the tuner standalone and blocks capture while a hidden hosted run remains active", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start hosted test run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chromatic Tuner" }));
+    expect(screen.getByRole("heading", { name: "Chromatic Tuner" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start Listening" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "End hosted test run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chromatic Tuner" }));
+    expect(screen.getByRole("button", { name: "Start Listening" }).hasAttribute("disabled")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
+    expect(screen.queryByRole("heading", { name: "Chromatic Tuner" })).toBeNull();
+  });
   it("keeps one connected MIDI lifecycle while routing attacks only to the active top-level mode", async () => {
     appMidiNotes.length = 0;
     let messageListener: ((event: MIDIMessageEvent) => void) | null = null;
@@ -119,7 +133,7 @@ describe("App focus mode", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
     expect(within(navigation).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
-      "Free Play", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody", "MIDI Diagnostic",
+      "Free Play", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody", "Chromatic Tuner", "MIDI Diagnostic",
     ]);
     expect(within(screen.getByRole("button", { name: "Staff Builder" })).getByText("Staff")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: "Ear Training" })).getByText("Ear")).toBeTruthy();
