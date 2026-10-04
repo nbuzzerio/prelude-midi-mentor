@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { createPiecePracticeSession, getCurrentPiecePracticeTarget, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
-import { createPiecePracticeRun, type PiecePracticeRunRecordV1, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
+import { createPiecePracticeRun, parsePiecePracticeRun, type PiecePracticeRunRecordV1, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
 import type { PiecePracticeInputFeedback } from "../hooks/use-piece-practice-input";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
 import { PiecePracticeSession } from "./piece-practice-session";
@@ -153,6 +153,38 @@ function unloadIsProtected() {
   return event.defaultPrevented;
 }
 
+function controlledRunStore() {
+  const writes: { record: PiecePracticeRunRecordV1; resolve: () => void; reject: (error: Error) => void }[] = [];
+  const store: PiecePracticeRunStore = {
+    async list() { return []; },
+    save(record) {
+      return new Promise<void>((resolve, reject) => { writes.push({ record, resolve, reject }); });
+    },
+    async discard() {},
+  };
+  return { store, writes };
+}
+
+function completeBySkipping() {
+  for (let i = 0; i < 30 && mocks.inputOptions?.sessionState.status !== "piece-complete"; i += 1) {
+    const next = screen.queryByRole("button", { name: "Next Measure" });
+    fireEvent.click(next ?? screen.getByRole("button", { name: "Skip Target" }));
+  }
+  expect(mocks.inputOptions?.sessionState.status).toBe("piece-complete");
+}
+
+function completedSavedRun() {
+  const score = realisticPolyphonicScore();
+  const projected = projectStaffBuilderPieceForPractice(score);
+  if (!projected.ok) throw new Error("Invalid fixture");
+  const created = createPiecePracticeSession(projected.piece, { startMeasureIndex: 0, startedAtMs: 0 });
+  if (!created.ok) throw new Error("Invalid range");
+  let state = created.state;
+  for (let i = 0; i < 20 && state.status !== "piece-complete"; i += 1) state = skipCurrentPiecePracticeTarget(projected.piece, state, i + 1).state;
+  if (state.status !== "piece-complete") throw new Error("Fixture did not complete");
+  return { score, piece: projected.piece, record: createPiecePracticeRun(score, state, 50) };
+}
+
 function start(source = piece(), measure = 1, endMeasure: number | null = null) {
   const rendered = render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={source} runStore={runStore()} />);
   if (measure !== 1) fireEvent.change(screen.getByLabelText("Start Measure"), { target: { value: String(measure - 1) } });
@@ -171,6 +203,370 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it.each(["resolve", "reject"] as const)("ignores a late original checkpoint %s while focused completion is pending and restores original durability", async (settle) => {
+    const { store, writes } = controlledRunStore();
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    const earlierOriginal = writes[0];
+    completeBySkipping();
+    const originalState = mocks.inputOptions!.sessionState;
+    const original = writes.at(-1)!;
+    await act(async () => { original.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+    act(() => submit([69]));
+    const focusedState = mocks.inputOptions!.sessionState;
+    const focused = writes.at(-1)!;
+    expect(focused.record.runId).not.toBe(original.record.runId);
+    await act(async () => { earlierOriginal[settle](new Error("Late checkpoint failure")); });
+    expect(mocks.inputOptions!.sessionState).toBe(focusedState);
+    expect(screen.queryByText("Completed practice saved.")).toBeNull();
+    expect(screen.getByText(/Saving the completed practice result/)).toBeTruthy();
+    expect(screen.getByText(/Focused result is not safely stored/)).toBeTruthy();
+    expect(unloadIsProtected()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    await act(async () => { focused.resolve(); });
+    expect(mocks.inputOptions!.sessionState).toBe(originalState);
+    expect(screen.getByText("Completed practice saved.")).toBeTruthy();
+    expect(screen.queryByText(/Focused result is not safely stored/)).toBeNull();
+    expect(unloadIsProtected()).toBe(false);
+  });
+
+  it.each(["resolve", "reject"] as const)("isolates a late abandoned focused checkpoint %s from another passage's pending result", async (settle) => {
+    const original = completedSavedRun();
+    const { store, writes } = controlledRunStore();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} />);
+      fireEvent.click(screen.getByRole("button", { name: "Practice measure 1" }));
+      const abandoned = writes.at(-1)!;
+      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      const restored = mocks.inputOptions!.sessionState;
+      expect(restored.skipEvidence).toEqual(original.record.checkpoint.skipEvidence);
+      expect(unloadIsProtected()).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+      completeBySkipping();
+      const pending = writes.at(-1)!;
+      const pendingState = mocks.inputOptions!.sessionState;
+      await act(async () => { abandoned[settle](new Error("Late abandoned failure")); });
+      expect(mocks.inputOptions!.sessionState).toBe(pendingState);
+      expect(screen.queryByText("Completed practice saved.")).toBeNull();
+      expect(screen.getByText(/Saving the completed practice result/)).toBeTruthy();
+      expect(unloadIsProtected()).toBe(true);
+      expect(screen.queryByRole("region", { name: "Measure 1 practice comparison" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      await act(async () => { pending.resolve(); });
+      expect(mocks.inputOptions!.sessionState).toBe(restored);
+      expect(screen.getByRole("region", { name: "Measure 2 practice comparison" })).toBeTruthy();
+      expect(unloadIsProtected()).toBe(false);
+    } finally { confirm.mockRestore(); }
+  });
+
+  it.each(["resolve", "reject"] as const)("ignores a late pre-restart checkpoint %s during the replacement focused completion", async (settle) => {
+    const original = completedSavedRun();
+    const { store, writes } = controlledRunStore();
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+    const old = writes.at(-1)!;
+    fireEvent.click(screen.getByRole("button", { name: "Restart Piece" }));
+    const restarted = writes.at(-1)!;
+    expect(restarted.record.runId).not.toBe(old.record.runId);
+    expect(restarted.record.configuration).toEqual(old.record.configuration);
+    expect(restarted.record.sourceScore).toEqual(original.record.sourceScore);
+    expect(restarted.record.checkpoint.mistakeEvidence).toEqual([]);
+    completeBySkipping();
+    const completed = writes.at(-1)!;
+    await act(async () => { old[settle](new Error("Late restart failure")); });
+    expect(screen.queryByText("Completed practice saved.")).toBeNull();
+    expect(unloadIsProtected()).toBe(true);
+    await act(async () => { completed.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    expect(mocks.inputOptions!.sessionState.skipEvidence).toEqual(original.record.checkpoint.skipEvidence);
+    expect(screen.queryByText(/Focused result is not safely stored/)).toBeNull();
+    expect(unloadIsProtected()).toBe(false);
+  });
+
+  it("keeps a failed completed comparison explicitly unsaved across an unfinished repetition", async () => {
+    const original = completedSavedRun();
+    const { store, writes } = controlledRunStore();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} />);
+      fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+      completeBySkipping();
+      const failed = writes.at(-1)!;
+      await act(async () => { failed.reject(new Error("Storage full")); });
+      fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+      await screen.findByRole("button", { name: "Restart Piece" });
+      expect(confirm).toHaveBeenCalledWith("The completed practice result is not safely stored. Start a new run anyway?");
+      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      const comparison = screen.getByRole("region", { name: "Measure 2 practice comparison" });
+      expect(within(comparison).getByText(/Focused result is not safely stored/)).toBeTruthy();
+      expect(screen.getByText("Completed practice saved.")).toBeTruthy();
+      expect(unloadIsProtected()).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+      completeBySkipping();
+      await act(async () => { writes.at(-1)!.resolve(); });
+      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      expect(screen.queryByText(/Focused result is not safely stored/)).toBeNull();
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("restores an acknowledged unsaved original run's failed status and unload protection", async () => {
+    const { store, writes } = controlledRunStore();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
+      fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+      completeBySkipping();
+      const originalState = mocks.inputOptions!.sessionState;
+      const original = writes.at(-1)!;
+      await act(async () => { original.reject(new Error("Original failed")); });
+      fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+      await screen.findByRole("button", { name: "Return to Improve" });
+      act(() => submit([69]));
+      await act(async () => { writes.at(-1)!.resolve(); });
+      expect(screen.getByText("Completed practice saved.")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+      expect(mocks.inputOptions!.sessionState).toBe(originalState);
+      expect(screen.queryByText("Completed practice saved.")).toBeNull();
+      expect(screen.getByText(/not safely stored for crash or reload recovery/)).toBeTruthy();
+      expect(screen.queryByText(/Focused result is not safely stored/)).toBeNull();
+      expect(unloadIsProtected()).toBe(true);
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("recovers a focused attempt through the existing V1 parser paused, without inventing a persisted Improve relationship", () => {
+    const original = completedSavedRun(); const store = runStore();
+    const rendered = render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+    const focused = store.records.at(-1)!;
+    const parsed = parsePiecePracticeRun(focused);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error("Focused record did not parse");
+    rendered.unmount();
+    render(<PiecePracticeSession now={() => 100_000} onExit={vi.fn()} piece={parsed.piece} recoveredRun={parsed.record} runStore={store} />);
+    expect(screen.getByText("Recovered practice session")).toBeTruthy();
+    expect(mocks.inputOptions?.sessionState).toMatchObject({ startMeasureIndex: 1, endMeasureIndex: 1, assessmentFocus: "both", clockPaused: true });
+    expect(screen.queryByRole("button", { name: "Return to Improve" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Resume Practice" }));
+    expect(mocks.inputOptions?.sessionState.clockPaused).toBe(false);
+  });
+
+  it("keeps Mobile Play and one input tree across launch, completion and return", async () => {
+    const { container } = start(piece()); completeBySkipping(); await screen.findByText("Completed practice saved.");
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+    expect(container.querySelectorAll(".mobile-play-mode")).toHaveLength(1);
+    expect(screen.getAllByTestId("piano-keyboard")).toHaveLength(1);
+    act(() => submit([69])); await screen.findByText("Completed practice saved.");
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    expect(container.querySelectorAll(".mobile-play-mode")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Practice measure 3" }));
+    expect(mocks.inputMounts).toBe(1); expect(mocks.inputUnmounts).toBe(0);
+  });
+
+  it("allows a restart-only targetless measure to be revisited with existing explicit Next Measure progression", async () => {
+    start(piece());
+    fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restart Measure" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
+    await screen.findByText("Completed practice saved.");
+    expect(screen.getByText("Recorded in the original run: 1 measure restart.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+    expect(screen.getByRole("button", { name: "Next Measure" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Skip Target" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+    expect(mocks.inputOptions?.sessionState.status).toBe("piece-complete");
+    expect(mocks.inputOptions?.sessionState.currentMeasureIndex).toBe(1);
+    expect(screen.getByRole("region", { name: "Measure 2 practice comparison" })).toBeTruthy();
+  });
+
+  it("returns to original evidence and replaces only the latest completed comparison for a repeated passage", async () => {
+    const store = runStore();
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    completeBySkipping();
+    await screen.findByText("Completed practice saved.");
+    const originalState = mocks.inputOptions!.sessionState;
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Hallelujah" }));
+    act(() => submit([69]));
+    await screen.findByText("Completed practice saved.");
+    let comparison = screen.getByRole("region", { name: "Measure 3 practice comparison" });
+    expect(within(comparison).getAllByText("Skipped targets").map((dt) => dt.nextElementSibling?.textContent)).toEqual(["1", "0"]);
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    expect(mocks.inputOptions?.sessionState).toBe(originalState);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Practice measure 3" }));
+    expect(screen.getByText(/Original results restored/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+    act(() => submit([60])); act(() => submit([69]));
+    await screen.findByText("Completed practice saved.");
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    comparison = screen.getByRole("region", { name: "Measure 3 practice comparison" });
+    expect(within(comparison).getAllByText("Mistakes").map((dt) => dt.nextElementSibling?.textContent)).toEqual(["0", "1"]);
+    expect(screen.getAllByRole("region", { name: /practice comparison/ })).toHaveLength(1);
+    expect(mocks.inputOptions?.sessionState).toBe(originalState);
+    expect(new Set(store.records.map(({ runId }) => runId)).size).toBe(3);
+    expect(mocks.inputMounts).toBe(1);
+  });
+
+  it("waits for the focused completed save before return and restores recommendation focus afterward", async () => {
+    const original = completedSavedRun();
+    const { store, resolveCompletion } = heldCompletionStore();
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} sourceScore={original.score} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+    completeBySkipping();
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    expect(screen.getByText("Waiting for the completed result to finish saving.")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Improve" })).toBeNull();
+    expect(unloadIsProtected()).toBe(true);
+    await act(async () => { resolveCompletion(); });
+    await screen.findByRole("region", { name: "Improve" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Practice measure 2" }));
+    expect(unloadIsProtected()).toBe(false);
+    expect(screen.getByRole("region", { name: "Measure 2 practice comparison" })).toBeTruthy();
+  });
+
+  it("keeps failed focused results available until return is acknowledged without transferring failure to the original", async () => {
+    const original = completedSavedRun();
+    const { store, rejectCompletion } = heldCompletionStore();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+    completeBySkipping();
+    await act(async () => { rejectCompletion(new Error("Storage unavailable")); });
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith("The completed practice result is not safely stored. Return to Improve anyway?"));
+    expect(screen.getByRole("region", { name: "Measure 2 practice comparison" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Improve" })).toBeNull();
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    await screen.findByRole("region", { name: "Improve" });
+    expect(screen.getByText("Completed practice saved.")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Measure 2 practice comparison" })).getByText(/Focused result is not safely stored/)).toBeTruthy();
+    expect(unloadIsProtected()).toBe(false);
+    expect(mocks.inputOptions?.sessionState.skipEvidence).toEqual(original.record.checkpoint.skipEvidence);
+    confirm.mockRestore();
+  });
+
+  it("uses the reopened run snapshot and preserves incoming ties at the focused boundary", () => {
+    const original = completedSavedRun(); const store = runStore();
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={original.piece} recoveredRun={original.record} runStore={store}
+      sourceScore={{ ...original.score, title: "Later library revision", ties: [] }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+    expect(store.records.at(-1)?.sourceScore).toEqual(original.record.sourceScore);
+    const options = mocks.inputOptions!;
+    expect(getCurrentPiecePracticeTarget(options.piece, options.sessionState)?.expectedMidiNumbers).toEqual([52, 65, 69]);
+    expect((mocks.scoreProps?.score as StaffBuilderScore).ties).toEqual(original.score.ties);
+  });
+
+  it("retains the latest completed comparison when a subsequent focused repetition ends unfinished", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    start(piece()); completeBySkipping(); await screen.findByText("Completed practice saved.");
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+    act(() => submit([69])); await screen.findByText("Completed practice saved.");
+    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    expect(mocks.inputOptions?.sessionState.startMeasureIndex).toBe(2);
+    expect(mocks.inputOptions?.sessionState.endMeasureIndex).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    expect(screen.getByText(/ended before completion; no completed comparison was added/)).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Measure 3 practice comparison" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    expect(mocks.inputOptions?.sessionState.startMeasureIndex).toBe(0);
+    expect(screen.queryByRole("button", { name: "Return to Improve" })).toBeNull();
+    completeBySkipping();
+    expect(screen.queryByRole("region", { name: /practice comparison/ })).toBeNull();
+    confirm.mockRestore();
+  });
+
+  it("launches a recommended original measure as a fresh run with the same snapshot and one input owner", async () => {
+    const score = realisticPolyphonicScore();
+    const projected = projectStaffBuilderPieceForPractice(score);
+    if (!projected.ok) throw new Error("Invalid fixture");
+    const store = runStore();
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={projected.piece} runStore={store} sourceScore={score} />);
+    fireEvent.click(screen.getByLabelText("Lower Staff"));
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    completeBySkipping();
+    await screen.findByText("Completed practice saved.");
+    const original = store.records.at(-1)!;
+    const originalCopy = structuredClone(original);
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
+    const focused = store.records.at(-1)!;
+    expect(focused.runId).not.toBe(original.runId);
+    expect(focused.configuration).toEqual({ startMeasureIndex: 1, endMeasureIndex: 1, assessmentFocus: "lower" });
+    expect(focused.sourceScore).toEqual(original.sourceScore);
+    expect(focused.checkpoint.skipEvidence).toEqual([]);
+    expect(focused.checkpoint.mistakeEvidence).toEqual([]);
+    expect(focused.checkpoint.restartEvidence).toEqual([]);
+    expect(mocks.inputOptions?.sessionState.firstTargetTimingPending).toBe(true);
+    expect(mocks.inputOptions?.piece.measures).toHaveLength(2);
+    expect(mocks.inputMounts).toBe(1);
+    expect(mocks.inputUnmounts).toBe(0);
+    expect(screen.getAllByTestId("piano-keyboard")).toHaveLength(1);
+    expect(original).toEqual(originalCopy);
+    expect(unloadIsProtected()).toBe(true);
+    expect(screen.getByRole("button", { name: "Return to Improve" })).toBeTruthy();
+  });
+
+  it("waits for the original completed revision before launching Improve and rejects duplicate launch clicks", async () => {
+    const { store, resolveCompletion } = heldCompletionStore();
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    completeBySkipping();
+    const originalId = store.records[0].runId;
+    const launch = screen.getByRole("button", { name: "Practice measure 1" });
+    fireEvent.click(launch); fireEvent.click(launch);
+    expect(screen.getByText("Waiting for the completed result to finish saving.")).toBeTruthy();
+    expect(store.records.every(({ runId }) => runId === originalId)).toBe(true);
+    await act(async () => { resolveCompletion(); });
+    await screen.findByRole("button", { name: "Return to Improve" });
+    expect(new Set(store.records.map(({ runId }) => runId)).size).toBe(2);
+  });
+
+  it("requires explicit acknowledgement after a failed original save before starting Improve", async () => {
+    const { store, rejectCompletion } = heldCompletionStore();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    completeBySkipping();
+    await act(async () => { rejectCompletion(new Error("Full")); });
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 1" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith("The completed practice result is not safely stored. Start focused practice anyway?"));
+    expect(screen.queryByRole("button", { name: "Return to Improve" })).toBeNull();
+    expect(unloadIsProtected()).toBe(true);
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 1" }));
+    await screen.findByRole("button", { name: "Return to Improve" });
+    confirm.mockRestore();
+  });
+
+  it("cancels unfinished return without resetting input, then restores the original completed evidence when confirmed", async () => {
+    const store = runStore(); const onExit = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<PiecePracticeSession now={() => 65_000} onExit={onExit} piece={piece()} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    completeBySkipping();
+    await screen.findByText("Completed practice saved.");
+    const originalState = mocks.inputOptions!.sessionState;
+    fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+    mocks.resetInput.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    expect(mocks.resetInput).not.toHaveBeenCalled();
+    expect(mocks.inputOptions?.sessionState.status).toBe("practicing");
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Return to Improve" }));
+    expect(mocks.inputOptions?.sessionState).toBe(originalState);
+    expect(store.records.at(-1)?.status).toBe("ended-incomplete");
+    expect(onExit).not.toHaveBeenCalled();
+    expect(screen.getByRole("region", { name: "Improve" })).toBeTruthy();
+    expect(mocks.inputMounts).toBe(1);
+    confirm.mockRestore();
+  });
+
   it("writes an initial active record and checkpoints wrong input and restart within the run", async () => {
     const store = runStore();
     render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);

@@ -4,6 +4,8 @@ A high-level release history and record of significant milestones in Prelude's d
 
 ## Unreleased
 
+- Added the PROVISIONAL Improve MVP to completed Piece Practice runs: deterministic native-evidence recommendations, exact reasons, optional notation review, single-measure focused practice, guarded return to original results and original/latest completed count comparison. The provisional priority is mistakes, skips, deliberate restarts, then recorded hesitation, with original measure order breaking ties. Focused attempts retain the original score snapshot and Staff Focus and use existing grading, save acknowledgement and V1 recovery. Navigation/comparison links are in-memory only; no schema, database, dependency, MIDI or assessment changes. Kept version 2.8.6 by owner instruction; physical-device QA remains pending.
+
 - Corrected tied-only rolled checks to require no new attack while preserving projected IDs/counts and V1 checkpoint validation. Recovery resolves legacy empty checks and durably saves runs previously blocked after their real checks completed. Isolated incomplete rolled collection by MIDI/virtual grading source while retaining completed parallel checks, physical evidence, Staff Focus optional input, and due timeouts. Kept version 2.8.6 by owner instruction.
 - Corrected active score-highlight rectangles to enclose upper/lower ledger strokes, including displaced chord heads, using separate presentation bounds. Preserved editor hit-testing, touch targets, selections, notation geometry, and practice behavior. Kept version 2.8.6 by owner instruction.
 - Tightened Piece Practice recovery selection, semantic Staff Focus guard classification, notation highlight layering, and durable Restart Measure reporting for the 2.8.6 cleanup.

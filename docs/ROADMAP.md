@@ -307,6 +307,20 @@ Piece Practice has explicit Mobile Play during an active session; narrow/coarse 
 
 ---
 
+## Improve — PROVISIONAL MVP implemented
+
+- [x] Optional recommendations in completed Piece Practice results, including reopened reports
+- [x] Deterministic native evidence ranking and exact mistake/skip/restart/hesitation explanations
+- [x] On-demand original notation and single-measure practice using the same snapshot and Staff Focus
+- [x] Existing completed-save protection, new ordinary run evidence and guarded return to original results
+- [x] Original versus latest completed focused counts for the same measure, with no ability/mastery score
+- [x] Empty/unavailable states, keyboard focus and responsive presentation, deterministic regression coverage
+- [ ] Final Chromebook/Yamaha, touch, screen-reader, audio and installed-PWA QA
+
+The owner authorized this provisional scope on October 4, 2026. Ranking and single-measure selection are reviewable MVP defaults. Return links/comparisons last for the current visit; ordinary run snapshots/checkpoints retain existing persistence and retention. Cross-run analytics, persisted recommendation queues, adaptive coaching, score rewriting and new grading remain outside this MVP.
+
+---
+
 # Future / Exploratory
 
 The following areas are possibilities, not existing capabilities or committed delivery dates. They must not be read as a promise or as a strict implementation order.

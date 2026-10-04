@@ -1017,6 +1017,28 @@ The 2.8.6 cleanup ranks parsed valid runs before presenting recovery candidates 
 
 ---
 
+# 2026-10 — Improve MVP Uses Completed Native Evidence (PROVISIONAL)
+
+## Decision
+
+The owner authorized a provisional Improve workflow on October 4, 2026. Completed Piece Practice results recommend original measures by descending mistake, skip, deliberate-restart and recorded-hesitation counts, using score order for ties. The named code policy is provisional, not an established pedagogical standard. Every eligible measure remains selectable; there is no numerical ability/difficulty score.
+
+Focused practice uses one original measure, the original score snapshot and Staff Focus, and the existing Piece Practice engine. It creates a separate ordinary run while retaining an in-tab route back to the original report. The latest completed focused evidence may be compared with the original measure's native counts, with explicit differences in passage starts and repetitions.
+
+## Reason
+
+This makes existing evidence actionable with a small end-to-end path and transparent reasons. Reusing original positions/snapshots preserves authored context and tie semantics. Separate ordinary runs retain existing recovery and reporting while avoiding a new grading or recommendation-persistence system.
+
+## Consequences
+
+- Ranking, single-measure passages and in-tab comparison lifetime remain PROVISIONAL owner-review decisions.
+- Skips/restarts remain process evidence; missing diagnostics are never invented and zero mistakes does not establish mastery.
+- Completed-save acknowledgement governs launch and return; cancelled unfinished returns preserve input state.
+- Navigation/comparison relationships are not persisted. Reload restores the focused run through ordinary paused recovery; terminal records retain current retention limits.
+- No score/run schema, database, MIDI/CC64/Staff Focus grading, paid service, AI or dependency change is implied.
+
+---
+
 # Adding Future Decisions
 
 Add a new entry when a choice:
