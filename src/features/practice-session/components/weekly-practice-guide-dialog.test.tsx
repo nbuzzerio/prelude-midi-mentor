@@ -12,7 +12,7 @@ describe("Weekly Practice AI guide dialog", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Generate a plan with AI" }));
     const copy = screen.getByRole("button", { name: "Copy for AI" }); fireEvent.click(copy);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(createWeeklyPracticeLlmSpecification()));
-    expect(screen.getByRole("status").textContent).toContain("paste this into your AI chat"); expect(screen.getByRole("dialog")).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("paste this into your AI chat")); expect(screen.getByRole("dialog")).toBeTruthy();
     fireEvent.click(copy); await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2)); expect(onClose).not.toHaveBeenCalled();
   });
 

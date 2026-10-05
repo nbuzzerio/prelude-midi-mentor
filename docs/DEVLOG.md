@@ -1,8 +1,11 @@
 # Dev Log
 
-A high-level release history and record of significant milestones in Prelude's development. The Unreleased section records work after the prepared release, while dated sections preserve finalized release notes. The v2.7.0 candidate remains subject to the repository owner's review, manual release commit, and annotated tag.
+A high-level release history and record of significant milestones. Unreleased records implementation and review work without asserting a release; dated/versioned sections retain their original history. Current package/application version is intentionally 2.8.6. Tagging, releasing and deployment verification remain owner-controlled; the older v2.7.0 candidate notes below are historical preparation.
 
 ## Unreleased
+
+- Consolidated the owner-approved rolling roadmap and supporting documentation on October 5, 2026. Preserved implementation history, feature ownership, deferred decisions and pending physical QA; no feature, configuration or version change.
+- Recorded one owner-observed successful real violin test of the implemented tuner as limited physical evidence. It is not controlled instrument/device validation; broader Chromebook/Android and violin/ocarina/sung-voice QA and harmonic/octave limitations remain outstanding.
 
 - Added the owner-approved standalone Chromatic Tuner MVP with explicit microphone Start/Stop, main-thread AnalyserNode/MPM processing, sustained-pitch stabilization, note/octave/Hz/cents and an accessible responsive meter. Preserves uncertainty briefly, then clears stale readings; rejects weak/clipped signals and conservatively gates decay-related note changes. Handles permission races, interruption, foreground eligibility and cleanup, with a narrow active-run Practice Session notification. No MIDI, grading, practice integration, raw recording/upload, new dependencies or roadmap changes. Retained version 2.8.6 by owner instruction; Improv priority is preserved. Deterministic and desktop browser synthetic validation are separate from pending physical Chromebook/Android and violin/ocarina QA; octave ambiguity remains unresolved.
 
@@ -209,7 +212,9 @@ A high-level release history and record of significant milestones in Prelude's d
 - Added deterministic score playback and playback-follow visualization through the shared musical-event player.
 - Added score-first notation controls, specialized radial controls, deterministic interaction geometry, and responsive mobile workflows.
 - Released the Staff Builder foundation as the authoritative local score-authoring and project workflow.
-# v2.7.0 candidate
+# v2.7.0 candidate — historical preparation
+
+These notes describe the earlier diagnostics candidate, not the current package checkpoint or a claim that v2.7.0 was tagged/released.
 
 - Expanded Piece Practice completion into an attempt-local diagnostic report with chronological mistake evidence, accumulated measure time, slow-response evidence, expandable authored notation, problem filtering, and browser-print reporting.
 - Added additive pitch anchors and red/amber diagnostic overlays while preserving Melody's event-highlight behavior.

@@ -1,543 +1,178 @@
-# Prelude: MIDI Mentor — ROADMAP
+# Prelude: MIDI Mentor — Rolling Roadmap
 
-> This roadmap outlines the planned evolution of Prelude from a simple sight-reading trainer into a complete browser-based musicianship platform.
->
-> **Current checkpoint:** September 15, 2026 — the repository and application version are prepared for the v2.7.0 Piece Practice diagnostics release candidate. Owner review, the manual tag, deployment verification, and final Chromebook/tablet interaction QA remain.
+> Authoritative product direction, owner-approved October 5, 2026. Current package/application version: **2.8.6**, intentionally retained. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
----
+Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
 
-# Completed
+## Implemented baseline
 
-The milestones in this section describe implemented product behavior. An unchecked manual-QA item does not turn the implemented feature back into a future commitment.
+The following systems exist today. Pending physical QA does not make their implementation a future commitment:
 
-# ✅ Phase 1 — Core Flashcard MVP (Completed)
+| System | Implemented capability and boundary |
+| --- | --- |
+| Flashcards | Single notes and major/minor/diminished/augmented triads, triad inversions, clefs, natural/accidental filters, MIDI/VKB input, feedback and statistics. Natural-note-only selection already exists. |
+| Sequences | Ordered melodic intervals, major/minor/pentatonic scales, arpeggios including sevenths, curated major/minor triad progressions, theory-aware spelling, temporal measure presentation, and ordered/shuffled Scale Repertoire. |
+| Free Play | Ungraded live MIDI/VKB grand-staff notation, key signatures, key-aware spelling, and held-key presentation. No automatic key/chord analysis or phrase history. |
+| Ear Training | Ascending/descending melodic-interval identification, explicit replay, statistics, and pedal-to-Play-Prompt. Other aural tasks remain future work. |
+| Melody | Seeded monophonic one/two-measure 4/4 reading, count-in/metronome, continuous capture, nonblocking performance, alignment, separate Pitch/Movement/Timing results, timed review and repair. Evidence is memory-only; sustained Flow remains future work. |
+| Staff Builder | Application-owned score authoring, notes/chords/rests/rhythm/ties/context/annotations, capture and correction, derived polyphony, playback, local library/drafts, validated Save, score import/export, duplication, Lyric Cues, display clefs, and printable Study View. Study View is score presentation, not Guided Studies. |
+| Piece Practice | Blocking pitch-attack practice from authoritative Staff Builder scores, excerpts, Staff Focus, ordinary/rolled checks, diagnostics, copy/print reports, and durable browser-local IndexedDB run snapshots/checkpoints with paused recovery and bounded retention. Continuous performance grading is not implemented. |
+| Targeted Practice | Provisional evidence-led repair inside Piece Practice: transparent measure recommendations, original-snapshot single-measure runs, and in-tab original/latest count comparison. Ordinary runs persist; navigation/comparison links do not. No adaptive coaching or mastery score. |
+| Practice Sessions | Reusable browser-local prescriptions across Flashcards, Sequences, Ear Training and timed Melody; native targets, Scale Repertoire, Bonus/Skip/End, stable hosted Mobile Play, comprehensive authored-order reports including never-entered work, and browser printing. Runtime evidence remains memory-only. |
+| Weekly Practice import | Reduced nine-concept interchange, curriculum metadata, validation/translation/schema/examples, paste/upload preview and atomic import into the unsaved library, plus a Copy-for-AI guide. No weekly scheduler, cloud AI service, or report history. |
+| MIDI Diagnostic | Independent bounded in-memory hardware inspection, raw messages, musical-event interpretation, and copyable diagnostics. No grading or idea recorder. |
+| Chromatic Tuner | Explicit microphone Start/Stop, browser capture, monophonic detection, note/octave/Hz/cents, stabilization/uncertainty, interruption handling, bounded cleanup and active-Practice-Session capture exclusion. Desktop synthetic browser validation exists. |
+| Platform | Responsive presentation, coordinated Mobile Play, sampled piano and feedback audio, installed-PWA/offline-shell support and production build/deployment foundations. Device-specific behavior still needs physical QA. |
 
-## Foundation
+The tuner uses A4=440 Hz, equal temperament and a 120–2300 Hz estimate range. One successful real violin test is **owner-observed limited physical evidence**. Broader Chromebook/Android and violin/ocarina/sung-voice QA remains pending. Strong harmonics can still cause confident octave mistakes; stable periodicity does not establish correct pitch identity.
 
-- [x] Project architecture
-- [x] Vite + React + TypeScript setup
-- [x] Tailwind CSS
-- [x] Documentation
-- [x] Production deployment
-- [x] GitHub Actions CI/CD
-- [x] DigitalOcean hosting
-- [x] Progressive Web App support
-- [x] Offline application shell
+### Historical milestone context
 
----
+The early Flashcard foundation/stabilization, Sequence introduction and expanded practice platform are implemented. Staff Builder supplied the score foundation; subsequent milestones added Piece Practice, Melody and coordinated mobile workflows, Practice Sessions, comprehensive reporting/printing, Weekly Practice import, durable Piece Practice runs, Targeted Practice and the tuner. Release-era detail remains in [DEVLOG.md](./DEVLOG.md); those records are not a second active roadmap.
 
-## Practice
+The former numbered Harmony, Musicianship, Guided Lessons, Lesson Builder, Playback and Composer phases are superseded by the continuing threads below. Existing piano playback, playback controls, natural-note filters and Melody's metronome are not future implementation tasks. Further harmony, rhythm, editing, playback or teaching capabilities require a concrete product need and a bounded plan.
 
-- [x] Treble clef mode
-- [x] Bass clef mode
-- [x] Mixed mode
-- [x] Random note generation
-- [x] Immediate answer feedback
-- [x] Accuracy tracking
-- [x] Response-time tracking
-- [x] Streak tracking
-- [x] Session statistics
+## 1. Improv / Creative Exploration
 
----
+**Status:** NEXT MAJOR NEW MUSICAL FEATURE; permanent creative thread.
 
-## Notation
+**Purpose:** Help players invent, explore, compare and develop musical ideas. Free Play observes and helps understand what is played; Piece Practice helps learn existing music; Guided Studies teach concepts; Improv supports invention and experimentation.
 
-- [x] Dynamic notation rendering with VexFlow
-- [x] Ledger lines
-- [x] Responsive notation scaling
-- [x] Accidentals
-- [x] Grand staff support
+**Likely next milestone:** A bounded MIDI/VKB experience with key/scale context, constrained exploration, helpful musical guidance and obvious value beyond ordinary Free Play.
 
----
+**Dependencies:** Existing theory, spelling, notation, input and playback where their semantics fit. Microphone support is not a prerequisite.
 
-## Input
+**Later direction:** Chord/progression context, motif development, idea capture and eventual support for composing material for MACEDON. The former Composer Sandbox belongs to this longer-term direction rather than a competing major product.
 
-- [x] Physical MIDI keyboard support
-- [x] On-screen piano keyboard
-- [x] Reachable raw MIDI diagnostic with multi-input attribution, browser timestamps, common/unknown message preservation, bounded capture, and copy workflow
-- [x] Chromebook compatibility
-- [x] Mobile support
+**Non-goals:** A DAW, broad production tooling or a renamed Free Play experience.
 
----
+## 2. Continuous / Flow Sight-Reading
 
-# ✅ Phase 2 — v1.0 Stabilization (Completed)
+**Status:** FOUNDATION EXISTS; MAJOR FUTURE PRACTICE MILESTONE.
 
-This phase stabilized the flashcard engine through documentation, testing, and release preparation before later practice modes were added.
-
-## Notation
+**Purpose:** Support reading ahead, maintaining pulse, continuing through mistakes and sustained reading beyond short trials, with review after a passage/session rather than constant stops.
 
-- [x] Support sharps and flats
-- [x] Sharp-only / Flat-only / Mixed practice modes
-- [ ] Natural-notes-only beginner mode
+**Likely next milestone:** Define and deliver the first sustained-reading increment. Longer generated reading, an uninterrupted generated stream and authored-piece continuous practice remain deferred alternatives for owner choice when this thread becomes active.
 
-## Practice
+**Dependencies:** Melody already supplies a musical clock, continuous MIDI/VKB capture, timing alignment, notation, scoring foundations and nonblocking performance. Practice Sessions' existing Reading Flow label refers to timed Melody practice, not completion of this broader milestone.
 
-- [x] Major triad flashcards
-- [x] Minor triad flashcards
-- [x] Diminished triad flashcards
-- [x] Augmented triad flashcards
-- [x] Generalized practice target model
-- [x] Grace-based simultaneous MIDI note validation
-- [x] Sampled piano playback
-- [x] Adjustable feedback volume
-- [ ] Expanded configurable note ranges
-- [ ] Difficulty presets
-- [ ] Local progress persistence
-- [ ] Weak-note review
+**Boundaries:** Reuse mature primitives without inventing continuous capture again or adding a universal grading engine. Authored Piece Practice continuous performance is related but remains distinct from its existing blocking engine. Acoustic timing is independently evidence-gated.
 
-## Platform
+## 3. Guided Studies
 
-- [ ] Final browser compatibility review
-- [ ] Additional MIDI interface testing
+**Status:** MAJOR PERMANENT PRODUCT PILLAR; first vertical slice follows sufficient maturity of the selected activity contracts.
 
----
-
-# ✅ Phase 2.5 — v1.1 Sequence Mode (Completed)
+**Purpose:** Teach why musical material behaves as it does through:
 
-Introduce the first ordered, multi-step practice mode while preserving the existing flashcard architecture.
+```text
+explanation → demonstration → experiment → repetition → comparison → reflection
+```
 
-## Sequence Practice
+Studies own the teaching journey. Native feature domains continue owning rendering, notation, playback, timing, input, grading, persistence and practice evidence. A Practice Session organizes what to practice; a Guided Study adds why, comparison, context and reflection. Staff Builder Study View remains score presentation.
 
-- [x] Dedicated Sequence Mode
-- [x] Ascending melodic intervals
-- [x] Descending melodic intervals
-- [x] Configurable interval selection
-- [x] Natural-note and accidental-note filters
-- [x] Step-by-step answer validation
-- [x] Correct and incorrect step feedback
-- [x] MIDI-release-aware transitions
-- [x] Sequence completion statistics
-- [x] Dedicated sequence feature module
-- [x] Automated tests for sequence logic, hooks, and generators
-
----
-
-# ✅ Phase 2.75 — v2.0 Practice Platform (Completed)
-
-Complete Prelude's foundational practice platform with expanded sequence exercises and ungraded live notation.
-
-## Expanded Sequence Practice
-
-- [x] Major scales
-- [x] Natural minor scales
-- [x] Harmonic minor scales
-- [x] Melodic minor scales
-- [x] Major pentatonic scales
-- [x] Minor pentatonic scales
-- [x] Major and minor arpeggios
-- [x] Diminished and augmented arpeggios
-- [x] Dominant seventh, major seventh, and minor seventh arpeggios
-- [x] Theory-aware interval, scale, and arpeggio spelling
-
-## Chord Progressions
-
-- [x] Chord Progressions inside Sequence Mode
-- [x] Curated major and minor Roman-numeral templates
-- [x] Supported major and minor key selection
-- [x] Deterministic theory-aware root-position triads
-- [x] Progression and current-chord metadata
-- [x] Physical MIDI block and rolled-chord input
-- [x] Persistent virtual-keyboard chord selection and playback
-- [x] Focus Staff and settings-driven target regeneration
-
-## Free Play
-
-- [x] Dedicated Free Play mode
-- [x] Live MIDI and virtual-keyboard notation
-- [x] Persistent grand staff
-- [x] Automatic treble- and bass-staff placement
-- [x] Neutral held-key highlighting
-- [x] No Key and supported major/minor notation contexts
-- [x] Key signatures on treble and bass staves
-- [x] Key-aware diatonic and chromatic spelling preferences
-- [x] Immediate respelling of held notes after settings changes
-
-## Mobile Play and coordinated mobile UX
-
-- [x] Shared Mobile Play lifecycle across Flashcards, Sequences, Free Play, Ear Training, Melody, and active Piece Practice
-- [x] Best-effort fullscreen and landscape orientation lock with safe fallback
-- [x] Focus Staff mutual exclusion and state-preserving transitions
-- [x] Free Play momentary multitouch without changing graded input semantics
-- [x] Focused lifecycle, integration, and notation-scaling tests
-- [x] Compact mobile mode navigation, Flashcard task hierarchy/disclosures/stats, and Ear Training phone header
-- [x] Temporal Sequence current-measure presentation with optional Show Whole Sequence
-- [x] Explicit state-preserving Melody and Piece Practice Mobile Play
-- [x] Common responsive entry availability, portrait support, narrow action flow, and keyboard-focusable Melody score scrolling
-
-Container-driven responsive VexFlow sizing is deferred to the later UI/UX overhaul. This milestone does not include a settings drawer, onboarding, or a full mobile redesign.
-
-Future Free Play ideas such as chord analysis, phrase history, last-measure display, rhythm, zoom controls, and automatic key detection remain unimplemented.
-
-## Completed v2.6.0 Practice Sessions Scope
-
-- [x] Reusable named presets with ordered stable exercise entries and explicit browser-local Save
-- [x] Draft-capable editing with Ready / Needs setup launch validation
-- [x] Configured Flashcard, Sequence, Ear Training, and timed Melody exercises using their native settings and completion semantics
-- [x] Scale Repertoire with ordered and shuffled finite traversal
-- [x] Practice Complete, Keep Playing / Bonus, Skip for Today, End Session, and entered-only summary flow
-- [x] Immutable in-memory run snapshots, stale-callback protection, and exactly one mounted exercise engine
-- [x] Stable host-owned Mobile Play across prescribed exercise transitions with standalone modes unchanged
-- [x] Focused domain, persistence, builder, runtime, engine-contract, and hosted-presentation automated coverage
-
-Practice Session presets are local prescriptions, not persisted run history. Scheduling, analytics, evidence storage, cloud accounts, active-run recovery, quick start, and real-use presentation polish remain outside this release. Final viewport, fullscreen/orientation, physical-keyboard, and installed-PWA behavior will be evaluated after deployment on the actual Chromebook/tablet.
-
-## v2.8.2 Weekly Practice Import Foundation
-
-- [x] Independently versioned reduced weekly interchange contract for nine supported Practice Session concepts
-- [x] Partial-week practice/rest representation without a weekly runtime or scheduler
-- [x] Practice Session library schema v2 with normalized curriculum metadata and no-write v1 migration
-- [x] Detailed collecting validation with defensive bounds and strict chord/repertoire compatibility
-- [x] Deterministic translation into canonical feature configs, ordinary presets, and native targets
-- [x] Mechanically checked JSON Schema, minimal/realistic examples, and pure Copy-for-AI specification foundation
-- [x] Paste/upload import UI, readable preview, collision editing, and atomic confirmation into the unsaved working library
-- [x] User-facing AI generation guide with Copy for AI, accessible clipboard status, and manual-copy fallback
-
-Schema download, weekly export, report sharing with AI, calendar scheduling, provenance/idempotency, results, hand/fingering settings, and non-Practice-Session engines remain deferred.
-
-## v2.8.0 Practice Session Comprehensive Reporting
-
-- [x] Transient lifecycle evidence and foreground-active time
-- [x] Engine-owned Flashcard, Sequence, Ear Training, and Melody result contracts
-- [x] Engine-local report selectors without a universal accuracy/mastery/score abstraction
-- [x] Comprehensive authored-order report, including never-entered exercises
-- [x] Prescribed versus Bonus work and active-time presentation
-- [x] Neutral outcomes and progressively disclosed native diagnostics
-- [x] Responsive normal-flow report composition for constrained tablet viewports
-- [x] Configurable browser-native printing / Save PDF (Phase 4)
-
-No report history, backend, persistence, or Piece Practice changes are included.
-
-## Post-v2.8 real-device QA follow-up backlog
-
-These findings came from tablet/piano use and are deliberately outside reporting Phase 3. They should be investigated in this order, preserving the Sequence/interval layouts that already work:
-
-1. **Hosted Practice Session viewport composition (implemented; physical-tablet validation pending):** Focus reuses the stable host, hidden keyboards collapse their hosted allocation, and Note/Triad notation has intrinsic target-kind bounds while Sequence keeps its independent sizing.
-2. **Melody tablet fit (implemented; physical-tablet validation pending):** active Focus/Mobile Play uses a bounded notation-first column, and replacement exercises deliberately return their staff to the viewport in standalone and hosted presentations.
-3. **Ear Training pedal to Play Prompt (completed):** normalized CC64 pedal-down edges route through Ear Training's existing guarded Play Prompt action in standalone and hosted practice without adding another MIDI owner.
-4. **Piece Library sorting and usage metadata (completed):** the schema-v4 library envelope now records library-local `lastPracticedAt` only at the successful Piece Practice launch boundary. The compact library control derives Recently Played (default), Recently Updated, and Alphabetical ordering without mutating source order; legacy pieces remain honestly never played, and duplicates/imported score files do not inherit usage history.
-5. **Practice diagnostic shorthand (completed):** compact accessible Pitch, Identification, Hesitation, Retried, and Skipped presentation is derived by engine-local selectors from existing evidence. Melody adds neutral numeric Pitch/Movement/Timing chips without categorical thresholds; expanded native diagnostics remain authoritative.
-6. **Scale hand configurations (architectural):** inspect Sequence scale config, generators, range/direction ownership, controls, validation, and Practice Session configuration reuse. Design right hand, left hand, and hands together in the Sequence/Scale domain; hands-together grading must be explicit rather than modeled as unrelated hosted exercises.
-
-The named user-facing findings covered by this backlog are Piece Library recent/alphabetical sorting; Practice Session hidden-keyboard layout; Triad keyboard/notation sizing; Scale left-hand/hands-together support; Ear Training pedal to Play Prompt; and Melody tablet fit.
-
-## Completed v2.5.0 Scope
-
-Chord Progressions, key-aware Free Play, melodic-interval Ear Training, Staff Builder, automatic same-staff polyphony, Piece Practice, Melody, and the coordinated Mobile Play stream shipped in v2.5.0. That release also includes annotations and Study View, timed Melody diagnostics and review, piece duplication, and authored and practiced rolled chords. Melody duration/hold grading and Piece Practice Accuracy remain separate future work.
-
-Remaining unchecked Harmony, Musicianship, Guided Lesson, playback-instrument, and Composer items describe future possibilities rather than a strict delivery order.
-
-## Melody Mode Phase 1 — Implementation complete
-
-- Seeded one/two-measure beginner generation
-- Web Audio count-in/metronome and continuous MIDI/VKB capture
-- Timing-led alignment with independent Pitch/Movement/Timing scores
-- Read-only notation, playhead, mobile presentation, and Pitch-result staff
-- Explicit Mobile Play through setup, count-in, performance, and results without replacing audio/input ownership
-- Cached-PWA basic offline VKB workflow
-- Two-quarter-beat preparatory display lead-in before scored material
-- Timed diagnostic sessions with interruption-safe Session Review
-- Targeted repair retries with immutable original versus latest evidence
-- Interval Trouble analytics separated into Sight Read and Repair evidence
-- Final device/accessibility/airplane-mode QA remains pending
+**Likely next milestone:** A useful, bounded **D Minor Study**. Its first learning objective and audience remain deferred owner decisions, not assumed scope.
 
-Future work remains separate: rests, 6/8/richer meters, two-hand notes, dyads/chords, adaptive difficulty, latency calibration, and detailed timing/extra-note overlays. Piece Practice Accuracy Phase 2 has not started.
+**Concept bank, not first-slice checklist:** D natural minor, harmonic minor and melodic minor; relationship to F major; key signature/note recognition; scale performance; intervals; D minor arpeggio; diatonic chords; common progressions; ear recognition; singing/playing target pitches; improvisation; musical character; listening context; and an eventual applied excerpt or short study.
 
----
-
-# ✅ v2.4.0 — Staff Builder Foundation (Completed)
-
-Staff Builder provides a beginner-focused transcription and practice-material workflow and is represented by the v2.4.0 repository tag.
-
-## Score and Editing Foundation
-
-- [x] Application-owned multi-measure grand-staff score model
-- [x] Notes, chords, rests, durations, ties, tempo, key signatures, and time signatures
-- [x] MIDI and virtual-keyboard Capture Notes with grand, treble, and bass routing
-- [x] Rhythmic cursor positioning and direct measure navigation
-- [x] Duration editing, rest insertion, staff reassignment, spelling, ties, and deletion
-- [x] Score-history Undo and Redo
-
-## Validation, Projects, and Playback
+**Prerequisites for the chosen slice:** Reviewed musical explanations/demonstrations; exact material selection; explicit native launch/completion/return contracts; reliable interruption and focus behavior; and accessible teaching content. Distinguish activity completion from concept understanding. D-minor forms and F major already fit Scale Repertoire, but arbitrary note collections, exact arpeggio roots or tonal aural prompts are not guaranteed by current random configuration. Close only required gaps in their owning feature.
 
-- [x] Score validation with guided learner-facing corrections
-- [x] Draft autosave and distinct validated Save
-- [x] Local project library and persistence
-- [x] Per-piece `.prelude.json` import/export with schema validation and collision-safe insertion
-- [x] Full-piece, treble-range, and bass-range duplication
-- [x] Event, measure, position, and piece playback with Stop
-- [x] Deterministic score projection through shared musical-event playback
-- [x] Playback-follow measure display and sliding score highlight
-
-## Score-First and Mobile UX
+**Reuse:** Flashcards, Sequences, Ear Training, Free Play, Improv, Melody/Flow, notation/playback, Piece Practice and its Targeted Practice repair. Microphone input and instrument diagrams join only when supported. Current Ear Training identifies interval names; sung answers would be a new activity.
 
-- [x] Direct event, rhythmic-position, clef/brace, key, and time interaction
-- [x] Specialized duration, key, and time radial controls
-- [x] Deterministic pointer ownership and tap-versus-drag protection
-- [x] Responsive score scaling and touch-compensated interaction
-- [x] Safe-area-aware mobile virtual-keyboard bottom sheet with one active presentation
-- [x] Collapsed technical and advanced fallback controls
-- [x] Score annotations and multi-system Study View
-- [x] Authored upward rolled/arpeggiated chords
+**Music safeguards:** Classical melodic minor raises sixth/seventh ascending and uses natural minor descending. Preserve theory-aware spelling, distinguish natural-minor harmony from explicit alterations, and explore musical character through context rather than universal emotional labels. Double accidentals remain unsupported.
 
-## Automatic Same-Staff Polyphony
+**Non-goals:** Duplicate practice engines, universal mastery scores, a full course/teacher-authoring platform or every concept in the bank before the first slice. Neither full Flow nor acoustic integration is a universal prerequisite.
 
-- [x] Deterministic derived rhythmic voices without persisted voice IDs or manual Voice controls
-- [x] Staff-wide union validation with render-only implicit voice gaps
-- [x] Multi-voice VexFlow rendering with authoritative event anchors
-- [x] Capture, Rhythm Correction, playback, ties, and Piece Practice compatibility
+## 4. Microphone Instruments / Instrument-Aware Tuner
 
----
+**Status:** TUNER MVP COMPLETE; INSTRUMENT GUIDANCE IS THE NEXT BOUNDED MICROPHONE EXTENSION; permanent thread.
 
-# ✅ Post-v2.4.0 — Piece Practice (Implemented for v2.5.0)
+**Purpose:** Connect a detected or target pitch to useful instrument guidance while preserving measurement uncertainty.
 
-- [x] Validation-gated launch from saved Staff Builder pieces
-- [x] Transient attack-onset projection without `SequenceTarget` or copied score persistence
-- [x] Score-position blocking progression across measures, chords, both staves, same-onset polyphony, rests, and ties
-- [x] One aggregated normal check plus independent authored rolled-chord checks at an onset
-- [x] Physical MIDI single/chord input with the shared 225 millisecond collector
-- [x] Expressive upward rolled-chord evaluation in a tempo-relative 1.5-quarter-note-beat window
-- [x] Persistent virtual-keyboard chord input with strict MIDI/VKB source separation
-- [x] Start at Measure, Restart Measure, Restart Piece, targetless-measure acknowledgement, completion, and session statistics
-- [x] Read-only authored-score presentation and authoritative multi-event highlighting
-- [x] Exit to the retained Staff Builder library context
-- [x] Automated projection, state, input, rendering, accessibility, eligibility, launch/exit, and immutability coverage
-- [ ] Final physical-MIDI, Chromebook, Android, responsive, audio, and screen-reader QA
+**Likely next milestone:** Evidence-led tuner stabilization and bounded violin guidance inside the existing tuner: standard G3–D4–A4–E5 tuning and beginner first-position locations. This need not become separate tuner apps.
 
-Piece Practice has explicit Mobile Play during an active session; narrow/coarse responsive layout alone does not activate it. This presentation change preserves the blocking session, pending input, restart, targetless-measure, completion, and Staff Builder return semantics. Future Piece Practice Accuracy mode remains separate: it may add continuous BPM-driven capture and post-performance feedback, but no such engine is part of the current release candidate.
+**Conceptual architecture, not implemented global services:**
 
----
+```text
+AudioSource → MonophonicPitchAnalyzer → normalized pitch observation → consumer
+AudioSource → future PolyphonicAnalyzer → chord / multi-note observations
+```
 
-## Targeted Practice — PROVISIONAL MVP implemented
+Potential monophonic consumers include Tuner, instrument visualization, acoustic Free Play, Studies, scales and other eligible activities. The current feature-local tuner architecture is sufficient. Extract reusable boundaries only when another real consumer needs them; preserve room for a separate future polyphonic path.
 
-- [x] Optional recommendations in completed Piece Practice results, including reopened reports
-- [x] Deterministic native evidence ranking and exact mistake/skip/restart/hesitation explanations
-- [x] On-demand original notation and single-measure practice using the same snapshot and Staff Focus
-- [x] Existing completed-save protection, new ordinary run evidence and guarded return to original results
-- [x] Original versus latest completed focused counts for the same measure, with no ability/mastery score
-- [x] Empty/unavailable states, keyboard focus and responsive presentation, deterministic regression coverage
-- [ ] Final Chromebook/Yamaha, touch, screen-reader, audio and installed-PWA QA
+**Violin:** Show a recommended string/fingering prominently and optionally alternate valid first-position locations. Prelude measures pitch; it does not know which physical string/finger produced it. Higher positions are deferred.
 
-The owner authorized this provisional scope on October 4, 2026. Ranking and single-measure selection are reviewable MVP defaults. Return links/comparisons last for the current visit; ordinary run snapshots/checkpoints retain existing persistence and retention. Cross-run analytics, persisted recommendation queues, adaptive coaching, score rewriting and new grading remain outside this MVP.
+**Ocarina:** Standard fingering visualization requires a specifically identified instrument/profile, tuning/system and authoritative chart. The exact profile remains deferred; there is no universal ocarina hole map. Alternate/cross fingerings can follow later.
 
----
+**Voice:** Sung-pitch detection with note, octave, frequency/cents and stability; no speech recognition or fingering diagram.
 
-# Future / Exploratory
+**Shared visualization direction:** A detected pitch can show possible instrument locations; a target pitch can show how to produce it. Reuse piano keys where appropriate. Start within the tuner, then extract instrument mapping/presentation when another real consumer needs it, separately from capture.
 
-The following areas are possibilities, not existing capabilities or committed delivery dates. They must not be read as a promise or as a strict implementation order.
+**Dependencies/non-goals:** Physical support evidence and honest range/tuning labels. Worker/AudioWorklet processing is conditional on measured device problems. No universal microphone bus, automatic practice grading, polyphonic guitar/piano recognition or claim to infer actual fingering.
 
-## Near-Term Post-Release Direction
+## 5. Acoustic Practice Integration
 
-- [ ] Acquire and persist learner practice evidence across sessions
-- [ ] Define product and privacy requirements before designing any persistence schema
-- [ ] Use accumulated evidence to inform later review and practice guidance without claiming server-side analytics today
+**Status:** CONDITIONAL / EVIDENCE-GATED; medium/long-term integrations unlocked individually.
 
-This direction is intentionally not a data-model commitment. The current application keeps Melody diagnostic/repair evidence in memory and Staff Builder projects in browser-local storage.
+**Purpose:** Make reliable microphone observations useful within the semantics of a specific practice activity.
 
-# 🎹 Phase 3 — Harmony Trainer
+**Likely next milestone:** After suitable physical evidence, choose one bounded consumer such as ungraded acoustic Free Play/live staff or stable single-note Flashcards. They have different acceptance needs; tuner usefulness alone does not authorize grading.
 
-Expand the existing multi-note practice engine into a complete harmony trainer.
+**Possible later integrations:** Violin scales and intonation practice, selected Sequences, Guided Studies and carefully chosen Piece Practice experiences.
 
-## Chords
+**Dependencies:** Each consumer defines accepted observations, acquisition, freshness, repeated-pitch rearming, uncertainty, timing semantics, source attribution and octave ambiguity handling. Validate actual targets/passages, including range, simultaneous notes, ties and repeated attacks. Physical evidence gates claims and grading for that activity.
 
-- [x] Simultaneous MIDI note detection
-- [x] Diatonic triad practice
-- [x] Major chord flashcards
-- [x] Minor chord flashcards
-- [x] Diminished chord flashcards
-- [x] Augmented chord flashcards
-- [ ] Suspended chords
-- [ ] Seventh chords
-- [x] Root position (Chord Inversions)
-- [x] First inversion (Chord Inversions)
-- [x] Second inversion (Chord Inversions)
-- [ ] Chord recognition mode
+**Non-goals:** Converting every frequency frame into MIDI NoteOn/NoteOff, inventing attack/release/velocity facts, coercing ambiguous estimates toward the expected answer, or applying identical gates to every mode. Continuous attack timing needs additional proof beyond stable-note recognition.
 
----
+## 6. Core Practice & Authoring
 
-# 🎼 Phase 4 — Musicianship
+**Status:** SUBSTANTIAL BASELINE COMPLETE; ROLLING TARGETED DEVELOPMENT.
 
-Expand beyond isolated note and chord recognition.
+**Purpose:** Improve established systems for demonstrated musical and user needs while preserving their ownership.
 
-## Intervals
+**Likely next milestone:** Address concrete findings from piano/tablet use and review the provisional Targeted Practice experience. Retain Sequence-owned right-hand, left-hand and hands-together scale support as a separately planned enhancement with explicit hands-together grading.
 
-- [x] Melodic interval construction
-- [x] Ascending / descending modes
-- [x] Melodic interval identification by ear
-- [ ] Harmonic interval practice
-- [ ] Expanded interval difficulty settings
+**Ownership:** Staff Builder owns score authoring; Piece Practice owns runs/evidence; Practice Sessions own reusable prescriptions/orchestration; Targeted Practice remains repair inside Piece Practice; Sequences own ordered/scale execution. Upper/Lower Staff Focus does not claim to infer a player's hand.
 
-## Scales
+**Dependencies/boundaries:** Reuse existing helpers and native semantics. Broader evidence persistence/analytics are scoped by feature: Piece Practice runs already persist, while Melody and Practice Session runtime evidence remain transient. This is not a generic backlog lane or a new adaptive-coaching engine.
 
-- [x] Major scales
-- [x] Natural minor scales
-- [x] Harmonic minor scales
-- [x] Melodic minor scales
-- [ ] Scale flashcards
+**Conditional extensions:** Deeper harmony/ear training, dedicated rhythm work, editor operations such as measure copy/paste, richer Melody material, playback timbres or interchange only when a concrete need warrants them. Existing triads/inversions, seventh arpeggios, score editing/playback and metronome foundations must not be relisted as missing. Instrument playback produces sound; instrument microphone support analyzes sound.
 
-## Arpeggios
+## 7. Product QOL / PWA / Accessibility
 
-- [x] Major arpeggios
-- [x] Minor arpeggios
-- [x] Seventh arpeggios
+**Status:** SMALL CONTINUING LANE; near-term work can fit between major musical milestones.
 
-## Rhythm
+**Purpose:** Improve reliability and access through justified navigation/mobile polish, accessibility and maintenance.
 
-- [ ] Rhythm trainer
-- [ ] Tempo trainer
-- [ ] Metronome
+**Explicit candidate:** **PWA Update + What's New**: detect a deployed update, show Update Available / Reload, and show curated What's New after reload. Store the latest seen update locally per installation, collate all missed entries and display newest first. Several commits can form one product update; Git SHA may remain diagnostics-only. No backend/account is required for MVP.
 
----
+**Dependencies:** A bounded activation/reload design protects active practice, transient reports, unsaved Staff Builder work and other meaningful state. Current PWA registration is automatic; controlled activation and What's New are future behavior, not implemented machinery.
 
-# 📚 Phase 5 — Guided Lessons
+**Non-goals:** Silent replacement of an active experience, one entry per Git commit, universal recovery infrastructure, or displacement of major musical milestones. Diagrams/meters need text equivalents, usable focus/zoom behavior and controlled announcements.
 
-Move from isolated flashcards to structured lessons.
+## 8. Physical QA / Supported-Device Evidence
 
-## Lesson Engine
+**Status:** ONGOING CROSS-CUTTING LANE.
 
-- [ ] Lesson data model
-- [ ] Multi-measure lessons
-- [ ] Phrase practice
-- [ ] Left-hand practice
-- [ ] Right-hand practice
-- [ ] Both-hands practice
-- [ ] Loop selected measures
-- [ ] Adjustable tempo
-- [ ] Lesson progress tracking
+**Purpose:** Establish supported behavior from actual devices/instruments, alongside regression fixes.
 
-## Lesson Types
+**Likely next milestone:** Chromebook/Android microphone and installed-PWA testing; broader violin open-string/first-position, actual ocarina and sung-voice checks where appropriate. Keep existing piano/tablet, Targeted Practice, mobile-layout, accessibility, audio and persistence/recovery QA visible.
 
-- [ ] Scale lessons
-- [ ] Chord lessons
-- [ ] Arpeggio lessons
-- [ ] Cadence lessons
-- [ ] Ostinato exercises
-- [ ] Teacher-created exercises
-- [ ] Song studies
+**Evidence categories:** Deterministic automated tests; synthetic browser evidence; owner-observed physical evidence; controlled device/instrument QA. The single successful violin observation does not establish range, octave reliability, device support or latency.
 
----
+**Dependencies/boundaries:** Follow [TESTING.md](./TESTING.md), record tested conditions and failures, and gate only the claims/integrations those results support. Hardware unavailability does not automatically block unrelated musical development.
 
-# ✏️ Phase 6 — Lesson Builder
+## Practical near-term direction
 
-Build lesson authoring, sharing, and consumption on top of the completed Staff Builder score foundation. A Staff Builder project is not yet a Guided Lesson.
+1. Improv remains the next major new musical feature.
+2. PWA Update + What's New may fit between major milestones as small QOL work.
+3. Instrument-aware violin tuner guidance is a bounded microphone extension.
+4. Flow Sight-Reading remains a major practice milestone.
+5. Guided Studies follows when the selected native activity contracts are mature enough for a useful first vertical slice.
 
-## MIDI Step Recorder
+This is a practical preference, not an immutable dependency chain. Physical QA and confirmed regression fixes continue alongside it. Detector research need not delay Improv/Flow, and Studies need only the capabilities selected for their first slice.
 
-- [x] Measure editor foundation
-- [x] Beat/grid positioning foundation
-- [x] Step-style MIDI/VKB capture foundation
-- [x] Duration editing
-- [x] Rest insertion
-- [x] Playback preview
+## Deferred owner decisions and exploratory boundary
 
-## Lesson Editing
+When the relevant thread becomes active, choose the first Flow increment, the first D Minor Study objective/audience, and the exact ocarina profile/fingering system. No resolution is required during documentation consolidation.
 
-- [x] Edit existing local Staff Builder projects
-- [ ] Duplicate measures
-- [ ] Copy/Paste measures
-- [x] Per-piece `.prelude.json` backup import/export
-- [x] Local Staff Builder project library
-- [ ] Guided Lesson data-model integration
-- [ ] Teacher assignment workflow
-- [ ] Lesson sharing and consumption
-- [ ] Broader structured external interchange beyond Prelude score backup files
-
-Whole-piece and treble-/bass-range duplication are complete. “Duplicate measures” above is a distinct future editor operation and is not implied by the existing piece-copy workflows.
-
----
-
-# 🎻 Phase 7 — Playback & Ear Training
-
-Expand listening and orchestration capabilities.
-
-## Instrument Playback
-
-- [ ] Browser SoundFont playback
-- [ ] Piano
-- [ ] Strings
-- [ ] Violin
-- [ ] Cello
-- [ ] Choir
-- [ ] Organ
-- [ ] Brass
-- [ ] Drum kit
-
-## Audio Features
-
-- [ ] Layered instruments
-- [ ] Keyboard splits
-- [ ] Playback controls
-
-## Ear Training
-
-- [ ] Note identification
-- [x] Melodic interval recognition
-- [ ] Chord recognition by ear
-- [ ] Melody playback
-
-The initial Ear Training release supports ascending and descending melodic interval-name identification, stable explicit replay, session statistics, Focus Staff exclusion, and Mobile Play. Harmonic intervals, note identification, chord recognition, and melody imitation remain deferred.
-
----
-
-# 🎼 Phase 8 — Composer Sandbox
-
-Turn Prelude into a lightweight composition and experimentation environment.
-
-## Composition
-
-- [ ] Phrase editor
-- [ ] Chord progression explorer
-- [ ] Harmony experimentation
-- [ ] Motif builder
-
-## Playback
-
-- [ ] Play composed phrases
-- [ ] Instrument switching
-- [ ] Tempo adjustments
-
-## Export
-
-- [ ] MIDI export
-- [ ] MusicXML export
-- [ ] Audio rendering
-
----
-
-# 🌟 Future Ideas
-
-These ideas are intentionally outside the current roadmap but represent possible future directions.
-
-## Learning
-
-- [ ] Adaptive difficulty
-- [ ] AI-generated exercises
-- [ ] Personalized practice plans
-- [ ] Practice streak calendar
-- [ ] Heat maps for weak notes
-- [ ] Practice analytics dashboard
-
-## Sharing
-
-- [ ] Community lesson library
-- [ ] Teacher lesson sharing
-- [ ] Lesson import from URL
-
-## Accessibility
-
-- [ ] Colorblind-friendly themes
-- [ ] Keyboard-only navigation
-- [ ] Screen-reader improvements
-
-## Platform
-
-- [ ] Desktop application
-- [ ] Cloud synchronization
-- [ ] User accounts (optional)
-
----
-
-# Guiding Principle
-
-Prelude grows one musical concept at a time.
-
-Each phase should be fully polished before moving to the next, ensuring that every new feature builds naturally on the existing architecture while reinforcing real musicianship rather than simply adding functionality.
+Broader adaptive coaching, analytics dashboards, community/teacher sharing, cloud accounts/synchronization, desktop packaging, large instrument libraries and advanced exports remain exploratory, not scheduled prerequisites. [IDEAS.md](./IDEAS.md) holds noncommittal ideas. Future feature plans still require owner approval, exact scope, native ownership, musical decisions and proportionate validation under AGENTS.md.

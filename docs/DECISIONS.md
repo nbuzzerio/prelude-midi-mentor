@@ -4,7 +4,7 @@
 
 ## Chromatic Tuner Phase 2 — provisional standalone microphone input
 
-- Owner approved the production standalone MVP while physical microphone QA remains pending, and explicitly retained version 2.8.6. Improv remains the next major musical feature priority; the roadmap is unchanged.
+- Owner approved the production standalone MVP while physical microphone QA remains pending, and explicitly retained version 2.8.6. Improv remains the next major musical feature priority. That implementation did not alter the roadmap; the later October 2026 consolidation captures continuing instrument support.
 - Use the measured main-thread AnalyserNode/direct MPM architecture. Port pure logic into feature-local production TypeScript with no `.dev` imports and no additional dependencies. YIN remains a spike comparison rather than an extra production detector.
 - Keep microphone observations separate from MIDI and grading. Numeric equal-tempered semitone coordinates do not constitute MIDI attacks or releases. Reuse the existing no-key spelling convention rather than adding instrument-specific naming.
 - Offer all chromatic pitch classes within an explicit 120–2300 Hz MVP range. Reference pitch is A4=440 Hz. Instrument calibration, wider-range validation, device selection and polyphony are deferred.
@@ -120,6 +120,8 @@ Every major feature should help users improve skills such as:
 
 # 2026-07 — MIDI and On-Screen Input Share One Practice Path
 
+> **Scope clarification:** MIDI/VKB can reach native validation through different collection policies. Future microphone observations are not MIDI events; acoustic adapters require activity-specific evidence and semantics under the October 2026 decision below.
+
 ## Decision
 
 Physical MIDI keyboards and the on-screen piano should produce the same normalized note input before reaching the practice engine.
@@ -200,6 +202,8 @@ Adding chords as an isolated special case would create unnecessary duplication.
 
 # 2026-07 — Flashcards Will Become the Simplest Form of Lesson
 
+> **Superseded by the October 2026 Guided Studies decision below.** Retained as historical rationale. A universal lesson engine/hierarchy will not replace independent feature models or state machines.
+
 ## Decision
 
 Prelude’s long-term architecture will treat flashcards as a minimal lesson rather than maintaining separate systems for every practice mode.
@@ -246,6 +250,8 @@ The current flashcard implementation should remain simple, but new systems shoul
 
 # 2026-07 — Lesson Data Is Independent of Rendering
 
+> **Clarified by Staff Builder ownership and the October 2026 Guided Studies decision.** Rendering-independent musical data remains valid; one shared lesson format is not a commitment to a universal practice/Study model.
+
 ## Decision
 
 Lessons will be stored as structured musical data rather than as VexFlow-specific objects or rendered notation.
@@ -274,6 +280,8 @@ A rendering-independent model can be used by:
 ---
 
 # 2026-07 — Lesson Playback and Lesson Creation Are Separate Systems
+
+> **Partially superseded by Staff Builder and the October 2026 Guided Studies decision.** Separation of authoring and consumption remains valid. The lesson-engine-first order, one common lesson model and a new engine owning grading/timing are historical directions, not current architecture.
 
 ## Decision
 
@@ -954,6 +962,8 @@ Learners should not lose incomplete work, but an incomplete draft should not be 
 
 # 2026-08 — Staff Builder Scores Remain Authoritative for Piece Practice
 
+> **Persistence supersession:** The September 2026 durable-evidence decision supersedes the session-only progress/statistics consequence and no-persisted-snapshot interpretation below. Staff Builder remains the authored-score authority; Piece Practice stores practiced snapshots/checkpoints separately without writing evidence into the library.
+
 ## Decision
 
 Blocking Piece Practice reads a transient attack-onset projection of a structurally valid saved Staff Builder score. It does not persist a copied practice score or convert the piece into `SequenceTarget`.
@@ -1047,6 +1057,69 @@ This makes existing evidence actionable with a small end-to-end path and transpa
 - Completed-save acknowledgement governs launch and return; cancelled unfinished returns preserve input state.
 - Navigation/comparison relationships are not persisted. Reload restores the focused run through ordinary paused recovery; terminal records retain current retention limits.
 - No score/run schema, database, MIDI/CC64/Staff Focus grading, paid service, AI or dependency change is implied.
+
+---
+
+# 2026-10 — Owner-Approved Rolling Roadmap
+
+## Decision
+
+On October 5, 2026, the owner approved [ROADMAP.md](./ROADMAP.md) as the authoritative rolling direction with eight continuing threads: Improv / Creative Exploration; Continuous / Flow Sight-Reading; Guided Studies; Microphone Instruments / Instrument-Aware Tuner; Acoustic Practice Integration; Core Practice & Authoring; Product QOL / PWA / Accessibility; and Physical QA / Supported-Device Evidence.
+
+Improv remains the next major new musical feature. PWA Update + What's New can fit between major milestones; violin-aware tuner guidance is a bounded extension; Flow remains a major future practice milestone; Studies follow sufficient maturity of selected activity contracts. This preference is not immutable. Physical QA and regression fixes proceed alongside it.
+
+## Reason
+
+Numbered future phases no longer reflect implemented capabilities or independent rates of progress. Rolling threads preserve musical value without making microphone research, speculative infrastructure or exhaustive curricula prerequisites for unrelated work.
+
+## Consequences
+
+- The tuner MVP is implemented; one owner-observed violin success is limited evidence, not broad validation. Device/instrument QA and octave ambiguity remain outstanding.
+- Flow's foundation exists in Melody; sustained reading beyond short trials remains future work. Existing Reading Flow prescriptions do not complete that milestone.
+- Composer exploration continues within Improv rather than as a competing product; no DAW expansion is implied.
+- Core Practice & Authoring improvements require concrete needs and native ownership, not a generic backlog or analytics framework.
+- First Flow increment, first D Minor Study objective/audience and exact ocarina profile remain deferred owner decisions when those threads become active.
+- This documentation consolidation retains 2.8.6 and authorizes no feature, configuration, release or Git operation.
+
+---
+
+# 2026-10 — Guided Studies Own Pedagogy and Compose Native Activities
+
+## Decision
+
+Guided Studies are a permanent product pillar with the cycle explanation → demonstration → experiment → repetition → comparison → reflection. Studies own the teaching journey; native modes retain rendering, timing, input, grading, persistence, notation, playback and evidence. Prefer explicit launch/completion/return contracts before consuming a mode.
+
+## Reason
+
+A Study teaches why and supplies comparisons/context. Practice Sessions organize what to practice; Staff Builder Study View presents a score. These capabilities can cooperate without duplicating practice engines or replacing their musical semantics.
+
+## Consequences
+
+- The July universal lesson hierarchy/engine and lesson-engine-first order are superseded; useful authoring/consumption and rendering/data separation remain valid.
+- D Minor is the likely first vertical slice. The concept bank is expansion material, not initial scope; close only activity/material gaps required for the selected objective.
+- Activity completion does not prove understanding. Preserve native evidence without a universal mastery score.
+- Full Flow, acoustic participation, teacher sharing, curriculum authoring and global analytics are not universal prerequisites.
+
+---
+
+# 2026-10 — Microphone Reuse Follows Real Consumers and Evidence
+
+## Decision
+
+Keep the working tuner feature-local. `AudioSource → MonophonicPitchAnalyzer → normalized pitch observation → consumer` is a conceptual separation, not an implemented global service. Extract reusable boundaries only when another real consumer needs them. Preserve a separate conceptual future `AudioSource → PolyphonicAnalyzer → chord / multi-note observation` path.
+
+## Reason
+
+Pitch detection, physical input events and instrument locations have different semantics. Stable periodicity can still identify the wrong octave; infrastructure expansion alone does not resolve that ambiguity.
+
+## Consequences
+
+- Instrument guidance begins inside the existing tuner. Violin uses standard G–D–A–E and first-position recommendations/alternates; detected pitch never establishes the actual string/finger used.
+- Ocarina diagrams require an identified profile/tuning/system/chart. Voice means sung pitch, not speech recognition.
+- Target-pitch and detected-pitch visualization can share instrument mapping independently of capture when demonstrated reuse warrants extraction.
+- Guitar/piano chords are outside this monophonic roadmap. No universal microphone bus, synthetic MIDI NoteOn/NoteOff or expected-target octave coercion is authorized.
+- Each acoustic consumer defines acceptance, acquisition, freshness, repeated-pitch rearming, uncertainty, timing and octave behavior; physical evidence gates its claims and grading individually.
+- Worker/AudioWorklet changes remain conditional on device measurements. Input analysis and instrument playback remain separate capabilities.
 
 ---
 

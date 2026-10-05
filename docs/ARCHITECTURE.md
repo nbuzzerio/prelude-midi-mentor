@@ -4,7 +4,7 @@
 
 ## Standalone Chromatic Tuner (Phase 2)
 
-The tuner is a foreground-only App mode with explicit microphone Start/Stop. Feature-local modules under `src/features/tuner` own pitch conversion, direct MPM/NSDF analysis, stabilization, browser capture, a React lifecycle adapter, and presentation. Production code never imports the ignored `.dev` spike. No dependency, package version (2.8.6), roadmap, MIDI contract, scoring, or persisted practice data changes accompany this milestone.
+The tuner is an implemented foreground-only App mode with explicit microphone Start/Stop. Feature-local modules under `src/features/tuner` own pitch conversion, direct MPM/NSDF analysis, stabilization, browser capture, a React lifecycle adapter, and presentation. Production code never imports the ignored `.dev` spike. Its implementation retained version 2.8.6 by owner instruction and changed no dependency, MIDI contract, scoring or persisted practice data. The later [rolling roadmap](./ROADMAP.md) captures instrument-aware evolution separately.
 
 The pipeline is `getUserMedia → owned AudioContext → AnalyserNode → MPM/NSDF → stabilization → display`, using 2048-sample frames sampled about 30 times per second. The source connects only to the analyser, never to speakers. Preferred mono/raw audio constraints are requests; browsers may apply their own processing. Samples and the bounded level history exist only in memory; there is no recording, upload, or microphone device selector.
 
@@ -14,7 +14,7 @@ All twelve pitch classes use A4=440 Hz and equal temperament, with the existing 
 
 `PracticeSessionBuilder` reports only whether its run status is active via an optional `onActiveRunChange` callback. App passes the inverse to the tuner. Hidden, target-complete and Bonus runs still block capture; summary releases the guard. This does not pause, cancel, reconfigure, or change grading in the hosted engine. The tuner never registers a MIDI consumer. Foreground eligibility is checked before and after asynchronous startup and during sampling. Unmount, hidden document, pagehide/freeze, track interruption or context suspension invalidate startup generations, stop tracks, disconnect nodes, cancel timers and close the owned context. Returning requires explicit Start; late streams are immediately stopped. Mobile presentation uses the ordinary responsive App rather than fullscreen/orientation acquisition.
 
-Desktop synthetic evidence supports main-thread processing provisionally; target-device physical QA remains outstanding. Other applications and playback tails can contaminate detection. There is no global playback mute or universal input engine. Worker/AudioWorklet capture and practice integration remain separate owner-approved work.
+Desktop synthetic evidence supports main-thread processing provisionally. One successful real violin test is owner-observed limited physical evidence; broader Chromebook/Android and violin/ocarina/sung-voice QA remains pending. Strong harmonics can still cause confident octave mistakes. Other applications and playback tails can contaminate detection. There is no global playback mute or universal input engine. Worker/AudioWorklet capture and practice integration remain separate owner-approved work.
 
 The audit correction retains unresolved AudioContext closure in a tuner-local retirement registry across controller unmounts. Tracks, graph connections and session timers are released immediately. Explicit Start/Stop makes one cleanup attempt per retired context, deduplicates an outstanding close promise, and removes ownership only after the context reports closed. Start refuses to allocate another context or request microphone access while retired audio remains open; a later explicit Start can retry once the document is active again. There are no automatic retry timers or status updates from old closure completions. Stop cancels Prelude's pending startup; the browser permission prompt may remain visible. Track mute/end listeners attach immediately after stream ownership, before awaiting activation. Context state listeners distinguish normal initial suspension from interruption or suspension after running.
 
@@ -36,7 +36,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides six top-level modes: Flashcards, Sequences, Free Play, Ear Training, Melody, and Staff Builder. Together they support:
+The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.8.6, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals
@@ -57,6 +57,9 @@ The current application provides six top-level modes: Flashcards, Sequences, Fre
 - Sequence completion statistics
 - Live ungraded MIDI and virtual-keyboard notation on a persistent grand staff
 - Free Play key signatures and key-aware enharmonic spelling
+- Practice Session prescriptions, comprehensive reporting/printing and Weekly Practice import
+- Score authoring and blocking Piece Practice with durable browser-local run evidence
+- Independent raw/musical MIDI diagnostics and standalone microphone tuning
 
 Prelude is currently a frontend-only application built with React and Vite. Ear Training owns melodic interval identification without reusing notation-first practice state machines. Staff Builder owns a separate score-editing domain while reusing shared MIDI, audio, and music primitives.
 
@@ -69,7 +72,7 @@ The architecture follows a few simple principles:
 - Keep music logic separate from React UI.
 - Keep reusable logic separate from feature-specific state.
 - Prefer small focused modules over large components.
-- Share one music model across rendering, playback, and validation.
+- Share authoritative musical data across rendering, playback and validation within its owning domain; preserve distinct feature models and state machines.
 - Avoid premature abstractions.
 - Build features incrementally.
 
@@ -114,23 +117,21 @@ App
 │   ├── Sequence Logic
 │   └── Step Validation
 │
-├── FreeplaySession
-    ├── Live Held-Note State
-    ├── Grand-Staff Rendering
-    └── Ungraded Keyboard Interaction
-│
-└── EarTrainingSession
-    ├── Stable Aural Target
-    ├── Prompt Playback
-    ├── Interval-Name Validation
-    └── Session Statistics
+├── FreeplaySession — live held-note state and ungraded notation
+├── EarTrainingSession — aural target, playback and interval-name grading
+├── MelodySession — generated score, audio clock, capture and native results
+├── StaffBuilderSession — score authoring, local library and playback
+│   └── PiecePracticeSession — blocking runs, durable evidence and Targeted Practice
+├── PracticeSessionBuilder — prescriptions/import, one hosted native engine and report
+├── MidiDiagnostic — independent in-memory Web MIDI inspection
+└── TunerSession — feature-local microphone capture, analysis and display
 
 Shared Systems
 ├── Music Rendering
 ├── MIDI Input
 ├── Virtual Piano
 ├── Audio
-└── Statistics
+└── Feature-specific statistical helpers
 ```
 
 `FlashcardSession` coordinates the practice experience by composing focused hooks, utilities, and presentation components.
@@ -482,7 +483,7 @@ Flashcards and Sequences continue to supply only `onNoteToggle` to `PianoKeyboar
 
 # Staff Builder
 
-Staff Builder is a feature-owned, learning-focused score editor. It creates local practice material without turning Prelude into a professional notation editor or merging score authoring with the future Guided Lesson engine.
+Staff Builder is a feature-owned, learning-focused score editor. It creates local practice material without turning Prelude into a professional notation editor or merging score authoring with future Guided Studies. Study View is score presentation, not a Guided Study.
 
 ## Ownership Boundaries
 
@@ -497,7 +498,7 @@ The Staff Builder feature separates durable responsibilities:
 - playback projects score data into shared musical events;
 - notation rendering returns decorative output and public interaction geometry.
 
-These boundaries live inside `src/features/staff-builder`; they do not turn Flashcards, Sequences, Free Play, Ear Training, or future Guided Lessons into one state machine.
+These boundaries live inside `src/features/staff-builder`; they do not turn Flashcards, Sequences, Free Play, Ear Training, or future Guided Studies into one state machine.
 
 ## Application-Owned Score Model
 
@@ -643,7 +644,7 @@ Physical MIDI and the virtual piano reach the same feature-owned validation rule
 
 # Audio
 
-Prelude currently has two audio systems.
+Audio responsibilities remain separate rather than sharing a universal audio bus.
 
 **Interface feedback**
 
@@ -656,7 +657,7 @@ Prelude currently has two audio systems.
 - virtual key playback
 - chord playback
 
-Keeping these systems separate makes each easier to evolve independently.
+Melody additionally owns its performance/count-in/metronome clock. The tuner owns microphone capture and analysis without speaker monitoring. Shared musical-event playback is reused where appropriate; instrument sound libraries and microphone analysis are different capabilities.
 
 ---
 
@@ -698,13 +699,15 @@ Owns browser MIDI access, physical input listeners, hotplug/disconnect state, an
 
 ## MidiProvider and useAppMidiInput
 
-`MidiProvider` remains mounted above top-level mode switching. It shares connection status, device identity, errors, and `connectMidi()` without requesting permission on page load. A token-safe active-consumer registration routes new note attacks, held-note snapshots, and normalized CC64 sustain edges only to the currently mounted MIDI-enabled feature. Ear Training intentionally consumes only the sustain edge for Play Prompt; note attacks remain ungraded. Switching through a feature with no MIDI consumer leaves the physical connection and held state alive without grading attacks.
+`MidiProvider` remains mounted above top-level mode switching. It shares connection status, device identity, errors, and `connectMidi()` without requesting permission on page load. A token-safe active-consumer registration routes new note attacks, held-note snapshots and normalized CC64 sustain edges to the most recently registered feature consumer. Registration is token-safe, not a visibility-aware consumer stack; a hosted Practice Session may remain mounted while hidden. The tuner's active-run guard handles that capture exclusion without redesigning MIDI ownership. Ear Training intentionally consumes only the sustain edge for Play Prompt; note attacks remain ungraded. Switching through a feature with no MIDI consumer leaves the physical connection and held state alive without grading attacks.
 
 Feature adapters retain all musical behavior. Flashcards, Sequences, and Piece Practice keep their own chord collectors and grading; Staff Builder keeps Capture semantics; Free Play consumes held-note snapshots. An already-held key is published as held environmental state after a mode switch but is never replayed as a new attack.
 
 ---
 
-# Current Runtime Flow
+# Isolated / Ordered Practice Runtime Flow
+
+This loop describes Flashcard/Sequence target progression. Free Play, Melody, Staff Builder, diagnostics and tuning retain their different native lifecycles.
 
 ```text
 Read Settings
@@ -733,6 +736,25 @@ Next Target
 
 # Architectural Principles
 
+## Intended Studies and Acoustic Boundaries (Conceptual)
+
+Guided Studies are not implemented. They are intended to own explanation, demonstration, experiment, repetition, comparison and reflection, using explicit native launch/completion/return contracts. Feature domains retain rendering, timing, input, grading, persistence, notation, playback and evidence. Practice Sessions already compose four native engines; their prescriptions and curriculum metadata are not a Study engine. Staff Builder Study View is score presentation. No universal lesson model or mastery score is planned to replace native domains.
+
+Continuous / Flow Sight-Reading has a foundation in Melody's clock, continuous capture, alignment, notation, scoring and nonblocking performance. Sustained reading beyond short trials remains future product work. Authored Piece Practice continuous performance is related but distinct; neither requires a universal grading engine.
+
+The intended audio separation is conceptual:
+
+```text
+AudioSource → MonophonicPitchAnalyzer → normalized pitch observation → consumer
+AudioSource → future PolyphonicAnalyzer → chord / multi-note observations
+```
+
+The feature-local tuner remains sufficient today. There is no implemented global AudioSource service, universal microphone bus or polyphonic analyzer. Extract reusable boundaries only when another real consumer needs them; thread/transport expansion depends on measured device problems. Future consumers may include instrument diagrams, acoustic Free Play, scales and Studies, but acoustic adapters must define acceptance, acquisition, freshness, repeated-pitch rearming, uncertainty, timing and octave handling per activity. Pitch coordinates are not MIDI attacks/releases.
+
+Instrument mapping/presentation should accept a detected or target pitch independently of capture. Begin with bounded guidance in the existing tuner. Violin guidance uses standard G–D–A–E and first-position recommendations/alternates; it cannot identify the string/fingering actually used. Ocarina requires an identified profile/system/chart; voice means sung pitch. Polyphonic guitar/piano recognition must not be routed through monophonic assumptions.
+
+See [ROADMAP.md](./ROADMAP.md) for priorities and deferred product choices; these paragraphs describe intended boundaries, not newly implemented services or contracts.
+
 When extending Prelude:
 
 - Keep music logic independent of React.
@@ -749,7 +771,7 @@ Flashcards, Sequences, Ear Training, and Melody own their JSON-safe prescription
 
 The Flashcard, Sequence, and Ear Training settings hooks accept a mount-time initial config and otherwise use centralized existing defaults. Feature conversion functions create detached runtime Sets and serialize explicit settings fields back to plain arrays. Callback-bearing hook results may be supplied to these serializers; callbacks are not serialized. New initial props do not overwrite edits after mount.
 
-Sequence config retains settings for all four subtypes so switching subtypes preserves existing selections. Every selection group remains valid, including inactive groups. Progression compatibility preserves the existing rule that at least one selected key/template pair is compatible; incompatible cross-products are not newly forbidden. SequenceConfig version 2 adds scalePracticeMode and an ordered scaleRepertoire array. The default remains Intervals, with Random selected for scale practice and an empty repertoire. Version 1 Sequence configs are explicitly unsupported; there is no persisted preset data to migrate. The structural parser takes the feature's expected version, defaulting to version 1 for unchanged features.
+Sequence config retains settings for all four subtypes so switching subtypes preserves existing selections. Every selection group remains valid, including inactive groups. Progression compatibility preserves the existing rule that at least one selected key/template pair is compatible; incompatible cross-products are not newly forbidden. SequenceConfig version 2 adds scalePracticeMode and an ordered scaleRepertoire array. The default remains Intervals, with Random selected for scale practice and an empty repertoire. Version 1 Sequence configs are explicitly unsupported; the original config change preceded persisted presets. Current libraries store version-2 Sequence configs. The structural parser takes the feature's expected version, defaulting to version 1 for unchanged features.
 
 Piece Practice owns diagnostic evidence in its session domain and persists it in browser-local practice runs. Chronological mistake evidence is the authoritative mistake truth; aggregate and authored-measure counts are derived from it. The same active-time clock records accumulated measure time and final-success target response time, pauses while the document is hidden, and freezes at completion. The first assessable target of each started or restarted practice range has an unarmed response timer until its first physical MIDI Note On or virtual-keyboard attempt, including a wrong attempt. Leading no-attack measures preserve that exception. Later targets start response timing on activation as before; skipping the unarmed first target records an explicit not-timed basis and consumes the exception. Hesitation is a non-rhythmic practice signal derived from tempo-relative opportunity windows with named forgiving thresholds. Skips remain independent problem signals. None of this evidence is written into the Staff Builder score schema; versioned practice-run checkpoints retain it separately in IndexedDB.
 
@@ -843,7 +865,7 @@ P6 keeps edit, active-run, and summary lifecycle ownership in `PracticeSessionBu
 
 The runtime mounts exactly one keyed Flashcard, Sequence, Ear Training, or Melody engine through an explicit discriminated-union switch. Every callback carries its run ID, exercise token, and exercise ID; mismatches are ignored after Next, Skip, End, unmount, or a new run. Count callbacks remain uncapped after achievement. Scale Repertoire separately counts completed scales and treats `onScaleRepertoireCompleted` as authoritative. Melody treats `onPracticeTargetReached` as authoritative, owns its timer, and continues Bonus through its existing imperative handle without remounting.
 
-The optional `practiceSessionMode` engine prop is presentation-only. It suppresses settings, reset, Focus Staff entry, and timed-session replacement actions while retaining parsing, generation, grading, input, audio, timers, callbacks, Melody Start/count-in, review/repair, and Ear Training prompt playback. Standalone behavior remains the default. Practice completion is a nonmodal host strip; Skip and End require no confirmation, and summaries contain only entered exercises with neutral language. App retains its single persistent `MidiProvider`.
+The optional `practiceSessionMode` engine prop is presentation-only. It suppresses settings, reset, Focus Staff entry, and timed-session replacement actions while retaining parsing, generation, grading, input, audio, timers, callbacks, Melody Start/count-in, review/repair, and Ear Training prompt playback. Standalone behavior remains the default. The host presents target completion in an accessible modal overlay while retaining the mounted engine; Skip and End require no confirmation. The comprehensive summary joins entered records to the full authored prescription, including never-entered exercises. App retains its single persistent `MidiProvider`.
 
 Practice Session Mobile Play has one stable browser and viewport owner. `PracticeSessionRuntime` holds one `useMobilePlay()` instance while its keyed child engines change, so fullscreen and landscape acquisition survive Next and Skip. Its `.mobile-play-mode` root is the only fixed viewport shell and contains both the compact playlist controls and a `minmax(0, 1fr)` engine region. End, Finish, final Skip, or runtime unmount releases browser state once through the hook's existing cleanup; explicit Exit releases it while retaining the current engine and restores focus to the stable host entry action.
 
@@ -855,9 +877,9 @@ Practice Session Focus compacts the stable host chrome and gives its existing en
 
 Phase 3 keeps report interpretation inside each engine. Flashcards, Sequences, Ear Training, and Melody expose pure selectors over their transient result contracts; these selectors retain native terms and do not normalize unlike evidence into a universal accuracy, mastery, or score type. Each engine validates the target-boundary evidence as a prefix of the final evidence, reports the boundary as prescribed musical work, and derives Bonus from only the native evidence appended afterward. A missing or inconsistent boundary degrades to one unsplit recorded-evidence report rather than fabricating phase attribution. Melody reporting delegates to its existing timed-diagnostic summary, mastery, Interval Trouble, metric, and notation-detail semantics; appended trials and Repair retries remain distinct Melody evidence.
 
-The host derives one transient report by joining entered runtime records to the complete immutable run snapshot. Exercises therefore remain in authored order even when they were skipped or never entered. The host owns only lifecycle presentation: neutral outcome wording, prescribed versus Bonus units and foreground-active time, total active time, and exercise ordering. Detailed engine diagnostics use native disclosure elements and the completed report remains normal responsive document flow with one page scrollbar. Reports are not persisted, printed, uploaded, or included in the preset schema.
+The host derives one transient report by joining entered runtime records to the complete immutable run snapshot. Exercises therefore remain in authored order even when they were skipped or never entered. The host owns only lifecycle presentation: neutral outcome wording, prescribed versus Bonus units and foreground-active time, total active time, and exercise ordering. Detailed engine diagnostics use native disclosure elements and the completed report remains normal responsive document flow with one page scrollbar. Reports are not persisted, uploaded or included in the preset schema; browser printing is implemented as described below.
 
-Phase 4 adds a feature-owned printable projection of that already-derived report. Presentation-only options filter summary, exercise, timing, and diagnostic sections without mutating the run or evidence. Practice Session print layout uses semantic normal document flow and browser pagination; it does not use Staff Builder's notation system/page composer. Melody print diagnostics deliberately use existing compact metrics, Sight Read/Repair summary, and trial status without duplicating large notation trees.
+Implemented Phase 4 reporting supplies a feature-owned printable projection of that already-derived report. Presentation-only options filter summary, exercise, timing, and diagnostic sections without mutating the run or evidence. Practice Session print layout uses semantic normal document flow and browser pagination; it does not use Staff Builder's notation system/page composer. Melody print diagnostics deliberately use existing compact metrics, Sight Read/Repair summary, and trial status without duplicating large notation trees.
 
 `useBrowserPrint` is the small shared browser lifecycle used by Staff Builder, Piece Practice, and Practice Session. It waits one task after feature-owned print content mounts, invokes `window.print()`, completes on `afterprint`, falls back after one second, and removes timers/listeners on cleanup. Document composition and options remain feature-owned; there is no generalized report framework.
 

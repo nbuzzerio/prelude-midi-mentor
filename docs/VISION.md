@@ -13,7 +13,7 @@ The project began as a MIDI-powered sight-reading trainer, but has grown into a 
 - teach standard notation
 - connect written music to the keyboard
 - reinforce music theory through practice
-- support targeted lessons
+- support Guided Studies that explain and apply musical concepts
 - encourage experimentation and composition
 - make high-quality music-learning tools available in the browser
 
@@ -69,7 +69,7 @@ The result should feel more interactive than a method book and more educational 
 
 Prelude is built around understanding.
 
-Students should learn:
+The teaching cycle is explanation → demonstration → experiment → repetition → comparison → reflection. Students should learn:
 
 - what a note is
 - where it appears on the staff
@@ -122,6 +122,12 @@ MIDI enables Prelude to provide:
 
 The on-screen piano should remain available for accessibility and casual use, but physical MIDI input is central to the full learning experience.
 
+## Bounded Acoustic Participation
+
+Microphone pitch observations can extend learning to monophonic acoustic instruments and sung voice. They describe pitch and stability, not physical fingering, MIDI attacks/releases or speech. Instrument guidance should connect both detected and target pitches to ways of producing them, while showing uncertainty honestly. Claims and practice assessment depend on evidence for the instrument, device and activity; a tuning aid does not automatically establish reliable rhythmic grading.
+
+Instrument playback and instrument input serve different purposes: one produces sound, the other observes it. Neither implies the other is supported.
+
 ---
 
 # Progression of Learning
@@ -173,15 +179,15 @@ Prelude should grow with the student.
 - arrangement
 - composition
 
-Each stage should build naturally on the previous one.
+These stages describe learning relationships, not a rigid delivery order. The authoritative [rolling roadmap](./ROADMAP.md) allows practice, creativity, Studies, acoustic support and product quality to develop at different rates.
 
 ---
 
-# Guided Lessons
+# Guided Studies
 
-Prelude should eventually support structured lessons rather than only isolated exercises.
+Guided Studies are a permanent product pillar. They own the teaching journey and compose Prelude's native modes as interactive tools. Those modes retain rendering, timing, input, grading, persistence, notation, playback and evidence responsibilities.
 
-A lesson may teach:
+A Study may teach:
 
 - a scale
 - a chord progression
@@ -192,34 +198,15 @@ A lesson may teach:
 - a short phrase
 - a complete song section
 
-A strong lesson should explain what the student is practicing and why it matters.
+A Practice Session organizes what to practice. A Guided Study explains why, offers demonstrations and experiments, supports repetition and comparison, and invites reflection. Completing an activity is not proof of understanding; Studies should not introduce a universal mastery score. Staff Builder's Study View is score presentation, not this teaching system.
 
-For example:
+The likely first vertical slice is a D Minor Study. Its concept bank spans natural, harmonic and melodic minor, F major, notation, scales, intervals, arpeggios, harmony, listening, singing/playing, improvisation and eventual excerpt application. The first objective and audience remain owner decisions when the thread becomes active; this bank is not initial implementation scope.
 
-```text
-Lesson: D Minor Ostinato
-
-Goal:
-Keep the left-hand pattern steady while adding a simple melody.
-
-Step 1:
-Practice the left hand alone.
-
-Step 2:
-Practice the melody alone.
-
-Step 3:
-Combine both hands.
-
-Step 4:
-Increase the tempo gradually.
-```
-
-Prelude should teach the concept behind the music, not only require correct notes.
+Use mature native activities through explicit launch, completion and return boundaries. Prepare only the musical material and capability gaps needed for the chosen slice. Full curriculum authoring, continuous reading and acoustic input are not universal prerequisites. Musical character should be explored through listening and context rather than reduced to fixed emotional labels.
 
 ---
 
-# Lesson Creation
+# Practice Material and Study Authoring
 
 Students and teachers should be able to create targeted practice material without needing professional notation software.
 
@@ -231,7 +218,7 @@ A user may:
 2. Play one or more notes.
 3. Assign a duration.
 4. Confirm the event.
-5. Continue through the lesson.
+5. Continue through the score.
 6. Preview and edit the result.
 
 This workflow should support:
@@ -242,13 +229,13 @@ This workflow should support:
 - song excerpts
 - original musical ideas
 
-Future Lesson Builder work should connect that score foundation to Guided Lesson consumption, teacher assignments, sharing, and structured import/export. Blocking Piece Practice does not turn a Staff Builder project into a Guided Lesson, and future continuous Accuracy work remains separate from its Phase 1 blocking model.
+Future Study authoring may connect teaching content and native activity prescriptions to this score foundation. Teacher assignments, sharing and broader interchange remain later possibilities. A Staff Builder project or blocking Piece Practice run is not itself a Guided Study; continuous authored-piece performance remains a separate future capability.
 
 ---
 
-# Composition as Learning
+# Improv / Creative Exploration
 
-Prelude should eventually provide lightweight composition tools.
+Improv helps players invent, explore, compare and develop musical ideas. It adds intentional creative guidance beyond Free Play's observation, complements Piece Practice's work on existing music, and supplies experimentation for Studies. A bounded first experience can use key/scale context and constrained exploration; chord/progression context, motifs and idea capture can develop later, including eventual material for MACEDON.
 
 The purpose is not to compete with a digital audio workstation.
 
@@ -269,13 +256,13 @@ Potential tools include:
 - MIDI export
 - MusicXML export
 
-Creative experimentation should reinforce music theory rather than exist as a separate activity.
+Creative experimentation should reinforce music theory. Composition possibilities extend the Improv direction rather than defining a competing Composer product.
 
 ---
 
 # Instrument Playback
 
-Prelude may eventually allow MIDI input and lesson playback through sampled instruments.
+Prelude already has sampled piano playback. Broader sampled-instrument choices may eventually support demonstrations, practice material and creative exploration.
 
 Possible instruments include:
 
@@ -349,11 +336,11 @@ Advanced features should emerge gradually from simple concepts.
 
 ## Reuse Before Duplication
 
-Flashcards, chords, lessons, and songs should share common systems whenever possible.
+Features should reuse musical facts, rendering and playback where their semantics fit while retaining their native practice state machines. Studies orchestrate those capabilities rather than replacing them.
 
-## Architecture Before Expansion
+## Architecture Follows Demonstrated Need
 
-Prelude should establish a stable, well-documented foundation before introducing major new features.
+Prelude should evolve architecture when a real feature needs it and keep implemented boundaries documented. Conceptual future inputs or teaching systems do not justify universal frameworks in advance.
 
 Thoughtful architecture and clear documentation make future musicianship features easier to build, understand, and maintain.
 

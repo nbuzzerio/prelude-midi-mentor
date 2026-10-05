@@ -1,5 +1,7 @@
 # Prelude: MIDI Mentor — Testing
 
+Current package/application version is intentionally **2.8.6**. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
+
 ## Chromatic Tuner Phase 2
 
 Run focused validation with `pnpm test src/features/tuner src/App.test.tsx src/features/practice-session/components/practice-session-builder.test.tsx`, then `pnpm verify`. The approved dependency restoration uses the existing frozen lockfile, with install scripts disabled to avoid unrelated Husky/Git configuration. Package and lockfile hashes remain unchanged. On this environment's pnpm 11, set `$env:pnpm_config_verify_deps_before_run='false'` for verification commands to prevent its automatic pre-script reinstall after the deliberate script-free restoration; this changes no repository configuration or dependency versions.
@@ -14,13 +16,20 @@ After `pnpm build`, `node .dev/tuner-browser-qa.mjs` runs the source and compile
 
 - **VERIFIED BY AUTOMATED TEST:** deterministic musical, signal, stabilization, lifecycle and ownership behavior; exact final suite counts are reported in the handoff.
 - **VERIFIED IN BROWSER:** desktop generated/fake capture and full App smoke, including measured detector cost and short live responsiveness. This does not establish physical onset latency or instrument accuracy.
-- **REQUIRES PHYSICAL-DEVICE QA:** Chromebook/Android microphone permission UI and indicator, real violin/ocarina, quiet/noisy coverage, independent pitch reference, octave errors, capture-to-display latency, mobile route interruption and sustained performance.
+- **OWNER-OBSERVED LIMITED PHYSICAL EVIDENCE:** one successful real violin test reported by the owner. No controlled corpus, device matrix, range/latency measurements or octave-reliability rate is established by this observation.
+- **CONTROLLED DEVICE/INSTRUMENT QA — PENDING:** Chromebook/Android microphone permission UI and indicator, broader violin/ocarina/sung-voice coverage, quiet/noisy conditions, independent pitch reference, octave errors, capture-to-display latency, mobile route interruption and sustained performance. Record device/browser, instrument/range, conditions, reference, failures and unsupported combinations when testing occurs.
 
 Owner procedure: use HTTPS/localhost and enable the normal navigation's Tuner. Test a fresh denied permission, grant/retry, cancel an unanswered prompt, Stop during startup and restart. Play violin G3/D4/A4/E5 and several sustained ocarina notes, with an independent trusted frequency reference where available. Repeat each in quiet and noisy rooms, at different dynamics and through bow/breath attacks, vibrato and decays; distinguish wrong-octave episodes from uncertainty/clearing. Verify a fading tone does not become a reliable new harmonic note. Check 120–2300 Hz limits and chromatic accidentals/octave transitions. Keep other playback quiet, then deliberately test acoustic interference without recording audio.
 
 On both devices, hide/switch apps, lock/unlock, interrupt or unplug the audio route, revoke permission, and return: capture should stop and require Start. Navigate away while listening and while the prompt is pending; a late grant must not restore capture. Start an active hosted Practice Session, leave it hidden and confirm tuner Start is blocked; return, End Session, and confirm listening becomes available. Repeat ten Start/Stop cycles and check the browser microphone indicator extinguishes. Check portrait/landscape, 200% zoom, keyboard focus, accessible error messages and announcement rate. Run >=30 minutes foreground to assess heat, responsiveness and cleanup. Physical onset-to-display latency is unmeasured without an independent synchronized setup. Do not store or upload audio.
 
-Octave ambiguity and provisional decay thresholds remain limitations, even when deterministic tests pass. Device QA is pending; Phase 2 development is not blocked on the owner's availability. Practice integration and processing architecture expansion require separate approval.
+Include violin open strings and beginner first-position stopped notes; compare independent references through bow attacks, dynamics, decays and octave transitions. For ocarina, identify the actual instrument/tuning/system before claiming range or mapping; future diagrams need a verified standard chart. For sung voice, test sustained notes, octave changes and stability in appropriate ranges; this is not speech recognition. Observe permission, route changes and long-run behavior in browser tabs and installed PWAs without recording/uploading audio. Future instrument diagrams need text equivalents and must describe recommended/alternate ways to produce a pitch, not infer the physical fingering used.
+
+Octave ambiguity and provisional decay thresholds remain limitations even when deterministic tests pass. The tuner MVP is implemented; broad device/instrument QA remains pending. Hardware unavailability does not block unrelated musical work. Practice integration and processing expansion require separately approved plans.
+
+### Future acoustic consumer gates (not implemented practice support)
+
+Validate each activity's accepted observation, acquisition, freshness, repeated-pitch rearming, uncertainty, timing semantics, source attribution and octave handling. Ungraded live notation, stable-note answers, intonation summaries and timed attacks require different evidence; passing tuner QA does not validate all of them. Test actual targets/passages for range, polyphony, repeated attacks and tie/roll requirements. No frequency-frame-to-MIDI substitution, invented releases/velocities or expected-answer octave coercion is acceptable. Preserve deterministic regression fixtures for observed failures where practical; controlled physical evidence gates support and grading claims.
 
 ## Targeted Practice PROVISIONAL MVP
 
@@ -72,12 +81,11 @@ Presentation tests cover F5/A5/D6 instead of raw MIDI 77/81/86, authored target 
 
 Owner manual QA remains necessary: replay the BWV 565 descending passage with natural overlap; hold an older unrelated key into a later target; retry a chord after expiry; operate sustain across releases; restart/skip and disconnect/reconnect while keys are down. Check unexpected-note names and authored flats, keyboard access to both result checkboxes, clipboard fallback, and actual browser Print / Save PDF output with each checkbox combination. No score-schema, persistence, MIDI Diagnostic, or network behavior changes are part of this task.
 
-> **Status:** v2.6.5 Staff Builder Lyric Cues authoring, Study View printing, and measure deletion prepared, ahead of the repository owner's manual deployment and tag
+> **Historical preparation checkpoint:** v2.6.5 Staff Builder Lyric Cues authoring, Study View printing and measure deletion. This records that earlier preparation, not the current version or a release/tag claim.
 
-The current automated baseline is 2,230 passing tests across 196 test files. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite, and the production/PWA build. Final Practice Session report presentation and browser print-preview QA occurs after deployment on the Chromebook/tablet; broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation, and offline validation remains useful ongoing QA where relevant.
+That earlier recorded checkpoint had 2,230 passing tests across 196 test files; it is not a fresh current result. The complete `pnpm verify` workflow covers ESLint, TypeScript, the automated suite and production/PWA build. Outstanding Practice Session report/print-preview and broader physical MIDI, browser, responsive, accessibility, fullscreen/orientation and offline checks remain ongoing QA where relevant.
 
-> **Latest repository tag:** v2.5.0
-> **Last updated:** September 29, 2026
+> Older checkpoint metadata recorded v2.5.0 as its latest tag and September 29, 2026 as its update date. These are historical, not current tag assertions.
 
 ## Purpose
 
@@ -105,7 +113,7 @@ Prelude uses:
 - React Testing Library
 - jsdom (only for hook/component tests)
 
-End-to-end and visual-regression testing are not required for v2.0, but focused browser-level interaction tests are a future opportunity.
+The v2.0 baseline did not require end-to-end or visual-regression testing. Focused desktop synthetic tuner browser evidence now exists; it does not replace a physical MIDI/device suite or installed-PWA validation.
 
 The current Vitest and React Testing Library workflow is established and should remain the default testing approach for new features.
 
@@ -120,7 +128,9 @@ source-hook.test.tsx
 
 Tests should be grouped by public behavior and use musical terminology in their descriptions.
 
-## Progress
+## Historical Foundation Checklist
+
+These completed blocks record earlier testing milestones, not a current release declaration.
 
 - [x] Block 1 — Core Practice Logic
   - [x] `src/lib/practice/answer-validation.test.ts`
@@ -176,11 +186,11 @@ Tests should be grouped by public behavior and use musical terminology in their 
   - [x] `src/features/sequences/hooks/use-sequence-target.test.ts`
   - [x] `src/features/sequences/hooks/use-sequence-transition.test.ts`
 
-**Current Result**
+**Historical Result — earlier recorded suite**
 
 - Test files: 137 passed
 - Tests: 1,548 passed
-- The complete `pnpm verify` workflow passes locally.
+- These were the reported local results at that checkpoint, not a fresh validation of the current tree.
 
 ## Testing Blocks
 
@@ -468,7 +478,9 @@ Focused automated coverage protects repository-owned release configuration:
 - emitted piano WAV assets remain included in the precache glob
 - generated service-worker registration remains in auto-update mode
 
-These tests cover stable configuration invariants only. Installed-PWA update behavior, real offline behavior, and browser Web MIDI behavior still require manual validation on representative browsers and devices; Prelude does not have automated browser E2E coverage.
+These tests cover stable configuration invariants only. Installed-PWA update behavior, real offline behavior and browser Web MIDI behavior still require manual validation on representative browsers/devices. The focused synthetic tuner harness is not a comprehensive browser E2E suite.
+
+The future PWA Update + What's New feature needs separate activation/reload checks: defer or safely handle active practice, transient reports, unsaved Staff Builder work and other meaningful state; show an explicit update choice; test first install, one/multiple missed curated entries, newest-first order, installation-local last-seen state and offline transitions. Current auto-update registration has no implemented curated-entry or prompt machinery. Musical QA continues alongside QOL work.
 
 ## Intentionally Not Deeply Tested
 
@@ -565,7 +577,7 @@ Use focused manual QA where browser, hardware, audio, or responsive presentation
 - mixed normal/rolled and multiple rolled chords at one onset, including order, wrong-note, timeout, and tempo-relative window behavior
 - rest-only and consecutive targetless measure acknowledgement, Start at Measure, restart statistics, and completion focus
 - screen-reader verbosity, expected/missing/extra pitch feedback, disabled Practice explanation, and keyboard focus order
-- save, practice, exit, edit, save, and relaunch using the updated authoritative score without practice-progress persistence
+- save, practice, exit, edit, save and relaunch using the latest authored score, while existing durable run reports retain the original practiced snapshot
 - sustain-pedal behavior is not graded in Phase 1 and should be observed as a known hardware/browser limitation
 - Melody timed-session expiry/interruption, Session Review filters, original/latest evidence, repeated repairs, next-needs-review, and separate Sight Read/Repair interval reports
 - visible and audible alignment of the two-quarter-beat preparatory lead-in without counting it as scored evidence
@@ -610,7 +622,7 @@ Prelude's automated release baseline is the complete `pnpm verify` workflow. Foc
 
 ### Automated Verification
 
-The following commands completed successfully against the release candidate:
+The following commands were recorded as successful during earlier release preparation:
 
 ```bash
 pnpm test
@@ -618,7 +630,7 @@ pnpm lint
 pnpm build
 ```
 
-The current release-candidate counts are recorded in **Current Result** above; historical counts remain in their original records.
+Those commands and counts describe historical preparation. Current validation must run `pnpm verify` and report its exact executed test-file/test counts; the historical results above do not establish a present release candidate.
 
 ### Manual Verification
 
@@ -636,7 +648,7 @@ The following functionality was also verified prior to the v1.0 release:
 - Progressive Web App installation
 - Offline application shell
 
-Together, these automated and manual checks establish the release baseline. Future releases should meet or exceed this verification standard before being tagged.
+These historical checks establish the earlier baseline only; later capabilities need their own automated and physical validation before release.
 
 
 ### Feature configuration regression coverage
@@ -677,7 +689,7 @@ P6 pure reducer coverage checks detached snapshots, deterministic externally sup
 
 Builder start tests cover Ready-only launch, current unsaved working presets, clean preference-only persistence, dirty no-write behavior, failed preference writes that do not cancel practice, and recovery-authorized no-write behavior. Engine contract tests verify hosted settings/reset suppression alongside unchanged standalone controls and retained performance actions. Melody review coverage separately preserves repair interactions while hiding Settings and New Timed Session in hosted presentation.
 
-After deployment, create a short Ready preset with count, Scale Repertoire, Ear Training, and one-minute Reading Flow entries on the Chromebook/tablet. Start without an intervening configuration screen; reach one target, use Bonus, then advance. Confirm repertoire progress includes its final scale, Melody waits for its own timed Review, Skip advances neutrally, End produces an entered-only summary, Back restores unsaved builder state, and hosted Mobile Play remains continuous across prescribed exercises. Briefly verify standalone settings/reset and engine-owned Mobile Play remain present.
+After deployment, create a short Ready preset with count, Scale Repertoire, Ear Training, and one-minute Reading Flow entries on the Chromebook/tablet. Start without an intervening configuration screen; reach one target, use Bonus, then advance. Confirm repertoire progress includes its final scale, Melody waits for its own timed Review, Skip advances neutrally, End produces a comprehensive authored-order report including never-entered work, Back restores unsaved builder state, and hosted Mobile Play remains continuous across prescribed exercises. Briefly verify standalone settings/reset and engine-owned Mobile Play remain present. Reading Flow here is the existing timed Melody prescription, not validation of future sustained Flow.
 
 P7 hosted Mobile Play coverage verifies that the stable Practice Session runtime acquires fullscreen/orientation once, exposes one Exit action, remains the only fixed `.mobile-play-mode` shell, and retains that lifecycle across every four-engine transition. Tests keep one keyed child mounted, distinguish embedded hosted layouts from standalone fixed engine ownership, keep Skip/End/completion/Bonus controls reachable, preserve count and Melody Bonus without remounting, and confirm End/Finish/final Skip cleanup plus summary focus and Back behavior. Explicit Exit retains the active engine and restores focus to the host entry action. Existing hook and engine suites remain responsible for standalone acquisition, cleanup, Focus Staff interaction, Melody audio/timer continuity, Ear Training prompts, and local entry/exit behavior.
 
@@ -687,7 +699,7 @@ Phase 3 reporting coverage verifies each engine-local report selector independen
 
 Phase 4 print coverage verifies all six default options and toggles, dialog focus containment/Escape/Cancel restoration, skipped/not-entered filtering with truthful authored numbering, independently controlled summary/detail/timing/diagnostic content, prescribed/Bonus and Recorded-evidence output, and compact Melody semantics without notation duplication. Lifecycle coverage verifies mounted-before-print behavior, `afterprint` and fallback cleanup, repeat generation, unmount cleanup, and regressions through the existing Staff Builder and Piece Practice print paths.
 
-Final viewport, safe-area, browser chrome, physical keyboard, and orientation behavior is verified after deployment on the actual Chromebook/tablet. P7 intentionally adds no broad browser/device matrix and preserves the established browser-Escape behavior.
+Final viewport, safe-area, browser chrome, physical keyboard and orientation behavior still requires verification after deployment on the actual Chromebook/tablet. P7 intentionally adds no broad browser/device matrix and preserves the established browser-Escape behavior.
 
 
 ### Scale Repertoire coverage and manual checks

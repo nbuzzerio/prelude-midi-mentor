@@ -1,10 +1,10 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Latest Repository Tag:** v2.5.0
-> **Last Updated:** September 7, 2026
-> **Current Milestone:** v2.8.0 Practice Session comprehensive reporting, Phase 4 browser printing
+> **Current package/application version:** 2.8.6, intentionally retained
+> **Last updated:** October 5, 2026
+> **Product direction:** owner-approved [rolling roadmap](./ROADMAP.md); Improv is the next major new musical feature
 >
-> Automated release preparation is complete after verification. Final Practice Session interaction and presentation QA follows deployment on the Chromebook/tablet; do not expand the feature before that real-use checkpoint.
+> Implementation, automated validation, physical QA and owner-controlled release/tag/deployment are separate facts. Broad device/instrument QA remains pending; this document does not assert a release.
 
 ---
 
@@ -27,12 +27,12 @@ Long-term goals include:
 - Sight-reading practice
 - Chord recognition and construction
 - Scale and interval training
-- Guided lessons
+- Guided Studies that orchestrate native learning activities
 - Teacher-created exercises
 - Ear training
 - Rhythm practice
-- Interactive lesson builder
-- Browser-based composition tools
+- Practice-material authoring and later Study/teacher workflows
+- Improv and later motif/idea development
 - Multiple instrument playback using SoundFonts
 
 The goal is **not** to compete with professional DAWs or notation software.
@@ -62,11 +62,9 @@ Features should never exist simply because they are technically interesting—th
 
 ---
 
-# Practice Platform Foundation
+# Implemented Practice Platform
 
-The current milestone completes Prelude's foundational practice platform before work begins on more advanced musicianship and guided-learning systems.
-
-Users should be able to:
+Prelude already contains multiple working feature domains. The rolling roadmap extends their musical value while keeping physical QA visible. Users can:
 
 1. Practice isolated notes and triads with Flashcards.
 2. Practice ordered intervals, scales, arpeggios, and chord progressions with Sequences.
@@ -81,7 +79,7 @@ Users should be able to:
 
 # Current Status
 
-The core flashcard and melodic-sequence systems are functional.
+Nine top-level modes/tools are implemented: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Staff Builder also launches Piece Practice and its Targeted Practice workflow.
 
 Completed features include:
 
@@ -191,7 +189,9 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 - One stable MIDI owner, the ordinary 225 millisecond block-chord collector, tempo-relative rolled evaluation, persistent VKB chord selection, and strict MIDI/VKB source separation
 - Start at Measure, Restart Measure, Restart Piece, completion statistics, read-only score reuse, and exit to the library
 - Ordinary narrow Piece Practice remains responsive document flow; explicit Mobile Play preserves the same blocking session and input owner
-- No persisted practice progress and no BPM, hold-duration, metronome, or continuous timing grading
+- Feature-owned durable IndexedDB run snapshots/checkpoints, paused recovery and completed-report reopening
+- Provisional Targeted Practice repairs original measures through ordinary Piece Practice runs; navigation/comparison links remain in-tab only
+- No BPM, hold-duration, metronome or continuous timing grading
 
 ## Melody
 
@@ -216,6 +216,15 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 - When extending an importable exercise, update feature-owned constants first, then the reduced variant, translator, schema/specification inputs, examples, and canonical compatibility tests together
 - Explicit Save persists the complete preset library; active runs, progress, evidence, and summaries remain memory-only
 - One keyed exercise engine mounts at a time while the stable Practice Session host preserves Mobile Play across transitions
+- Comprehensive authored-order reports include never-entered work, prescribed/Bonus evidence and browser-native printing; no persisted report history
+
+## Chromatic Tuner
+
+- Implemented standalone foreground microphone Start/Stop, monophonic detection, note/octave/Hz/cents and stabilization/uncertainty
+- Interruption handling, bounded cleanup and exclusion during active Practice Session runs
+- Feature-local production architecture; no recording/upload, acoustic grading or global microphone bus
+- Desktop synthetic browser evidence and one owner-observed successful real violin test; broader Chromebook/Android and violin/ocarina/sung-voice QA remains pending
+- Strong harmonics can still cause confident octave mistakes
 
 ## Quality
 
@@ -232,58 +241,21 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 
 # Current Development Focus
 
-The package version is 2.8.5 for the Phase 0 Raw MIDI Diagnostic Viewer. The diagnostic is an ordinary reachable mode and owns an independent, in-memory Web MIDI observation path; it does not expand the shared feature-facing MIDI contract, Piece Practice evidence, persistence, analytics, or grading. Tagging and releasing remain manual owner actions.
+Version remains **2.8.6**. [ROADMAP.md](./ROADMAP.md) is authoritative: Improv is the next major new musical feature, with small QOL/PWA work, bounded violin-aware tuner guidance, Flow and Studies continuing at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities; hardware availability does not automatically block unrelated development.
 
-The repository owner next reviews and commits the prepared release metadata, creates the annotated tag, and verifies deployment. Final Practice Session interaction, viewport, fullscreen/orientation, and installed-PWA behavior is checked on the deployed Chromebook/tablet. Scheduling, persistent practice evidence, analytics, active-run recovery, broader Staff Builder editor mobile redesign, and Piece Practice Accuracy remain future work.
+Staff Builder owns its canonical v4 score, authoring/correction, validation, library/drafts, notation and playback projection. Historical storage-key names are not schema declarations. Piece Practice owns blocking runs and durable evidence separately from scores; Targeted Practice is repair inside that engine. Practice Sessions own reusable prescriptions, import and native-engine orchestration; their runtime/report evidence remains transient. Sequences own scale execution and any future hand configuration. No universal engine replaces these domains.
 
-Staff Builder owns its schema v4 score domain, editor orchestration, Capture Notes, Rhythm Correction, score history, validation/corrections, annotations, local persistence/library, notation projection, and playback projection. Derived voices are transient notation/domain facts. Historical local-storage keys retain `-v1` names for compatibility and must not be renamed merely because the current score schema is v4. Piece Practice owns transient projection, check-based blocking state, input, and read-only presentation without copying the score or coupling back into the editor.
-
-The current automated baseline is established by `pnpm verify`; exact passing test-file and test counts are recorded in the v2.7.0 release handoff. Physical Web MIDI, installed-PWA behavior, real offline behavior, browser printing, and representative browser/device behavior still require manual validation where relevant.
+Run `pnpm verify` and report exact executed counts for the current handoff. Automated results do not establish physical MIDI/microphone, printing, accessibility or installed-PWA support; use [TESTING.md](./TESTING.md) for evidence categories and outstanding checks. Git, release and deployment remain owner-controlled.
 
 ---
 
-# Long-Term Architecture
+# Intended Architecture and Reuse
 
-Prelude is intentionally designed so today's isolated practice engine can evolve naturally into tomorrow's guided lesson system without requiring major architectural rewrites.
+Existing `PracticeTarget` and `SequenceTarget` models remain appropriate to their domains. Staff Builder owns score measures/events; Free Play owns live notation context; Melody owns timed performance. Sharing musical facts and helpers does not require one Lesson → Measures → Events hierarchy for all practice.
 
-Prelude uses `PracticeTarget` for isolated flashcards and `SequenceTarget` for ordered intervals, scales, arpeggios, and chord progressions. Sequence targets carry explicit meter/PPQ timing and step durations; current generators apply Prelude's 4/4, 480-PPQ, quarter-duration practice convention. Temporal measure windows are derived from cumulative onset time while the target and global step remain authoritative for grading. Progressions store one simultaneous chord attack per `SequenceStep` with optional Roman-numeral and concrete chord metadata. Free Play bypasses target generation and grading: raw held MIDI remains authoritative, Free Play-owned settings convert it to explicitly spelled `PracticeNote` values, and shared notation renders those notes with an optional key signature. No chord analysis is performed.
+Guided Studies are intended orchestration, not an implemented engine. They own the teaching journey and consume explicit native launch/completion/return contracts while rendering, timing, input, grading, persistence, playback and evidence remain with existing features. A Practice Session organizes what to practice; a Study teaches why. Study View remains score presentation. D Minor is the likely first vertical slice; its objective/audience and exact prerequisites are deferred until planning that slice.
 
-A `PracticeTarget` can represent one or more notes, allowing the same validation and rendering systems to support:
-
-- Single-note flashcards
-- Triad flashcards
-- Future interval exercises
-- Future chord exercises
-
-This provides a simple, reusable foundation while keeping the current practice engine focused on isolated musical concepts.
-
-Long-term, Prelude may evolve toward a structured lesson architecture:
-
-Lesson
-
-↓
-
-Measures
-
-↓
-
-Events
-
-↓
-
-Notes
-
-This larger model could power:
-
-- Flashcards
-- Chord practice
-- Scale practice
-- Arpeggio practice
-- Guided lessons
-- Songs
-- Composition tools
-
-The current `PracticeTarget` model should remain the foundation for isolated practice exercises until sequence-based features (such as rhythm, phrases, and complete lessons) justify introducing the larger lesson architecture.
+The tuner remains feature-local. Conceptual `AudioSource → MonophonicPitchAnalyzer → observation → consumer` and a separate future polyphonic path describe responsibilities, not global services. Extract on demonstrated reuse. Pitch cannot reveal actual violin fingering; ocarina mapping needs a defined profile/chart; voice means sung pitch. Each acoustic consumer needs its own evidence and acceptance/rearming/timing semantics. See [ARCHITECTURE.md](./ARCHITECTURE.md) for implemented boundaries.
 
 ---
 
@@ -327,7 +299,7 @@ Every new feature should fit naturally into the long-term vision of the applicat
 Project documentation consists of:
 
 - ONBOARDING.md — Project overview and current status
-- ROADMAP.md — Planned milestones and upcoming features
+- ROADMAP.md — Authoritative rolling priorities, continuing threads and deferred decisions
 - ARCHITECTURE.md — Technical design and project structure
 - DECISIONS.md — Record of important architectural decisions
 - VISION.md — Long-term goals and design philosophy

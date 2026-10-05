@@ -9,10 +9,17 @@ Prelude uses Semantic Versioning and annotated Git tags named `vX.Y.Z`.
 - `package.json` is the authoritative source for the version displayed in the application UI.
 - Every product-code commit includes a version bump so the visible version can confirm deployment and installed-PWA activation. Use a patch bump by default; a minor or major bump requires explicit owner approval. Documentation-only commits are exempt only when the owner explicitly approves the exemption.
 - A released package version must match its Git tag: package version `2.6.2` corresponds to tag `v2.6.2`.
-- Backward-compatible feature additions generally require a minor version.
-- Backward-compatible fixes generally require a patch version unless the release context warrants a different choice.
+- Follow the owner's patch-default policy for backward-compatible changes; propose a minor release only for explicit owner approval.
 - Breaking product or compatibility changes require explicit review before selecting a major version.
 - Do not describe or date a version as released until its release commit and annotated tag exist.
+
+The owner-approved roadmap documentation consolidation intentionally retains **2.8.6**. It creates no release, tag or version bump; historical version numbers elsewhere describe their original milestones.
+
+## Curated Product Updates (Future QOL Direction)
+
+PWA Update + What's New is accepted roadmap direction, not implemented release-note machinery. User-facing entries are curated product updates: several commits may form one entry, and entries are not one-to-one with Git commits or tags. Git SHA may remain diagnostic-only; package version remains authoritative for the visible app version.
+
+The future installation-local last-seen state should collate missed entries newest first after an explicit update/reload. Controlled activation must protect active practice, transient reports, unsaved Staff Builder work and other meaningful state. Current registration uses automatic updates; a prompt and What's New require a separately approved implementation and real installed-PWA validation. No backend/account is required for the proposed MVP.
 
 ## Pre-Release Validation
 
