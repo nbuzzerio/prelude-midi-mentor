@@ -426,7 +426,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Current package/application version is intentionally **2.8.6**, derived by the UI from `package.json`. No new release or tag is implied.
+Current package/application version is **2.8.7**, derived by the UI from `package.json`. No new release or tag is implied.
 
 The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
 

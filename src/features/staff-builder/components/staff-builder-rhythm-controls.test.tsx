@@ -1,11 +1,29 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StaffBuilderRhythmControls } from "./staff-builder-rhythm-controls";
+import type { StaffBuilderScore } from "../staff-builder-types";
 
 afterEach(cleanup);
 const selectedEvent = { id: "event", kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "unresolved" as const }, pitches: [{ id: "pitch", midiNumber: 61, letter: "C" as const, accidental: "sharp" as const, octave: 4 }] };
 
 describe("StaffBuilderRhythmControls", () => {
+  it("exposes ordinary ties for a single note while detailed corrections and barline splitting stay closed", () => {
+    const source = { ...selectedEvent, startTick: 480, rhythm: { status: "final" as const, duration: "eighth" as const } };
+    const continuation = { ...source, id: "continuation", startTick: 720, rhythm: { status: "final" as const, duration: "dotted-quarter" as const }, pitches: [{ ...source.pitches[0], id: "continuation-pitch" }] };
+    const score: StaffBuilderScore = { schemaVersion: 4, annotations: [], id: "score", title: "6/8", createdAt: "x", updatedAt: "x", tempoBpm: 96, initialKeySignatureId: "c-major", initialTimeSignature: "6/8", measures: [{ id: "m1", events: [source, continuation] }], ties: [] };
+    const create = vi.fn();
+    render(<StaffBuilderRhythmControls canNext canPrevious={false} canRedo={false} canUndo={false} eventCount={2} onAssignDuration={vi.fn()} onConvertToRest={vi.fn()} onCreateTies={create} onDelete={vi.fn()} onMoveToStaff={vi.fn()} onNext={vi.fn()} onPrevious={vi.fn()} onRedo={vi.fn()} onRemoveTie={vi.fn()} onRespellPitch={vi.fn()} onSplitAndTie={vi.fn()} onUndo={vi.fn()} score={score} selectedDescription="Selected C sharp 4" selectedEvent={source} selectedIndex={0} status={null} />);
+
+    expect((screen.getByText("Rhythm Correction controls").parentElement as HTMLDetailsElement).open).toBe(false);
+    expect((screen.getByText("Split across a barline").parentElement as HTMLDetailsElement).open).toBe(false);
+    const ties = screen.getByRole("group", { name: "Ties" });
+    expect(ties.closest("details")).toBeNull();
+    const tieOut = screen.getByRole("button", { name: "Tie Out C♯4 (MIDI 61)" });
+    expect((tieOut as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(tieOut);
+    expect(create).toHaveBeenCalledWith("event", "continuation", ["pitch"]);
+  });
+
   it("offers accessible upward arpeggiation choices only for chords", () => {
     const setArpeggiation = vi.fn();
     const chord = { ...selectedEvent, pitches: [...selectedEvent.pitches, { ...selectedEvent.pitches[0], id: "second", midiNumber: 64, letter: "E" as const, accidental: "natural" as const }] };

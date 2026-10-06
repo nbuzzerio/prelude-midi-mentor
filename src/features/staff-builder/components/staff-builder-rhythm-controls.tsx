@@ -67,6 +67,7 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
           </div>
         </fieldset>)}
       </section>}
+      {selectedEvent && score && onCreateTies && onRemoveTie && onSplitAndTie && <StaffBuilderTieControls key={selectedEvent.id} event={selectedEvent} measureIndex={selectedMeasureIndex ?? 0} onCreateTies={onCreateTies} onRemoveTie={onRemoveTie} onSplitAndTie={onSplitAndTie} score={score} />}
       <details>
       <summary>Rhythm Correction controls</summary>
       <div className="staff-builder-rhythm-controls-content">
@@ -81,7 +82,6 @@ export function StaffBuilderRhythmControls({ score, selectedMeasureIndex, select
         </div>
         <fieldset><legend>Staff</legend><div className="flex gap-2">{(["treble", "bass"] as const).map((staff) => <button aria-pressed={selectedEvent.staff === staff} className="staff-builder-secondary-button" key={staff} onClick={() => onMoveToStaff(staff)} type="button">{staff === "treble" ? "Treble" : "Bass"}</button>)}</div></fieldset>
         {selectedEvent.kind === "notes" && selectedEvent.pitches.length >= 2 && onSetArpeggiation && <label>Arpeggiation<select aria-label={`Arpeggiation: ${selectedEvent.arpeggiation === "up" ? "Rolled upward" : "None"}`} className="staff-builder-input" onChange={(event) => onSetArpeggiation(event.target.value === "up" ? "up" : null)} value={selectedEvent.arpeggiation ?? ""}><option value="">None</option><option value="up">Rolled upward</option></select></label>}
-        {score && onCreateTies && onRemoveTie && onSplitAndTie && <StaffBuilderTieControls event={selectedEvent} measureIndex={selectedMeasureIndex ?? 0} onCreateTies={onCreateTies} onRemoveTie={onRemoveTie} onSplitAndTie={onSplitAndTie} score={score} />}
         <button className="staff-builder-danger-button" onClick={() => { selectedStatusRef.current?.focus(); onDelete(); }} type="button">Delete Event</button>
       </>}
       </div>

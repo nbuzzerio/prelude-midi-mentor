@@ -59,6 +59,17 @@ describe("Staff Builder piece files", () => {
     expect(source.measures[1]?.events[0]).toMatchObject({ pitches: [{ midiNumber: 61, letter: "D", accidental: "flat" }] });
   });
 
+  it("round trips a pitch-specific same-measure 6/8 tie without changing its written rhythm", () => {
+    const pitch = { id: "source-pitch", midiNumber: 74, letter: "D" as const, accidental: "natural" as const, octave: 5 };
+    const source: StaffBuilderScore = { ...score(), initialTimeSignature: "6/8", measures: [{ id: "m1", events: [
+      { id: "lead", kind: "rest", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" } },
+      { id: "source", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "eighth" }, pitches: [pitch] },
+      { id: "continuation", kind: "notes", staff: "treble", startTick: 720, rhythm: { status: "final", duration: "dotted-quarter" }, pitches: [{ ...pitch, id: "continuation-pitch" }] },
+      { id: "bass-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "dotted-half" } },
+    ] }], ties: [{ id: "within-measure", fromEventId: "source", fromPitchId: "source-pitch", toEventId: "continuation", toPitchId: "continuation-pitch" }] };
+    expect(parseStaffBuilderPieceFileText(serializeStaffBuilderPiece(source))).toEqual({ ok: true, score: source });
+  });
+
   it.each([
     ["Hallelujah", "hallelujah.prelude.json"],
     ["  Café & Prelude!  ", "cafe-prelude.prelude.json"],

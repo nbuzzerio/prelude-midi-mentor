@@ -36,7 +36,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.8.6, not a release/tag assertion. Together they support:
+The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.8.7, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals
@@ -523,6 +523,8 @@ Study View printing uses browser-native printing over a print-only multi-system 
 Capture Notes is optimized for first-week transcription: MIDI or virtual-keyboard pitches are previewed, routed to grand/treble/bass input, and committed at a rhythmic cursor. Newly captured notes retain the beginner default of final quarter-note duration. Step Duration controls cursor advancement and the exact duration of an intentionally inserted rest.
 
 Rhythm Correction selects authoritative events and supports duration changes, note/rest conversion, staff reassignment, spelling, ties, and deletion. It retains detailed explicit controls as a fallback even when the same operation is available directly from the score.
+
+Selecting a note/chord exposes an ordinary Ties group without opening detailed Rhythm Correction controls. A single note's pitch is selected initially; chords retain individual pitch checkboxes. Tie In/Tie Out use the existing adjacent same-pitch, same-staff candidates within or across measures. Unavailable actions remain visible with compatibility guidance. The separate collapsed Split across a barline tool changes overflowing duration and creates/reuses continuation notation; ordinary ties connect already-authored events without changing rhythm. This presentation change leaves schema v4, tie validation, sounding spans and Piece Practice continuation semantics unchanged.
 
 History is score history, not a universal command log. Rhythm and context mutations record reversible score snapshots. Capture score mutations intentionally clear stale Rhythm history when replaying it would conflict with the newly captured score.
 

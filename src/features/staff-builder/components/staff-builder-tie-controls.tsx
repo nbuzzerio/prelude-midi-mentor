@@ -17,7 +17,7 @@ export function StaffBuilderTieControls({ score, measureIndex, event, onCreateTi
   onSplitAndTie: (eventId: string, duration: StaffBuilderDuration, pitchIds: readonly string[], useEventId?: string) => void;
 }>) {
   const notes = event.kind === "notes" ? event : null;
-  const [selected, setSelected] = useState<readonly string[]>([]);
+  const [selected, setSelected] = useState<readonly string[]>(() => notes?.pitches.length === 1 ? [notes.pitches[0]!.id] : []);
   const [targetDuration, setTargetDuration] = useState<StaffBuilderDuration>("quarter");
   const compatible = useMemo(() => !notes ? [] : getStaffBuilderTieDestinationCandidates(score, event.id, selected), [event.id, notes, score, selected]);
   if (!notes) return null;
@@ -27,8 +27,9 @@ export function StaffBuilderTieControls({ score, measureIndex, event, onCreateTi
   const targetCrosses = event.startTick + durationToTicks(targetDuration) > resolveStaffBuilderMeasureContext(score, measureIndex).capacityTicks;
   const nextMeasureStartEvents = score.measures[measureIndex + 1]?.events.filter((candidate) => candidate.staff === event.staff && candidate.startTick === 0) ?? [];
   const targetSlotEmpty = nextMeasureStartEvents.length === 0;
-  return <fieldset className="staff-builder-tie-controls"><legend>Ties and barline correction</legend>
-    <p>Select the pitches that continue without a new attack. Repeated notes are not tied automatically.</p>
+  return <><fieldset className="staff-builder-tie-controls"><legend>Ties</legend>
+    <p>Tie In continues a preceding note; Tie Out continues into the next note, without another attack. Ties work within a measure or across a barline.</p>
+    <p>Select the pitches to tie. The notes must be adjacent, have the same pitch and staff, and have assigned durations. Repeated notes are not tied automatically.</p>
     {notes.pitches.map((pitch) => {
       const checked = selectedIds.includes(pitch.id);
       const incoming = score.ties.find((tie) => tie.toEventId === event.id && tie.toPitchId === pitch.id);
@@ -41,15 +42,19 @@ export function StaffBuilderTieControls({ score, measureIndex, event, onCreateTi
         {checked && <div className="staff-builder-capture-actions">
           {incoming
             ? <button className="staff-builder-danger-button" onClick={() => onRemoveTie(incoming.id)} type="button">Remove Tie In for {name}</button>
-            : incomingCandidate && <button className="staff-builder-secondary-button" onClick={() => onCreateTies(incomingCandidate.eventId, event.id, [incomingCandidate.pitchId])} type="button">Tie In {name}</button>}
+            : <button className="staff-builder-secondary-button" disabled={!incomingCandidate} onClick={() => incomingCandidate && onCreateTies(incomingCandidate.eventId, event.id, [incomingCandidate.pitchId])} type="button">Tie In {name}</button>}
           {outgoing
             ? <button className="staff-builder-danger-button" onClick={() => onRemoveTie(outgoing.id)} type="button">Remove Tie Out for {name}</button>
-            : outgoingCandidate && <button className="staff-builder-secondary-button" onClick={() => onCreateTies(event.id, outgoingCandidate.eventId, [pitch.id])} type="button">Tie Out {name}</button>}
+            : <button className="staff-builder-secondary-button" disabled={!outgoingCandidate} onClick={() => outgoingCandidate && onCreateTies(event.id, outgoingCandidate.eventId, [pitch.id])} type="button">Tie Out {name}</button>}
         </div>}
+        {checked && !incoming && !outgoing && !incomingCandidate && !outgoingCandidate && <p>No compatible adjacent note is available for this pitch. Check its pitch, staff and assigned duration, and whether the other note already has a tie in that direction.</p>}
       </div>;
     })}
+    {ties.length > 0 && <ul>{ties.map((tie) => <li key={tie.id}><span>Tie {tie.id}: {tie.fromEventId === event.id ? "outgoing" : "incoming"}</span> <button className="staff-builder-danger-button" onClick={() => onRemoveTie(tie.id)} type="button">Remove tie {tie.id}</button></li>)}</ul>}
+  </fieldset>
+  <details className="staff-builder-tie-controls"><summary>Split across a barline</summary>
+    <p>For a note whose intended duration extends past the end of this measure, split it and create or reuse a tied continuation in the next measure. Use Tie In or Tie Out above to connect notes you have already written.</p>
     <div className="staff-builder-rhythm-edit-grid"><label>Cross-bar target duration<select className="staff-builder-input" onChange={(eventValue) => setTargetDuration(eventValue.target.value as StaffBuilderDuration)} value={targetDuration}>{STAFF_BUILDER_DURATIONS.map((duration) => <option key={duration} value={duration}>{duration}</option>)}</select></label>
       <button className="staff-builder-secondary-button" disabled={!targetCrosses || selectedIds.length === 0 || !score.measures[measureIndex + 1] || (!compatible[0] && !targetSlotEmpty)} onClick={() => onSplitAndTie(event.id, targetDuration, selectedIds, compatible[0]?.id)} type="button">{compatible[0] ? "Split and use selected continuation" : "Split and create continuation"}</button></div>
-    {ties.length > 0 && <ul>{ties.map((tie) => <li key={tie.id}><span>Tie {tie.id}: {tie.fromEventId === event.id ? "outgoing" : "incoming"}</span> <button className="staff-builder-danger-button" onClick={() => onRemoveTie(tie.id)} type="button">Remove tie {tie.id}</button></li>)}</ul>}
-  </fieldset>;
+  </details></>;
 }

@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Testing
 
-Current package/application version is intentionally **2.8.6**. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
+Current package/application version is **2.8.7**. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
 
 ## Chromatic Tuner Phase 2
 
@@ -427,6 +427,8 @@ Automated coverage includes:
 - canonical schema v4 score-domain invariants, v1/v2/v3 migration, unsupported/corrupt data, measure context, meter capacity, notes, chords, rests, ties, annotations, and upward arpeggiation
 - Capture Notes routing, rhythmic cursor movement, pending input, replacement, and rest insertion
 - Rhythm Correction selection, duration, event type, staff, spelling, independent incoming/outgoing pitch-level ties, long chains, partial chord ties, deletion, and score history
+- visible ordinary Ties controls outside detailed correction, initial single-pitch selection, per-pitch chord actions, unavailable guidance, and a distinct collapsed barline split tool
+- a real-session 6/8 same-measure tie from an eighth at tick 480 to a dotted quarter at tick 720, unchanged authored rhythm, Undo/Redo, Save/reopen, one playback span ending at tick 1440, and a Piece Practice continuation requiring no attack; canonical file round-trip coverage explicitly includes the same-measure relationship
 - validation, guided corrections, draft persistence, validated Save, and local project recovery
 - direct-score `.prelude.json` serialization, schema-validated import, round trips, collision-safe insertion, and accessible library file actions
 - full-piece, treble-range, and bass-range duplication with fresh copy identity and source immutability
@@ -441,6 +443,8 @@ Automated coverage includes:
 - rolled-chord editing, schema validation, notation projection, playback, and accessible descriptions
 
 Staff Builder Copy Score for AI coverage verifies actual clipboard text against canonical export and import round trips, title/timestamps/tempo, measures, both staffs, notes/chords/rests, unresolved rhythm, upward arpeggiation, study notes and lyric cues, schema v4 and measure clef changes, exclusion of non-portable metadata, score immutability, current unsaved editor changes, unchanged storage/history, and accessible clipboard-failure selection and retry. Manual browser checks should include keyboard/touch activation, clipboard permission denial, manual copying, and screen-reader status feedback.
+
+Tie discoverability manual QA: create a 6/8 measure with a treble quarter rest, an eighth note and a same-pitch dotted quarter, plus a bass dotted-half rest. Select the eighth and use visible Tie Out without opening detailed correction. Confirm the rendered tie, one sustained playback attack, Undo/Redo, Save/reopen and no second attack at the Piece Practice continuation. Check chord pitch selection, unavailable guidance and cross-measure ties with keyboard/touch. Existing playback and Piece Practice suites continue checking same-measure/partial-chord sounding spans and non-attack continuations; browser audio and physical MIDI behavior still require manual evidence.
 
 Measure-clef regression coverage verifies v1/v2/v3-to-v4 defaults, all four combinations, independent carry-forward/removal, redundant authored changes, insertion/deletion inheritance, canonical files/library/drafts/duplication/Copy Score, current-measure controls and Undo, Middle C/chord/roll/rest/tie/annotation immutability, system/range starts, visible in-system changes, ledger-line reservations, pending previews, Study/print rendering, and invariant Piece Practice MIDI targets, grading, diagnostics, and evidence. Manual QA should exercise keyboard/touch selection, system breaks and print ranges, high/low ledger lines under both clefs, and physical MIDI grading after clef edits.
 

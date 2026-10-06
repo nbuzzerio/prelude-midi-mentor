@@ -2,6 +2,7 @@ import { createStaffBuilderLlmSpecification } from "../staff-builder-llm-specifi
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStaffBuilderScore } from "../staff-builder-score";
+import { projectStaffBuilderPlayback } from "../staff-builder-playback";
 import { STAFF_BUILDER_STORAGE_KEYS, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import StaffBuilderSession from "./staff-builder-session";
@@ -997,6 +998,56 @@ describe("Staff Builder session", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear Current Entry" }));
     expect(lowKey.getAttribute("aria-pressed")).toBe("false");
     expect(highKey.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("authors a discoverable 6/8 same-measure tie, preserves rhythm through history and reopening, and launches only its attack", async () => {
+    const storage = new MemoryStorage();
+    const pitch = { id: "source-pitch", midiNumber: 74, letter: "D" as const, accidental: "natural" as const, octave: 5 };
+    const source: StaffBuilderScore = { ...savedValidScore("6/8 Tie Study"), initialTimeSignature: "6/8", measures: [{ id: "m1", events: [
+      { id: "lead", kind: "rest", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "quarter" } },
+      { id: "source", kind: "notes", staff: "treble", startTick: 480, rhythm: { status: "final", duration: "eighth" }, pitches: [pitch] },
+      { id: "continuation", kind: "notes", staff: "treble", startTick: 720, rhythm: { status: "final", duration: "dotted-quarter" }, pitches: [{ ...pitch, id: "continuation-pitch" }] },
+      { id: "bass-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "dotted-half" } },
+    ] }] };
+    seedLibrary(storage, [source]);
+    const first = render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open 6/8 Tie Study" }));
+    fireEvent.click(screen.getByRole("button", { name: "eighth note D5, treble staff, measure 1" }));
+    expect((screen.getByText("Rhythm Correction controls").parentElement as HTMLDetailsElement).open).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Tie Out D5 (MIDI 74)" }));
+
+    const readDraftScore = (): StaffBuilderScore => JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.draft) ?? "null").score;
+    const tied = readDraftScore();
+    expect(tied.schemaVersion).toBe(4);
+    expect(tied.measures).toEqual(source.measures);
+    expect(tied.ties).toEqual([{ id: expect.any(String), fromEventId: "source", fromPitchId: "source-pitch", toEventId: "continuation", toPitchId: "continuation-pitch" }]);
+    expect(screen.getByRole("button", { name: "Remove Tie Out for D5 (MIDI 74)" })).toBeTruthy();
+    expect(projectStaffBuilderPlayback(tied, { kind: "entire-piece" }).events).toEqual([{ notes: [74], startTimeMs: 625, durationMs: 1250 }]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo last score edit" }));
+    expect(readDraftScore().ties).toEqual([]);
+    expect(readDraftScore().measures).toEqual(source.measures);
+    fireEvent.click(screen.getByRole("button", { name: "Redo last score edit" }));
+    expect(readDraftScore()).toEqual(tied);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByText("Saved and ready for playback.")).toBeTruthy();
+    expect(JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null").pieces[0]).toEqual(tied);
+    first.unmount();
+
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Piece Library" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open 6/8 Tie Study" }));
+    fireEvent.click(screen.getByRole("button", { name: "eighth note D5, treble staff, measure 1" }));
+    expect(screen.getByRole("button", { name: "Remove Tie Out for D5 (MIDI 74)" })).toBeTruthy();
+    expect(readDraftScore()).toEqual(tied);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Piece" }));
+    await screen.findByRole("heading", { name: "Blocking Piece Practice: 6/8 Tie Study" });
+    expect(practiceBoundary.sourceScore).toEqual(tied);
+    expect(practiceBoundary.piece?.measures[0]?.targets.map(({ startTick, expectedMidiNumbers }) => ({ startTick, expectedMidiNumbers }))).toEqual([{ startTick: 480, expectedMidiNumbers: [74] }]);
+    const continuation = practiceBoundary.piece?.measures[0]?.sourceEvents.find(({ sourceEventId }) => sourceEventId === "continuation");
+    expect(continuation).toMatchObject({ kind: "notes", pitches: [{ sourcePitchId: "continuation-pitch", requiresAttack: false }] });
+    expect(practiceBoundary.piece?.soundingSpans).toEqual([expect.objectContaining({ midiNumber: 74, attackTick: 480, endTick: 1440 })]);
   });
 
   it("switches to Rhythm Correction, edits the selected event, and persists Undo and Redo", () => {

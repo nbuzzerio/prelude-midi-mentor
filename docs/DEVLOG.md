@@ -1,8 +1,10 @@
 # Dev Log
 
-A high-level release history and record of significant milestones. Unreleased records implementation and review work without asserting a release; dated/versioned sections retain their original history. Current package/application version is intentionally 2.8.6. Tagging, releasing and deployment verification remain owner-controlled; the older v2.7.0 candidate notes below are historical preparation.
+A high-level release history and record of significant milestones. Unreleased records implementation and review work without asserting a release; dated/versioned sections retain their original history. Current package/application version is 2.8.7. Tagging, releasing and deployment verification remain owner-controlled; the older v2.7.0 candidate notes below are historical preparation.
 
 ## Unreleased
+
+- Made existing Staff Builder tie authoring discoverable from selected notes/chords: visible Ties, initial single-pitch selection, per-pitch Tie In/Tie Out and unavailable guidance. Separated the existing barline split tool into its own disclosure. Same-measure/cross-measure compatibility, partial chord ties, chains, schema v4, playback and Piece Practice semantics are unchanged. Added focused control, 6/8 session/history/reopening and file round-trip regressions; manual browser/audio/MIDI QA remains pending. Advanced the package patch version to 2.8.7 under the approved policy; no tag or release asserted.
 
 - Consolidated the owner-approved rolling roadmap and supporting documentation on October 5, 2026. Preserved implementation history, feature ownership, deferred decisions and pending physical QA; no feature, configuration or version change.
 - Recorded one owner-observed successful real violin test of the implemented tuner as limited physical evidence. It is not controlled instrument/device validation; broader Chromebook/Android and violin/ocarina/sung-voice QA and harmonic/octave limitations remain outstanding.
