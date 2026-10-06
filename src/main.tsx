@@ -4,10 +4,10 @@ import App from "./App";
 import "./index.css";
 import { registerServiceWorker } from "@/lib/pwa/register-service-worker";
 
-registerServiceWorker();
+const pwaUpdate = registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <App pwaUpdate={pwaUpdate} />
   </StrictMode>,
 );

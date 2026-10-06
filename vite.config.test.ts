@@ -31,7 +31,7 @@ describe("Prelude production and PWA configuration", () => {
     expect(PRELUDE_PWA_GLOB_PATTERNS).toContain("**/*.{js,css,html,ico,png,svg,woff2,wav}");
   });
 
-  it("keeps generated service-worker registration in auto-update mode", () => {
-    expect(PRELUDE_PWA_REGISTER_TYPE).toBe("autoUpdate");
+  it("keeps generated service-worker registration in prompt mode", () => {
+    expect(PRELUDE_PWA_REGISTER_TYPE).toBe("prompt");
   });
 });

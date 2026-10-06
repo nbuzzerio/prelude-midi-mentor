@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Current package/application version:** 2.8.7
+> **Current package/application version:** 2.8.8
 > **Last updated:** October 5, 2026
 > **Product direction:** owner-approved [rolling roadmap](./ROADMAP.md); Improv is the next major new musical feature
 >
@@ -241,11 +241,13 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 
 # Current Development Focus
 
-Version remains **2.8.7**. [ROADMAP.md](./ROADMAP.md) is authoritative: Improv is the next major new musical feature, with small QOL/PWA work, bounded violin-aware tuner guidance, Flow and Studies continuing at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities; hardware availability does not automatically block unrelated development.
+Current version is **2.8.8**. [ROADMAP.md](./ROADMAP.md) is authoritative: Improv is the next major new musical feature, with small QOL/PWA work, bounded violin-aware tuner guidance, Flow and Studies continuing at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities; hardware availability does not automatically block unrelated development.
 
 Staff Builder owns its canonical v4 score, authoring/correction, validation, library/drafts, notation and playback projection. Historical storage-key names are not schema declarations. Piece Practice owns blocking runs and durable evidence separately from scores; Targeted Practice is repair inside that engine. Practice Sessions own reusable prescriptions, import and native-engine orchestration; their runtime/report evidence remains transient. Sequences own scale execution and any future hand configuration. No universal engine replaces these domains.
 
 Run `pnpm verify` and report exact executed counts for the current handoff. Automated results do not establish physical MIDI/microphone, printing, accessibility or installed-PWA support; use [TESTING.md](./TESTING.md) for evidence categories and outstanding checks. Git, release and deployment remain owner-controlled.
+
+PWA Update + What's New is implemented in `src/features/app-update`, with one platform registration/controller in `src/lib/pwa/register-service-worker.ts` bootstrapped by `main.tsx`. Worker callbacks report updates; only a user-confirmed request reloads its own tab. Keep curated records in increasing sequence order with immutable published IDs/sequences, independent of commits and package bumps. First use shows newest only; acknowledgment is browser-local and must not move backward. There is no global recovery/save coordinator. Review the first legacy transition, two-tab caching caveat and production-build QA in [RELEASING.md](./RELEASING.md).
 
 ---
 

@@ -1,8 +1,10 @@
 # Dev Log
 
-A high-level release history and record of significant milestones. Unreleased records implementation and review work without asserting a release; dated/versioned sections retain their original history. Current package/application version is 2.8.7. Tagging, releasing and deployment verification remain owner-controlled; the older v2.7.0 candidate notes below are historical preparation.
+A high-level release history and record of significant milestones. Unreleased records implementation and review work without asserting a release; dated/versioned sections retain their original history. Current package/application version is 2.8.8. Tagging, releasing and deployment verification remain owner-controlled; the older v2.7.0 candidate notes below are historical preparation.
 
 ## Unreleased
+
+- Implemented PWA Update + What's New for patch 2.8.8: one prompt-mode boot registration, a narrow subscribed controller, visible/online discovery checks, Reload/Later and explicit per-tab confirmation/navigation. Worker callbacks and cross-tab activation never themselves reload new clients. Bundled curated ID/sequence records use defensive browser-local acknowledgment, newest-first missed updates and newest-only first use; the initial October 5 record describes only this feature. Added deterministic lifecycle, storage, modal/focus and App state-preservation coverage. Scope/fallback/piano precaching and all practice ownership/persistence remain unchanged. Legacy auto-updating 2.8.7 clients cannot gain protection remotely; first-rollout, two-build installed-PWA/device and cross-tab asset QA remain pending. No release/tag, backend, dependency or global recovery framework.
 
 - Made existing Staff Builder tie authoring discoverable from selected notes/chords: visible Ties, initial single-pitch selection, per-pitch Tie In/Tie Out and unavailable guidance. Separated the existing barline split tool into its own disclosure. Same-measure/cross-measure compatibility, partial chord ties, chains, schema v4, playback and Piece Practice semantics are unchanged. Added focused control, 6/8 session/history/reopening and file round-trip regressions; manual browser/audio/MIDI QA remains pending. Advanced the package patch version to 2.8.7 under the approved policy; no tag or release asserted.
 

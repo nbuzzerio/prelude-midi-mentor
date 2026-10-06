@@ -36,7 +36,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.8.7, not a release/tag assertion. Together they support:
+The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.8.8, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals
@@ -254,7 +254,15 @@ Reusable practice logic including:
 
 ### pwa/
 
-Progressive Web App registration.
+`src/main.tsx` registers once before React mounts and passes the platform-owned controller into App. Registration uses `prompt`; generated worker scope, `/prelude/index.html` fallback and piano WAV precaching are unchanged. App mounts `features/app-update` notices alongside existing content without replacing practice owners or the persistently mounted Practice Session host.
+
+The controller exposes immutable snapshots/subscription, discovery, explicit Reload and disposal. Plugin `onNeedRefresh`/`onNeedReload`, native worker state changes and controller changes report availability only; they never navigate. Every Reload request obtains browser confirmation warning about active practice, reports, pending notes and unsaved/in-memory work. A waiting worker activates through the existing plugin function, with state observation and a 30-second failure bound; an already-activated update can reload directly. Only that confirmed request calls `location.reload`, once. No callback retains permission, so cancelled navigation cannot trigger automatic retry. Later collapses to a reachable indicator and remains deferred for duplicate notifications or activation of the same worker.
+
+Registration supplies the initial discovery check. Online/foreground events check at most once per minute; an hourly timer exists only while visible and online. Concurrent checks are deduplicated and failures do not interrupt the app. Disposal removes Prelude-owned listeners/timers and cancels pending activation; React subscriptions clean up independently. This boot-owned controller is not a global dirty-state, save or recovery framework.
+
+`app-updates.ts` owns bundled curated product records with stable ID, increasing sequence, title, date, optional version and change bullets. Records are unrelated to runtime Git history. `prelude-app-updates-last-seen-v1` stores validated ID/sequence in localStorage. Known history selects all newer records newest first; missing/malformed/unknown/pruned history selects only newest. A well-formed future sequence suppresses older notes. Acknowledgment re-reads storage and preserves the same acknowledged record or a newer-sequence marker. Storage failure still permits current-visit dismissal without claiming durability. What's New is a startup snapshot, not a modal opened by a worker event during practice. Got it, Close and Escape acknowledge; opening/backdrop clicks do not. The native modal supplies background inertness, with heading focus, contained keyboard navigation and focus restoration.
+
+Worker activation is shared across tabs; reload permission is local to each tab. Other tabs retain their pages and can choose Reload after external activation. This does not retain every superseded cached asset indefinitely. Legacy 2.8.7 pages still have auto-update callbacks and cannot acquire new protection remotely: the first prompt worker may wait for old clients to close, and legacy clients may still reload if it activates. First-transition and two-build installed/device checks are documented in TESTING/RELEASING and remain separate from deterministic validation.
 
 ## data/
 

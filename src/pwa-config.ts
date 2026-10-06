@@ -7,4 +7,4 @@ export const PRELUDE_PWA_MANIFEST_PATHS = {
 
 export const PRELUDE_PWA_NAVIGATION_FALLBACK = `${PRELUDE_BASE_PATH}index.html`;
 
-export const PRELUDE_PWA_REGISTER_TYPE = "autoUpdate" as const;
+export const PRELUDE_PWA_REGISTER_TYPE = "prompt" as const;

@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-> Authoritative product direction, owner-approved October 5, 2026. Current package/application version: **2.8.7**. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
+> Authoritative product direction, owner-approved October 5, 2026. Current package/application version: **2.8.8**. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
 Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
 
@@ -143,9 +143,9 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 
 **Purpose:** Improve reliability and access through justified navigation/mobile polish, accessibility and maintenance.
 
-**Explicit candidate:** **PWA Update + What's New**: detect a deployed update, show Update Available / Reload, and show curated What's New after reload. Store the latest seen update locally per installation, collate all missed entries and display newest first. Several commits can form one product update; Git SHA may remain diagnostics-only. No backend/account is required for MVP.
+**Implemented milestone:** **PWA Update + What's New MVP** uses prompt registration, a nonblocking Reload/Later notice and explicit confirmed per-tab reload. Startup What's New collates known missed curated entries newest first and shows only newest for missing/unknown history. Browser-local acknowledgment preserves newer markers; several commits can form one product entry. No backend/account or runtime Git history is required. Installed-PWA/device evidence remains pending.
 
-**Dependencies:** A bounded activation/reload design protects active practice, transient reports, unsaved Staff Builder work and other meaningful state. Current PWA registration is automatic; controlled activation and What's New are future behavior, not implemented machinery.
+**Dependencies:** The MVP prevents automatic reload and always warns before feature-triggered Reload; it does not recover transient reports or unsaved/in-memory work after consent. Worker activation is shared but page reload permission is per tab. Legacy 2.8.7 clients cannot be protected retroactively; first-transition, two-tab cached-asset and installed/device QA remain release checks. Keep broader recovery infrastructure outside this lane unless separately justified.
 
 **Non-goals:** Silent replacement of an active experience, one entry per Git commit, universal recovery infrastructure, or displacement of major musical milestones. Diagrams/meters need text equivalents, usable focus/zoom behavior and controlled announcements.
 
@@ -164,7 +164,7 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 ## Practical near-term direction
 
 1. Improv remains the next major new musical feature.
-2. PWA Update + What's New may fit between major milestones as small QOL work.
+2. Small QOL work may fit between major milestones; PWA Update + What's New is implemented with installed/device QA pending.
 3. Instrument-aware violin tuner guidance is a bounded microphone extension.
 4. Flow Sight-Reading remains a major practice milestone.
 5. Guided Studies follows when the selected native activity contracts are mature enough for a useful first vertical slice.

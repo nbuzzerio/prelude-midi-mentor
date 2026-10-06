@@ -1,17 +1,26 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 
 import App from "./App";
 import { version } from "../package.json";
 import { useAppMidiInput } from "./hooks/use-app-midi-input";
+import { APP_UPDATES } from "./features/app-update/app-updates";
+import { APP_UPDATE_STORAGE_KEY } from "./features/app-update/app-update-storage";
+import type { PwaUpdateController, PwaUpdateSnapshot } from "./lib/pwa/register-service-worker";
 
 const appStyles = readFileSync(resolve(process.cwd(), "src/index.css"), "utf8");
 
+beforeEach(() => {
+  const newest = APP_UPDATES.at(-1)!;
+  localStorage.setItem(APP_UPDATE_STORAGE_KEY, JSON.stringify({ id: newest.id, sequence: newest.sequence }));
+});
+
 afterEach(() => {
   cleanup();
+  localStorage.removeItem(APP_UPDATE_STORAGE_KEY);
   Reflect.deleteProperty(navigator, "requestMIDIAccess");
 });
 
@@ -76,6 +85,41 @@ vi.mock("./components/midi/midi-diagnostic", () => ({
 }));
 
 describe("App focus mode", () => {
+  it("mounts first-use What's New without allowing its keys to change the background mode", () => {
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function(this: HTMLDialogElement) { this.setAttribute("open", ""); } });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: function(this: HTMLDialogElement) { this.removeAttribute("open"); } });
+    try {
+      localStorage.removeItem(APP_UPDATE_STORAGE_KEY);
+      render(<App />);
+      const modal = screen.getByRole("dialog", { name: "What's New in Prelude" });
+      fireEvent.keyDown(modal, { key: "f" });
+      expect(screen.getByRole("navigation", { name: "Prelude modes" }).hidden).toBe(false);
+      fireEvent.keyDown(modal, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Free Play" }));
+    } finally {
+      cleanup(); Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal"); Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+    }
+  });
+  it("keeps the hidden Practice Session host and current feature mounted when updates arrive or are deferred", () => {
+    let snapshot: PwaUpdateSnapshot = { updateId: 0, available: false, activated: false, updating: false, error: null };
+    const listeners = new Set<() => void>();
+    const controller: PwaUpdateController = { getSnapshot: () => snapshot, subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; }, requestReload: vi.fn(async () => {}), checkForUpdates: vi.fn(async () => {}), dispose: vi.fn() };
+    render(<App pwaUpdate={controller} />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unsaved builder control" }));
+    const edited = screen.getByRole("button", { name: "Unsaved edit retained" });
+    fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
+    const practiceControl = screen.getByRole("button", { name: "Focus Staff" });
+    act(() => { snapshot = { ...snapshot, updateId: 1, available: true }; listeners.forEach((listener) => listener()); });
+    fireEvent.click(screen.getByRole("button", { name: "Later" }));
+    act(() => { snapshot = { ...snapshot, activated: true }; listeners.forEach((listener) => listener()); });
+    expect(screen.getByRole("button", { name: "Focus Staff" })).toBe(practiceControl);
+    expect(screen.getByRole("button", { name: "Update ready" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    expect(screen.getByRole("button", { name: "Unsaved edit retained" })).toBe(edited);
+    expect(controller.requestReload).not.toHaveBeenCalled();
+  });
   it("keeps the tuner standalone and blocks capture while a hidden hosted run remains active", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));

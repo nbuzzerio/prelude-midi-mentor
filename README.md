@@ -162,6 +162,7 @@ Desktop synthetic browser validation exists, plus one owner-observed successful 
 - Chromebook MIDI support
 - Installable Progressive Web App
 - Offline application shell
+- Update Ready with Reload/Later, confirmed per-tab reload and curated What's New
 
 ---
 
@@ -426,13 +427,15 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Current package/application version is **2.8.7**, derived by the UI from `package.json`. No new release or tag is implied.
+Current package/application version is **2.8.8**, derived by the UI from `package.json`. No new release or tag is implied.
 
 The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
 
 Staff Builder projects/drafts use local storage; Piece Practice keeps practiced snapshots/checkpoints in IndexedDB. There is no account or cloud synchronization. Back up important pieces as `.prelude.json`; importing a piece does not restore practice evidence. Clearing site data or losing the browser/profile/device can remove local work.
 
 The PWA caches its shell and piano samples for a basic offline VKB workflow after a successful online load/install. Physical MIDI, microphone permissions, installed-PWA updates and offline behavior need representative browser/device QA.
+
+Update Ready offers Reload/Later without automatically reloading this tab. Reload always warns about active practice, reports and unsaved/in-memory work. What's New shows bundled curated updates newest first, with browser-local acknowledgment; first use shows only the newest entry. This is not automatic recovery. Legacy 2.8.7 tabs may need to close/reopen during the first transition; see [RELEASING.md](./docs/RELEASING.md).
 
 See [ROADMAP.md](./docs/ROADMAP.md) for the authoritative rolling direction.
 
@@ -444,7 +447,7 @@ Improv is the next major new musical feature: key/scale context, constrained exp
 
 The implemented tuner can gain bounded violin first-position guidance. Ocarina diagrams require a defined profile/chart; voice means sung pitch. Acoustic participation in practice is conditional on evidence and activity-specific semantics, not automatic MIDI substitution.
 
-Small QOL work, including PWA Update + What's New, and physical QA progress alongside musical milestones. Broader creative tools extend Improv rather than a competing Composer mode; Prelude remains focused on learning rather than DAW production. Full priorities and deferred choices live only in [ROADMAP.md](./docs/ROADMAP.md).
+PWA Update + What's New is implemented; small QOL work and physical QA continue alongside musical milestones. Broader creative tools extend Improv rather than a competing Composer mode; Prelude remains focused on learning rather than DAW production. Full priorities and deferred choices live only in [ROADMAP.md](./docs/ROADMAP.md).
 
 ---
 

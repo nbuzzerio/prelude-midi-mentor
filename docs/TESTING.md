@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Testing
 
-Current package/application version is **2.8.7**. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
+Current package/application version is **2.8.8**. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
 
 ## Chromatic Tuner Phase 2
 
@@ -480,11 +480,27 @@ Focused automated coverage protects repository-owned release configuration:
 - manifest scope and start URL remain aligned with the deployed subpath
 - Workbox navigation fallback remains `/prelude/index.html`
 - emitted piano WAV assets remain included in the precache glob
-- generated service-worker registration remains in auto-update mode
+- generated service-worker registration remains in prompt mode
 
 These tests cover stable configuration invariants only. Installed-PWA update behavior, real offline behavior and browser Web MIDI behavior still require manual validation on representative browsers/devices. The focused synthetic tuner harness is not a comprehensive browser E2E suite.
 
-The future PWA Update + What's New feature needs separate activation/reload checks: defer or safely handle active practice, transient reports, unsaved Staff Builder work and other meaningful state; show an explicit update choice; test first install, one/multiple missed curated entries, newest-first order, installation-local last-seen state and offline transitions. Current auto-update registration has no implemented curated-entry or prompt machinery. Musical QA continues alongside QOL work.
+PWA Update + What's New focused validation: `pnpm test src/features/app-update src/lib/pwa/register-service-worker.test.ts src/App.test.tsx vite.config.test.ts`, then `pnpm verify`. Inspect the generated production worker for a message-gated SKIP_WAITING path rather than unconditional skipWaiting, unchanged scope/fallback/WAV precache, and the registration output for prompt mode and supplied `onNeedReload`. Do not infer device support from compilation.
+
+Deterministic coverage establishes catalog identity/order, known/multiple/no missed updates, missing/malformed/unknown/pruned history, future markers, defensive storage failure and stale-tab writes. Hook/component tests cover startup-only notes, failed-write dismissal, accessible modal headings/sections, focus containment/restoration, Close/Got it/Escape acknowledgment, no backdrop acknowledgment, blocked background keyboard shortcuts, nonblocking notices and deferred indicators. jsdom mocks native dialog primitives; actual top-layer background inertness remains browser QA. Platform tests cover waiting/late/external activation, cancellation, confirmation, one navigation per request, consumed permission after cancelled navigation, duplicate callbacks, failure/timeout/replacement/disposal, initial install, throttled online/foreground/hourly discovery, hidden/offline suppression and concurrent checks. App coverage keeps the hidden Practice Session host and current feature intact across notifications.
+
+### Controlled-update production/device QA (pending physical evidence)
+
+Use an isolated test browser profile and TWO ACTUAL PRODUCTION BUILDS A/B served at the same origin and `/prelude/` scope. Both must include prompt registration; B contains a higher-sequence curated record. Use an ordinary tab and installed PWA, then Chromebook and Android where available. The first legacy transition is a separate pair, 2.8.7 to 2.8.8; do not expect new controls in legacy pages.
+
+1. Load/install A online, acknowledge What's New and verify reopen does not show it. For fresh/cleared tracking state, show only newest; storage denial must still allow dismissal. Test keyboard Tab/Shift+Tab, Close/Got it/Escape, focus restoration, native background inertness, zoom and narrow layouts.
+2. Publish B at that same test location while A remains open. Allow registration/foreground/online/hourly discovery; no immediate detection promise. Confirm the notice does not move focus or reload. Choose Later, retain the small indicator and verify duplicate callbacks do not reopen it. Cancel Reload; the page and waiting worker remain intact.
+3. Confirm Reload, verify B's package version and newest-first notes, acknowledge, and reopen without notes. If browser unload protection cancels navigation, no later callback may retry; another Reload must obtain fresh consent. To test multiple missed entries, use a later real B catalog with at least two newer curated records than A's marker.
+4. Repeat during Staff Builder editing and pending input, an active Practice Session (including when hidden), a transient report and Piece Practice. Without confirmed Reload, preserve state. After consent do not expect universal recovery; verify only the existing feature-owned saving/recovery/unload contracts.
+5. Keep two A tabs/windows open. Choose Later in one; confirm Reload in the other. The deferred tab must remain open, recognize activation and offer a fresh confirmed reload without waiting for a past event. Check cached piano/VKB/audio assets in that still-open tab before moving onto B.
+6. Go offline before B is available; remain usable without discovery. Return online/foreground and discover B. Separately cache a waiting B online, go offline, then explicitly activate/reload it and verify the new shell, notes and piano audio. Do not claim an uncached update can be found offline.
+7. For first rollout, keep a legacy 2.8.7 tab/PWA open while deploying the first prompt build. Record waiting/activation behavior: old callbacks cannot be retroactively protected and may reload on activation. Close all old Prelude tabs/windows and reopen if necessary. Confirm the new build provides the controlled flow for later updates.
+
+Record browser/device/build pair, outcomes and failures separately from automated counts. Installed/device and cross-tab asset evidence is still pending until these checks occur; musical QA continues alongside QOL work.
 
 ## Intentionally Not Deeply Tested
 

@@ -12,10 +12,12 @@ import PracticeSessionBuilder from "./features/practice-session/components/pract
 import MidiDiagnostic from "./components/midi/midi-diagnostic";
 import TunerSession from "./features/tuner/components/tuner-session";
 import { version } from "../package.json";
+import type { PwaUpdateController } from "./lib/pwa/register-service-worker";
+import { AppUpdateNotices } from "./features/app-update/components/app-update-notices";
 
 type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session" | "midi-diagnostic" | "tuner";
 
-export default function App() {
+export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateController }> = {}) {
   const [practiceSection, setPracticeSection] =
     useState<PracticeSection>("freeplay");
   const [practiceRunActive, setPracticeRunActive] = useState(false);
@@ -221,6 +223,7 @@ export default function App() {
         <PracticeSessionBuilder active={practiceSection === "practice-session"} onActiveRunChange={setPracticeRunActive} />
       </div>
       {content}
+      <AppUpdateNotices controller={pwaUpdate} />
     </main></MidiProvider>
   );
 }
