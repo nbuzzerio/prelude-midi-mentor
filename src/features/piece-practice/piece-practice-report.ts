@@ -3,6 +3,9 @@ import { getPiecePracticeMeasureResults, type PiecePracticeSessionState } from "
 import type { PiecePracticePiece } from "./piece-practice-types";
 import { getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
 import { piecePracticeAssessmentLabel } from "./piece-practice-assessment";
+import type { PiecePracticeAcousticEvidence } from "./piece-practice-evidence";
+import type { PiecePracticeInputConfiguration } from "./piece-practice-acoustic-types";
+import { centsBetween, equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 
 export type PiecePracticeReportPresentation = Readonly<{ piece?: PiecePracticePiece; showMidiDetails?: boolean }>;
 
@@ -24,6 +27,10 @@ export function mistakeText(evidence: PiecePracticeMistakeEvidence, presentation
     predecessorPitches: evidence.kind === "normal-attempt" ? evidence.predecessorPitches : undefined };
   const pitchName = (midiNumber: number) => formatPiecePracticeMidiPitch(midiNumber, context);
   const expected = evidence.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { ...context, expectedPitches: [pitch] })).join(", ") || "None";
+  if (evidence.kind === "acoustic-attempt") return {
+    expected, played: `${formatPiecePracticeMidiPitch(evidence.nearestSemitone, { expectedPitches: evidence.expectedPitches })} · ${evidence.centsFromExpected.toFixed(1)}¢ from expected · outside ±${evidence.pitchToleranceCents}¢`,
+    missing: [], extra: [], held: [], label: evidence.rejection === "wrong-pitch" ? "Incorrect microphone pitch" : "Microphone pitch outside tolerance",
+  };
   if (evidence.kind === "normal-attempt") return {
     expected,
     played: evidence.receivedMidiNumbers.map(pitchName).join(", ") || "No new notes",
@@ -51,6 +58,25 @@ export function formatPiecePracticeAttackEvidence(attack: PiecePracticeAttackEvi
   return `Measure ${attack.measureIndex + 1}, target ${attack.targetId}, ${(attack.occurredAtActiveMs / 1000).toFixed(3)}s: ${formatPiecePracticeMidiPitch(attack.midiNumber, getPiecePracticeReportPitchContext(attack, presentation))}, velocity ${attack.attackVelocity}`;
 }
 
+export function formatPiecePracticeInputConfiguration(config?: PiecePracticeInputConfiguration): string {
+  return config?.mode === "microphone"
+    ? `Input: Microphone — Provisional · ${config.instrument === "violin" ? "Violin" : "Ocarina"} · Pitch tolerance ±${config.pitchToleranceCents}¢`
+    : "Input: MIDI / Keyboard";
+}
+
+export function formatAcousticHeardPitch(attack: Pick<PiecePracticeAcousticEvidence, "nearestSemitone" | "frequencyHz" | "expectedPitches">): string {
+  const name = formatPiecePracticeMidiPitch(attack.nearestSemitone, { expectedPitches: attack.expectedPitches });
+  const cents = centsBetween(attack.frequencyHz, equalTemperedFrequency(attack.nearestSemitone));
+  const displayedCents = Math.abs(cents).toFixed(1);
+  return displayedCents === "0.0" ? `${name} · centered`
+    : `${name} · ${displayedCents}¢ ${cents < 0 ? "flat" : "sharp"} of ${name}`;
+}
+
+export function formatPiecePracticeAcousticEvidence(attack: PiecePracticeAcousticEvidence): string {
+  const expected = attack.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] })).join(", ");
+  return `Measure ${attack.measureIndex + 1}, target ${attack.targetId}, ${(attack.occurredAtActiveMs / 1000).toFixed(3)}s: Expected ${expected}; heard ${formatAcousticHeardPitch(attack)} (${attack.frequencyHz.toFixed(1)} Hz); ${attack.centsFromExpected >= 0 ? "+" : ""}${attack.centsFromExpected.toFixed(1)}¢ from expected; ${attack.accepted ? "Accepted within" : "Rejected outside"} ±${attack.pitchToleranceCents}¢${attack.rejection ? ` (${attack.rejection === "wrong-pitch" ? "wrong pitch" : "intonation"})` : ""}; ${attack.articulation}; observation confirmation delay ${Math.round(attack.confirmationDelayMs)} ms.`;
+}
+
 /** Pure report presentation; attack evidence never participates in correctness or timing grading. */
 export function formatPiecePracticeReport({ title, rangeText, state, includeAttackStrength = false, piece, showMidiDetails = false }: Readonly<{
   title: string; rangeText: string; state: PiecePracticeSessionState; includeAttackStrength?: boolean;
@@ -63,6 +89,7 @@ export function formatPiecePracticeReport({ title, rangeText, state, includeAtta
     `Mistakes: ${state.mistakeEvidence.length}`,
     `Problem measures: ${results.filter(({ isProblem }) => isProblem).map(({ measureNumber }) => measureNumber).join(", ") || "None"}`,
   ];
+  if (state.inputConfiguration?.mode === "microphone") lines.push(formatPiecePracticeInputConfiguration(state.inputConfiguration), "Response timing includes observation confirmation; no hardware-latency compensation.");
   for (const result of results) {
     lines.push("", `Measure ${result.measureNumber}: ${result.mistakeCount} mistakes, ${result.hesitationCount} slow responses, ${result.skippedTargetCount} skipped, ${(result.activeDurationMs / 1000).toFixed(1)}s`);
     if (result.restartCount) lines.push(`Restarts: ${result.restartCount}`);
@@ -87,6 +114,10 @@ export function formatPiecePracticeReport({ title, rangeText, state, includeAtta
       const attacks = (state.attackEvidence ?? []).filter(({ measureIndex }) => measureIndex === result.measureIndex);
       if (attacks.length) lines.push("Performed (physical MIDI attacks):", ...attacks.map((attack) => formatPiecePracticeAttackEvidence(attack, presentation)));
     }
+  }
+  if (state.inputConfiguration?.mode === "microphone") {
+    lines.push("", "Microphone pitch attacks", ...(state.acousticEvidence ?? []).map(formatPiecePracticeAcousticEvidence));
+    if (!state.acousticEvidence?.length) lines.push("No confirmed microphone attacks.");
   }
   if (includeAttackStrength) {
     const velocities = (state.attackEvidence ?? []).map(({ attackVelocity }) => attackVelocity);

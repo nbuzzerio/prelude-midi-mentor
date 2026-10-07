@@ -60,7 +60,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
       break;
 
     case "staff-builder":
-      content = <StaffBuilderSession />;
+      content = <StaffBuilderSession microphoneAvailable={!practiceRunActive} />;
       break;
 
     case "melody":

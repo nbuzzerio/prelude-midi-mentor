@@ -5,6 +5,7 @@ import { getFullNoteName } from "@/lib/music/note-utils";
 import { spellKeyAwareMidiNumber } from "@/lib/music/key-aware-spelling";
 import type { MusicKeyId } from "@/lib/music/keys";
 import type { MidiReleaseObservation } from "@/hooks/use-midi";
+import type { AcousticAttack, AcousticPitchGrade } from "./piece-practice-acoustic-types";
 
 export const PIECE_PRACTICE_HESITATION_MINIMUM_MS = 2_500;
 export const PIECE_PRACTICE_HESITATION_MULTIPLIER = 3;
@@ -47,7 +48,25 @@ type PiecePracticeEvidenceLocation = Readonly<{
   occurredAtActiveMs: number;
 }>;
 
+/** Discrete scalar evidence only; no audio, detector history, or browser clock origins. */
+export type PiecePracticeAcousticEvidence = PiecePracticeEvidenceLocation & AcousticPitchGrade & Readonly<{
+  source: "microphone";
+  expectedPitches: readonly PiecePracticeExpectedPitchSnapshot[];
+  articulation: AcousticAttack["articulation"];
+  confirmationDelayMs: number;
+}>;
+
 export type PiecePracticeMistakeEvidence =
+  | (PiecePracticeEvidenceLocation & Readonly<{
+      kind: "acoustic-attempt";
+      expectedPitches: readonly PiecePracticeExpectedPitchSnapshot[];
+      acousticSequence: number;
+      frequencyHz: number;
+      nearestSemitone: number;
+      centsFromExpected: number;
+      pitchToleranceCents: number;
+      rejection: "wrong-pitch" | "outside-tolerance";
+    }>)
   | (PiecePracticeEvidenceLocation & Readonly<{
       kind: "normal-attempt";
       expectedPitches: readonly PiecePracticeExpectedPitchSnapshot[];
@@ -72,6 +91,7 @@ export type PiecePracticeMistakeEvidence =
     }>);
 
 export type PiecePracticeMistakeEvidenceDraft =
+  | Omit<Extract<PiecePracticeMistakeEvidence, { kind: "acoustic-attempt" }>, "sequence" | "occurredAtActiveMs">
   | Omit<Extract<PiecePracticeMistakeEvidence, { kind: "normal-attempt" }>, "sequence" | "occurredAtActiveMs">
   | Omit<Extract<PiecePracticeMistakeEvidence, { kind: "rolled-unexpected-pitch" }>, "sequence" | "occurredAtActiveMs">
   | Omit<Extract<PiecePracticeMistakeEvidence, { kind: "rolled-timeout" }>, "sequence" | "occurredAtActiveMs">;

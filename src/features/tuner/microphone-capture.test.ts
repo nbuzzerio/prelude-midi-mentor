@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMicrophoneCapture, type CaptureStatus } from "./microphone-capture";
 import type { TunerSnapshot } from "./pitch-stabilizer";
+import type { PitchObservationEnvelope } from "@/lib/audio/monophonic/pitch-analysis-types";
 
 const disposals: (() => void)[] = [];
 beforeEach(() => vi.useFakeTimers());
@@ -8,6 +9,7 @@ afterEach(async () => { disposals.splice(0).forEach((dispose) => dispose()); awa
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 function setup(options: { request?: (stream: MediaStream) => Promise<MediaStream>; resume?: () => Promise<void>; failGraph?: boolean; initialState?: string } = {}) {
   const origin = Date.now(), contexts: FakeContext[] = [], statuses: CaptureStatus[] = [], readings: TunerSnapshot[] = [];
+  const observations: PitchObservationEnvelope[] = [];
   let eligible = true;
   class Track extends EventTarget {
     readyState = "live"; muted = false; stop = vi.fn(() => { this.readyState = "ended"; });
@@ -32,15 +34,32 @@ function setup(options: { request?: (stream: MediaStream) => Promise<MediaStream
   const getUserMedia = vi.fn(() => options.request?.(stream) ?? Promise.resolve(stream));
   const capture = createMicrophoneCapture({ Context: FakeContext as unknown as typeof AudioContext,
     mediaDevices: { getUserMedia }, secure: true, eligible: () => eligible,
-    now: () => Date.now() - origin, onStatus: (value) => statuses.push(value), onPitch: (value) => readings.push(value) });
+    now: () => Date.now() - origin, onStatus: (value) => statuses.push(value), onPitch: (value) => readings.push(value),
+    onObservation: (value) => observations.push(value) });
   disposals.push(() => {
     contexts.forEach((context) => context.close.mockImplementation(() => { context.state = "closed"; return Promise.resolve(); }));
     capture.stop();
   });
-  return { capture, contexts, track, getUserMedia, statuses, readings, stream,
+  return { capture, contexts, track, getUserMedia, statuses, readings, observations, stream,
     setEligible: (value: boolean) => { eligible = value; }, state: () => statuses.at(-1)?.state };
 }
 describe("microphone session ownership", () => {
+  it("publishes immutable scalar evidence with advancing clocks and capture identity", async () => {
+    const env = setup(); await env.capture.start();
+    await vi.advanceTimersByTimeAsync(250);
+    const first = env.observations[0], last = env.observations.at(-1)!;
+    expect(last.snapshot.fresh).toBe(true);
+    expect(last.observation.frequencyHz).toBeCloseTo(440, 0);
+    expect(last.observedAtMs).toBeGreaterThan(first.observedAtMs);
+    expect(last.audioSeconds).toBeGreaterThan(first.audioSeconds);
+    expect(last.captureGeneration).toBe(env.capture.generation());
+    expect(Object.keys(last).sort()).toEqual(["audioSeconds", "captureGeneration", "observation", "observedAtMs", "snapshot"]);
+    for (const value of [last, last.observation, last.snapshot, last.snapshot.pitch]) expect(Object.isFrozen(value)).toBe(true);
+    const count = env.observations.length;
+    env.capture.stop(); await vi.advanceTimersByTimeAsync(250);
+    expect(env.observations).toHaveLength(count);
+    expect(env.capture.generation()).toBeGreaterThan(last.captureGeneration);
+  });
   for (const failure of ["rejected", "thrown"]) {
     it(`retains ${failure} closure, bounds allocation, and recovers on a later Start`, async () => {
       const env = setup(); await env.capture.start(); const context = env.contexts[0];

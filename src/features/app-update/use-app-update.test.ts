@@ -5,12 +5,13 @@ import { APP_UPDATES } from "./app-updates";
 import { useAppUpdate } from "./use-app-update";
 
 afterEach(cleanup);
+const newest = APP_UPDATES.at(-1)!;
 
 describe("app update presentation state", () => {
   it("takes one startup snapshot and acknowledges it only when requested", () => {
     const storage = { getItem: vi.fn(() => null), setItem: vi.fn() };
     const { result, rerender } = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
-    expect(result.current.displayed).toEqual(APP_UPDATES);
+    expect(result.current.displayed).toEqual([newest]);
     expect(storage.setItem).not.toHaveBeenCalled();
     act(() => result.current.acknowledge());
     expect(result.current.displayed).toEqual([]);
@@ -25,10 +26,17 @@ describe("app update presentation state", () => {
     expect(first.result.current.displayed).toEqual([]);
     first.unmount();
     const second = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
-    expect(second.result.current.displayed).toEqual(APP_UPDATES);
+    expect(second.result.current.displayed).toEqual([newest]);
+  });
+  it("shows the acoustic entry after the prior product update was acknowledged", () => {
+    const previous = APP_UPDATES[0]!;
+    const { result } = renderHook(() => useAppUpdate(undefined, APP_UPDATES, {
+      getItem: () => JSON.stringify({ id: previous.id, sequence: previous.sequence }), setItem: vi.fn(),
+    }));
+    expect(result.current.displayed).toEqual([newest]);
   });
   it("does not open notes already acknowledged or newer than this build", () => {
-    for (const marker of [{ id: APP_UPDATES[0]!.id, sequence: 1 }, { id: "future", sequence: 3 }]) {
+    for (const marker of [{ id: newest.id, sequence: newest.sequence }, { id: "future", sequence: newest.sequence + 1 }]) {
       const { result, unmount } = renderHook(() => useAppUpdate(undefined, APP_UPDATES, { getItem: () => JSON.stringify(marker), setItem: vi.fn() }));
       expect(result.current.displayed).toEqual([]); unmount();
     }

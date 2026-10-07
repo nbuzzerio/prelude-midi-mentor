@@ -66,7 +66,7 @@ vi.mock("./features/ear-training/components/ear-training-session", () => ({
 }));
 
 vi.mock("./features/staff-builder/components/staff-builder-session", () => ({
-  default: () => <div className="staff-builder-study-view">Staff Builder Study View</div>,
+  default: ({ microphoneAvailable }: { microphoneAvailable: boolean }) => <div className="staff-builder-study-view" data-microphone-available={microphoneAvailable}>Staff Builder Study View</div>,
 }));
 
 vi.mock("./features/melody/components/melody-session", () => ({
@@ -133,6 +133,17 @@ describe("App focus mode", () => {
     expect(screen.getByRole("button", { name: "Start Listening" }).hasAttribute("disabled")).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
     expect(screen.queryByRole("heading", { name: "Chromatic Tuner" })).toBeNull();
+  });
+  it("passes the same hosted-run exclusion to acoustic Piece Practice through Staff Builder", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start hosted test run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Staff Builder" }));
+    expect(screen.getByText("Staff Builder Study View").getAttribute("data-microphone-available")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "End hosted test run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Staff Builder" }));
+    expect(screen.getByText("Staff Builder Study View").getAttribute("data-microphone-available")).toBe("true");
   });
   it("keeps one connected MIDI lifecycle while routing attacks only to the active top-level mode", async () => {
     appMidiNotes.length = 0;

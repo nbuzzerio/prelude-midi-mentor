@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { createPiecePracticeSession, getCurrentPiecePracticeTarget, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
-import { createPiecePracticeRun, parsePiecePracticeRun, type PiecePracticeRunRecordV1, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
+import { createPiecePracticeRun, parsePiecePracticeRun, type PiecePracticeRunRecordV2, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
 import type { PiecePracticeInputFeedback } from "../hooks/use-piece-practice-input";
 import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
 import { PiecePracticeSession } from "./piece-practice-session";
 import { PiecePracticeResults } from "./piece-practice-results";
 import type { PiecePracticeSessionState } from "../piece-practice-session";
+import type { CaptureOptions } from "@/lib/audio/monophonic/microphone-capture";
+import { createPitchStabilizer } from "@/lib/audio/monophonic/pitch-stabilizer";
 
 const mocks = vi.hoisted(() => ({
   feedback: { status: "idle", source: null, grade: null } as PiecePracticeInputFeedback,
@@ -22,6 +24,14 @@ const mocks = vi.hoisted(() => ({
   scoreProps: null as null | Record<string, unknown>,
   success: vi.fn(), incorrect: vi.fn(),
 }));
+const microphone = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; epoch: number; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] }));
+vi.mock("@/lib/audio/monophonic/microphone-capture", () => ({ createMicrophoneCapture: (options: CaptureOptions) => {
+  const capture = { options, epoch: 0, start: vi.fn(), stop: vi.fn() };
+  capture.start.mockImplementation(async () => { capture.epoch++; if (options.eligible()) options.onStatus({ state: "listening", message: "Listening" }); });
+  capture.stop.mockImplementation(() => { capture.epoch++; options.onStatus({ state: "idle", message: "Off" }); });
+  microphone.sessions.push(capture);
+  return { ...capture, generation: () => capture.epoch, snapshot: () => ({ state: "listening", pitch: null, fresh: false, ageMs: null }) };
+} }));
 
 vi.mock("@/features/staff-builder/components/staff-builder-score-view", () => ({
   StaffBuilderScoreView: (props: Record<string, unknown>) => {
@@ -126,8 +136,8 @@ function submit(midiNumbers: readonly number[]) {
   options.onSessionStateChange(result.state);
 }
 
-function runStore(): PiecePracticeRunStore & { records: PiecePracticeRunRecordV1[] } {
-  const records: PiecePracticeRunRecordV1[] = [];
+function runStore(): PiecePracticeRunStore & { records: PiecePracticeRunRecordV2[] } {
+  const records: PiecePracticeRunRecordV2[] = [];
   return { records, async list() { return [...records]; }, async save(record) { records.push(record); }, async discard() {} };
 }
 
@@ -135,7 +145,7 @@ function heldCompletionStore() {
   let resolveCompletion!: () => void;
   let rejectCompletion!: (error: Error) => void;
   const completion = new Promise<void>((resolve, reject) => { resolveCompletion = resolve; rejectCompletion = reject; });
-  const store: PiecePracticeRunStore & { records: PiecePracticeRunRecordV1[] } = {
+  const store: PiecePracticeRunStore & { records: PiecePracticeRunRecordV2[] } = {
     records: [], async list() { return [...this.records]; },
     save(record) {
       if (record.status === "completed") return completion.then(() => { this.records.push(record); });
@@ -154,7 +164,7 @@ function unloadIsProtected() {
 }
 
 function controlledRunStore() {
-  const writes: { record: PiecePracticeRunRecordV1; resolve: () => void; reject: (error: Error) => void }[] = [];
+  const writes: { record: PiecePracticeRunRecordV2; resolve: () => void; reject: (error: Error) => void }[] = [];
   const store: PiecePracticeRunStore = {
     async list() { return []; },
     save(record) {
@@ -194,6 +204,7 @@ function start(source = piece(), measure = 1, endMeasure: number | null = null) 
 }
 
 beforeEach(() => {
+  microphone.sessions.length = 0;
   mocks.feedback = { status: "idle", source: null, grade: null };
   mocks.resetInput.mockClear(); mocks.useInputCalls = 0; mocks.inputMounts = 0; mocks.inputUnmounts = 0; mocks.inputOptions = null; mocks.scoreProps = null; mocks.success.mockClear(); mocks.incorrect.mockClear();
 });
@@ -203,6 +214,56 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it("refuses acoustic chords before capture and mounts only the acoustic owner after Staff Focus", () => {
+    render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} />);
+    fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+    expect(screen.getByRole("button", { name: "Start Practice" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("alert").textContent).toContain("assessed chord");
+    expect(microphone.sessions).toHaveLength(0);
+    fireEvent.click(screen.getByLabelText("Upper Staff"));
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    expect(microphone.sessions).toHaveLength(1); expect(microphone.sessions[0].start).not.toHaveBeenCalled();
+    expect(mocks.inputMounts).toBe(0); expect(screen.queryByTestId("piano-keyboard")).toBeNull();
+    expect(screen.getByRole("button", { name: "Start Listening" })).toBeTruthy();
+  });
+  it("recovers microphone settings paused and off, preserving them on Restart Piece", () => {
+    const score = realisticPolyphonicScore(); const projected = projectStaffBuilderPieceForPractice(score); if (!projected.ok) throw Error();
+    const focused = focusPiecePracticeProjection(projected.piece, "lower");
+    const created = createPiecePracticeSession(focused, { startMeasureIndex: 1, endMeasureIndex: 1, startedAtMs: 0,
+      inputConfiguration: { mode: "microphone", instrument: "ocarina", pitchToleranceCents: 40 } });
+    if (!created.ok) throw Error();
+    const recoveredRun = createPiecePracticeRun(score, created.state, 0); const store = runStore();
+    render(<PiecePracticeSession piece={projected.piece} recoveredRun={recoveredRun} sourceScore={score} onExit={vi.fn()} runStore={store} now={() => 1000} />);
+    expect(screen.getByText(/paused with microphone off/)).toBeTruthy(); expect(microphone.sessions[0].start).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Restart Piece" }));
+    expect(store.records.at(-1)!.configuration.inputConfiguration).toEqual({ mode: "microphone", instrument: "ocarina", pitchToleranceCents: 40 });
+    expect(microphone.sessions.at(-1)!.start).not.toHaveBeenCalled(); expect(store.records.at(-1)!.checkpoint.clockPaused).toBe(true);
+  });
+  it("accepts scalar microphone evidence, suppresses chirps, and requires a new Start after Practice Again", async () => {
+    const source = piece(); const store = runStore(); let now = 0;
+    render(<PiecePracticeSession piece={source} onExit={vi.fn()} runStore={store} now={() => now} />);
+    fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+    fireEvent.click(screen.getByLabelText("Upper Staff"));
+    fireEvent.change(screen.getByLabelText("Start Measure"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" })); fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+    const capture = microphone.sessions.at(-1)!; const tracker = createPitchStabilizer();
+    const frames = (hz: number | null, count: number) => {
+      for (let i = 0; i < count; i++) {
+        now += 40; const observation = { frequencyHz: hz, quality: hz ? 0.99 : 0, levelDbfs: hz ? -20 : -80, reason: hz ? "usable" as const : "quiet" as const };
+        act(() => capture.options.onObservation?.({ observation, snapshot: tracker.update(observation, now, now / 1000), observedAtMs: now, audioSeconds: now / 1000, captureGeneration: capture.epoch }));
+      }
+    };
+    frames(null, 3); frames(466.164, 8);
+    expect(screen.getByText("Re-articulate to try this target again.")).toBeTruthy();
+    frames(null, 3); frames(440, 8);
+    await screen.findByText("Completed practice saved.");
+    expect(screen.getByRole("heading", { name: "Microphone pitch attacks" })).toBeTruthy();
+    expect(mocks.success).not.toHaveBeenCalled(); expect(mocks.incorrect).not.toHaveBeenCalled(); expect(mocks.inputMounts).toBe(0);
+    expect(store.records.at(-1)!.checkpoint.acousticEvidence).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    expect(microphone.sessions.at(-1)!.start).not.toHaveBeenCalled();
+    expect(store.records.at(-1)!.configuration.inputConfiguration).toMatchObject({ mode: "microphone", pitchToleranceCents: 25 });
+  });
   it.each(["resolve", "reject"] as const)("ignores a late original checkpoint %s while focused completion is pending and restores original durability", async (settle) => {
     const { store, writes } = controlledRunStore();
     render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
@@ -497,7 +558,7 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Practice measure 2" }));
     const focused = store.records.at(-1)!;
     expect(focused.runId).not.toBe(original.runId);
-    expect(focused.configuration).toEqual({ startMeasureIndex: 1, endMeasureIndex: 1, assessmentFocus: "lower" });
+    expect(focused.configuration).toEqual({ startMeasureIndex: 1, endMeasureIndex: 1, assessmentFocus: "lower", inputConfiguration: { mode: "keyboard" } });
     expect(focused.sourceScore).toEqual(original.sourceScore);
     expect(focused.checkpoint.skipEvidence).toEqual([]);
     expect(focused.checkpoint.mistakeEvidence).toEqual([]);

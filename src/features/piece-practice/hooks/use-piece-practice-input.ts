@@ -19,7 +19,8 @@ import type { PiecePracticeGrade } from "../piece-practice-validation";
 import type { PiecePracticeAttackedPitch, PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-types";
 import { classifyPiecePracticePitch, getPiecePracticeAllowedHeldMidiNumbers, getPiecePracticeTransitionHeldMidiNumbers, type PiecePracticeTransition } from "../piece-practice-input";
 
-export type PiecePracticeInputSource = "midi" | "virtual";
+// This collector continues to own keyboard inputs only.
+export type PiecePracticeInputSource = Exclude<import("../piece-practice-acoustic-types").PiecePracticeInputSource, "microphone">;
 export type PiecePracticeInputFeedback = Readonly<{
   status: "idle" | "correct" | "incorrect";
   source: PiecePracticeInputSource | null;

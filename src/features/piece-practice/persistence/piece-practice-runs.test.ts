@@ -3,7 +3,9 @@ import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-t
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { armPiecePracticeFirstTarget, createPiecePracticeSession, getCurrentPiecePracticeTarget, pausePiecePracticeClock, recordPiecePracticeMidiAttack, recordPiecePracticeMidiRelease, restartCurrentPiecePracticeMeasure, resumePiecePracticeClock, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, submitPiecePracticePitch } from "../piece-practice-session";
 import { formatPiecePracticeReport } from "../piece-practice-report";
-import { createPiecePracticeRun, hydratePiecePracticeRun, parsePiecePracticeRun, PiecePracticeRunWriteCoordinator, revisePiecePracticeRun, selectPiecePracticeRecovery, type PiecePracticeRunRecordV1 } from "./piece-practice-runs";
+import { submitPiecePracticeAcousticAttack, restartPiecePractice } from "../piece-practice-session";
+import { equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
+import { createPiecePracticeRun, hydratePiecePracticeRun, parsePiecePracticeRun, PiecePracticeRunWriteCoordinator, revisePiecePracticeRun, selectPiecePracticeRecovery, type PiecePracticeRunRecordV2 } from "./piece-practice-runs";
 
 const DATE = "2026-09-30T12:00:00.000Z";
 const score: StaffBuilderScore = {
@@ -23,6 +25,59 @@ function setup(assessmentFocus: "both" | "upper" | "lower" = "both") {
   if (!created.ok) throw new Error("Test session must start.");
   return { piece, state: created.state };
 }
+
+describe("Piece Practice V2 acoustic recovery", () => {
+  function acoustic(instrument: "violin" | "ocarina" = "violin", cents = 31) {
+    const { piece } = setup("upper");
+    const created = createPiecePracticeSession(piece, { startMeasureIndex: 0, startedAtMs: 0,
+      inputConfiguration: { mode: "microphone", instrument, pitchToleranceCents: 25 } });
+    if (!created.ok) throw Error();
+    const state = resumePiecePracticeClock(created.state, 100);
+    const attempted = submitPiecePracticeAcousticAttack(piece, state, { targetId: getCurrentPiecePracticeTarget(piece, state)!.id, inputEpoch: 0,
+      attack: { source: "microphone", captureGeneration: 1, sequence: 0, frequencyHz: equalTemperedFrequency(60) * 2 ** (cents / 1200),
+        nearestSemitone: Math.round(60 + cents / 100), onsetObservedAtMs: 120, confirmedAtMs: 200, articulation: "initial-acquisition" } });
+    return { piece, state: attempted.state, record: createPiecePracticeRun(score, attempted.state, 200, new Date(DATE)) };
+  }
+  it.each(["violin", "ocarina"] as const)("round-trips %s settings and scalar evidence with the microphone off", (instrument) => {
+    const { piece, record } = acoustic(instrument);
+    expect(record.schemaVersion).toBe(2);
+    expect(record.checkpoint).not.toHaveProperty("acousticInputEpoch");
+    expect(record.checkpoint).not.toHaveProperty("acousticLastAttack");
+    const parsed = parsePiecePracticeRun(record); expect(parsed.ok).toBe(true); if (!parsed.ok) throw Error();
+    const restored = hydratePiecePracticeRun(parsed.record, 10_000);
+    expect(restored).toMatchObject({ clockPaused: true, inputConfiguration: { mode: "microphone", instrument, pitchToleranceCents: 25 } });
+    expect(restored.acousticEvidence).toEqual(record.checkpoint.acousticEvidence);
+    expect(restored.mistakeEvidence).toHaveLength(1);
+    expect(restartPiecePractice(piece, restored, 11_000).inputConfiguration).toEqual(restored.inputConfiguration);
+    expect(restored.attackEvidence).toBeUndefined();
+  });
+  it("normalizes genuine V1 keyboard records without mutating their source or inventing provenance", () => {
+    const { state } = setup(); const current = createPiecePracticeRun(score, state, 150);
+    const legacy = { ...current, schemaVersion: 1, configuration: { ...current.configuration, inputConfiguration: undefined }, checkpoint: { ...current.checkpoint, inputConfiguration: undefined } };
+    const before = structuredClone(legacy); const parsed = parsePiecePracticeRun(legacy);
+    expect(parsed.ok).toBe(true); if (!parsed.ok) throw Error();
+    expect(parsed.record.configuration.inputConfiguration).toEqual({ mode: "keyboard" });
+    expect(parsed.record.checkpoint.attackEvidence).toBeUndefined(); expect(legacy).toEqual(before);
+  });
+  it.each([0, 50, 1.5, NaN, "25"])("rejects malformed microphone tolerance %s", (pitchToleranceCents) => {
+    const { record } = acoustic();
+    const inputConfiguration = { mode: "microphone", instrument: "violin", pitchToleranceCents };
+    expect(parsePiecePracticeRun({ ...record, configuration: { ...record.configuration, inputConfiguration }, checkpoint: { ...record.checkpoint, inputConfiguration } }).ok).toBe(false);
+  });
+  it("rejects altered cents, acceptance, target links, duplicated mistakes and physical MIDI evidence", () => {
+    const { record } = acoustic(); const attack = record.checkpoint.acousticEvidence![0];
+    for (const patch of [{ centsFromExpected: 0 }, { accepted: true }, { frequencyHz: NaN }, { nearestSemitone: 72 }, { targetId: "missing" }, { pitchToleranceCents: 40 }]) {
+      expect(parsePiecePracticeRun({ ...record, checkpoint: { ...record.checkpoint, acousticEvidence: [{ ...attack, ...patch }] } }).ok).toBe(false);
+    }
+    expect(parsePiecePracticeRun({ ...record, checkpoint: { ...record.checkpoint, mistakeEvidence: [] } }).ok).toBe(false);
+    expect(parsePiecePracticeRun({ ...record, checkpoint: { ...record.checkpoint, mistakeEvidence: [...record.checkpoint.mistakeEvidence, { ...record.checkpoint.mistakeEvidence[0], sequence: 1 }] } }).ok).toBe(false);
+    expect(parsePiecePracticeRun({ ...record, checkpoint: { ...record.checkpoint, acousticInputEpoch: 1 } }).ok).toBe(false);
+  });
+  it("round-trips accepted sharp evidence and an ended result", () => {
+    const { record } = acoustic("ocarina", 18); const parsed = parsePiecePracticeRun(record);
+    expect(parsed.ok).toBe(true); expect(record.status).toBe("completed"); expect(record.checkpoint.mistakeEvidence).toHaveLength(0);
+  });
+});
 
 function tiedRolledScore(fullyTied = true): StaffBuilderScore {
   const pitches = [
@@ -47,7 +102,7 @@ describe("Piece Practice durable run V1", () => {
   it.each([1, 2, 3])("hydrates a validated V1 run containing a legacy schema-%s score snapshot", (schemaVersion) => {
     const { state } = setup();
     const current = createPiecePracticeRun(score, state, 120);
-    const legacy = { ...current, sourceScore: { ...current.sourceScore, schemaVersion,
+    const legacy = { ...current, schemaVersion: 1, configuration: { ...current.configuration, inputConfiguration: undefined }, checkpoint: { ...current.checkpoint, inputConfiguration: undefined }, sourceScore: { ...current.sourceScore, schemaVersion,
       ...(schemaVersion === 1 ? { annotations: undefined } : {}),
     } };
     const parsed = parsePiecePracticeRun(legacy);
@@ -125,7 +180,7 @@ describe("Piece Practice durable run V1", () => {
   it("creates an active versioned snapshot before the first note and preserves focus", () => {
     const { state } = setup("lower");
     const record = createPiecePracticeRun(score, state, 100);
-    expect(record.schemaVersion).toBe(1);
+    expect(record.schemaVersion).toBe(2);
     expect(record.status).toBe("active");
     expect(record.revision).toBe(1);
     expect(record.runId).toBeTruthy();
@@ -260,7 +315,7 @@ describe("Piece Practice durable run V1", () => {
     for (const candidate of [
       { ...record, sourceScore: null },
       { ...record, checkpoint: { ...record.checkpoint, currentMeasureIndex: 99 } },
-      { ...record, schemaVersion: 2 },
+      { ...record, schemaVersion: 3 },
     ]) {
       const before = structuredClone(candidate);
       expect(parsePiecePracticeRun(candidate).ok).toBe(false);
@@ -287,8 +342,8 @@ describe("Piece Practice durable run V1", () => {
   });
 });
 
-function memoryBackend(initial: readonly PiecePracticeRunRecordV1[] = []) {
-  const records = new Map<string, PiecePracticeRunRecordV1>(initial.map((record) => [record.runId, record]));
+function memoryBackend(initial: readonly PiecePracticeRunRecordV2[] = []) {
+  const records = new Map<string, PiecePracticeRunRecordV2>(initial.map((record) => [record.runId, record]));
   const discarded: string[] = [];
   let failures = 0;
   let writes = 0;
@@ -297,7 +352,7 @@ function memoryBackend(initial: readonly PiecePracticeRunRecordV1[] = []) {
     failNext(count: number) { failures = count; },
     get writes() { return writes; },
     async list(): Promise<unknown[]> { return [...records.values()]; },
-    async put(record: PiecePracticeRunRecordV1) {
+    async put(record: PiecePracticeRunRecordV2) {
       writes += 1;
       if (failures > 0) { failures -= 1; throw new Error("quota"); }
       if ((records.get(record.runId)?.revision ?? 0) < record.revision) records.set(record.runId, record);
@@ -400,7 +455,7 @@ describe("Piece Practice write coordination", () => {
     const discarding = writer.discard(first.runId);
     release();
     await Promise.all([writingFirst, writingSecond]);
-    expect((await listing as PiecePracticeRunRecordV1[])[0].revision).toBe(2);
+    expect((await listing as PiecePracticeRunRecordV2[])[0].revision).toBe(2);
     await discarding;
     expect(backend.records.has(first.runId)).toBe(false);
   });
@@ -502,7 +557,7 @@ describe("Piece Practice write coordination", () => {
     const completed = createPiecePracticeRun(score, complete.state, 120, new Date(Date.parse(DATE) + 2_000));
     const corruptCompleted = { ...completed, runId: "broken-report", sourceScore: null, completedAt: new Date(Date.parse(DATE) + 9_000).toISOString() };
     const corruptActive = { ...older, runId: "broken-active", sourceScore: null, updatedAt: new Date(Date.parse(DATE) + 8_000).toISOString() };
-    const futureActive = { ...older, runId: "future-active", schemaVersion: 2, updatedAt: new Date(Date.parse(DATE) + 7_000).toISOString() };
+    const futureActive = { ...older, runId: "future-active", schemaVersion: 3, updatedAt: new Date(Date.parse(DATE) + 7_000).toISOString() };
     const selected = selectPiecePracticeRecovery([corruptCompleted, corruptActive, futureActive, older, completed, newerValid]);
     expect(selected.active.map(({ record }) => record.runId)).toEqual([newerValid.runId, older.runId]);
     expect(selected.latestCompleted?.record.runId).toBe(completed.runId);

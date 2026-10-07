@@ -2,8 +2,10 @@ import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { PiecePracticeResults } from "./components/piece-practice-results";
-import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, mistakeText } from "./piece-practice-report";
+import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, formatAcousticHeardPitch, mistakeText } from "./piece-practice-report";
+import { equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 import type { PiecePracticeExpectedPitchSnapshot } from "./piece-practice-evidence";
+import type { PiecePracticeAcousticEvidence } from "./piece-practice-evidence";
 import { createPiecePracticeSession, recordPiecePracticeMidiAttack, restartCurrentPiecePracticeMeasure, restartPiecePractice, skipCurrentPiecePracticeTarget, submitPiecePracticeAttempt, type PiecePracticeSessionState } from "./piece-practice-session";
 import type { PiecePracticePiece } from "./piece-practice-types";
 
@@ -35,6 +37,39 @@ const view = (state = completed()) => <PiecePracticeResults displayScore={{} as 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Piece Practice note-name-first results and reports", () => {
+  it.each([0, 0.049, -0.049])("renders %s cents as centered when rounded to zero", (cents) => {
+    const text = formatAcousticHeardPitch({ nearestSemitone: 64, expectedPitches: [],
+      frequencyHz: equalTemperedFrequency(64) * 2 ** (cents / 1200) });
+    expect(text).toBe("E4 · centered");
+    expect(text).not.toContain("sharp");
+    expect(text).not.toContain("flat");
+  });
+  it.each([[0.051, "sharp"], [31, "sharp"], [-0.051, "flat"], [-31, "flat"]] as const)("preserves %s cents as %s", (cents, direction) => {
+    const text = formatAcousticHeardPitch({ nearestSemitone: 64, expectedPitches: [],
+      frequencyHz: equalTemperedFrequency(64) * 2 ** (cents / 1200) });
+    expect(text).toBe(`E4 · ${Math.abs(cents).toFixed(1)}¢ ${direction} of E4`);
+  });
+  it("keeps accepted acoustic pitch evidence and authored spelling in screen, copy and print", async () => {
+    const expected = { sourceEventId: "event", sourcePitchId: "pitch", staff: "treble" as const, midiNumber: 66, letter: "G" as const, accidental: "flat" as const, octave: 4 };
+    const attack: PiecePracticeAcousticEvidence = { source: "microphone", sequence: 0, measureIndex: 0, sourceMeasureId: "m1", targetId: "target", checkId: "check", occurredAtActiveMs: 200,
+      expectedPitches: [expected], expectedSemitone: 66, nearestSemitone: 66, frequencyHz: 440 * 2 ** (-3 / 12) * 2 ** (31 / 1200), centsFromExpected: 31,
+      pitchToleranceCents: 40, accepted: true, rejection: null, articulation: "after-quiet", confirmationDelayMs: 80 };
+    const state = { ...completed(), inputConfiguration: { mode: "microphone" as const, instrument: "ocarina" as const, pitchToleranceCents: 40 }, acousticEvidence: [attack] };
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(view(state));
+    expect(screen.getByRole("heading", { name: "Microphone pitch attacks" })).toBeTruthy();
+    expect(screen.getByText(/Expected G♭4; heard G♭4/)).toBeTruthy();
+    expect(screen.queryByLabelText("Include MIDI attack strength")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Copy Report" })); await screen.findByText("Report copied.");
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Accepted within ±40¢"));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Microphone pitch attacks"));
+    expect(writeText.mock.calls[0][0]).not.toContain("physical MIDI attacks");
+    fireEvent.click(screen.getByRole("button", { name: "Generate Report" })); fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
+    const printed = within(screen.getByLabelText("Study practice report"));
+    expect(printed.getByRole("heading", { name: "Microphone pitch attacks" })).toBeTruthy();
+    expect(printed.getByText(/observation confirmation delay 80 ms/)).toBeTruthy();
+  });
   it("shares two deliberate restarts across Copy Report and default problem-scope PDF without counting mistakes", async () => {
     const restarted = restartCurrentPiecePracticeMeasure(piece, restartCurrentPiecePracticeMeasure(piece, initial(), 100), 200);
     const finished = submitPiecePracticeAttempt(piece, restarted, { targetId: "target", attempt: { attackMidiNumbers: [60] }, atMs: 300 }).state;

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
+import type { AcousticAttack } from "./piece-practice-acoustic-types";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "./piece-practice-projection";
 import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, PiecePracticeTarget } from "./piece-practice-types";
@@ -20,8 +22,74 @@ import {
   skipCurrentPiecePracticeTarget,
   submitPiecePracticeAttempt,
   submitPiecePracticePitch,
+  submitPiecePracticeAcousticAttack,
   type PiecePracticeSessionState,
 } from "./piece-practice-session";
+
+describe("acoustic session submission", () => {
+  const configuration = { mode: "microphone" as const, instrument: "violin" as const, pitchToleranceCents: 25 };
+  function setup() {
+    const source = piece([3]);
+    const repeated = { ...source, measures: [{ ...source.measures[0], targets: [0, 1, 2].map((i) => target(0, i, [64])) }] };
+    const created = createPiecePracticeSession(repeated, { startMeasureIndex: 0, startedAtMs: 0, inputConfiguration: configuration });
+    if (!created.ok) throw Error();
+    return { piece: repeated, state: resumePiecePracticeClock(created.state, 100) };
+  }
+  const attack = (sequence = 0, cents = 0, confirmedAtMs = 200): AcousticAttack => ({ source: "microphone", captureGeneration: 1, sequence,
+    onsetObservedAtMs: confirmedAtMs - 80, confirmedAtMs, frequencyHz: equalTemperedFrequency(64) * 2 ** (cents / 1200),
+    nearestSemitone: Math.round(64 + cents / 100), articulation: "after-quiet" });
+  const submit = (source: PiecePracticePiece, state: PiecePracticeSessionState, value: AcousticAttack, inputEpoch = state.acousticInputEpoch ?? 0) =>
+    submitPiecePracticeAcousticAttack(source, state, { targetId: getCurrentPiecePracticeTarget(source, state)!.id, inputEpoch, attack: value });
+
+  it("advances only once when the same attack is replayed across repeated E4 targets", () => {
+    const s = setup(); let state = s.state;
+    for (let i = 0; i < 3; i++) state = submit(s.piece, state, attack()).state;
+    expect(state.completedTargetCount).toBe(1); expect(state.acousticEvidence).toHaveLength(1);
+    expect(state.attackEvidence).toBeUndefined(); expect(state.releaseEvidence).toBeUndefined();
+    expect(state.acousticEvidence![0]).not.toHaveProperty("attackVelocity");
+  });
+  it.each([31, 100, 1200])("records one mistake for rejected articulation %s cents", (cents) => {
+    const s = setup(); const once = submit(s.piece, s.state, attack(0, cents));
+    const twice = submit(s.piece, once.state, attack(0, cents));
+    expect(once.state.mistakeEvidence).toHaveLength(1); expect(twice.submitted).toBe(false);
+    expect(once.state.completedTargetCount).toBe(0); expect(once.state.acousticEvidence).toHaveLength(1);
+  });
+  it.each([-25, 25])("accepts %s cents while preserving deviation in evidence", (cents) => {
+    const s = setup(); const result = submit(s.piece, s.state, attack(0, cents));
+    expect(result.state.completedTargetCount).toBe(1); expect(result.evidence?.centsFromExpected).toBeCloseTo(cents, 8);
+  });
+  it("keeps preparation exclusion, then times to confirmed acceptance", () => {
+    const s = setup(); const wrong = submit(s.piece, s.state, attack(0, 35, 10_000));
+    const correct = submit(s.piece, wrong.state, attack(1, 0, 11_000));
+    const later = submit(s.piece, correct.state, attack(2, 0, 14_000));
+    expect(correct.state.targetTimings[0]).toMatchObject({ responseDurationMs: 1000, timingBasis: "first-attempt", isHesitation: false });
+    expect(later.state.targetTimings[1]).toMatchObject({ responseDurationMs: 3000, timingBasis: "target-activation", isHesitation: true });
+    expect(later.evidence?.confirmationDelayMs).toBe(80);
+  });
+  it("pauses unavailable input, rejects stale epochs and preserves configuration on restarts", () => {
+    const s = setup(); const paused = pausePiecePracticeClock(s.state, 200);
+    expect(submit(s.piece, paused, attack()).submitted).toBe(false);
+    const resumed = resumePiecePracticeClock(paused, 10_000);
+    expect(submit(s.piece, resumed, attack(0, 0, 10_200), 0).submitted).toBe(false);
+    const accepted = submit(s.piece, resumed, attack(0, 0, 10_200));
+    expect(accepted.evidence?.occurredAtActiveMs).toBe(300);
+    const restarted = restartCurrentPiecePracticeMeasure(s.piece, accepted.state, 10_300);
+    expect(restarted.acousticInputEpoch).toBeGreaterThan(accepted.state.acousticInputEpoch!);
+    expect(submit(s.piece, restarted, attack(1, 0, 10_400), accepted.state.acousticInputEpoch).submitted).toBe(false);
+    const whole = restartPiecePractice(s.piece, restarted, 11_000);
+    expect(whole).toMatchObject({ inputConfiguration: configuration, clockPaused: true });
+    expect(whole.acousticEvidence).toBeUndefined();
+  });
+  it("skip changes the input epoch without awarding completion credit", () => {
+    const s = setup(); const skipped = skipCurrentPiecePracticeTarget(s.piece, s.state, 200).state;
+    expect(skipped).toMatchObject({ skippedTargetCount: 1, completedTargetCount: 0, acousticInputEpoch: 1 });
+    expect(submit(s.piece, skipped, attack(0, 0, 300), 0).submitted).toBe(false);
+  });
+  it("refuses incompatible targets without turning successive notes into a chord", () => {
+    const s = setup(); const chord = { ...s.piece, measures: [{ ...s.piece.measures[0], targets: [target(0, 0, [64, 67])] }] };
+    expect(submit(chord, s.state, attack()).submitted).toBe(false);
+  });
+});
 
 function target(measureIndex: number, targetIndex: number, expectedMidiNumbers: readonly number[] = [60 + measureIndex + targetIndex]): PiecePracticeTarget {
   const sourceMeasureId = `m${measureIndex + 1}`;

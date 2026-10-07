@@ -9,12 +9,12 @@ import StaffBuilderSession from "./staff-builder-session";
 import { shouldSustainPedalLock } from "../staff-builder-capture";
 import { createPiecePracticeSession, submitPiecePracticeAttempt } from "@/features/piece-practice/piece-practice-session";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "@/features/piece-practice/piece-practice-projection";
-import { createPiecePracticeRun, type PiecePracticeRunRecordV1 } from "@/features/piece-practice/persistence/piece-practice-runs";
+import { createPiecePracticeRun, type PiecePracticeRunRecordV2 } from "@/features/piece-practice/persistence/piece-practice-runs";
 
 const { fileBoundary, midiBoundary, practiceBoundary, runBoundary } = vi.hoisted(() => ({
   fileBoundary: { download: vi.fn(), read: vi.fn() },
   midiBoundary: { onNote: null as ((midiNumber: number) => void) | null, onSustain: null as ((isDown: boolean) => void) | null, registrations: 0 },
-  practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, sourceScore: null as null | import("../staff-builder-types").StaffBuilderScore, recoveredRun: null as null | import("@/features/piece-practice/persistence/piece-practice-runs").PiecePracticeRunRecordV1, projectionScores: [] as import("../staff-builder-types").StaffBuilderScore[], forceFailure: false },
+  practiceBoundary: { piece: null as null | import("@/features/piece-practice/piece-practice-types").PiecePracticePiece, sourceScore: null as null | import("../staff-builder-types").StaffBuilderScore, recoveredRun: null as null | import("@/features/piece-practice/persistence/piece-practice-runs").PiecePracticeRunRecordV2, projectionScores: [] as import("../staff-builder-types").StaffBuilderScore[], forceFailure: false },
   runBoundary: { records: [] as unknown[], discarded: [] as string[] },
 }));
 vi.mock("@/features/piece-practice/persistence/piece-practice-runs", async (importOriginal) => {
@@ -37,7 +37,7 @@ vi.mock("../hooks/use-staff-builder-input", () => ({
     return { connectMidi: vi.fn(), deviceName: "Test MIDI", error: null, status: "connected" as const };
   },
 }));
-vi.mock("@/features/piece-practice/components/piece-practice-session", () => ({ PiecePracticeSession: ({ piece, sourceScore, recoveredRun, onExit }: { piece: import("@/features/piece-practice/piece-practice-types").PiecePracticePiece; sourceScore?: import("../staff-builder-types").StaffBuilderScore; recoveredRun?: import("@/features/piece-practice/persistence/piece-practice-runs").PiecePracticeRunRecordV1; onExit: () => void }) => {
+vi.mock("@/features/piece-practice/components/piece-practice-session", () => ({ PiecePracticeSession: ({ piece, sourceScore, recoveredRun, onExit }: { piece: import("@/features/piece-practice/piece-practice-types").PiecePracticePiece; sourceScore?: import("../staff-builder-types").StaffBuilderScore; recoveredRun?: import("@/features/piece-practice/persistence/piece-practice-runs").PiecePracticeRunRecordV2; onExit: () => void }) => {
   practiceBoundary.piece = piece;
   practiceBoundary.sourceScore = sourceScore ?? null;
   practiceBoundary.recoveredRun = recoveredRun ?? null;
@@ -128,7 +128,7 @@ function seedLibrary(storage: MemoryStorage, pieces: readonly StaffBuilderScore[
   storage.values.set(STAFF_BUILDER_STORAGE_KEYS.introductionDismissed, "true");
 }
 
-function savedPracticeRun(score: StaffBuilderScore, completed = false): PiecePracticeRunRecordV1 {
+function savedPracticeRun(score: StaffBuilderScore, completed = false): PiecePracticeRunRecordV2 {
   const projected = projectStaffBuilderPieceForPractice(score);
   if (!projected.ok) throw new Error("Expected a practiceable score.");
   const focused = focusPiecePracticeProjection(projected.piece, "upper");
@@ -196,7 +196,7 @@ describe("Staff Builder recovery entry", () => {
     const storage = new MemoryStorage();
     seedLibrary(storage, []);
     const active = savedPracticeRun(savedValidScore("Unsupported"));
-    runBoundary.records = [{ ...active, schemaVersion: 2 }, { ...active, runId: "corrupt-run", sourceScore: null, updatedAt: "2026-08-13T12:00:00.000Z" }];
+    runBoundary.records = [{ ...active, schemaVersion: 3 }, { ...active, runId: "corrupt-run", sourceScore: null, updatedAt: "2026-08-13T12:00:00.000Z" }];
     render(<StaffBuilderSession storage={storage} />);
     const recovery = await screen.findByText("Unrecoverable saved runs (2)");
     expect(recovery.closest("details")?.textContent).toMatch(/unsupported version/);
@@ -210,7 +210,7 @@ describe("Staff Builder recovery entry", () => {
     seedLibrary(storage, []);
     const active = savedPracticeRun(savedValidScore("Valid Active"));
     const completed = savedPracticeRun(savedValidScore("Valid Report"), true);
-    const invalidActive = { ...active, runId: "invalid-active", schemaVersion: 2, updatedAt: "2026-12-31T00:00:00.000Z" };
+    const invalidActive = { ...active, runId: "invalid-active", schemaVersion: 3, updatedAt: "2026-12-31T00:00:00.000Z" };
     const invalidCompleted = { ...completed, runId: "invalid-completed", sourceScore: null, completedAt: "2026-12-31T00:00:00.000Z" };
     runBoundary.records = [invalidActive, invalidCompleted, active, completed];
     vi.stubGlobal("confirm", vi.fn(() => true));

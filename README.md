@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor
 
-**Prelude is a browser-based, notation-first musicianship trainer with MIDI/virtual-keyboard practice and a standalone microphone tuner.**
+**Prelude is a browser-based, notation-first musicianship trainer with MIDI/virtual-keyboard practice, provisional acoustic Piece Practice, and a standalone microphone tuner.**
 
 It displays notes using standard music notation, listens to a connected MIDI keyboard, and provides immediate feedback as the player practices.
 
@@ -84,6 +84,8 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Grade same-onset polyphony through one normal pitch-set check plus independent authored rolled-chord checks
 - Evaluate upward rolls expressively with a tempo-relative window while retaining ordinary block-chord collection
 - Support physical MIDI and persistent virtual-keyboard selection without merging their attempts
+- Choose provisional Microphone input for violin or ocarina on eligible monophonic ranges, after Staff Focus
+- Set pitch tolerance to ±15/25/40 cents or a custom integer 1–49; start listening explicitly and re-articulate repeated notes
 - Respect authored rests, pitch-specific ties, independent grand-staff rhythm, and automatic same-staff polyphony
 - Practice an inclusive start/end excerpt—or continue through the end—while retaining authored measure numbering
 - Review attempt-local mistake counts by measure, then replay the same selected range with Practice Again
@@ -92,10 +94,12 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 - Resume browser-local runs from committed IndexedDB checkpoints and reopen completed reports
 - Use provisional Targeted Practice for evidence-led single-measure repair and in-tab original/latest count comparison
 
-Blocking Piece Practice Phase 1 grades pitch attacks and progression only. It does not grade BPM, note-hold duration, rhythmic timing, or continuous performance; those remain separate possible future Accuracy-mode work.
+Blocking Piece Practice grades pitch attacks and progression only. It does not grade BPM, note-hold duration, rhythmic timing, or continuous performance; those remain separate possible future Accuracy-mode work.
 
 Completed Piece Practice results offer Copy Report alongside print/PDF. Include MIDI attack strength defaults off and controls report presentation only. Physical Note On velocities (1-127), attack sequence, and individual active-time offsets are retained separately for each attack, including repeated pitches and rolled chords, as target-associated evidence in browser-local practice runs. Enabling the option includes exact velocities and a count/range; virtual input has no fabricated physical attack evidence. This does not grade dynamics, roll direction or spacing, infer hands/balance, or change pitch/timing grading, and no raw MIDI recording is stored. Failed clipboard access exposes a selected read-only report for manual copying.
 
+
+Microphone mode uses the same detector for violin and ocarina; those choices describe the run, not instrument-specific intelligence. A sustained pitch satisfies only one repeated target. A rejected intonation attempt needs fresh articulation; weak bow restarts may need a brief quiet gap. Accepted within tolerance does not mean the Tuner's ±5-cent "in tune." Chords, rolls, overlapping distinct assessed pitches and pitches outside 120–2300 Hz are refused before permission. Microphone runs suppress feedback tones and the interactive piano, store scalar acoustic evidence separately from MIDI, and recover paused with the microphone off. New run records use V2; existing V1 records remain readable as keyboard runs. No audio is recorded or uploaded. Physical reliability remains provisional; see the [owner acoustic QA procedure](docs/TESTING.md#acoustic-piece-practice-290).
 
 ### Real-Time Input and Feedback
 
@@ -427,7 +431,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Current package/application version is **2.8.8**, derived by the UI from `package.json`. No new release or tag is implied.
+Current package/application version is **2.9.0**, derived by the UI from `package.json`. No new release or tag is implied.
 
 The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
 

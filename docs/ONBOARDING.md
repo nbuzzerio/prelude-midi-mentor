@@ -1,7 +1,7 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Current package/application version:** 2.8.8
-> **Last updated:** October 5, 2026
+> **Current package/application version:** 2.9.0
+> **Last updated:** October 6, 2026
 > **Product direction:** owner-approved [rolling roadmap](./ROADMAP.md); Improv is the next major new musical feature
 >
 > Implementation, automated validation, physical QA and owner-controlled release/tag/deployment are separate facts. Broad device/instrument QA remains pending; this document does not assert a release.
@@ -193,6 +193,12 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 - Provisional Targeted Practice repairs original measures through ordinary Piece Practice runs; navigation/comparison links remain in-tab only
 - No BPM, hold-duration, metronome or continuous timing grading
 
+### Acoustic Piece Practice — 2.9.0 provisional
+
+Choose Input → Microphone, Violin/Ocarina, and Pitch tolerance (±15, ±25 default, ±40 or custom integer 1–49 cents). Focus/range eligibility must succeed before Start Practice; Start Listening separately requests permission. Both instruments use the same detector. Give a brief quiet baseline after starting or resetting. A sustained note cannot satisfy repeated targets; after rejected intonation, re-articulate. A weak bow restart may require a gap. Acceptance does not assert "in tune."
+
+The shared monophonic code lives in `src/lib/audio/monophonic`; onset, eligibility, grading, controls and the exclusive input owner belong to Piece Practice. Background/interruption stops capture and pauses timing; explicit Start is required on return or recovery. Reports preserve scalar acoustic evidence separately from physical MIDI. V2 records retain source/instrument/tolerance; V1 remains readable as keyboard. Score schema, database structure, MIDI/VKB rules and other practice domains are unchanged. Read the [physical QA procedure](./TESTING.md#acoustic-piece-practice-290) before making reliability claims. Calibration and instrument-specific profiles remain deferred.
+
 ## Melody
 
 - Seeded monophonic one/two-measure 4/4 exercises with Web Audio count-in and continuous MIDI/VKB capture
@@ -222,7 +228,7 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 
 - Implemented standalone foreground microphone Start/Stop, monophonic detection, note/octave/Hz/cents and stabilization/uncertainty
 - Interruption handling, bounded cleanup and exclusion during active Practice Session runs
-- Feature-local production architecture; no recording/upload, acoustic grading or global microphone bus
+- Shared monophonic implementation with Acoustic Piece Practice; independently owned capture and tuner presentation, no recording/upload or global microphone bus
 - Desktop synthetic browser evidence and one owner-observed successful real violin test; broader Chromebook/Android and violin/ocarina/sung-voice QA remains pending
 - Strong harmonics can still cause confident octave mistakes
 
@@ -241,7 +247,7 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 
 # Current Development Focus
 
-Current version is **2.8.8**. [ROADMAP.md](./ROADMAP.md) is authoritative: Improv is the next major new musical feature, with small QOL/PWA work, bounded violin-aware tuner guidance, Flow and Studies continuing at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities; hardware availability does not automatically block unrelated development.
+Current version is **2.9.0**. [ROADMAP.md](./ROADMAP.md) is authoritative: Improv is the next major new musical feature, with small QOL/PWA work, bounded violin-aware tuner guidance, Flow and Studies continuing at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities; hardware availability does not automatically block unrelated development.
 
 Staff Builder owns its canonical v4 score, authoring/correction, validation, library/drafts, notation and playback projection. Historical storage-key names are not schema declarations. Piece Practice owns blocking runs and durable evidence separately from scores; Targeted Practice is repair inside that engine. Practice Sessions own reusable prescriptions, import and native-engine orchestration; their runtime/report evidence remains transient. Sequences own scale execution and any future hand configuration. No universal engine replaces these domains.
 

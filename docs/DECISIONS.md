@@ -2,6 +2,18 @@
 
 > This document records important product and architectural decisions made during the development of Prelude.
 
+## 2026-10-06 — Acoustic Piece Practice 2.9.0
+
+The owner approved a minor version bump from 2.8.8 to 2.9.0 and provisional monophonic violin/ocarina Piece Practice. This is a bounded exception to earlier evidence-gated integration plans; it does not authorize changes to other activity engines or establish physical reliability.
+
+- Extract the production monophonic implementation with unchanged Tuner defaults. Each feature owns its capture controller; no shared active stream, universal microphone bus, raw recording or upload.
+- Detect physical acoustic attacks without the expected answer. Fresh raw-frequency candidates avoid retained tuner identity bias. Quiet rearming uses at least two observations spanning 50 ms; same-pitch discontinuity requires a 6 dB dip, periodicity loss, recovery within 250 ms and stable reacquisition. Thresholds remain provisional. Continuous pitch, ordinary uncertainty and elapsed time cannot rearm.
+- Grade expected-center A440 cents, without octave coercion: Tight ±15, Normal ±25 default, Forgiving ±40, custom integer 1–49. Accepted and in tune are distinct; Tuner keeps ±5-cent display semantics. A rejected intonation attack is consumed until new articulation.
+- Refuse chords, rolls, distinct assessed overlaps and out-of-range expectations after range/Staff Focus, before permission. Allow duplicate unisons and ordinary ties, including explicit restart-boundary reattacks. No duration, dynamics, rhythm or hardware-latency grading.
+- Mount either the mature MIDI/VKB owner or the acoustic owner. Preserve keyboard collection/overlap/tie behavior. Suppress microphone feedback chirps and the interactive piano. Require explicit Start and restart after background/interruption/recovery; pause timing while unavailable. Use the existing hosted Practice Session exclusion.
+- Write V2 run records with source/instrument/tolerance and separate scalar acoustic evidence. Normalize V1 to keyboard on read, without rewriting it merely by viewing. Keep Staff Builder score schema and IndexedDB structure unchanged. One rejected acoustic evidence record links to one counted mistake. Source configuration participates in Targeted Practice comparison.
+- Add the October 6 curated What's New record. Physical desktop/Chromebook/Android and actual instrument QA remain pending; calibration, instrument intelligence and polyphony are deferred. No release or tag is implied.
+
 ## Chromatic Tuner Phase 2 — provisional standalone microphone input
 
 - Owner approved the production standalone MVP while physical microphone QA remains pending, and explicitly retained version 2.8.6. Improv remains the next major musical feature priority. That implementation did not alter the roadmap; the later October 2026 consolidation captures continuing instrument support.

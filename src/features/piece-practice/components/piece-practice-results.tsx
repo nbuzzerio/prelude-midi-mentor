@@ -9,7 +9,7 @@ import {
   selectPiecePracticeMeasureDiagnosticChips,
   type PiecePracticeMistakeEvidence,
 } from "../piece-practice-evidence";
-import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, getPiecePracticeReportPitchContext, mistakeText, type PiecePracticeReportPresentation } from "../piece-practice-report";
+import { formatPiecePracticeReport, formatPiecePracticeAttackEvidence, formatPiecePracticeAcousticEvidence, formatPiecePracticeInputConfiguration, getPiecePracticeReportPitchContext, mistakeText, type PiecePracticeReportPresentation } from "../piece-practice-report";
 import type { PiecePracticePiece } from "../piece-practice-types";
 import { piecePracticeAssessmentLabel } from "../piece-practice-assessment";
 import { getPiecePracticeMeasureResults, type PiecePracticeSessionState } from "../piece-practice-session";
@@ -52,7 +52,7 @@ function diagnosticHighlights(state: PiecePracticeSessionState, measureIndex: nu
     counts.set(key, { ...highlight, count: (counts.get(key)?.count ?? 0) + 1 });
   };
   state.mistakeEvidence.filter((item) => item.measureIndex === measureIndex).forEach((item) => {
-    const missing = item.kind === "rolled-unexpected-pitch" ? [] : item.missingMidiNumbers;
+    const missing = item.kind === "rolled-unexpected-pitch" || item.kind === "acoustic-attempt" ? [] : item.missingMidiNumbers;
     const mapped = item.expectedPitches.filter(({ midiNumber }) => missing.includes(midiNumber));
     mapped.forEach(({ sourceEventId, sourcePitchId }) => add({ kind: "mistake", eventId: sourceEventId, pitchId: sourcePitchId }));
     const hasUnmappedFailure = mapped.length === 0 || item.kind === "rolled-unexpected-pitch"
@@ -63,6 +63,16 @@ function diagnosticHighlights(state: PiecePracticeSessionState, measureIndex: nu
     if (item.sourceEventIds[0]) add({ kind: "hesitation", eventId: item.sourceEventIds[0] });
   });
   return [...counts.values()];
+}
+
+function AcousticEvidence({ state }: Readonly<{ state: PiecePracticeSessionState }>) {
+  if (state.inputConfiguration?.mode !== "microphone") return null;
+  return <section className="grid gap-2"><h2 className="font-semibold">Microphone pitch attacks</h2>
+    <p>{formatPiecePracticeInputConfiguration(state.inputConfiguration)}</p>
+    <p>Response timing includes observation confirmation; no hardware-latency compensation. Acceptance within tolerance does not mean in tune.</p>
+    <ol>{(state.acousticEvidence ?? []).map((attack) => <li key={attack.sequence}>{formatPiecePracticeAcousticEvidence(attack)}</li>)}</ol>
+    {!state.acousticEvidence?.length && <p>No confirmed microphone attacks.</p>}
+  </section>;
 }
 
 function MistakeList({ evidence, presentation }: Readonly<{ evidence: readonly PiecePracticeMistakeEvidence[]; presentation: PiecePracticeReportPresentation }>) {
@@ -135,6 +145,7 @@ function PracticeReport({ displayScore, options, rangeText, state, title, includ
       {options.hesitationHighlights ? <ul>{state.targetTimings.filter((item) => item.measureIndex === result.measureIndex && item.isHesitation).map((timing) => <li key={timing.sequence}>Slow response: {timing.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { ...getPiecePracticeReportPitchContext(timing, presentation), expectedPitches: [pitch] })).join(", ") || "target"} — {timing.responseDurationMs === null ? "not timed" : seconds(timing.responseDurationMs)}; threshold {seconds(timing.hesitationThresholdMs)}; expected window {seconds(timing.expectedWindowMs)}</li>)}</ul> : null}
       {state.targetTimings.filter((item) => item.measureIndex === result.measureIndex && item.timingBasis === "unarmed-skip").map((timing) => <p key={timing.sequence}>Skipped before first attempt; response not timed.</p>)}
     </section>)}
+    <AcousticEvidence state={state} />
     {includeAttackStrength ? <section><h2>MIDI attack velocity</h2><p>Physical MIDI Note On evidence only; no dynamics assessment.</p><ol>{(state.attackEvidence ?? []).map((attack) => <li key={attack.sequence}>{formatPiecePracticeAttackEvidence(attack, presentation)}</li>)}</ol>{!state.attackEvidence?.length ? <p>No MIDI attack velocity evidence available.</p> : null}</section> : null}
   </section>;
 }
@@ -173,10 +184,11 @@ export function PiecePracticeResults({ displayScore, piece, rangeText, state, ti
     {visible.length ? <ul aria-label="Measure-by-measure results" className="piece-practice-measure-results">{visible.map((result) => <li key={result.sourceMeasureId}>{result.isProblem
       ? <details className="piece-practice-measure-result" data-has-problems data-result-presentation={resultPresentation(result)}><summary><strong>Measure {result.measureNumber}</strong><span>{result.mistakeCount ? `${result.mistakeCount} ${result.mistakeCount === 1 ? "mistake" : "mistakes"}` : "No mistakes"} · {seconds(result.activeDurationMs)}{result.hesitationCount ? ` · ${result.hesitationCount} slow` : ""}{result.skippedTargetCount ? ` · ${result.skippedTargetCount} skipped` : ""}{result.restartCount ? ` · ${result.restartCount} restarts` : ""}</span><PracticeDiagnosticChips chips={selectPiecePracticeMeasureDiagnosticChips(result)} label={`Measure ${result.measureNumber} diagnostic shorthand`} /></summary><ResultMeasure displayScore={displayScore} measureIndex={result.measureIndex} presentation={presentation} state={state} /></details>
       : <div className="piece-practice-measure-result" data-result-presentation="clean"><strong>Measure {result.measureNumber}</strong><span>No mistakes · {seconds(result.activeDurationMs)}</span></div>}</li>)}</ul> : <p>No problem measures in this attempt.</p>}
+    <AcousticEvidence state={state} />
     <button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" onClick={() => setReportDialog(true)} ref={reportButton} type="button">Generate Report</button>
-    <label className="flex min-h-11 items-center gap-2"><input checked={showMidiDetails} onChange={(event) => setShowMidiDetails(event.target.checked)} type="checkbox" />Show MIDI details</label>
+    {state.inputConfiguration?.mode !== "microphone" && <><label className="flex min-h-11 items-center gap-2"><input checked={showMidiDetails} onChange={(event) => setShowMidiDetails(event.target.checked)} type="checkbox" />Show MIDI details</label>
     <label className="flex min-h-11 items-center gap-2"><input checked={includeAttackStrength} onChange={(event) => setIncludeAttackStrength(event.target.checked)} type="checkbox" />Include MIDI attack strength</label>
-    <p className="text-sm text-zinc-300">Adds exact physical MIDI attack velocities to copied and printed reports. This does not assess dynamics.</p>
+    <p className="text-sm text-zinc-300">Adds exact physical MIDI attack velocities to copied and printed reports. This does not assess dynamics.</p></>}
     <button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" disabled={copyStatus === "copying"} onClick={() => void copyReport()} type="button">Copy Report</button>
     <p aria-live="polite" role="status">{copyStatus === "copied" ? "Report copied." : ""}</p>
     {copyStatus === "failed" ? <div><p role="alert">Clipboard access was unavailable. Copy the selected report below manually.</p><label htmlFor="piece-practice-report-copy">Piece Practice report</label><textarea className="min-h-48 w-full" id="piece-practice-report-copy" readOnly ref={fallbackRef} value={fallbackText} /></div> : null}

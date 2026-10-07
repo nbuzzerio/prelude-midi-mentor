@@ -20,6 +20,16 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Prelude lets you know when an update is ready, so you can choose when to reload.",
     "What's New summarizes product updates you haven't acknowledged yet.",
   ],
+}, {
+  id: "2026-10-06-acoustic-piece-practice",
+  sequence: 2,
+  title: "Practice with violin and ocarina",
+  date: "2026-10-06",
+  version: "2.9.0",
+  changes: [
+    "Provisional microphone input brings supported monophonic violin and ocarina practice to Piece Practice.",
+    "Adjustable pitch tolerance lets you practice with instruments that run a little sharp or flat.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

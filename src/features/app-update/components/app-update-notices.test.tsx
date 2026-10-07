@@ -46,7 +46,8 @@ describe("app update notices", () => {
     expect(screen.queryByRole("dialog")).toBeNull(); expect(storage.setItem).toHaveBeenCalledOnce();
   });
   it("does not open notes for an acknowledged update", () => {
-    render(<AppUpdateNotices storage={{ getItem: () => JSON.stringify({ id: APP_UPDATES[0]!.id, sequence: 1 }), setItem: vi.fn() }} />);
+    const newest = APP_UPDATES.at(-1)!;
+    render(<AppUpdateNotices storage={{ getItem: () => JSON.stringify({ id: newest.id, sequence: newest.sequence }), setItem: vi.fn() }} />);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
   it("shows activation failure without hiding the user-controlled retry", () => {

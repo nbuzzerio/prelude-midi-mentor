@@ -25,6 +25,15 @@ const hesitation = (measureIndex: number, sequence = 0) => ({
 });
 
 describe("PROVISIONAL Piece Practice Targeted Practice recommendations", () => {
+  it("compares only the same acoustic mode, instrument and pitch tolerance", () => {
+    const inputConfiguration = { mode: "microphone" as const, instrument: "violin" as const, pitchToleranceCents: 25 };
+    const original = completed({ inputConfiguration });
+    const focused = completed({ startMeasureIndex: 0, endMeasureIndex: 0, inputConfiguration });
+    expect(comparePiecePracticeTargetedPractice(original, focused, 0)).not.toBeNull();
+    for (const next of [{ mode: "keyboard" as const }, { ...inputConfiguration, pitchToleranceCents: 40 }, { ...inputConfiguration, instrument: "ocarina" as const }]) {
+      expect(comparePiecePracticeTargetedPractice(original, { ...focused, inputConfiguration: next }, 0)).toBeNull();
+    }
+  });
   it("ranks mistakes, skips and restarts ahead of hesitation-only evidence, with concrete counts", () => {
     const state = completed({ mistakeEvidence: [mistake(3)], skipEvidence: [location(2)], restartEvidence: [location(1)],
       targetTimings: Array.from({ length: 20 }, (_, i) => hesitation(0, i)) });

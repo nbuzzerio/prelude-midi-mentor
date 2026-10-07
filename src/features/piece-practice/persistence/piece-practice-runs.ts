@@ -2,6 +2,10 @@ import { parseStaffBuilderScore } from "@/features/staff-builder/persistence/sta
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { focusPiecePracticeProjection, projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { getCurrentPiecePracticeTarget, getPiecePracticeElapsedMs, resolvePiecePracticeEmptyRolledChecks, type PiecePracticeSessionState } from "../piece-practice-session";
+import { DEFAULT_PIECE_PRACTICE_INPUT, samePiecePracticeInputConfiguration, type PiecePracticeInputConfiguration } from "../piece-practice-acoustic-types";
+import { gradeAcousticPitch, validPiecePracticeInputConfiguration } from "../piece-practice-acoustic-validation";
+import { getAcousticEligibility } from "../piece-practice-acoustic-eligibility";
+import { getPiecePracticeBoundaryReattackPitches } from "../piece-practice-input";
 import type { PiecePracticePiece } from "../piece-practice-types";
 
 export const PIECE_PRACTICE_DB_NAME = "prelude-piece-practice";
@@ -10,9 +14,9 @@ export const PIECE_PRACTICE_STORE_NAME = "piece-practice-runs";
 const TERMINAL_LIMIT = 8;
 
 export type PiecePracticeRunStatus = "active" | "completed" | "ended-incomplete";
-export type PiecePracticeCheckpointV1 = Omit<PiecePracticeSessionState, "activeSinceMs" | "startedAtMs" | "restartEvidence"> & Readonly<{ restartEvidence?: PiecePracticeSessionState["restartEvidence"] }>;
-export type PiecePracticeRunRecordV1 = Readonly<{
-  schemaVersion: 1;
+export type PiecePracticeCheckpoint = Omit<PiecePracticeSessionState, "activeSinceMs" | "startedAtMs" | "restartEvidence" | "acousticInputEpoch" | "acousticLastAttack"> & Readonly<{ restartEvidence?: PiecePracticeSessionState["restartEvidence"] }>;
+export type PiecePracticeRunRecordV2 = Readonly<{
+  schemaVersion: 2;
   runId: string;
   revision: number;
   status: PiecePracticeRunStatus;
@@ -22,12 +26,18 @@ export type PiecePracticeRunRecordV1 = Readonly<{
   sourceScoreId: string;
   sourceScoreUpdatedAt: string;
   sourceScore: StaffBuilderScore;
-  configuration: Readonly<{ startMeasureIndex: number; endMeasureIndex: number | null; assessmentFocus: "both" | "upper" | "lower" }>;
-  checkpoint: PiecePracticeCheckpointV1;
+  configuration: Readonly<{ startMeasureIndex: number; endMeasureIndex: number | null; assessmentFocus: "both" | "upper" | "lower"; inputConfiguration: PiecePracticeInputConfiguration }>;
+  checkpoint: PiecePracticeCheckpoint;
+}>;
+
+/** Historical wire shape. V1 reads normalize to V2 without fabricating input provenance. */
+export type PiecePracticeRunRecordV1 = Omit<PiecePracticeRunRecordV2, "schemaVersion" | "configuration"> & Readonly<{
+  schemaVersion: 1;
+  configuration: Omit<PiecePracticeRunRecordV2["configuration"], "inputConfiguration">;
 }>;
 
 export type ParsedPiecePracticeRun =
-  | Readonly<{ ok: true; record: PiecePracticeRunRecordV1; piece: PiecePracticePiece }>
+  | Readonly<{ ok: true; record: PiecePracticeRunRecordV2; piece: PiecePracticePiece }>
   | Readonly<{ ok: false; reason: "corrupt" | "unsupported" }>;
 
 export type UnrecoverablePiecePracticeRun = Readonly<{ value: unknown; reason: "corrupt" | "unsupported"; runId: string | null; status: string | null; updatedAt: string | null }>;
@@ -83,6 +93,11 @@ function validEvidenceLocation(value: unknown, piece: PiecePracticePiece): value
 
 function validMistake(value: unknown, piece: PiecePracticePiece): boolean {
   if (!validEvidenceLocation(value, piece) || typeof value.checkId !== "string" || !pitchSnapshots(value.expectedPitches, piece)) return false;
+  if (value.kind === "acoustic-attempt") return integer(value.acousticSequence)
+    && typeof value.frequencyHz === "number" && Number.isFinite(value.frequencyHz) && value.frequencyHz > 0
+    && integer(value.nearestSemitone) && value.nearestSemitone <= 127
+    && typeof value.centsFromExpected === "number" && Number.isFinite(value.centsFromExpected)
+    && ["wrong-pitch", "outside-tolerance"].includes(String(value.rejection));
   if (value.kind === "normal-attempt") return midiNumbers(value.receivedMidiNumbers) && midiNumbers(value.missingMidiNumbers)
     && midiNumbers(value.extraMidiNumbers) && midiNumbers(value.unexpectedHeldMidiNumbers)
     && (value.predecessorPitches === undefined || pitchSnapshots(value.predecessorPitches, piece));
@@ -103,8 +118,48 @@ function validTargetTiming(value: unknown, piece: PiecePracticePiece): boolean {
     && ["completed", "skipped"].includes(String(value.outcome));
 }
 
-function validCheckpoint(value: unknown, piece: PiecePracticePiece, config: PiecePracticeRunRecordV1["configuration"], status: PiecePracticeRunStatus): value is PiecePracticeCheckpointV1 {
-  if (!object(value) || value.assessmentFocus !== config.assessmentFocus || value.startMeasureIndex !== config.startMeasureIndex
+function validAcousticEvidence(state: PiecePracticeCheckpoint, piece: PiecePracticePiece, config: PiecePracticeInputConfiguration): boolean {
+  const attacks = state.acousticEvidence ?? [];
+  const mistakes = state.mistakeEvidence.filter((item) => item.kind === "acoustic-attempt");
+  if (config.mode === "keyboard") return attacks.length === 0 && mistakes.length === 0;
+  if (state.attackEvidence?.length || state.releaseEvidence?.length || state.mistakeEvidence.some((item) => item.kind !== "acoustic-attempt")) return false;
+  for (const [index, item] of attacks.entries()) {
+    if (!validEvidenceLocation(item, piece) || item.sequence !== index || item.source !== "microphone"
+      || typeof item.checkId !== "string" || !pitchSnapshots(item.expectedPitches, piece) || !item.expectedPitches.length
+      || !nonnegative(item.confirmationDelayMs) || item.occurredAtActiveMs > state.activeElapsedMs
+      || !["initial-acquisition", "after-quiet", "pitch-change", "reattack"].includes(item.articulation)
+      || item.pitchToleranceCents !== config.pitchToleranceCents) return false;
+    const measure = piece.measures[item.measureIndex];
+    const target = measure.targets.find((candidate) => candidate.id === item.targetId);
+    const boundary = item.targetId === `${measure.sourceMeasureId}:boundary-target`;
+    const expected = boundary ? [...getPiecePracticeBoundaryReattackPitches(piece, item.measureIndex),
+      ...(measure.targets[0]?.startTick === 0 ? measure.targets[0].attackedPitches : [])] : target?.attackedPitches;
+    if (!expected?.length || new Set(expected.map((pitch) => pitch.midiNumber)).size !== 1
+      || item.expectedSemitone !== expected[0].midiNumber
+      || item.expectedPitches.some((pitch) => !expected.some((p) => p.sourceEventId === pitch.sourceEventId && p.sourcePitchId === pitch.sourcePitchId))
+      || expected.some((pitch) => !item.expectedPitches.some((p) => p.sourceEventId === pitch.sourceEventId && p.sourcePitchId === pitch.sourcePitchId))
+      || (boundary ? item.checkId !== `${measure.sourceMeasureId}:boundary-attack` : !target?.checks.some((check) => check.id === item.checkId))) return false;
+    const grade = gradeAcousticPitch(item.frequencyHz, item.expectedSemitone, item.pitchToleranceCents);
+    if (!grade || grade.accepted !== item.accepted || grade.nearestSemitone !== item.nearestSemitone
+      || grade.rejection !== item.rejection || !Number.isFinite(item.centsFromExpected)
+      || Math.abs(grade.centsFromExpected - item.centsFromExpected) > 1e-8) return false;
+    const failures = mistakes.filter((mistake) => mistake.acousticSequence === index);
+    if (item.accepted ? failures.length !== 0 : failures.length !== 1) return false;
+    if (failures.some((mistake) => mistake.targetId !== item.targetId || mistake.checkId !== item.checkId
+      || mistake.measureIndex !== item.measureIndex || mistake.occurredAtActiveMs !== item.occurredAtActiveMs
+      || mistake.frequencyHz !== item.frequencyHz || mistake.nearestSemitone !== item.nearestSemitone
+      || mistake.centsFromExpected !== item.centsFromExpected || mistake.pitchToleranceCents !== item.pitchToleranceCents
+      || mistake.rejection !== item.rejection || JSON.stringify(mistake.expectedPitches) !== JSON.stringify(item.expectedPitches))) return false;
+  }
+  return mistakes.every((mistake) => Boolean(attacks[mistake.acousticSequence]));
+}
+
+function validCheckpoint(value: unknown, piece: PiecePracticePiece, config: PiecePracticeRunRecordV2["configuration"], status: PiecePracticeRunStatus): value is PiecePracticeCheckpoint {
+  if (!object(value) || !validPiecePracticeInputConfiguration(value.inputConfiguration)
+    || !samePiecePracticeInputConfiguration(value.inputConfiguration, config.inputConfiguration)
+    || value.acousticInputEpoch !== undefined || value.acousticLastAttack !== undefined
+    || (value.acousticEvidence !== undefined && !Array.isArray(value.acousticEvidence))
+    || value.assessmentFocus !== config.assessmentFocus || value.startMeasureIndex !== config.startMeasureIndex
     || value.endMeasureIndex !== config.endMeasureIndex || !integer(value.currentMeasureIndex)
     || value.currentMeasureIndex < config.startMeasureIndex || value.currentMeasureIndex > (config.endMeasureIndex ?? piece.measures.length - 1)
     || !["practicing", "awaiting-explicit-measure-advance", "piece-complete"].includes(String(value.status))
@@ -126,13 +181,14 @@ function validCheckpoint(value: unknown, piece: PiecePracticePiece, config: Piec
     || (value.attackEvidence !== undefined && !Array.isArray(value.attackEvidence))
     || (value.releaseEvidence !== undefined && !Array.isArray(value.releaseEvidence))) return false;
   if (value.currentTargetIndex !== null && (!Number.isInteger(value.currentTargetIndex) || (value.currentTargetIndex as number) < -1)) return false;
-  const state = value as PiecePracticeCheckpointV1;
+  const state = value as PiecePracticeCheckpoint;
   const target = getCurrentPiecePracticeTarget(piece, { ...state, restartEvidence: state.restartEvidence ?? [], activeSinceMs: 0, startedAtMs: 0 });
   if (state.status === "practicing" && !target) return false;
   if (state.currentCheckProgress.length !== (target?.checks.length ?? 0) || state.currentCheckProgress.some((progress) =>
     !object(progress) || !target?.checks.some((check) => check.id === progress.checkId) || typeof progress.completed !== "boolean"
     || !numbers(progress.accumulatedMidiNumbers) || (progress.startedAtMs !== null && !nonnegative(progress.startedAtMs)))) return false;
   if (state.mistakeEvidence.some((item, index) => !validMistake(item, piece) || item.sequence !== index)) return false;
+  if (!validAcousticEvidence(state, piece, config.inputConfiguration)) return false;
   if (state.skipEvidence.some((item, index) => !validEvidenceLocation(item, piece) || item.sequence !== index)) return false;
   if (state.restartEvidence?.some((item, index) => !object(item) || item.sequence !== index || !integer(item.measureIndex)
     || piece.measures[item.measureIndex]?.sourceMeasureId !== item.sourceMeasureId || !nonnegative(item.occurredAtActiveMs))) return false;
@@ -154,7 +210,15 @@ function validCheckpoint(value: unknown, piece: PiecePracticePiece, config: Piec
 /** Future run migrations dispatch here; unknown versions remain untouched. */
 export function parsePiecePracticeRun(value: unknown): ParsedPiecePracticeRun {
   if (!object(value)) return { ok: false, reason: "corrupt" };
-  if (value.schemaVersion !== 1) return { ok: false, reason: typeof value.schemaVersion === "number" && value.schemaVersion > 1 ? "unsupported" : "corrupt" };
+  if (value.schemaVersion === 1) {
+    if (!object(value.configuration) || !object(value.checkpoint)
+      || value.configuration.inputConfiguration !== undefined || value.checkpoint.inputConfiguration !== undefined
+      || value.checkpoint.acousticEvidence !== undefined) return { ok: false, reason: "corrupt" };
+    return parsePiecePracticeRun({ ...value, schemaVersion: 2,
+      configuration: { ...value.configuration, inputConfiguration: DEFAULT_PIECE_PRACTICE_INPUT },
+      checkpoint: { ...value.checkpoint, inputConfiguration: DEFAULT_PIECE_PRACTICE_INPUT } });
+  }
+  if (value.schemaVersion !== 2) return { ok: false, reason: typeof value.schemaVersion === "number" && value.schemaVersion > 2 ? "unsupported" : "corrupt" };
   const score = parseStaffBuilderScore(value.sourceScore);
   if (!score.ok || typeof value.runId !== "string" || !value.runId || !integer(value.revision) || value.revision < 1
     || !["active", "completed", "ended-incomplete"].includes(String(value.status))
@@ -164,23 +228,26 @@ export function parsePiecePracticeRun(value: unknown): ParsedPiecePracticeRun {
     || value.sourceScoreId !== score.value.id || value.sourceScoreUpdatedAt !== score.value.updatedAt
     || !object(value.configuration) || !integer(value.configuration.startMeasureIndex)
     || (value.configuration.endMeasureIndex !== null && !integer(value.configuration.endMeasureIndex))
-    || !focus(value.configuration.assessmentFocus)) return { ok: false, reason: "corrupt" };
+    || !focus(value.configuration.assessmentFocus) || !validPiecePracticeInputConfiguration(value.configuration.inputConfiguration)) return { ok: false, reason: "corrupt" };
   const projected = projectStaffBuilderPieceForPractice(score.value);
   if (!projected.ok) return { ok: false, reason: "corrupt" };
   const piece = focusPiecePracticeProjection(projected.piece, value.configuration.assessmentFocus);
   if (!piece.measures[value.configuration.startMeasureIndex]
     || (value.configuration.endMeasureIndex !== null && (!piece.measures[value.configuration.endMeasureIndex]
       || value.configuration.endMeasureIndex < value.configuration.startMeasureIndex))
-    || !validCheckpoint(value.checkpoint, piece, value.configuration as PiecePracticeRunRecordV1["configuration"], value.status as PiecePracticeRunStatus)) return { ok: false, reason: "corrupt" };
-  return { ok: true, record: value as PiecePracticeRunRecordV1, piece };
+    || (value.configuration.inputConfiguration.mode === "microphone"
+      && !getAcousticEligibility(piece, value.configuration.startMeasureIndex, value.configuration.endMeasureIndex as number | null).eligible)
+    || !validCheckpoint(value.checkpoint, piece, value.configuration as PiecePracticeRunRecordV2["configuration"], value.status as PiecePracticeRunStatus)) return { ok: false, reason: "corrupt" };
+  return { ok: true, record: value as PiecePracticeRunRecordV2, piece };
 }
 
 /** Browser clock origins are never written. An incomplete roll retries from its first pitch. */
-export function checkpointPiecePractice(state: PiecePracticeSessionState, atMs: number): PiecePracticeCheckpointV1 {
-  const { activeSinceMs: _activeSinceMs, startedAtMs: _startedAtMs, ...rest } = state;
-  void _activeSinceMs; void _startedAtMs;
+export function checkpointPiecePractice(state: PiecePracticeSessionState, atMs: number): PiecePracticeCheckpoint {
+  const { activeSinceMs: _activeSinceMs, startedAtMs: _startedAtMs, acousticInputEpoch: _epoch, acousticLastAttack: _lastAttack, ...rest } = state;
+  void _activeSinceMs; void _startedAtMs; void _epoch; void _lastAttack;
   return {
     ...rest,
+    inputConfiguration: state.inputConfiguration ?? DEFAULT_PIECE_PRACTICE_INPUT,
     activeElapsedMs: getPiecePracticeElapsedMs(state, atMs),
     currentCheckProgress: state.currentCheckProgress.map((progress) => ({
       ...progress,
@@ -190,7 +257,7 @@ export function checkpointPiecePractice(state: PiecePracticeSessionState, atMs: 
   };
 }
 
-export function hydratePiecePracticeRun(record: PiecePracticeRunRecordV1, atMs: number): PiecePracticeSessionState {
+export function hydratePiecePracticeRun(record: PiecePracticeRunRecordV2, atMs: number): PiecePracticeSessionState {
   const score = parseStaffBuilderScore(record.sourceScore);
   if (!score.ok) throw new Error("Cannot hydrate an invalid Piece Practice score snapshot.");
   const projected = projectStaffBuilderPieceForPractice(score.value);
@@ -200,18 +267,18 @@ export function hydratePiecePracticeRun(record: PiecePracticeRunRecordV1, atMs: 
   return resolvePiecePracticeEmptyRolledChecks(piece, state, atMs);
 }
 
-export function createPiecePracticeRun(score: StaffBuilderScore, state: PiecePracticeSessionState, atMs: number, wallClock = new Date()): PiecePracticeRunRecordV1 {
+export function createPiecePracticeRun(score: StaffBuilderScore, state: PiecePracticeSessionState, atMs: number, wallClock = new Date()): PiecePracticeRunRecordV2 {
   const timestamp = wallClock.toISOString();
   return {
-    schemaVersion: 1, runId: crypto.randomUUID(), revision: 1, status: state.status === "piece-complete" ? "completed" : "active",
+    schemaVersion: 2, runId: crypto.randomUUID(), revision: 1, status: state.status === "piece-complete" ? "completed" : "active",
     createdAt: timestamp, updatedAt: timestamp, completedAt: state.status === "piece-complete" ? timestamp : null,
     sourceScoreId: score.id, sourceScoreUpdatedAt: score.updatedAt, sourceScore: structuredClone(score),
-    configuration: { startMeasureIndex: state.startMeasureIndex, endMeasureIndex: state.endMeasureIndex, assessmentFocus: state.assessmentFocus },
+    configuration: { startMeasureIndex: state.startMeasureIndex, endMeasureIndex: state.endMeasureIndex, assessmentFocus: state.assessmentFocus, inputConfiguration: state.inputConfiguration ?? DEFAULT_PIECE_PRACTICE_INPUT },
     checkpoint: checkpointPiecePractice(state, atMs),
   };
 }
 
-export function revisePiecePracticeRun(record: PiecePracticeRunRecordV1, state: PiecePracticeSessionState, atMs: number, status: PiecePracticeRunStatus = state.status === "piece-complete" ? "completed" : "active", wallClock = new Date()): PiecePracticeRunRecordV1 {
+export function revisePiecePracticeRun(record: PiecePracticeRunRecordV2, state: PiecePracticeSessionState, atMs: number, status: PiecePracticeRunStatus = state.status === "piece-complete" ? "completed" : "active", wallClock = new Date()): PiecePracticeRunRecordV2 {
   const timestamp = wallClock.toISOString();
   return { ...record, revision: record.revision + 1, status, updatedAt: timestamp,
     completedAt: status === "completed" ? record.completedAt ?? timestamp : record.completedAt,
@@ -220,7 +287,7 @@ export function revisePiecePracticeRun(record: PiecePracticeRunRecordV1, state: 
 
 export interface PiecePracticeRunStore {
   list(): Promise<unknown[]>;
-  save(record: PiecePracticeRunRecordV1): Promise<void>;
+  save(record: PiecePracticeRunRecordV2): Promise<void>;
   discard(runId: string): Promise<void>;
 }
 
@@ -230,13 +297,13 @@ function request<T>(source: IDBRequest<T>): Promise<T> {
 
 export type PiecePracticeRunBackend = Readonly<{
   list(): Promise<unknown[]>;
-  put(record: PiecePracticeRunRecordV1): Promise<void>;
+  put(record: PiecePracticeRunRecordV2): Promise<void>;
   discard(runId: string): Promise<void>;
 }>;
 
 type SaveWaiter = Readonly<{ resolve: () => void; reject: (error: unknown) => void }>;
 type PendingRunOperation =
-  | { kind: "save"; record: PiecePracticeRunRecordV1; waiters: SaveWaiter[] }
+  | { kind: "save"; record: PiecePracticeRunRecordV2; waiters: SaveWaiter[] }
   | { kind: "list"; resolve: (records: unknown[]) => void; reject: (error: unknown) => void }
   | { kind: "discard"; runId: string; resolve: () => void; reject: (error: unknown) => void };
 
@@ -253,7 +320,7 @@ export class PiecePracticeRunWriteCoordinator implements PiecePracticeRunStore {
     });
   }
 
-  private async terminalRecords(): Promise<PiecePracticeRunRecordV1[]> {
+  private async terminalRecords(): Promise<PiecePracticeRunRecordV2[]> {
     return (await this.backend.list()).flatMap((value) => {
       const parsed = parsePiecePracticeRun(value);
       return parsed.ok && parsed.record.status !== "active" ? [parsed.record] : [];
@@ -265,7 +332,7 @@ export class PiecePracticeRunWriteCoordinator implements PiecePracticeRunStore {
     for (const record of records.slice(limit)) await this.backend.discard(record.runId);
   }
 
-  private async write(record: PiecePracticeRunRecordV1): Promise<void> {
+  private async write(record: PiecePracticeRunRecordV2): Promise<void> {
     try { await this.backend.put(record); }
     catch {
       try {
@@ -300,7 +367,7 @@ export class PiecePracticeRunWriteCoordinator implements PiecePracticeRunStore {
     this.draining = false;
   }
 
-  save(record: PiecePracticeRunRecordV1): Promise<void> {
+  save(record: PiecePracticeRunRecordV2): Promise<void> {
     return new Promise((resolve, reject) => {
       const last = this.pending.at(-1);
       if (last?.kind === "save" && last.record.runId === record.runId && last.record.status === "active") {
@@ -349,7 +416,7 @@ export class IndexedDbPiecePracticeRunStore implements PiecePracticeRunStore {
     return request(database.transaction(PIECE_PRACTICE_STORE_NAME).objectStore(PIECE_PRACTICE_STORE_NAME).getAll());
   }
 
-  private async putRaw(record: PiecePracticeRunRecordV1): Promise<void> {
+  private async putRaw(record: PiecePracticeRunRecordV2): Promise<void> {
     const database = await this.open();
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction(PIECE_PRACTICE_STORE_NAME, "readwrite");
@@ -376,7 +443,7 @@ export class IndexedDbPiecePracticeRunStore implements PiecePracticeRunStore {
   }
 
   list(): Promise<unknown[]> { return this.coordinator.list(); }
-  save(record: PiecePracticeRunRecordV1): Promise<void> { return this.coordinator.save(record); }
+  save(record: PiecePracticeRunRecordV2): Promise<void> { return this.coordinator.save(record); }
   discard(runId: string): Promise<void> { return this.coordinator.discard(runId); }
 }
 

@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-> Authoritative product direction, owner-approved October 5, 2026. Current package/application version: **2.8.8**. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
+> Authoritative product direction, owner-approved October 5, 2026. Current package/application version: **2.9.0**. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
 Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
 
@@ -97,7 +97,7 @@ AudioSource → MonophonicPitchAnalyzer → normalized pitch observation → con
 AudioSource → future PolyphonicAnalyzer → chord / multi-note observations
 ```
 
-Potential monophonic consumers include Tuner, instrument visualization, acoustic Free Play, Studies, scales and other eligible activities. The current feature-local tuner architecture is sufficient. Extract reusable boundaries only when another real consumer needs them; preserve room for a separate future polyphonic path.
+Potential monophonic consumers include Tuner, instrument visualization, acoustic Free Play, Studies, scales and other eligible activities. Acoustic Piece Practice is now a real consumer of the shared monophonic implementation, with independent capture ownership; preserve room for a separate future polyphonic path.
 
 **Violin:** Show a recommended string/fingering prominently and optionally alternate valid first-position locations. Prelude measures pitch; it does not know which physical string/finger produced it. Higher positions are deferred.
 
@@ -107,19 +107,21 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 
 **Shared visualization direction:** A detected pitch can show possible instrument locations; a target pitch can show how to produce it. Reuse piano keys where appropriate. Start within the tuner, then extract instrument mapping/presentation when another real consumer needs it, separately from capture.
 
-**Dependencies/non-goals:** Physical support evidence and honest range/tuning labels. Worker/AudioWorklet processing is conditional on measured device problems. No universal microphone bus, automatic practice grading, polyphonic guitar/piano recognition or claim to infer actual fingering.
+**Dependencies/non-goals:** Physical support evidence and honest range/tuning labels. Worker/AudioWorklet processing is conditional on measured device problems. No universal microphone bus, automatic grading in other practice domains, polyphonic guitar/piano recognition or claim to infer actual fingering.
 
 ## 5. Acoustic Practice Integration
 
-**Status:** CONDITIONAL / EVIDENCE-GATED; medium/long-term integrations unlocked individually.
+**Status:** PROVISIONAL ACOUSTIC PIECE PRACTICE IMPLEMENTED IN 2.9.0; broader support claims and later integrations remain evidence-gated.
 
 **Purpose:** Make reliable microphone observations useful within the semantics of a specific practice activity.
 
-**Likely next milestone:** After suitable physical evidence, choose one bounded consumer such as ungraded acoustic Free Play/live staff or stable single-note Flashcards. They have different acceptance needs; tuner usefulness alone does not authorize grading.
+**Current bounded consumer:** Owner-approved monophonic Piece Practice offers violin/ocarina metadata, explicit Start, deterministic fresh articulations, configurable cents tolerance, range/focus eligibility, separate acoustic reports and V2 paused recovery. Same-note reattack thresholds are provisional; both instruments use the same detector. No physical reliability claim follows from automated tests.
 
-**Possible later integrations:** Violin scales and intonation practice, selected Sequences, Guided Studies and carefully chosen Piece Practice experiences.
+**Likely next milestone:** Physical repeated-passage and lifecycle QA on desktop, Chromebook and Android, including the owner's He's a Pirate (easy), followed by evidence-led detector/calibration/profile work. Other consumers such as ungraded acoustic Free Play/live staff or stable single-note Flashcards still require their own acceptance decisions.
 
-**Dependencies:** Each consumer defines accepted observations, acquisition, freshness, repeated-pitch rearming, uncertainty, timing semantics, source attribution and octave ambiguity handling. Validate actual targets/passages, including range, simultaneous notes, ties and repeated attacks. Physical evidence gates claims and grading for that activity.
+**Possible later integrations:** Violin scales and intonation practice, selected Sequences, Guided Studies and broader Piece Practice experiences.
+
+**Dependencies:** Each consumer defines accepted observations, acquisition, freshness, repeated-pitch rearming, uncertainty, timing semantics, source attribution and octave ambiguity handling. Validate actual targets/passages, including range, simultaneous notes, ties and repeated attacks. Physical evidence gates reliability claims; this specific provisional Piece Practice grading slice is owner-approved while that QA continues.
 
 **Non-goals:** Converting every frequency frame into MIDI NoteOn/NoteOff, inventing attack/release/velocity facts, coercing ambiguous estimates toward the expected answer, or applying identical gates to every mode. Continuous attack timing needs additional proof beyond stable-note recognition.
 

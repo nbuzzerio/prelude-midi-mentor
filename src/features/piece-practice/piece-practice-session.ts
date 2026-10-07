@@ -3,12 +3,16 @@ import type { PiecePracticeCheck, PiecePracticeMeasure, PiecePracticePiece, Piec
 import { classifyPiecePracticePitch, getPiecePracticeBoundaryReattackPitches } from "./piece-practice-input";
 import type { MidiReleaseObservation } from "@/hooks/use-midi";
 import type { PiecePracticeAssessmentFocus } from "./piece-practice-assessment";
+import { DEFAULT_PIECE_PRACTICE_INPUT, type AcousticAttack, type PiecePracticeInputConfiguration } from "./piece-practice-acoustic-types";
+import { gradeAcousticPitch, validPiecePracticeInputConfiguration } from "./piece-practice-acoustic-validation";
+import { acousticTargetEligible } from "./piece-practice-acoustic-eligibility";
 import {
   derivePiecePracticeMeasureDiagnostics,
   getPiecePracticeHesitationThresholdMs,
   getPiecePracticeTargetExpectedWindowMs,
   snapshotPiecePracticePitches,
   type PiecePracticeAttackEvidence,
+  type PiecePracticeAcousticEvidence,
   type PiecePracticeReleaseEvidence,
   type PiecePracticeExpectedPitchSnapshot,
   type PiecePracticeMeasureDiagnostic,
@@ -37,6 +41,11 @@ export type PiecePracticeCheckProgress = Readonly<{
 export type PiecePracticeSessionStatus = "practicing" | "awaiting-explicit-measure-advance" | "piece-complete";
 
 export type PiecePracticeSessionState = Readonly<{
+  inputConfiguration?: PiecePracticeInputConfiguration;
+  acousticEvidence?: readonly PiecePracticeAcousticEvidence[];
+  /** Transient input guards, deliberately excluded from checkpoints. */
+  acousticInputEpoch?: number;
+  acousticLastAttack?: Readonly<{ captureGeneration: number; sequence: number }>;
   assessmentFocus: PiecePracticeAssessmentFocus;
   startMeasureIndex: number;
   endMeasureIndex: number | null;
@@ -218,8 +227,9 @@ function stateForMeasure(piece: PiecePracticePiece, base: Omit<PiecePracticeSess
   return { ...partial, currentCheckProgress: progressForTarget(targetForState(piece, partial)) };
 }
 
-export function createPiecePracticeSession(piece: PiecePracticePiece, options: Readonly<{ startMeasureIndex: number; endMeasureIndex?: number | null; startedAtMs: number }>): CreatePiecePracticeSessionResult {
+export function createPiecePracticeSession(piece: PiecePracticePiece, options: Readonly<{ startMeasureIndex: number; endMeasureIndex?: number | null; startedAtMs: number; inputConfiguration?: PiecePracticeInputConfiguration }>): CreatePiecePracticeSessionResult {
   requireTimestamp(options.startedAtMs);
+  if (options.inputConfiguration && !validPiecePracticeInputConfiguration(options.inputConfiguration)) throw new Error("Invalid Piece Practice input configuration.");
   const measure = piece.measures[options.startMeasureIndex];
   if (!Number.isInteger(options.startMeasureIndex) || options.startMeasureIndex < 0 || !measure) {
     return { ok: false, reason: "invalid-start-measure" };
@@ -234,6 +244,7 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
   return {
     ok: true,
     state: stateForMeasure(piece, {
+      ...(options.inputConfiguration ? { inputConfiguration: options.inputConfiguration } : {}),
       assessmentFocus: piece.assessmentFocus ?? "both",
       startMeasureIndex: options.startMeasureIndex,
       endMeasureIndex,
@@ -249,7 +260,7 @@ export function createPiecePracticeSession(piece: PiecePracticePiece, options: R
       activeElapsedMs: 0,
       firstTargetTimingPending: true,
       activeSinceMs: options.startedAtMs,
-      clockPaused: false,
+      clockPaused: options.inputConfiguration?.mode === "microphone",
       completedAtActiveMs: null,
       startedAtMs: options.startedAtMs,
     }, measure, true),
@@ -333,6 +344,54 @@ export function submitPiecePracticeAttempt(piece: PiecePracticePiece, state: Pie
   return { accepted: true, grade, state: advanceCompletedTarget(piece, { ...attempted, currentCheckProgress }, atMs) };
 }
 
+/** Invalidate target-bound acoustic events even when a restart revisits the same target ID. */
+export function resetPiecePracticeAcousticInput(state: PiecePracticeSessionState): PiecePracticeSessionState {
+  if (state.inputConfiguration?.mode !== "microphone") return state;
+  return { ...state, acousticInputEpoch: (state.acousticInputEpoch ?? 0) + 1, acousticLastAttack: undefined };
+}
+
+/** Dedicated acoustic grading. Never routes through physical MIDI recording or chord collection. */
+export function submitPiecePracticeAcousticAttack(piece: PiecePracticePiece, state: PiecePracticeSessionState, input: Readonly<{
+  targetId: string; inputEpoch: number; attack: AcousticAttack;
+}>): Readonly<{ submitted: boolean; state: PiecePracticeSessionState; evidence: PiecePracticeAcousticEvidence | null }> {
+  const reject = () => ({ submitted: false, state, evidence: null });
+  const config = state.inputConfiguration ?? DEFAULT_PIECE_PRACTICE_INPUT;
+  const target = getCurrentPiecePracticeTarget(piece, state);
+  const { attack } = input;
+  if (config.mode !== "microphone" || state.clockPaused || !target || target.id !== input.targetId
+    || input.inputEpoch !== (state.acousticInputEpoch ?? 0) || !acousticTargetEligible(target)) return reject();
+  if (attack.source !== "microphone" || !Number.isInteger(attack.captureGeneration) || attack.captureGeneration < 0
+    || !Number.isInteger(attack.sequence) || attack.sequence < 0
+    || !Number.isFinite(attack.confirmedAtMs) || !Number.isFinite(attack.onsetObservedAtMs)
+    || attack.onsetObservedAtMs < 0 || attack.confirmedAtMs < attack.onsetObservedAtMs
+    || attack.confirmedAtMs < state.activeSinceMs) return reject();
+  const last = state.acousticLastAttack;
+  if (last && (attack.captureGeneration < last.captureGeneration
+    || attack.captureGeneration === last.captureGeneration && attack.sequence <= last.sequence)) return reject();
+  const grade = gradeAcousticPitch(attack.frequencyHz, target.expectedMidiNumbers[0], config.pitchToleranceCents);
+  if (!grade || grade.nearestSemitone !== attack.nearestSemitone) return reject();
+  const atMs = attack.confirmedAtMs;
+  const attempted = armPiecePracticeFirstTarget(piece, state, atMs);
+  const normal = target.checks.find((check) => check.kind === "normal")!;
+  const evidence: PiecePracticeAcousticEvidence = {
+    ...grade, source: "microphone", sequence: state.acousticEvidence?.length ?? 0,
+    measureIndex: target.measureIndex, sourceMeasureId: target.sourceMeasureId, targetId: target.id, checkId: normal.id,
+    expectedPitches: snapshotPiecePracticePitches(normal.attackedPitches), occurredAtActiveMs: activeElapsedAt(attempted, atMs),
+    articulation: attack.articulation, confirmationDelayMs: attack.confirmedAtMs - attack.onsetObservedAtMs,
+  };
+  const recorded = { ...attempted, acousticEvidence: [...(state.acousticEvidence ?? []), evidence],
+    acousticLastAttack: { captureGeneration: attack.captureGeneration, sequence: attack.sequence } };
+  if (!grade.accepted) return { submitted: true, evidence, state: appendMistakeEvidence(recorded, {
+    kind: "acoustic-attempt", measureIndex: target.measureIndex, sourceMeasureId: target.sourceMeasureId,
+    targetId: target.id, checkId: normal.id, expectedPitches: evidence.expectedPitches, acousticSequence: evidence.sequence,
+    frequencyHz: grade.frequencyHz, nearestSemitone: grade.nearestSemitone, centsFromExpected: grade.centsFromExpected,
+    pitchToleranceCents: grade.pitchToleranceCents, rejection: grade.rejection!,
+  }, atMs) };
+  return { submitted: true, evidence, state: advanceCompletedTarget(piece, {
+    ...recorded, currentCheckProgress: recorded.currentCheckProgress.map((progress) => ({ ...progress, completed: true })),
+  }, atMs) };
+}
+
 export type SubmitPiecePracticePitchResult = Readonly<{
   accepted: boolean;
   matched: boolean;
@@ -413,7 +472,7 @@ export function skipCurrentPiecePracticeTarget(piece: PiecePracticePiece, state:
   const skipped = { ...timed, skipEvidence: [...timed.skipEvidence, { sequence: timed.skipEvidence.length, measureIndex: target.measureIndex, sourceMeasureId: target.sourceMeasureId, targetId: target.id, occurredAtActiveMs: timed.activeElapsedMs }] };
   return {
     skipped: true,
-    state: advancePastAuthoredTarget(piece, skipped, { skippedTargetCount: state.skippedTargetCount + 1 }, atMs),
+    state: resetPiecePracticeAcousticInput(advancePastAuthoredTarget(piece, skipped, { skippedTargetCount: state.skippedTargetCount + 1 }, atMs)),
   };
 }
 
@@ -545,7 +604,7 @@ export function restartCurrentPiecePracticeMeasure(piece: PiecePracticePiece, st
     completedMeasureIndexes,
   }, measure, true);
   return {
-    ...restarted,
+    ...resetPiecePracticeAcousticInput(restarted),
     currentMeasureEnteredAtActiveMs: wasCompleted ? current.activeElapsedMs : state.currentMeasureEnteredAtActiveMs,
   };
 }
@@ -555,6 +614,7 @@ export function restartPiecePractice(piece: PiecePracticePiece, state: PiecePrac
   const measure = piece.measures[state.startMeasureIndex];
   if (!measure) return state;
   return stateForMeasure(piece, {
+    ...(state.inputConfiguration ? { inputConfiguration: state.inputConfiguration } : {}),
     assessmentFocus: state.assessmentFocus,
     startMeasureIndex: state.startMeasureIndex,
     endMeasureIndex: state.endMeasureIndex,
@@ -570,7 +630,7 @@ export function restartPiecePractice(piece: PiecePracticePiece, state: PiecePrac
       activeElapsedMs: 0,
       firstTargetTimingPending: true,
       activeSinceMs: startedAtMs,
-      clockPaused: false,
+      clockPaused: state.inputConfiguration?.mode === "microphone",
       completedAtActiveMs: null,
     startedAtMs,
   }, measure, true);
@@ -583,7 +643,7 @@ export function getPiecePracticeElapsedMs(state: PiecePracticeSessionState, nowM
 
 export function pausePiecePracticeClock(state: PiecePracticeSessionState, atMs: number): PiecePracticeSessionState {
   if (state.clockPaused || state.status === "piece-complete") return state;
-  return { ...snapshotClock(state, atMs), clockPaused: true };
+  return { ...resetPiecePracticeAcousticInput(snapshotClock(state, atMs)), clockPaused: true };
 }
 
 export function resumePiecePracticeClock(state: PiecePracticeSessionState, atMs: number): PiecePracticeSessionState {

@@ -1,5 +1,6 @@
 import type { PiecePracticeMeasureDiagnostic } from "./piece-practice-evidence";
 import { getPiecePracticeMeasureResults, type PiecePracticeSessionState } from "./piece-practice-session";
+import { samePiecePracticeInputConfiguration } from "./piece-practice-acoustic-types";
 
 type TargetedPracticeSignal = "mistakeCount" | "skippedTargetCount" | "restartCount" | "hesitationCount";
 
@@ -38,7 +39,8 @@ export function comparePiecePracticeTargetedPractice(
   focused: PiecePracticeSessionState,
   measureIndex: number,
 ): PiecePracticeTargetedPracticeComparison | null {
-  if (original.assessmentFocus !== focused.assessmentFocus
+  if (!samePiecePracticeInputConfiguration(original.inputConfiguration, focused.inputConfiguration)
+    || original.assessmentFocus !== focused.assessmentFocus
     || focused.startMeasureIndex !== measureIndex || focused.endMeasureIndex !== measureIndex) return null;
   const before = completedMeasures(original).find((measure) => measure.measureIndex === measureIndex);
   const after = completedMeasures(focused).find((measure) => measure.measureIndex === measureIndex);

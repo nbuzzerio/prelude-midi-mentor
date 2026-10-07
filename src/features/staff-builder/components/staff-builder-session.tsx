@@ -3,7 +3,7 @@ import { PiecePracticeSession } from "@/features/piece-practice/components/piece
 import { projectStaffBuilderPieceForPractice } from "@/features/piece-practice/piece-practice-projection";
 import type { PiecePracticePiece } from "@/features/piece-practice/piece-practice-types";
 import { piecePracticeAssessmentLabel } from "@/features/piece-practice/piece-practice-assessment";
-import { piecePracticeRunStore, selectPiecePracticeRecovery, type PiecePracticeRunRecordV1 } from "@/features/piece-practice/persistence/piece-practice-runs";
+import { piecePracticeRunStore, selectPiecePracticeRecovery, type PiecePracticeRunRecordV2 } from "@/features/piece-practice/persistence/piece-practice-runs";
 import { StaffBuilderIntroduction } from "./staff-builder-introduction";
 import { StaffBuilderLibrary } from "./staff-builder-library";
 import { StaffBuilderPieceSetup } from "./staff-builder-piece-setup";
@@ -24,14 +24,14 @@ function browserStorage(): StaffBuilderStorage {
   try { return window.localStorage; } catch { return unavailableStorage; }
 }
 
-export default function StaffBuilderSession({ storage = browserStorage() }: Readonly<{ storage?: StaffBuilderStorage }>) {
+export default function StaffBuilderSession({ storage = browserStorage(), microphoneAvailable = true }: Readonly<{ storage?: StaffBuilderStorage; microphoneAvailable?: boolean }>) {
   const [initialPedalPreference] = useState(() => readStaffBuilderSustainPedalLocksInput(storage));
   const [sustainPedalLocksInput, setSustainPedalLocksInput] = useState(initialPedalPreference.ok ? initialPedalPreference.value : false);
   const [preferenceError, setPreferenceError] = useState(initialPedalPreference.ok ? null : initialPedalPreference.message);
   const state = useStaffBuilderLibrary(storage);
   const [practicePiece, setPracticePiece] = useState<PiecePracticePiece | null>(null);
   const [practiceSourceScore, setPracticeSourceScore] = useState<StaffBuilderScore | null>(null);
-  const [openedRun, setOpenedRun] = useState<PiecePracticeRunRecordV1 | null>(null);
+  const [openedRun, setOpenedRun] = useState<PiecePracticeRunRecordV2 | null>(null);
   const [availableRuns, setAvailableRuns] = useState<unknown[]>([]);
   const [runStorageError, setRunStorageError] = useState(false);
   const [practiceLaunchError, setPracticeLaunchError] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export default function StaffBuilderSession({ storage = browserStorage() }: Read
     void piecePracticeRunStore.discard(value.runId).then(refreshRuns).catch(() => setRunStorageError(true));
   };
   if (practicePiece) {
-    return <PiecePracticeSession key={openedRun?.runId ?? practiceSourceScore?.id ?? practicePiece.sourceScoreId} onExit={() => { setPracticePiece(null); setOpenedRun(null); refreshRuns(); }} piece={practicePiece} recoveredRun={openedRun ?? undefined} sourceScore={practiceSourceScore ?? undefined} />;
+    return <PiecePracticeSession microphoneAvailable={microphoneAvailable} key={openedRun?.runId ?? practiceSourceScore?.id ?? practicePiece.sourceScoreId} onExit={() => { setPracticePiece(null); setOpenedRun(null); refreshRuns(); }} piece={practicePiece} recoveredRun={openedRun ?? undefined} sourceScore={practiceSourceScore ?? undefined} />;
   }
   const launchPiecePractice = (score: Parameters<typeof projectStaffBuilderPieceForPractice>[0]) => {
     const projection = projectStaffBuilderPieceForPractice(score);
