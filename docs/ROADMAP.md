@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-> Authoritative product direction, owner-approved October 5, 2026. Current package/application version: **2.9.0**. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
+> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026. Current package/application version: **2.9.1**. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
 Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
 
@@ -32,9 +32,15 @@ The early Flashcard foundation/stabilization, Sequence introduction and expanded
 
 The former numbered Harmony, Musicianship, Guided Lessons, Lesson Builder, Playback and Composer phases are superseded by the continuing threads below. Existing piano playback, playback controls, natural-note filters and Melody's metronome are not future implementation tasks. Further harmony, rhythm, editing, playback or teaching capabilities require a concrete product need and a bounded plan.
 
+## Near-term instrument-learning sequence
+
+Owner-observed violin use now prioritizes: **2.9.0 Acoustic Piece Practice → Instrument Calibration / Acoustic Analysis → Instrument Learning Visualizers → later Intonation Search / Practice Coach → Improv**.
+
+Stage 1A/1B/1D is implemented provisionally in 2.9.1: violin G3/D4/A4/E5 preflight plus transient bounded scalar JSON export. Physical threshold/device QA remains pending. Ocarina calibration requires an identified profile/chart and is not implemented. Stage 2 violin first-position and ocarina fingering diagrams remain future work. Intonation Search/Practice Coach requires a separate approved learning-semantics plan; current mistake semantics are unchanged. Microphone Staff Builder authoring remains behind the instrument-learning stages. The numbered continuing threads below are not a strict delivery order.
+
 ## 1. Improv / Creative Exploration
 
-**Status:** NEXT MAJOR NEW MUSICAL FEATURE; permanent creative thread.
+**Status:** FOLLOWS THE INSTRUMENT-LEARNING SEQUENCE; permanent creative thread.
 
 **Purpose:** Help players invent, explore, compare and develop musical ideas. Free Play observes and helps understand what is played; Piece Practice helps learn existing music; Guided Studies teach concepts; Improv supports invention and experimentation.
 
@@ -88,7 +94,7 @@ Studies own the teaching journey. Native feature domains continue owning renderi
 
 **Purpose:** Connect a detected or target pitch to useful instrument guidance while preserving measurement uncertainty.
 
-**Likely next milestone:** Evidence-led tuner stabilization and bounded violin guidance inside the existing tuner: standard G3–D4–A4–E5 tuning and beginner first-position locations. This need not become separate tuner apps.
+**Likely next milestone:** Physical QA of the implemented violin preflight/analysis, then reusable first-position instrument learning guidance integrated into microphone Piece Practice. The standalone tuner remains independently owned; no separate instrument tuner apps are required.
 
 **Conceptual architecture, not implemented global services:**
 
@@ -105,7 +111,7 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 
 **Voice:** Sung-pitch detection with note, octave, frequency/cents and stability; no speech recognition or fingering diagram.
 
-**Shared visualization direction:** A detected pitch can show possible instrument locations; a target pitch can show how to produce it. Reuse piano keys where appropriate. Start within the tuner, then extract instrument mapping/presentation when another real consumer needs it, separately from capture.
+**Shared visualization direction:** A detected pitch can show possible instrument locations; a target pitch can show how to produce it. Reuse pure instrument mapping and presentation separately from capture, first in Piece Practice and later in other approved consumers. No diagram claims to observe actual string/finger use.
 
 **Dependencies/non-goals:** Physical support evidence and honest range/tuning labels. Worker/AudioWorklet processing is conditional on measured device problems. No universal microphone bus, automatic grading in other practice domains, polyphonic guitar/piano recognition or claim to infer actual fingering.
 
@@ -117,7 +123,7 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 
 **Current bounded consumer:** Owner-approved monophonic Piece Practice offers violin/ocarina metadata, explicit Start, deterministic fresh articulations, configurable cents tolerance, range/focus eligibility, separate acoustic reports and V2 paused recovery. Same-note reattack thresholds are provisional; both instruments use the same detector. No physical reliability claim follows from automated tests.
 
-**Likely next milestone:** Physical repeated-passage and lifecycle QA on desktop, Chromebook and Android, including the owner's He's a Pirate (easy), followed by evidence-led detector/calibration/profile work. Other consumers such as ungraded acoustic Free Play/live staff or stable single-note Flashcards still require their own acceptance decisions.
+**Likely next milestone:** Physical repeated-passage, violin preflight/analysis and lifecycle QA on desktop, Chromebook and Android, including the owner's He's a Pirate (easy), followed by instrument visualizers and separately approved ocarina profile work. Other consumers such as ungraded acoustic Free Play/live staff or stable single-note Flashcards still require their own acceptance decisions.
 
 **Possible later integrations:** Violin scales and intonation practice, selected Sequences, Guided Studies and broader Piece Practice experiences.
 
@@ -165,9 +171,9 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 
 ## Practical near-term direction
 
-1. Improv remains the next major new musical feature.
+1. Instrument learning precedes Improv: calibration/analysis (violin Stage 1 implemented provisionally), then visualizers, then separately scoped Intonation Search/Practice Coach.
 2. Small QOL work may fit between major milestones; PWA Update + What's New is implemented with installed/device QA pending.
-3. Instrument-aware violin tuner guidance is a bounded microphone extension.
+3. Microphone Staff Builder authoring remains later than the instrument-learning stages; ocarina calibration requires an approved profile/chart.
 4. Flow Sight-Reading remains a major practice milestone.
 5. Guided Studies follows when the selected native activity contracts are mature enough for a useful first vertical slice.
 
@@ -177,4 +183,4 @@ This is a practical preference, not an immutable dependency chain. Physical QA a
 
 When the relevant thread becomes active, choose the first Flow increment, the first D Minor Study objective/audience, and the exact ocarina profile/fingering system. No resolution is required during documentation consolidation.
 
-Broader adaptive coaching, analytics dashboards, community/teacher sharing, cloud accounts/synchronization, desktop packaging, large instrument libraries and advanced exports remain exploratory, not scheduled prerequisites. [IDEAS.md](./IDEAS.md) holds noncommittal ideas. Future feature plans still require owner approval, exact scope, native ownership, musical decisions and proportionate validation under AGENTS.md.
+Bounded scalar JSON export is now implemented; broader adaptive coaching, analytics dashboards, community/teacher sharing, cloud accounts/synchronization, desktop packaging, large instrument libraries and other advanced exports remain exploratory. [IDEAS.md](./IDEAS.md) holds noncommittal ideas. Future feature plans still require owner approval, exact scope, native ownership, musical decisions and proportionate validation under AGENTS.md.

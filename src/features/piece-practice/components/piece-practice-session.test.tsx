@@ -246,6 +246,8 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByLabelText("Upper Staff"));
     fireEvent.change(screen.getByLabelText("Start Measure"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Start Practice" })); fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Skip String" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enter Piece Practice" }));
     const capture = microphone.sessions.at(-1)!; const tracker = createPitchStabilizer();
     const frames = (hz: number | null, count: number) => {
       for (let i = 0; i < count; i++) {

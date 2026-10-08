@@ -30,6 +30,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Provisional microphone input brings supported monophonic violin and ocarina practice to Piece Practice.",
     "Adjustable pitch tolerance lets you practice with instruments that run a little sharp or flat.",
   ],
+}, {
+  id: "2026-10-07-violin-preflight-analysis",
+  sequence: 3,
+  title: "Check violin tuning before practice",
+  date: "2026-10-07",
+  version: "2.9.1",
+  changes: [
+    "A provisional open-string preflight checks G, D, A and E before violin microphone practice, with Retry, Skip and tuning guidance.",
+    "Export bounded local scalar pitch evidence as JSON for your own analysis. No audio is recorded or uploaded; evidence is temporary until exported.",
+    "Concert-pitch targets and practice acceptance remain unchanged. Ocarina calibration and instrument diagrams are still future work.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

@@ -6,11 +6,13 @@ const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `upd
 describe("curated product updates", () => {
   it("validates the published catalog and limits the first record to the new update feature", () => {
     expect(() => assertAppUpdateCatalog(APP_UPDATES)).not.toThrow();
-    expect(APP_UPDATES).toHaveLength(2);
+    expect(APP_UPDATES).toHaveLength(3);
     expect(APP_UPDATES[0]).toMatchObject({ sequence: 1, version: "2.8.8" });
     expect(APP_UPDATES[0]?.changes.join(" ")).not.toMatch(/tuner|tie|since your last update/i);
     expect(APP_UPDATES[1]).toMatchObject({ sequence: 2, version: "2.9.0", date: "2026-10-06", title: "Practice with violin and ocarina" });
     expect(APP_UPDATES[1].changes.join(" ")).toContain("Provisional");
+    expect(APP_UPDATES[2]).toMatchObject({ sequence: 3, version: "2.9.1", date: "2026-10-07" });
+    expect(APP_UPDATES[2].changes.join(" ")).toContain("No audio is recorded or uploaded");
   });
   it("collects multiple missed known updates newest first without changing the catalog", () => {
     expect(unseenAppUpdates(updates, { id: "update-2", sequence: 2 }).map((update) => update.id)).toEqual(["update-4", "update-3"]);

@@ -2,6 +2,16 @@
 
 > This document records important product and architectural decisions made during the development of Prelude.
 
+## 2026-10-07 — Violin preflight and scalar analysis, 2.9.1
+
+Owner approved Stage 1A/1B/1D and patch 2.9.1, not a tag/release. Add reusable pure calibration and bounded scalar export downstream of unchanged shared monophonic analysis. Piece Practice retains one acoustic owner; preflight pauses time/grading and explicit entry resets onset history before quiet/re-articulation. Concert A440 targets, grading tolerance and mistake semantics remain authoritative.
+
+Use provisional 200 ms settling, ≥800 ms/20 samples, ≤100 ms gaps, ≤10-cent central spread and ≤5-cent half-window drift. Green ≤5 cents, yellow through 15; baseline eligibility requires a plausible fundamental within ±50 cents. Never octave-fold or equate periodicity with pitch identity. Keep measured baseline offsets separate from any conditional interpretation. No physical fingering is inferred in this pass.
+
+Analysis defaults On with a separate browser-local preference; evidence is transient and JSON export is explicit. Retain actual-timestamp 100 ms bins, a four-second ring and up to 60 seconds of high-resolution coverage with calibration reserve. Apply 60-minute/10,000-event/conservative 16-MiB limits and report truncation without interrupting practice. No IndexedDB change, V3, raw audio, uploads, dependencies or persistent history. No mid-run recalibration UI, ocarina calibration, Stage 2 diagrams or convergence scoring.
+
+Roadmap priority now follows acoustic practice → calibration/analysis → instrument visualizers → later Intonation Search/Practice Coach → Improv. Microphone Staff Builder authoring remains later. This supersedes earlier Improv-first priority statements; physical instrument/device QA remains required.
+
 ## 2026-10-06 — Acoustic Piece Practice 2.9.0
 
 The owner approved a minor version bump from 2.8.8 to 2.9.0 and provisional monophonic violin/ocarina Piece Practice. This is a bounded exception to earlier evidence-gated integration plans; it does not authorize changes to other activity engines or establish physical reliability.

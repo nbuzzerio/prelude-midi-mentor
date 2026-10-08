@@ -3,6 +3,8 @@ import type { PiecePracticeInputConfiguration } from "../piece-practice-acoustic
 import { PITCH_TOLERANCE_PRESETS, validPitchTolerance } from "../piece-practice-acoustic-validation";
 import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
 import { formatAcousticHeardPitch } from "../piece-practice-report";
+import { ViolinPreflight } from "@/features/instrument-learning/components/violin-preflight";
+import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/components/acoustic-analysis-export-controls";
 
 export function PiecePracticeAcousticSetup({ configuration, preset, onPreset, onChange }: Readonly<{
   configuration: PiecePracticeInputConfiguration; preset: string; onPreset: (preset: string) => void;
@@ -44,7 +46,10 @@ export function PiecePracticeAcousticControls({ input, available }: Readonly<{
     <div className="flex flex-wrap gap-3"><button className="min-h-11 rounded bg-sky-600 px-4 font-semibold disabled:opacity-40" type="button" disabled={active || !available} onClick={input.start}>Start Listening</button>
       <button className="min-h-11 rounded border border-zinc-500 px-4 disabled:opacity-40" type="button" disabled={!active} onClick={input.stop}>Stop Listening</button></div>
     <p role="status">{!available ? "End the active Practice Session before listening." : input.status.message}</p>
-    {input.status.state === "listening" && <p>{input.needsQuiet ? "Leave a brief quiet gap before playing." : heard ? `Listening · ${heard}` : reading.pitch ? "Uncertain — waiting for a reliable pitch." : "Listening — play one note."}</p>}
+    <AcousticAnalysisExportControls control={input.analysis} capturing={active} />
+    {input.phase === "preflight" && <ViolinPreflight calibration={input.calibration} frequencyHz={input.calibrationHz}
+      listening={input.status.state === "listening"} onAction={input.calibrationAction} onEnterPractice={input.enterPractice} />}
+    {input.phase === "practice" && input.status.state === "listening" && <p>{input.needsQuiet ? "Leave a brief quiet gap before playing." : heard ? `Listening · ${heard}` : reading.pitch ? "Uncertain — waiting for a reliable pitch." : "Listening — play one note."}</p>}
     {lastAttempt && <div key={lastAttempt.sequence} role="status" aria-live="polite" aria-atomic="true" className={lastAttempt.accepted ? "text-green-200" : "text-amber-200"}>
       <p>Expected: {lastAttempt.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] })).join(", ")}</p>
       <p>Heard: {formatAcousticHeardPitch(lastAttempt)}</p>

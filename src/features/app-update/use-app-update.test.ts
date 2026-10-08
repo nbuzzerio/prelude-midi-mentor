@@ -28,12 +28,12 @@ describe("app update presentation state", () => {
     const second = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
     expect(second.result.current.displayed).toEqual([newest]);
   });
-  it("shows the acoustic entry after the prior product update was acknowledged", () => {
+  it("shows all newer curated entries after an earlier product update was acknowledged", () => {
     const previous = APP_UPDATES[0]!;
     const { result } = renderHook(() => useAppUpdate(undefined, APP_UPDATES, {
       getItem: () => JSON.stringify({ id: previous.id, sequence: previous.sequence }), setItem: vi.fn(),
     }));
-    expect(result.current.displayed).toEqual([newest]);
+    expect(result.current.displayed).toEqual([...APP_UPDATES].filter((update) => update.sequence > previous.sequence).reverse());
   });
   it("does not open notes already acknowledged or newer than this build", () => {
     for (const marker of [{ id: newest.id, sequence: newest.sequence }, { id: "future", sequence: newest.sequence + 1 }]) {

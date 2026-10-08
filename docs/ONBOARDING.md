@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Current package/application version:** 2.9.0
-> **Last updated:** October 6, 2026
-> **Product direction:** owner-approved [rolling roadmap](./ROADMAP.md); Improv is the next major new musical feature
+> **Current package/application version:** 2.9.1
+> **Last updated:** October 7, 2026
+> **Product direction:** owner-approved [rolling roadmap](./ROADMAP.md); instrument learning now precedes Improv
 >
 > Implementation, automated validation, physical QA and owner-controlled release/tag/deployment are separate facts. Broad device/instrument QA remains pending; this document does not assert a release.
 
@@ -197,7 +197,13 @@ Staff Builder score schema v4 adds optional measure-level `clefChanges`, for exa
 
 Choose Input → Microphone, Violin/Ocarina, and Pitch tolerance (±15, ±25 default, ±40 or custom integer 1–49 cents). Focus/range eligibility must succeed before Start Practice; Start Listening separately requests permission. Both instruments use the same detector. Give a brief quiet baseline after starting or resetting. A sustained note cannot satisfy repeated targets; after rejected intonation, re-articulate. A weak bow restart may require a gap. Acceptance does not assert "in tune."
 
-The shared monophonic code lives in `src/lib/audio/monophonic`; onset, eligibility, grading, controls and the exclusive input owner belong to Piece Practice. Background/interruption stops capture and pauses timing; explicit Start is required on return or recovery. Reports preserve scalar acoustic evidence separately from physical MIDI. V2 records retain source/instrument/tolerance; V1 remains readable as keyboard. Score schema, database structure, MIDI/VKB rules and other practice domains are unchanged. Read the [physical QA procedure](./TESTING.md#acoustic-piece-practice-290) before making reliability claims. Calibration and instrument-specific profiles remain deferred.
+The shared monophonic code lives in `src/lib/audio/monophonic`; onset, eligibility, grading, controls and the exclusive input owner belong to Piece Practice. Background/interruption stops capture and pauses timing; explicit Start is required on return or recovery. Reports preserve scalar acoustic evidence separately from physical MIDI. V2 records retain source/instrument/tolerance; V1 remains readable as keyboard. Score schema, database structure, MIDI/VKB rules and other practice domains are unchanged. Read the [physical QA procedure](./TESTING.md#acoustic-piece-practice-290) before making reliability claims.
+
+### Violin preflight and acoustic analysis — 2.9.1 provisional
+
+Violin microphone runs first check G3/D4/A4/E5, using the same capture owner while practice timing/grading are paused. Start Listening, bow steadily, then Retry, Skip or Continue. Green stable readings advance after 900 ms; the final summary requires explicit Enter Piece Practice and a fresh quiet/re-articulation boundary. Recovered unfinished violin runs require fresh preflight or Skip; no prior calibration is recovered. There is no mid-run recalibration UI.
+
+Pure calibration and presentation live under `features/instrument-learning`; bounded scalar collection/export lives under `features/acoustic-analysis`. Analysis defaults On with a separate localStorage preference. Stop Listening to export JSON, or export from the current completed result. Export before leaving/reloading/restarting/Targeted Practice: calibration and trace are transient. Limits stop analysis visibly while practice continues. No raw audio, uploads, new IndexedDB store or V3 migration exists. Ocarina analysis is available but ocarina calibration/profile and all instrument diagrams remain future work. See ARCHITECTURE for exact policy and TESTING for physical QA.
 
 ## Melody
 
@@ -247,7 +253,7 @@ The shared monophonic code lives in `src/lib/audio/monophonic`; onset, eligibili
 
 # Current Development Focus
 
-Current version is **2.9.0**. [ROADMAP.md](./ROADMAP.md) is authoritative: Improv is the next major new musical feature, with small QOL/PWA work, bounded violin-aware tuner guidance, Flow and Studies continuing at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities; hardware availability does not automatically block unrelated development.
+Current version is **2.9.1**. [ROADMAP.md](./ROADMAP.md) is authoritative: acoustic practice → calibration/analysis → instrument visualizers → later Intonation Search/Practice Coach → Improv. Microphone Staff Builder authoring remains later. QOL/PWA, Flow and Studies continue at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities.
 
 Staff Builder owns its canonical v4 score, authoring/correction, validation, library/drafts, notation and playback projection. Historical storage-key names are not schema declarations. Piece Practice owns blocking runs and durable evidence separately from scores; Targeted Practice is repair inside that engine. Practice Sessions own reusable prescriptions, import and native-engine orchestration; their runtime/report evidence remains transient. Sequences own scale execution and any future hand configuration. No universal engine replaces these domains.
 

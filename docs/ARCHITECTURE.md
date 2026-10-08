@@ -2,7 +2,21 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
-## Acoustic Piece Practice (2.9.0, provisional)
+## Instrument learning Stage 1A/1B/1D (2.9.1, provisional)
+
+`features/instrument-learning` owns React-independent calibration contracts, raw log-frequency stability, harmonic ambiguity checks and violin preflight presentation. `features/acoustic-analysis` owns a bounded scalar collector, explicit local On/Off preference and canonical JSON export. Piece Practice's existing acoustic hook owns both transient instances and the sole microphone controller. Shared detector, stabilizer and capture remain unchanged; no global microphone service or additional capture owner exists.
+
+Violin runs (including paused recovery) enter preflight before grading/time. G3/D4/A4/E5 use A440 equal temperament. Usable fresh raw estimates settle for 200 ms, then require at least 20 samples spanning an 800 ms window, no gap above 100 ms, P90−P10 ≤10 cents and first-/second-half median difference ≤5 cents. One boundary observation may extend the window by at most an observation interval. Green is ≤5 cents, yellow through 15, red beyond 15; only plausible fundamentals within ±50 cents establish a baseline. Octave/low-order harmonic flags preserve measured Hz. All thresholds are provisional, independent of practice tolerance. Green advances after 900 ms while listening; Retry/Skip/explicit Continue retain attempt revisions. After 128 recorded attempts, Retry is disabled but Continue/Skip remain available. No mid-run recalibration UI exists.
+
+The final summary requires Enter Piece Practice. It resets onset history/cutoff and requires the existing quiet/re-articulation boundary; the last calibration tone cannot grade the first target. Existing concert-pitch grading, mistake evidence and MIDI/VKB ownership remain unchanged. Baseline-relative interpretation is a pure conditional helper, requiring a supplied assumed string/provenance; this pass makes no string/finger recommendations and changes no acceptance center.
+
+Analysis defaults On. Only `prelude-acoustic-analysis-enabled-v1` is stored in localStorage. Calibration and analysis remain in the current acoustic owner through completion, and are lost on owner replacement, navigation or reload; export before Restart Piece/Practice Again/Targeted Practice. V2 checkpoints and IndexedDB version 1 remain unchanged. Ocarina has analysis collection but no calibration/profile workflow.
+
+The collector projects allowlisted scalar envelopes into actual-timestamp 100 ms bins, splitting phase/reference/target-visit/pause/capture boundaries. It keeps a ≤4-second/160-observation ring and merges triggered windows (1 second before, 2 after). Reserved high-resolution intervals total at most 60 seconds, with 10 seconds withheld from diagnostic triggers for calibration. Selected calibration raw evidence shares that budget; omitted windows retain summaries with explicit retained sample counts. Duration is capped at 60 minutes, discrete events/attempts at 10,000, and conservative row/event accounting at roughly 16 MiB; that accounting is not a browser heap measurement. Limits preserve collected evidence and stop collection, not practice. No frame writes, JSON serialization or trace arrays flow through React state. UI reads are throttled to 100 ms. Export is explicit and disabled while capture is active.
+
+JSON format `prelude-acoustic-analysis`, schema 1, derives appVersion from package.json. Definitions explain clocks, A440, cents sign, NSDF periodicity, dBFS, retained/smoothed pitch, attack hypotheses, downsampling and missing coverage. Target visits distinguish repeats; session-namespaced capture segments distinguish controller generations. Practice evidence is copied unchanged. Summaries describe confirmed graded attempts only, leaving acquisition/post-acquisition attribution unknown. No raw audio, device identifiers/names, full user agent, unrelated score text or network transmission exists. Effective sample rate/processing remain unknown; capture was not extended merely to obtain optional metadata.
+
+## Acoustic Piece Practice (2.9.0 foundation, provisional)
 
 `src/lib/audio/monophonic` shares implementation, not active capture ownership. Extraction preserves the Tuner's 2048-sample/~30 Hz loop, 120–2300 Hz range, -55 dBFS/0.90 gates, three-observation/80 ms acquisition, 120 ms octave dwell, >100 ms gap reset, 120 ms freshness, 400 ms uncertain retention and decay rules. Capture optionally publishes a frozen scalar envelope: raw observation, stabilized snapshot, monotonic observation time, audio clock and capture generation. No waveform history crosses this boundary. Tuner note spelling and ±5-cent display semantics remain feature-owned.
 
@@ -14,7 +28,7 @@ Eligibility evaluates the focused projection and selected range before permissio
 
 Exactly one input owner mounts: the existing MIDI/VKB hook or the acoustic hook. The acoustic branch never fabricates MIDI, velocity or release evidence and suppresses success/error tones and the interactive keyboard. The App's existing hosted-session exclusion passes through Staff Builder. Capture stops on completion, exit, background, freeze/pagehide and interruption. Recovery remains paused; foreground return never automatically starts capture. Unavailable capture pauses active timing. The first confirmed attempt arms first-target timing; accepted confirmation ends response timing without speculative backdating or fixed latency compensation. Observation confirmation delay is not measured hardware latency.
 
-V2 stores source configuration and scalar acoustic evidence separately from physical MIDI evidence, with authored spelling, expected/nearest pitch, frequency, signed cents, tolerance, result/reason, articulation, active time and confirmation delay. Screen/copy/print use that evidence; diagnostic counts use the single linked mistake record. V1 keyboard provenance is never retroactively inferred as acoustic. Violin/ocarina labels currently share one detector. Calibration, instrument profiles, polyphony and broader device reliability remain future work; see TESTING.md.
+V2 stores source configuration and scalar acoustic evidence separately from physical MIDI evidence, with authored spelling, expected/nearest pitch, frequency, signed cents, tolerance, result/reason, articulation, active time and confirmation delay. Screen/copy/print use that evidence; diagnostic counts use the single linked mistake record. V1 keyboard provenance is never retroactively inferred as acoustic. Violin/ocarina labels currently share one detector. Violin preflight and transient analysis are described above; ocarina profiles, polyphony and broader device reliability remain future work; see TESTING.md.
 
 ## Standalone Chromatic Tuner (Phase 2)
 
@@ -50,7 +64,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.9.0, not a release/tag assertion. Together they support:
+The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.9.1, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals

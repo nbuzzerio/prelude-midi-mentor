@@ -18,6 +18,14 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
+### Violin preflight and acoustic analysis (2.9.1, provisional)
+
+Microphone Piece Practice for violin now starts with a G3 → D4 → A4 → E5 open-string check. Start Listening explicitly, bow each open string steadily, and review detected note/Hz and signed cents against A440 equal-tempered targets. A stable result within ±5 cents advances after a brief acknowledgment; near-target (through ±15 cents) and larger offsets offer Retry or explicit continuation. Any string can be skipped. The summary identifies strings still needing tuning. Enter Piece Practice explicitly, leave a quiet gap, and re-articulate; calibration cannot grade targets or run the practice timer.
+
+Analysis data defaults On for microphone practice and remembers only that preference. It collects bounded local scalar evidence, never audio, and never uploads anything. Stop Listening, then choose **Export Acoustic Analysis**, or export from the current result. The self-describing version-1 JSON includes retained pitch observations, calibration, target visits, attacks, existing grading evidence, coverage and conservative summaries. Export before leaving/reloading/restarting or entering another run: calibration/trace are not part of V2 recovery. Ocarina retains its existing microphone practice and can collect analysis; ocarina calibration and all instrument diagrams remain future work.
+
+The trace uses actual observations in 100 ms bins, a four-second diagnostic ring and bounded high-resolution windows. Collection stops visibly at the first duration (60 minutes), event (10,000), or conservative memory allowance (roughly 16 MiB) limit while practice continues. Long sessions may reach that allowance before 60 minutes. Tuning and detector thresholds remain provisional pending physical QA; a stable harmonic can still be the wrong octave. Concert pitch and existing practice acceptance/mistake semantics remain unchanged.
+
 ### Flashcard Practice
 
 - Treble, bass, and mixed-clef practice
@@ -431,7 +439,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Current package/application version is **2.9.0**, derived by the UI from `package.json`. No new release or tag is implied.
+Current package/application version is **2.9.1**, derived by the UI from `package.json`. No new release or tag is implied.
 
 The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
 
@@ -447,9 +455,9 @@ See [ROADMAP.md](./docs/ROADMAP.md) for the authoritative rolling direction.
 
 ## Rolling Direction
 
-Improv is the next major new musical feature: key/scale context, constrained exploration and helpful guidance beyond Free Play. Flow Sight-Reading has a foundation in Melody; sustained reading beyond short trials remains a major future milestone. Guided Studies will teach through explanation, demonstration, experiment, repetition, comparison and reflection while composing native modes.
+Instrument learning now precedes Improv: Acoustic Piece Practice → violin calibration/acoustic analysis → instrument learning visualizers → later Intonation Search/Practice Coach → Improv. Flow Sight-Reading has a foundation in Melody; sustained reading beyond short trials remains a major future milestone. Guided Studies will teach through explanation, demonstration, experiment, repetition, comparison and reflection while composing native modes.
 
-The implemented tuner can gain bounded violin first-position guidance. Ocarina diagrams require a defined profile/chart; voice means sung pitch. Acoustic participation in practice is conditional on evidence and activity-specific semantics, not automatic MIDI substitution.
+Reusable violin first-position guidance is a future stage, first integrated with microphone Piece Practice. Ocarina calibration/diagrams require a defined profile/chart; voice means sung pitch. Microphone Staff Builder authoring remains later. Acoustic participation in practice is conditional on evidence and activity-specific semantics, not automatic MIDI substitution.
 
 PWA Update + What's New is implemented; small QOL work and physical QA continue alongside musical milestones. Broader creative tools extend Improv rather than a competing Composer mode; Prelude remains focused on learning rather than DAW production. Full priorities and deferred choices live only in [ROADMAP.md](./docs/ROADMAP.md).
 

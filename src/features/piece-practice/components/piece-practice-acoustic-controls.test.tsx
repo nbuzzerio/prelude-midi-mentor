@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PiecePracticeAcousticControls, PiecePracticeAcousticSetup } from "./piece-practice-acoustic-controls";
 import type { PiecePracticeInputConfiguration } from "../piece-practice-acoustic-types";
 import type { usePiecePracticeAcousticInput } from "../hooks/use-piece-practice-acoustic-input";
+import { createCalibrationSession } from "@/features/instrument-learning/calibration-session";
 
 afterEach(cleanup);
 describe("acoustic setup and feedback", () => {
@@ -26,6 +27,8 @@ describe("acoustic setup and feedback", () => {
   it("distinguishes accepted sharp feedback from in-tune and announces only discrete evidence", () => {
     const expected = { sourceEventId: "e", sourcePitchId: "p", midiNumber: 66, letter: "F" as const, accidental: "sharp" as const, octave: 4, staff: "treble" as const };
     const input: ReturnType<typeof usePiecePracticeAcousticInput> = {
+      phase: "practice", calibration: createCalibrationSession("test"), calibrationHz: null, calibrationAction: vi.fn(), enterPractice: vi.fn(),
+      analysis: { enabled: true, notice: null, changeEnabled: vi.fn(), export: vi.fn() },
       status: { state: "listening", message: "Listening" }, needsQuiet: false,
       reading: { state: "stable", fresh: true, ageMs: 0, pitch: { semitone: 66, frequencyHz: 376.69 } },
       start: vi.fn(), stop: vi.fn(), resetInput: vi.fn(), skipCurrentTarget: vi.fn(),

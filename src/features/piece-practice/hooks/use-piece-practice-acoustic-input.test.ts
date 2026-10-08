@@ -1,5 +1,5 @@
-import { act, cleanup, renderHook } from "@testing-library/react";
-import { useState } from "react";
+import { act, cleanup, render, renderHook } from "@testing-library/react";
+import { createElement, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaptureOptions, CaptureStatus } from "@/lib/audio/monophonic/microphone-capture";
 import { createPitchStabilizer } from "@/lib/audio/monophonic/pitch-stabilizer";
@@ -8,6 +8,10 @@ import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-t
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { advancePiecePracticeNoAttackMeasure, createPiecePracticeSession, restartCurrentPiecePracticeMeasure, type PiecePracticeSessionState } from "../piece-practice-session";
 import { usePiecePracticeAcousticInput } from "./use-piece-practice-acoustic-input";
+import * as analysisCollector from "@/features/acoustic-analysis/acoustic-analysis-collector";
+import * as analysisBrowser from "@/features/acoustic-analysis/acoustic-analysis-browser";
+import { ViolinPreflight } from "@/features/instrument-learning/components/violin-preflight";
+import { CALIBRATION_POLICY } from "@/features/instrument-learning/calibration-types";
 
 const mock = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; generation: number; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] }));
 vi.mock("@/lib/audio/monophonic/microphone-capture", () => ({ createMicrophoneCapture: (options: CaptureOptions) => {
@@ -32,7 +36,7 @@ const score: StaffBuilderScore = {
     { id: "b", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
   ] }],
 };
-function setup(source = score) {
+function setup(source = score, preflight = false) {
   const projection = projectStaffBuilderPieceForPractice(source); if (!projection.ok) throw Error();
   const piece = projection.piece;
   const created = createPiecePracticeSession(piece, { startMeasureIndex: 0, startedAtMs: 0, inputConfiguration: { mode: "microphone", instrument: "violin", pitchToleranceCents: 25 } });
@@ -46,6 +50,10 @@ function setup(source = score) {
       nextMeasure: () => setState((current) => advancePiecePracticeNoAttackMeasure(piece, current, at).state) };
   }, { initialProps: { available: true } });
   const session = mock.sessions.at(-1)!;
+  if (!preflight) act(() => {
+    for (let i = 0; i < 4; i++) view.result.current.input.calibrationAction("skip");
+    view.result.current.input.enterPractice();
+  });
   const frame = (hz: number | null, generation = session.generation) => {
     at += 40;
     const observation = { frequencyHz: hz, quality: hz === null ? 0 : 0.99, levelDbfs: hz === null ? -80 : -20, reason: hz === null ? "quiet" as const : "usable" as const };
@@ -55,10 +63,97 @@ function setup(source = score) {
   const tone = (cents = 0, count = 10) => { for (let i = 0; i < count; i++) frame(equalTemperedFrequency(64) * 2 ** (cents / 1200)); };
   return { ...view, session, frame, quiet, tone };
 }
-beforeEach(() => { vi.useFakeTimers(); mock.sessions.length = 0; });
+beforeEach(() => { vi.useFakeTimers(); mock.sessions.length = 0; localStorage.clear(); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("acoustic run ownership", () => {
+  it.each(["stop", "interruption"] as const)("requires a fresh green assessment after %s before automatic advancement", (event) => {
+    const s = setup(score, true);
+    act(() => { s.result.current.input.calibrationAction("skip"); s.result.current.input.start(); });
+    const pitch = equalTemperedFrequency(62);
+    for (let i = 0; i < 40; i++) s.frame(pitch);
+    const assessed = s.result.current.input.calibration;
+    expect(assessed.phase).toBe("assessed"); expect(assessed.measurement.tuning).toBe("within-band");
+    const preflight = () => {
+      const input = s.result.current.input;
+      return createElement(ViolinPreflight, { calibration: input.calibration, frequencyHz: input.calibrationHz,
+        listening: input.status.state === "listening", onAction: input.calibrationAction, onEnterPractice: input.enterPractice });
+    };
+    const ui = render(preflight());
+    act(() => vi.advanceTimersByTime(CALIBRATION_POLICY.acknowledgmentMs / 2));
+    act(() => event === "stop" ? s.result.current.input.stop() : s.session.options.onStatus({ state: "paused", message: "Microphone interrupted" }));
+    ui.rerender(preflight());
+    act(() => s.result.current.input.calibrationAction("automatic"));
+    act(() => s.result.current.input.start()); ui.rerender(preflight());
+    act(() => vi.advanceTimersByTime(CALIBRATION_POLICY.acknowledgmentMs * 2));
+    expect(s.result.current.input.calibration.phase).toBe("collecting");
+    expect(s.result.current.input.calibration.referenceIndex).toBe(assessed.referenceIndex);
+    expect(s.result.current.input.calibration.revision).toBe(assessed.revision);
+    expect(s.result.current.input.calibration.attempts).toBe(assessed.attempts);
+    s.frame(pitch); ui.rerender(preflight());
+    act(() => vi.advanceTimersByTime(CALIBRATION_POLICY.acknowledgmentMs * 2));
+    expect(s.result.current.input.calibration.referenceIndex).toBe(assessed.referenceIndex);
+    for (let i = 0; i < 40; i++) s.frame(pitch);
+    expect(s.result.current.input.calibration.phase).toBe("assessed"); ui.rerender(preflight());
+    act(() => vi.advanceTimersByTime(CALIBRATION_POLICY.acknowledgmentMs));
+    expect(s.result.current.input.calibration.referenceIndex).toBe(assessed.referenceIndex + 1);
+    expect(s.result.current.input.calibration.revision).toBe(assessed.revision + 1);
+    expect(s.result.current.input.calibration.attempts[1].choice).toBe("automatic");
+  });
+  it("collects all four string baselines in order without changing V2 practice state", () => {
+    const s = setup(score, true); act(() => s.result.current.input.start());
+    for (const semitone of [55, 62, 69, 76]) {
+      s.quiet(); for (let i = 0; i < 40; i++) s.frame(equalTemperedFrequency(semitone));
+      expect(s.result.current.input.calibration.phase).toBe("assessed");
+      act(() => s.result.current.input.calibrationAction("automatic"));
+    }
+    expect(s.result.current.input.calibration.phase).toBe("summary");
+    expect(s.result.current.input.calibration.attempts.map((attempt) => attempt.measurement.tuning)).toEqual(Array(4).fill("within-band"));
+    expect(s.result.current.state.clockPaused).toBe(true); expect(s.result.current.state).not.toHaveProperty("calibration");
+    expect(s.result.current.state).not.toHaveProperty("analysis");
+  });
+  it("isolates collector failure from acoustic grading", () => {
+    const create = analysisCollector.createAcousticAnalysisCollector;
+    vi.spyOn(analysisCollector, "createAcousticAnalysisCollector").mockImplementation((...args) => ({ ...create(...args), observe: () => { throw Error("collector failed"); } }));
+    const s = setup(); act(() => s.result.current.input.start()); s.quiet(); s.tone();
+    expect(s.result.current.state.completedTargetCount).toBe(1);
+    act(() => vi.advanceTimersByTime(100)); expect(s.result.current.input.analysis.notice).toContain("collection-error");
+  });
+  it("exports through completion and keeps grading active when analysis is off", () => {
+    const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
+    const s = setup(); act(() => { s.result.current.input.analysis.changeEnabled(false); s.result.current.input.start(); });
+    for (let i = 0; i < 3; i++) { s.quiet(); s.tone(); }
+    expect(s.result.current.state.status).toBe("piece-complete");
+    act(() => s.result.current.input.analysis.export());
+    expect(download).toHaveBeenCalledOnce(); const bundle = JSON.parse(download.mock.calls[0][0]);
+    expect(bundle.trace).toEqual([]); expect(bundle.attempts).toEqual([]);
+    expect(analysisBrowser.readAnalysisPreference()).toBe(false);
+  });
+  it("resumes linked attempt collection on the same target after toggling Off then On", () => {
+    const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
+    const s = setup(); act(() => s.result.current.input.start()); s.quiet(); s.tone(35);
+    act(() => s.result.current.input.analysis.changeEnabled(false)); s.tone(35);
+    act(() => s.result.current.input.analysis.changeEnabled(true)); s.quiet(); s.tone();
+    act(() => { s.result.current.input.stop(); s.result.current.input.analysis.export(); });
+    const bundle = JSON.parse(download.mock.calls[0][0]); expect(bundle.attempts).toHaveLength(2);
+    expect(bundle.attempts[1].evidence.accepted).toBe(true); expect(bundle.coverage.gaps.some((gap: { reason: string }) => gap.reason === "collection-disabled")).toBe(true);
+    act(() => vi.advanceTimersByTime(100)); expect(s.result.current.input.analysis.notice).toContain("exported");
+  });
+  it("keeps calibration tones out of evidence/time and requires fresh quiet before the first target", () => {
+    const s = setup(score, true); act(() => s.result.current.input.start());
+    s.quiet(); s.tone(0, 40);
+    expect(s.result.current.state.clockPaused).toBe(true); expect(s.result.current.state.activeElapsedMs).toBe(0);
+    expect(s.result.current.state.mistakeEvidence).toHaveLength(0); expect(s.result.current.state.acousticEvidence ?? []).toHaveLength(0);
+    act(() => { for (let i = 0; i < 4; i++) s.result.current.input.calibrationAction("skip"); s.result.current.input.enterPractice(); });
+    s.tone(0, 40); expect(s.result.current.state.completedTargetCount).toBe(0);
+    s.quiet(); s.tone(); expect(s.result.current.state.completedTargetCount).toBe(1);
+  });
+  it("interruption during preflight does not resume practice on Start", () => {
+    const s = setup(score, true); act(() => s.result.current.input.start());
+    act(() => window.dispatchEvent(new Event("pagehide")));
+    act(() => s.result.current.input.start());
+    expect(s.result.current.input.phase).toBe("preflight"); expect(s.result.current.state.clockPaused).toBe(true);
+  });
   it("preserves quiet articulation history through a targetless measure without advancing it from sound", () => {
     const source: StaffBuilderScore = { ...score, measures: [0, 1, 2].map((index) => ({ id: `measure-${index}`, events: [
       index === 1

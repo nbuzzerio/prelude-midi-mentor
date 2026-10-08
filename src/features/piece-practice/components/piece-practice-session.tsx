@@ -6,6 +6,7 @@ import { useMobilePlay } from "@/hooks/use-mobile-play";
 import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import { usePiecePracticeAcousticInput } from "../hooks/use-piece-practice-acoustic-input";
 import { PiecePracticeAcousticControls, PiecePracticeAcousticSetup } from "./piece-practice-acoustic-controls";
+import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/components/acoustic-analysis-export-controls";
 import { DEFAULT_PIECE_PRACTICE_INPUT, type PiecePracticeInputConfiguration } from "../piece-practice-acoustic-types";
 import { validPiecePracticeInputConfiguration } from "../piece-practice-acoustic-validation";
 import { getAcousticEligibility } from "../piece-practice-acoustic-eligibility";
@@ -361,7 +362,7 @@ function KeyboardPiecePracticeOwner(props: ActivePiecePracticeSessionProps) {
   return <PiecePracticeSessionView {...props} input={{ kind: "keyboard", controller }} />;
 }
 function AcousticPiecePracticeOwner(props: ActivePiecePracticeSessionProps) {
-  const controller = usePiecePracticeAcousticInput({ ...props, available: props.microphoneAvailable });
+  const controller = usePiecePracticeAcousticInput({ ...props, available: props.microphoneAvailable, runId: props.acousticRunId });
   return <PiecePracticeSessionView {...props} input={{ kind: "microphone", controller }} />;
 }
 function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwaitingSave, targetedPractice, now, onExit, onRestartPiece, onSessionStateChange, piece, sessionState, input, microphoneAvailable }: ActivePiecePracticeSessionProps & Readonly<{ input: SessionInput }>) {
@@ -436,6 +437,7 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
       {mobilePlayExit}
       <div aria-live="polite" className="sr-only" role="status">Piece complete.</div>
       <h1 className="text-3xl font-bold text-green-300" ref={completionHeadingRef} tabIndex={-1}>Piece complete</h1>
+      {input.kind === "microphone" && <AcousticAnalysisExportControls control={input.controller.analysis} capturing={false} />}
       {targetedPractice.error && <p role="alert">{targetedPractice.error}</p>}
       {targetedPractice.notice && <p role="status">{targetedPractice.notice}</p>}
       {completionSaveState === "saving" && <p role="status">Saving the completed practice result. Browser close protection remains active until it is saved.</p>}
