@@ -9,6 +9,7 @@ import { centsBetween, describeFrequency, equalTemperedFrequency } from "@/lib/a
 import { formatAcousticHeardPitch } from "../piece-practice-report";
 import { ViolinPreflight } from "@/features/instrument-learning/components/violin-preflight";
 import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/components/acoustic-analysis-export-controls";
+import { PiecePracticeRecordingControls } from "./piece-practice-recording-controls";
 
 export function PiecePracticeAcousticSetup({ configuration, preset, onPreset, onChange }: Readonly<{
   configuration: PiecePracticeInputConfiguration; preset: string; onPreset: (preset: string) => void;
@@ -72,6 +73,7 @@ export function PiecePracticeAcousticControls({ input, available, target, measur
     <p className="font-semibold">Microphone practice — Provisional</p>
     <div className="flex flex-wrap gap-3"><button className="min-h-11 rounded bg-sky-600 px-4 font-semibold disabled:opacity-40" type="button" disabled={active || !available} onClick={input.start}>Start Listening</button>
       <button className="min-h-11 rounded border border-zinc-500 px-4 disabled:opacity-40" type="button" disabled={!active} onClick={input.stop}>Stop Listening</button></div>
+    <PiecePracticeRecordingControls listening={active} recording={input.recording} />
     <p role="status" className="min-h-12">{!available ? "End the active Practice Session before listening." : input.status.message}</p>
     {input.phase === "preflight" && <ViolinPreflight calibration={input.calibration} frequencyHz={input.calibrationHz} feedback={input.calibrationFeedback} accepted={input.calibrationAccepted}
       listening={input.status.state === "listening"} onAction={input.calibrationAction} onEnterPractice={input.enterPractice} onSkipCalibration={input.skipCalibrationAndStartPractice} />}
@@ -86,7 +88,7 @@ export function PiecePracticeAcousticControls({ input, available, target, measur
       <p>{lastAttempt.accepted ? "✓ Accepted within" : "Outside"} ±{lastAttempt.pitchToleranceCents}¢</p>
       {!lastAttempt.accepted && <p>Re-articulate to try this target again.</p>}
     </div>}
-    <p className="text-sm text-zinc-300">One note at a time. Weak bow restarts may need a brief gap. Harmonics can cause octave errors. Keep other playback quiet; use headphones if needed. Audio is analyzed locally, never recorded or uploaded.</p>
+    <p className="text-sm text-zinc-300">One note at a time. Weak bow restarts may need a brief gap. Harmonics can cause octave errors. Keep other playback quiet; use headphones if needed. Microphone audio is analyzed locally. Performance audio is recorded only when enabled, remains local until downloaded, and is never automatically uploaded by Prelude.</p>
     </details>
     <AcousticAnalysisExportControls control={input.analysis} capturing={active} />
   </section>;

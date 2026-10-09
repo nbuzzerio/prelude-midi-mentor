@@ -22,7 +22,7 @@ export const ANALYSIS_DEFINITIONS = Object.freeze({
   reasons: { usable: "Analyzer gates passed", quiet: "Below level gate", clipped: "Excess clipped samples", invalid: "Invalid input samples",
     aperiodic: "No periodic peak", "out-of-range": "Estimate outside supported range", "low-periodicity": "Below NSDF gate", "clock-stalled": "Audio clock did not progress" },
   retention: "4-second bounded ring; diagnostic windows approximately 1s before/2s after events, 60s total reserved coverage with 10s reserved for calibration. Collection stops at duration/event/memory limits. See coverage for gaps, omitted windows and truncation.",
-  limitations: "No raw audio exists. Discarded observations cannot be reconstructed. Downsampled trace cannot support reliable vibrato-rate analysis. No convergence, mastery, physical-fingering or tuning-drift inference is made.",
+  limitations: "No raw audio exists in this scalar export. Discarded observations cannot be reconstructed. Downsampled trace cannot support reliable vibrato-rate analysis. No convergence, mastery, physical-fingering or tuning-drift inference is made.",
 });
 
 function measurement(value: CalibrationMeasurement, origin: number) {

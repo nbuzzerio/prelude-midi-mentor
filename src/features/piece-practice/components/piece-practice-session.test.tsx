@@ -11,7 +11,7 @@ import type { PiecePracticePiece, PiecePracticeTarget } from "../piece-practice-
 import { PiecePracticeSession } from "./piece-practice-session";
 import { PiecePracticeResults } from "./piece-practice-results";
 import type { PiecePracticeSessionState } from "../piece-practice-session";
-import type { CaptureOptions } from "@/lib/audio/monophonic/microphone-capture";
+import type { CaptureOptions, CaptureStreamLease } from "@/lib/audio/monophonic/microphone-capture";
 import { createPitchStabilizer } from "@/lib/audio/monophonic/pitch-stabilizer";
 import * as analysisBrowser from "@/features/acoustic-analysis/acoustic-analysis-browser";
 
@@ -26,11 +26,23 @@ const mocks = vi.hoisted(() => ({
   keyboardProps: null as null | Record<string, unknown>,
   success: vi.fn(), incorrect: vi.fn(),
 }));
-const microphone = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; epoch: number; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] }));
+const microphone = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; epoch: number; lease: CaptureStreamLease | null;
+  start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; emitReady: (stream: MediaStream) => void }[] }));
 vi.mock("@/lib/audio/monophonic/microphone-capture", () => ({ createMicrophoneCapture: (options: CaptureOptions) => {
-  const capture = { options, epoch: 0, start: vi.fn(), stop: vi.fn() };
+  const capture = { options, epoch: 0, lease: null as CaptureStreamLease | null, start: vi.fn(), stop: vi.fn(),
+    emitReady(stream: MediaStream) {
+      capture.lease = { stream, generation: capture.epoch, atMs: 0 };
+      options.onStreamReady?.(capture.lease);
+    } };
   capture.start.mockImplementation(async () => { capture.epoch++; if (options.eligible()) options.onStatus({ state: "listening", message: "Listening" }); });
-  capture.stop.mockImplementation(() => { capture.epoch++; options.onStatus({ state: "idle", message: "Off" }); });
+  capture.stop.mockImplementation(() => {
+    if (capture.lease) {
+      options.onStreamEnding?.({ ...capture.lease, atMs: 1 });
+      capture.lease.stream.getTracks().forEach((track) => track.stop());
+      capture.lease = null;
+    }
+    capture.epoch++; options.onStatus({ state: "idle", message: "Off" });
+  });
   microphone.sessions.push(capture);
   return { ...capture, generation: () => capture.epoch, snapshot: () => ({ state: "listening", pitch: null, fresh: false, ageMs: null }) };
 } }));
@@ -162,6 +174,23 @@ function heldCompletionStore() {
   return { store, resolveCompletion, rejectCompletion };
 }
 
+function heldFocusedCompletionStore() {
+  let release!: () => void;
+  const completion = new Promise<void>((resolve) => { release = resolve; });
+  let completedWrites = 0;
+  const records: PiecePracticeRunRecordV2[] = [];
+  const store: PiecePracticeRunStore & { records: PiecePracticeRunRecordV2[] } = {
+    records, async list() { return [...records]; },
+    save(record) {
+      if (record.status === "completed" && ++completedWrites === 2) return completion.then(() => { records.push(record); });
+      records.push(record);
+      return Promise.resolve();
+    },
+    async discard() {},
+  };
+  return { store, release };
+}
+
 function unloadIsProtected() {
   const event = new Event("beforeunload", { cancelable: true });
   window.dispatchEvent(event);
@@ -206,6 +235,56 @@ function start(source = piece(), measure = 1, endMeasure: number | null = null) 
   if (endMeasure !== null) fireEvent.change(screen.getByLabelText(/End Measure/), { target: { value: String(endMeasure - 1) } });
   fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
   return rendered;
+}
+
+function installRecordingHarness() {
+  class NativeRecorder {
+    static instances: NativeRecorder[] = [];
+    static isTypeSupported = () => true;
+    state: RecordingState = "inactive";
+    mimeType = "audio/webm;codecs=opus";
+    onstart: (() => void) | null = null;
+    onstop: (() => void) | null = null;
+    ondataavailable: ((event: BlobEvent) => void) | null = null;
+    onerror: (() => void) | null = null;
+    constructor(readonly stream: MediaStream) { NativeRecorder.instances.push(this); }
+    start() { this.state = "recording"; this.onstart?.(); }
+    stop() { this.state = "inactive"; }
+    finish() {
+      this.ondataavailable?.({ data: new Blob(["performance"], { type: this.mimeType }) } as BlobEvent);
+      this.onstop?.();
+    }
+  }
+  const revoke = vi.fn();
+  vi.stubGlobal("MediaRecorder", NativeRecorder);
+  vi.stubGlobal("URL", class extends URL {
+    static createObjectURL() { return `blob:focused-${NativeRecorder.instances.length}`; }
+    static revokeObjectURL(url: string) { revoke(url); }
+  });
+  return { NativeRecorder, revoke };
+}
+
+async function startFocusedAcousticRun(store = runStore()) {
+  render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={piece()} runStore={store} />);
+  fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+  fireEvent.change(screen.getByLabelText("Instrument"), { target: { value: "ocarina" } });
+  fireEvent.click(screen.getByLabelText("Upper Staff"));
+  fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+  fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+  for (let i = 0; i < 20 && !screen.queryByRole("heading", { name: "Piece complete" }); i += 1) {
+    fireEvent.click(screen.queryByRole("button", { name: "Next Measure" }) ?? screen.getByRole("button", { name: "Skip Target" }));
+  }
+  await screen.findByText("Completed practice saved.");
+  fireEvent.click(screen.getByRole("button", { name: "Practice measure 3" }));
+  fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+  return { capture: microphone.sessions.at(-1)!, store };
+}
+
+function deliverMockStream(capture: (typeof microphone.sessions)[number]) {
+  const stopTrack = vi.fn();
+  const stream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream;
+  act(() => capture.emitReady(stream));
+  return { stream, stopTrack };
 }
 
 beforeEach(() => {
@@ -371,6 +450,173 @@ describe("PiecePracticeSession", () => {
     expect(microphone.sessions).toHaveLength(1); expect(microphone.sessions[0].start).not.toHaveBeenCalled();
     expect(mocks.inputMounts).toBe(0); expect(screen.queryByTestId("piano-keyboard")).toBeNull();
     expect(screen.getByRole("button", { name: "Start Listening" })).toBeTruthy();
+  });
+  it("keeps an active recording and run untouched when Restart Piece discards are canceled", () => {
+    class NativeRecorder {
+      static isTypeSupported = () => true;
+      state: RecordingState = "inactive";
+      mimeType = "audio/webm;codecs=opus";
+      onstart: (() => void) | null = null;
+      onstop: (() => void) | null = null;
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(readonly stream: MediaStream) {}
+      start() { this.state = "recording"; this.onstart?.(); }
+      stop() { this.state = "inactive"; }
+    }
+    vi.stubGlobal("MediaRecorder", NativeRecorder);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} />);
+      fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+      fireEvent.change(screen.getByLabelText("Instrument"), { target: { value: "ocarina" } });
+      fireEvent.click(screen.getByLabelText("Upper Staff"));
+      fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
+      fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+      const capture = microphone.sessions.at(-1)!;
+      const stream = { getTracks: () => [] } as unknown as MediaStream;
+      act(() => capture.options.onStreamReady?.({ stream, generation: capture.epoch, atMs: 0 }));
+      expect(screen.getByText("● Recording performance audio")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Restart Piece" }));
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Discard this audio"));
+      expect(microphone.sessions).toHaveLength(1);
+      expect(screen.getByText("● Recording performance audio")).toBeTruthy();
+      expect((screen.getByRole("checkbox", { name: "Record performance audio" }) as HTMLInputElement).checked).toBe(true);
+      confirm.mockReturnValue(true);
+      fireEvent.click(screen.getByRole("button", { name: "Restart Piece" }));
+      expect(microphone.sessions).toHaveLength(2);
+      expect((screen.getByRole("checkbox", { name: "Record performance audio" }) as HTMLInputElement).checked).toBe(false);
+    } finally { confirm.mockRestore(); }
+  });
+  it("guards active focused recording before resetting input or restoring the original run", async () => {
+    const { NativeRecorder } = installRecordingHarness();
+    const { capture, store } = await startFocusedAcousticRun();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
+    const { stream, stopTrack } = deliverMockStream(capture);
+    const recorder = NativeRecorder.instances.at(-1)!;
+    expect(recorder.stream).toBe(stream);
+    expect(screen.getByText("● Recording performance audio")).toBeTruthy();
+    const focusedRunId = store.records.at(-1)!.runId;
+    capture.stop.mockClear();
+    const confirm = vi.spyOn(window, "confirm").mockImplementation((message) => !message?.includes("Discard this audio"));
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      expect(confirm).toHaveBeenCalledTimes(2);
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Discard this audio"));
+      expect(store.records.at(-1)!.runId).toBe(focusedRunId);
+      expect(capture.stop).not.toHaveBeenCalled();
+      expect(stopTrack).not.toHaveBeenCalled();
+      expect(recorder.state).toBe("recording");
+      expect(screen.getByText("● Recording performance audio")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Return to Targeted Practice" })).toBeTruthy();
+
+      confirm.mockReturnValue(true);
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      expect(capture.stop).toHaveBeenCalled();
+      expect(stopTrack).toHaveBeenCalledTimes(1);
+      expect(recorder.state).toBe("inactive");
+      expect(screen.getByText(/Original results restored/)).toBeTruthy();
+      expect(screen.getByRole("region", { name: "Targeted Practice" })).toBeTruthy();
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("keeps a completed focused run intact when finalizing audio discard is canceled", async () => {
+    const { NativeRecorder } = installRecordingHarness();
+    const { capture, store } = await startFocusedAcousticRun();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
+    deliverMockStream(capture);
+    const recorder = NativeRecorder.instances.at(-1)!;
+    fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
+    await screen.findByText("Completed practice saved.");
+    expect(screen.getByText("Finalizing recording")).toBeTruthy();
+    const focusedRunId = store.records.at(-1)!.runId;
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Discard this audio"));
+      expect(store.records.at(-1)!.runId).toBe(focusedRunId);
+      expect(screen.getByText("Finalizing recording")).toBeTruthy();
+      expect(recorder.onstop).not.toBeNull();
+      expect(microphone.sessions).toHaveLength(2);
+      confirm.mockReturnValue(true);
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      expect(recorder.onstop).toBeNull();
+      expect(screen.getByText(/Original results restored/)).toBeTruthy();
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Practice measure 3" }));
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("preserves a focused acceptance acknowledgment when audio departure is canceled after its save settles", async () => {
+    const { NativeRecorder } = installRecordingHarness();
+    const { store, release } = heldFocusedCompletionStore();
+    const { capture } = await startFocusedAcousticRun(store);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
+    deliverMockStream(capture);
+    const tracker = createPitchStabilizer();
+    let observedAtMs = 65_000;
+    const frames = (hz: number | null, count: number) => {
+      for (let i = 0; i < count; i += 1) {
+        observedAtMs += 40;
+        const observation = { frequencyHz: hz, quality: hz ? 0.99 : 0, levelDbfs: hz ? -20 : -80,
+          reason: hz ? "usable" as const : "quiet" as const };
+        act(() => capture.options.onObservation?.({ observation, snapshot: tracker.update(observation, observedAtMs, observedAtMs / 1000),
+          observedAtMs, audioSeconds: observedAtMs / 1000, captureGeneration: capture.epoch }));
+      }
+    };
+    frames(null, 3); frames(440, 8);
+    expect(screen.getByLabelText("Accepted pitch/attack").textContent).toContain("A4 accepted");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      await act(async () => { release(); });
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Discard this audio"));
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toContain("A4 accepted");
+      expect(screen.getByText("Finalizing recording")).toBeTruthy();
+      expect(NativeRecorder.instances.at(-1)?.onstop).not.toBeNull();
+      expect(microphone.sessions).toHaveLength(2);
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("retains a finalized focused segment on cancel and revokes its URL on accepted return", async () => {
+    const { NativeRecorder, revoke } = installRecordingHarness();
+    const { capture } = await startFocusedAcousticRun();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
+    const { stopTrack } = deliverMockStream(capture);
+    const recorder = NativeRecorder.instances.at(-1)!;
+    fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
+    await screen.findByText("Completed practice saved.");
+    act(() => recorder.finish());
+    expect(screen.getByText("Performance Recordings (1)")).toBeTruthy();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      expect(screen.getByText("Performance Recordings (1)")).toBeTruthy();
+      expect(revoke).not.toHaveBeenCalled();
+      expect(microphone.sessions).toHaveLength(2);
+      confirm.mockReturnValue(true);
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      expect(revoke).toHaveBeenCalledWith("blob:focused-1");
+      expect(stopTrack).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("region", { name: "Measure 3 practice comparison" })).toBeTruthy();
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("returns from focused acoustic practice without an audio prompt when recording stayed Off", async () => {
+    const { NativeRecorder } = installRecordingHarness();
+    const { capture } = await startFocusedAcousticRun();
+    const { stopTrack } = deliverMockStream(capture);
+    expect(NativeRecorder.instances).toHaveLength(0);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Return to Targeted Practice" }));
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm.mock.calls[0]?.[0]).not.toContain("Discard this audio");
+      expect(stopTrack).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("region", { name: "Targeted Practice" })).toBeTruthy();
+    } finally { confirm.mockRestore(); }
   });
   it("recovers microphone settings paused and off, preserving them on Restart Piece", () => {
     const score = realisticPolyphonicScore(); const projected = projectStaffBuilderPieceForPractice(score); if (!projected.ok) throw Error();

@@ -41,6 +41,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Export bounded local scalar pitch evidence as JSON for your own analysis. No audio is recorded or uploaded; evidence is temporary until exported.",
     "Concert-pitch targets and practice acceptance remain unchanged. Ocarina calibration and instrument diagrams are still future work.",
   ],
+}, {
+  id: "2026-10-09-local-performance-recording",
+  sequence: 4,
+  title: "Listen back to your Piece Practice performances",
+  date: "2026-10-09",
+  version: "2.9.4",
+  changes: [
+    "Opt in to local violin or ocarina performance recording during Piece Practice. Calibration is excluded.",
+    "Play back and download temporary recording segments before leaving or closing the page. Audio is never automatically uploaded.",
+    "Recording does not change pitch grading, scalar analysis JSON, reports or saved run evidence.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

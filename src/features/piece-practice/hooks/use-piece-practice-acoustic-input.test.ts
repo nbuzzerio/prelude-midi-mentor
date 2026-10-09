@@ -407,6 +407,48 @@ describe("responsive preflight evidence", () => {
 });
 
 describe("acoustic run ownership", () => {
+  it("arms during violin calibration and records the exact existing stream only after entering practice", () => {
+    const recorders: { stream: MediaStream; onstart: (() => void) | null; ondataavailable: ((event: BlobEvent) => void) | null; onstop: (() => void) | null; stop: ReturnType<typeof vi.fn> }[] = [];
+    class NativeRecorder {
+      static isTypeSupported = () => true;
+      state: RecordingState = "inactive";
+      mimeType = "audio/webm;codecs=opus";
+      onstart: (() => void) | null = null;
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onstop: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      stop = vi.fn(() => { this.state = "inactive"; });
+      constructor(readonly stream: MediaStream) { recorders.push(this); }
+      start() { this.state = "recording"; }
+    }
+    vi.stubGlobal("MediaRecorder", NativeRecorder);
+    vi.stubGlobal("URL", class extends URL {
+      static createObjectURL() { return "blob:practice-test"; }
+      static revokeObjectURL() { /* Released on hook unmount. */ }
+    });
+    try {
+      const s = setup(score, true);
+      const stream = { getTracks: () => [] } as unknown as MediaStream;
+      act(() => { s.result.current.input.recording.setEnabled(true); s.result.current.input.start(); });
+      act(() => s.session.options.onStreamReady?.({ stream, generation: s.session.generation, atMs: 0 }));
+      expect(recorders).toHaveLength(0);
+      expect(s.result.current.input.recording.phase).toBe("armed");
+      act(() => s.result.current.input.analysis.changeEnabled(false));
+      act(() => s.result.current.input.skipCalibrationAndStartPractice());
+      expect(recorders).toHaveLength(1);
+      expect(recorders[0].stream).toBe(stream);
+      act(() => recorders[0].onstart?.());
+      expect(s.result.current.input.recording.phase).toBe("recording");
+      act(() => s.result.current.input.recording.setEnabled(false));
+      expect(recorders[0].stop).toHaveBeenCalledTimes(1);
+      act(() => {
+        recorders[0].ondataavailable?.({ data: new Blob(["performance"], { type: "audio/webm" }) } as BlobEvent);
+        recorders[0].onstop?.();
+      });
+      expect(s.result.current.input.recording.segments).toHaveLength(1);
+      s.unmount();
+    } finally { vi.unstubAllGlobals(); }
+  });
   it("calibrates four bowed strings with variable cadence, null frames, reacquisition and a harmonic glitch", () => {
     const s = setup(score, true); act(() => s.result.current.input.start());
     for (const [stringIndex, semitone] of [55, 62, 69, 76].entries()) {

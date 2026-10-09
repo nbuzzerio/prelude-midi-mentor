@@ -31,6 +31,7 @@ describe("acoustic setup and feedback", () => {
       calibrationFeedback: { frequencyHz: null, status: "Last heard", assessment: null, activity: "Listening - Sound detected - Measuring pitch", failureReason: null, liveFrequencyHz: null, lastHeardHz: null, progress: null, confirming: false, lastHeardAt: null, ambiguity: null },
       phase: "practice", calibration: createCalibrationSession("test"), calibrationHz: null, calibrationAction: vi.fn(), enterPractice: vi.fn(), skipCalibrationAndStartPractice: vi.fn(),
       analysis: { enabled: true, notice: null, changeEnabled: vi.fn(), export: vi.fn() },
+      recording: { enabled: false, phase: "off", message: "Performance recording off.", elapsedMs: 0, segments: [], retainedBytes: 0, limitReached: false, setEnabled: vi.fn(), hasUnsavedAudio: vi.fn(() => false) },
       status: { state: "listening", message: "Listening" }, needsQuiet: false,
       reading: { state: "stable", fresh: true, ageMs: 0, pitch: { semitone: 66, frequencyHz: 376.69 } },
       start: vi.fn(), stop: vi.fn(), resetInput: vi.fn(), skipCurrentTarget: vi.fn(),

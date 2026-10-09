@@ -11,7 +11,7 @@ export function AcousticAnalysisExportControls({ control, capturing }: {
       <select aria-label="Analysis data" className="min-h-11 rounded border border-zinc-500 bg-zinc-950 px-3" value={control.enabled ? "on" : "off"}
         onChange={(event) => control.changeEnabled(event.target.value === "on")}><option value="on">On</option><option value="off">Off</option></select>
     </label>
-    <p>Local scalar pitch data only. No audio is recorded or uploaded.</p>
+    <p>This JSON contains local scalar pitch data only. Optional performance recordings are separate and are not included in the export.</p>
     <button type="button" className="min-h-11 justify-self-start rounded border border-sky-400 px-3 disabled:opacity-50" disabled={capturing} onClick={control.export}>Export Acoustic Analysis</button>
     {capturing && <p>Stop Listening to export the collected evidence.</p>}
     </div></details>

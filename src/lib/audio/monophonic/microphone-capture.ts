@@ -4,6 +4,7 @@ import { MONOPHONIC_CONFIG, type PitchSnapshot, type PitchObservation, type Pitc
 
 export type CaptureState = "idle" | "requesting" | "starting" | "listening" | "paused" | "denied" | "unavailable" | "error";
 export type CaptureStatus = Readonly<{ state: CaptureState; message: string }>;
+export type CaptureStreamLease = Readonly<{ stream: MediaStream; generation: number; atMs: number }>;
 type Timer = ReturnType<typeof setTimeout>;
 type Resource = {
   context: AudioContext | null; stream: MediaStream | null;
@@ -17,6 +18,8 @@ export type CaptureOptions = Readonly<{
   secure?: boolean; eligible: () => boolean; now?: () => number;
   onStatus: (status: CaptureStatus) => void; onPitch: (snapshot: PitchSnapshot) => void;
   onObservation?: (envelope: PitchObservationEnvelope) => void;
+  onStreamReady?: (lease: CaptureStreamLease) => void;
+  onStreamEnding?: (lease: CaptureStreamLease) => void;
   unavailableMessage?: string;
   eligibilityLostMessage?: string;
 }>;
@@ -45,13 +48,19 @@ function hasUnclosedContexts() {
 /** One explicit listening session. No MIDI events, recordings, or speaker connection. */
 export function createMicrophoneCapture({ mediaDevices = globalThis.navigator?.mediaDevices,
   Context = globalThis.AudioContext, secure = globalThis.isSecureContext,
-  eligible, now = () => performance.now(), onStatus, onPitch, onObservation,
+  eligible, now = () => performance.now(), onStatus, onPitch, onObservation, onStreamReady, onStreamEnding,
   unavailableMessage = "Listening is available only in the foreground, with no active Practice Session.",
   eligibilityLostMessage = "Listening stopped because this activity is no longer eligible. Press Start Listening to restart." }: CaptureOptions) {
   let generation = 0, owned: Resource | null = null;
+  let delivered: { resource: Resource; lease: CaptureStreamLease } | null = null;
   function cleanup(resource: Resource | null) {
     if (!resource || resource.disposed) return;
     resource.disposed = true;
+    if (delivered?.resource === resource) {
+      const lease = delivered.lease;
+      delivered = null;
+      try { onStreamEnding?.({ ...lease, atMs: now() }); } catch { /* Observers never own capture cleanup. */ }
+    }
     if (resource.timer !== null) clearTimeout(resource.timer);
     if (resource.startupTimer !== null) clearTimeout(resource.startupTimer);
     resource.listeners.forEach(({ target, name, listener }) => target.removeEventListener(name, listener));
@@ -172,6 +181,11 @@ export function createMicrophoneCapture({ mediaDevices = globalThis.navigator?.m
       if (resource.startupTimer !== null) clearTimeout(resource.startupTimer);
       resource.startupTimer = null;
       onStatus({ state: "listening", message: "Microphone active. Play one sustained note." });
+      if (canContinue() && resource.stream) {
+        const lease = { stream: resource.stream, generation: epoch, atMs: now() };
+        delivered = { resource, lease };
+        try { onStreamReady?.(lease); } catch { /* Observers cannot interrupt listening. */ }
+      }
       if (canContinue()) resource.timer = setTimeout(sample, 1000 / 30);
     } catch (error) {
       if (!current()) { cleanup(resource); return; }

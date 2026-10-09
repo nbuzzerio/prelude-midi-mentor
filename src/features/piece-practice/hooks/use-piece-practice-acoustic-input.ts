@@ -15,6 +15,7 @@ import { downloadAcousticAnalysis, readAnalysisPreference, saveAnalysisPreferenc
 import { serializeAcousticAnalysis } from "@/features/acoustic-analysis/acoustic-analysis-export";
 import { equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 import { formatPiecePracticeWrittenPitch } from "../piece-practice-evidence";
+import { createPiecePracticeRecording, type RecordingSnapshot } from "../piece-practice-recording";
 
 type Options = Readonly<{
   piece: PiecePracticePiece; sessionState: PiecePracticeSessionState;
@@ -59,6 +60,13 @@ export function usePiecePracticeAcousticInput(options: Options) {
       focus: options.sessionState.assessmentFocus, pitchToleranceCents: config?.mode === "microphone" ? config.pitchToleranceCents : 25 }, options.now());
     result.setEnabled(analysisEnabled, options.now()); return result;
   });
+  const [recordingSnapshot, setRecordingSnapshot] = useState<RecordingSnapshot>({
+    enabled: false, phase: "off", message: "Performance recording off.", elapsedMs: 0,
+    segments: [], retainedBytes: 0, limitReached: false,
+  });
+  const recordingRef = useRef<ReturnType<typeof createPiecePracticeRecording> | null>(null);
+  const setRecordingEnabled = useCallback((enabled: boolean) => recordingRef.current?.setEnabled(enabled), []);
+  const hasUnsavedRecording = useCallback(() => recordingRef.current?.hasUnsavedAudio() ?? false, []);
   const analysisGuard = useCallback((action: () => void) => {
     try { action(); } catch {
       try { collector.stop("collection-error", latest.current.now()); } catch { /* Never interrupt capture or grading. */ }
@@ -102,6 +110,7 @@ export function usePiecePracticeAcousticInput(options: Options) {
       analysisGuard(() => collector.event("restart-measure", options.now()));
     }
     syncAnalysis(options.sessionState);
+    recordingRef.current?.setEligible(phaseRef.current === "practice" && listening.current && options.sessionState.status !== "piece-complete" && !options.sessionState.clockPaused);
     if (capturing.current && (!options.available || options.sessionState.status === "piece-complete"
       || phaseRef.current === "practice" && options.sessionState.clockPaused && listening.current)) {
       captureRef.current?.stop(options.sessionState.status === "piece-complete" ? "idle" : "paused",
@@ -144,6 +153,18 @@ export function usePiecePracticeAcousticInput(options: Options) {
 
   useEffect(() => {
     let mounted = true;
+    // Capture and recorder share one effect lifetime. Strict Mode replay gets a
+    // fresh controller instead of reusing the one permanently disposed by cleanup.
+    const run = latest.current;
+    const recording = createPiecePracticeRecording({
+      runId: run.runId ?? crypto.randomUUID(),
+      instrument: run.sessionState.inputConfiguration?.mode === "microphone" ? run.sessionState.inputConfiguration.instrument : "violin",
+      analysisSessionId: collector.snapshot().session.id, originMs: collector.originMs,
+      now: () => latest.current.now(),
+      onChange: (snapshot) => { if (mounted && recordingRef.current === recording) setRecordingSnapshot(snapshot); },
+    });
+    recordingRef.current = recording;
+    setRecordingSnapshot(recording.snapshot());
     const ownedDetector = detector.current;
     const eligible = () => {
       const { available, piece, sessionState } = latest.current;
@@ -174,7 +195,10 @@ export function usePiecePracticeAcousticInput(options: Options) {
           detector.current.reset(); cutoff.current = now(); setNeedsQuiet(true);
           commit(pausePiecePracticeClock(sessionState, now()));
         }
+        recording.setEligible(listening.current && phaseRef.current === "practice" && latest.current.sessionState.status !== "piece-complete" && !latest.current.sessionState.clockPaused);
       },
+      onStreamReady: (lease) => { if (mounted) recording.onStreamReady(lease); },
+      onStreamEnding: (lease) => recording.onStreamEnding(lease),
       onObservation: (envelope) => {
         if (!eligible() || !listening.current || envelope.captureGeneration !== capture.generation()
           || envelope.observedAtMs < cutoff.current) return;
@@ -240,11 +264,14 @@ export function usePiecePracticeAcousticInput(options: Options) {
       setAnalysisNotice((previous) => previous === notice ? previous : notice);
     }, 100);
     return () => {
-      mounted = false; listening.current = false;
+      mounted = false; listening.current = false; capturing.current = false;
       document.removeEventListener("visibilitychange", visibility);
       document.removeEventListener("freeze", background);
       window.removeEventListener("pagehide", background);
-      window.clearInterval(watchdog); ownedDetector.reset(); capture.stop(); captureRef.current = null;
+      window.clearInterval(watchdog); ownedDetector.reset(); capture.stop();
+      if (captureRef.current === capture) captureRef.current = null;
+      if (recordingRef.current === recording) recordingRef.current = null;
+      recording.dispose();
     };
   }, [commit, analysisGuard, collector, syncAnalysis, calibrationAction]);
 
@@ -270,6 +297,7 @@ export function usePiecePracticeAcousticInput(options: Options) {
     analysisGuard(() => collector.event("enter-practice", latest.current.now()));
     resetInput();
     if (listening.current) commit(resumePiecePracticeClock(latest.current.sessionState, latest.current.now()));
+    recordingRef.current?.setEligible(listening.current && !latest.current.sessionState.clockPaused);
   }, [commit, resetInput, analysisGuard, collector]);
   const skipCalibrationAndStartPractice = useCallback(() => {
     if (phaseRef.current !== "preflight") return;
@@ -304,5 +332,6 @@ export function usePiecePracticeAcousticInput(options: Options) {
   }, [collector]);
   return { status, reading, needsQuiet, lastAttempt, start, stop, resetInput, skipCurrentTarget,
     phase, calibration, calibrationHz, calibrationFeedback, calibrationAccepted, calibrationAction, enterPractice, skipCalibrationAndStartPractice,
+    recording: { ...recordingSnapshot, setEnabled: setRecordingEnabled, hasUnsavedAudio: hasUnsavedRecording },
     analysis: { enabled: analysisEnabled, notice: analysisNotice, changeEnabled: changeAnalysisEnabled, export: exportAnalysis } };
 }

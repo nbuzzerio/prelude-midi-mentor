@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import FlashcardSession from "./features/flashcards/components/flashcard-session";
 import SequenceSession from "./features/sequences/components/sequence-session";
@@ -21,6 +21,14 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
   const [practiceSection, setPracticeSection] =
     useState<PracticeSection>("freeplay");
   const [practiceRunActive, setPracticeRunActive] = useState(false);
+  const audioDepartureGuard = useRef<(() => boolean) | null>(null);
+  const registerAudioDepartureGuard = useCallback((guard: (() => boolean) | null) => { audioDepartureGuard.current = guard; }, []);
+  const changeSection = (next: PracticeSection) => {
+    if (next === practiceSection) return;
+    if (practiceSection === "staff-builder" && audioDepartureGuard.current && !audioDepartureGuard.current()) return;
+    exitFocusMode();
+    setPracticeSection(next);
+  };
   const { exitFocusMode, isFocusMode, toggleFocusMode } = useFocusMode(
     practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody" && practiceSection !== "practice-session" && practiceSection !== "tuner",
   );
@@ -60,7 +68,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
       break;
 
     case "staff-builder":
-      content = <StaffBuilderSession microphoneAvailable={!practiceRunActive} />;
+      content = <StaffBuilderSession microphoneAvailable={!practiceRunActive} onAudioGuardChange={registerAudioDepartureGuard} />;
       break;
 
     case "melody":
@@ -101,7 +109,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
               ? "border-white bg-sky-500 font-bold text-white"
               : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
-          onClick={() => setPracticeSection("freeplay")}
+          onClick={() => changeSection("freeplay")}
           type="button"
         >
           Free Play
@@ -115,10 +123,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
               ? "border-white bg-sky-500 font-bold text-white"
               : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
-          onClick={() => {
-            exitFocusMode();
-            setPracticeSection("staff-builder");
-          }}
+          onClick={() => changeSection("staff-builder")}
           type="button"
         >
           <span className="sm:hidden">Staff</span>
@@ -129,7 +134,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
           aria-pressed={practiceSection === "practice-session"}
           aria-label="Practice Sessions"
           className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "practice-session" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
-          onClick={() => { exitFocusMode(); setPracticeSection("practice-session"); }}
+          onClick={() => changeSection("practice-session")}
           type="button"
         >
           <span className="sm:hidden">Sessions</span>
@@ -143,7 +148,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
               ? "border-white bg-sky-500 font-bold text-white"
               : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
-          onClick={() => setPracticeSection("flashcards")}
+          onClick={() => changeSection("flashcards")}
           type="button"
         >
           Flashcards
@@ -156,7 +161,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
               ? "border-white bg-sky-500 font-bold text-white"
               : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
-          onClick={() => setPracticeSection("sequence")}
+          onClick={() => changeSection("sequence")}
           type="button"
         >
           Sequences
@@ -170,10 +175,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
               ? "border-white bg-sky-500 font-bold text-white"
               : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
           }`}
-          onClick={() => {
-            exitFocusMode();
-            setPracticeSection("ear-training");
-          }}
+          onClick={() => changeSection("ear-training")}
           type="button"
         >
           <span className="sm:hidden">Ear</span>
@@ -183,7 +185,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
         <button
           aria-pressed={practiceSection === "melody"}
           className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "melody" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
-          onClick={() => { exitFocusMode(); setPracticeSection("melody"); }}
+          onClick={() => changeSection("melody")}
           type="button"
         >
           Melody
@@ -193,7 +195,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
           aria-label="Chromatic Tuner"
           aria-pressed={practiceSection === "tuner"}
           className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "tuner" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
-          onClick={() => { exitFocusMode(); setPracticeSection("tuner"); }}
+          onClick={() => changeSection("tuner")}
           type="button"
         >
           Tuner
@@ -203,7 +205,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
           aria-label="MIDI Diagnostic"
           aria-pressed={practiceSection === "midi-diagnostic"}
           className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "midi-diagnostic" ? "border-white bg-sky-500 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
-          onClick={() => { exitFocusMode(); setPracticeSection("midi-diagnostic"); }}
+          onClick={() => changeSection("midi-diagnostic")}
           type="button"
         >
           <span className="sm:hidden">MIDI</span>

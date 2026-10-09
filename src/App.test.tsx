@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import App from "./App";
 import { version } from "../package.json";
@@ -30,6 +30,7 @@ type SessionProps = Readonly<{
 }>;
 
 const appMidiNotes: string[] = [];
+const audioDeparture = vi.hoisted(() => ({ guard: vi.fn(() => false) }));
 
 function TestSession({
   isFocusMode,
@@ -66,7 +67,10 @@ vi.mock("./features/ear-training/components/ear-training-session", () => ({
 }));
 
 vi.mock("./features/staff-builder/components/staff-builder-session", () => ({
-  default: ({ microphoneAvailable }: { microphoneAvailable: boolean }) => <div className="staff-builder-study-view" data-microphone-available={microphoneAvailable}>Staff Builder Study View</div>,
+  default: function MockStaffBuilder({ microphoneAvailable, onAudioGuardChange }: { microphoneAvailable: boolean; onAudioGuardChange?: (guard: (() => boolean) | null) => void }) {
+    useEffect(() => () => onAudioGuardChange?.(null), [onAudioGuardChange]);
+    return <div className="staff-builder-study-view" data-microphone-available={microphoneAvailable}>Staff Builder Study View<button onClick={() => onAudioGuardChange?.(audioDeparture.guard)} type="button">Register recording guard</button></div>;
+  },
 }));
 
 vi.mock("./features/melody/components/melody-session", () => ({
@@ -85,6 +89,20 @@ vi.mock("./components/midi/midi-diagnostic", () => ({
 }));
 
 describe("App focus mode", () => {
+  it("guards top-level mode changes while temporary performance audio belongs to Staff Builder", () => {
+    audioDeparture.guard.mockReturnValue(false);
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Staff Builder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Register recording guard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
+    expect(screen.getByText("Staff Builder Study View")).toBeTruthy();
+    expect(audioDeparture.guard).toHaveBeenCalledTimes(1);
+    audioDeparture.guard.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
+    expect(screen.getByText("Free Play session")).toBeTruthy();
+    audioDeparture.guard.mockReset();
+    audioDeparture.guard.mockReturnValue(false);
+  });
   it("mounts first-use What's New without allowing its keys to change the background mode", () => {
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function(this: HTMLDialogElement) { this.setAttribute("open", ""); } });
     Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: function(this: HTMLDialogElement) { this.removeAttribute("open"); } });

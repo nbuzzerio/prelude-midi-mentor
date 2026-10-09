@@ -24,7 +24,7 @@ function browserStorage(): StaffBuilderStorage {
   try { return window.localStorage; } catch { return unavailableStorage; }
 }
 
-export default function StaffBuilderSession({ storage = browserStorage(), microphoneAvailable = true }: Readonly<{ storage?: StaffBuilderStorage; microphoneAvailable?: boolean }>) {
+export default function StaffBuilderSession({ storage = browserStorage(), microphoneAvailable = true, onAudioGuardChange }: Readonly<{ storage?: StaffBuilderStorage; microphoneAvailable?: boolean; onAudioGuardChange?: (guard: (() => boolean) | null) => void }>) {
   const [initialPedalPreference] = useState(() => readStaffBuilderSustainPedalLocksInput(storage));
   const [sustainPedalLocksInput, setSustainPedalLocksInput] = useState(initialPedalPreference.ok ? initialPedalPreference.value : false);
   const [preferenceError, setPreferenceError] = useState(initialPedalPreference.ok ? null : initialPedalPreference.message);
@@ -53,7 +53,7 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
     void piecePracticeRunStore.discard(value.runId).then(refreshRuns).catch(() => setRunStorageError(true));
   };
   if (practicePiece) {
-    return <PiecePracticeSession microphoneAvailable={microphoneAvailable} key={openedRun?.runId ?? practiceSourceScore?.id ?? practicePiece.sourceScoreId} onExit={() => { setPracticePiece(null); setOpenedRun(null); refreshRuns(); }} piece={practicePiece} recoveredRun={openedRun ?? undefined} sourceScore={practiceSourceScore ?? undefined} />;
+    return <PiecePracticeSession microphoneAvailable={microphoneAvailable} onAudioGuardChange={onAudioGuardChange} key={openedRun?.runId ?? practiceSourceScore?.id ?? practicePiece.sourceScoreId} onExit={() => { setPracticePiece(null); setOpenedRun(null); refreshRuns(); }} piece={practicePiece} recoveredRun={openedRun ?? undefined} sourceScore={practiceSourceScore ?? undefined} />;
   }
   const launchPiecePractice = (score: Parameters<typeof projectStaffBuilderPieceForPractice>[0]) => {
     const projection = projectStaffBuilderPieceForPractice(score);
