@@ -1,6 +1,6 @@
 import { version } from "../../../package.json";
 import { MONOPHONIC_CONFIG } from "@/lib/audio/monophonic/pitch-analysis-types";
-import { CALIBRATION_POLICY, type CalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
+import { CALIBRATION_POLICY, LEGACY_BEGINNER_CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY, type CalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
 import { ANALYSIS_POLICY, type AnalysisData } from "./acoustic-analysis-types";
 import { summarizeAcousticAnalysis } from "./acoustic-analysis-summary";
 
@@ -14,9 +14,9 @@ export const ANALYSIS_DEFINITIONS = Object.freeze({
   attacks: "Articulation is an algorithmic hypothesis, not an observed physical bow/tongue action. Confirmation delay is NOT hardware latency or earliest physical attack pitch.",
   trace: "First actual source observation per fixed 100 ms bin, split at context boundaries. Actual timestamps are retained without interpolation. Counts/min/max/reasons summarize that bin, relative to context.referenceHz.",
   attribution: "targetVisitId identifies the displayed target context, not proof that continued sound was intended for it. Continued sound after acceptance is unassignable without new attack evidence.",
-  calibration: "Raw qualifying windows: 200 ms settling, at least 800 ms and 20 samples. P10/P90 and MAD describe spread, not statistical confidence. Baselines never change concert targets or grading.",
+  calibration: "Beginner short-note candidates: 50 ms attack guard, 4 agreeing raw observations and 90 ms sampled ringing, optionally combined across compatible candidates within 3 seconds. Median and spread are estimates, not confidence. Quiet gaps do not count as ringing coverage. Baselines never change concert targets or grading.",
   provenance: { observation: "measured-estimate: monophonic MPM/NSDF", trackedPitch: "derived: pitch stabilizer",
-    target: "authored: Piece Practice source projection", calibration: "derived: calibration policy v1; prompted string is assumed, actual physical string unknown",
+    target: "authored: Piece Practice source projection", calibration: "derived: calibration policy v3 (beginner pluck, 10-cent acceptance); historical attempts retain their own policyVersion; prompted string is assumed, actual physical string unknown",
     choice: "user-selected, except explicitly automatic green advance", supportedKinds: ["measured-estimate", "derived", "authored", "recommended", "inferred", "user-selected"] },
   states: { listening: "No retained pitch", acquiring: "Candidate being acquired", stable: "Fresh tracked pitch, not necessarily stable tuning", uncertain: "Retained pitch is not reliable" },
   reasons: { usable: "Analyzer gates passed", quiet: "Below level gate", clipped: "Excess clipped samples", invalid: "Invalid input samples",
@@ -48,7 +48,7 @@ export function createAcousticAnalysisBundle(data: AnalysisData, originMs: numbe
       instrument: data.session.instrument, startMeasureIndex: data.session.startMeasureIndex, endMeasureIndex: data.session.endMeasureIndex,
       focus: data.session.focus, pitchToleranceCents: data.session.pitchToleranceCents, practiceSemantics: "blocking-pitch-attack", transient: true },
     analyzer: { algorithm: "MPM/NSDF", algorithmVersion: 1, source: "src/lib/audio/monophonic", configuration: MONOPHONIC_CONFIG, nominalCadenceHz: 30, effectiveSampleRateHz: null },
-    policies: { calibration: CALIBRATION_POLICY, collection: ANALYSIS_POLICY },
+    policies: { calibration: CALIBRATION_POLICY, preciseCalibration: PRECISE_CALIBRATION_POLICY, legacyBeginnerCalibration: LEGACY_BEGINNER_CALIBRATION_POLICY, collection: ANALYSIS_POLICY },
     captureSegments: data.captureSegments, lifecycleEvents: data.lifecycleEvents, calibrations, targets: data.targets,
     targetVisits: data.targetVisits, locationAssumptions: [], attacks: data.attacks, attempts: data.attempts,
     trace: data.trace, highResolutionWindows: data.highResolutionWindows,

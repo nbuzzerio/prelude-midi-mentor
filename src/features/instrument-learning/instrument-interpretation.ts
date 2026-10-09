@@ -1,11 +1,11 @@
 import { centsBetween } from "@/lib/audio/monophonic/pitch-math";
-import { CALIBRATION_POLICY, type FactProvenance, type ViolinReference } from "./calibration-types";
+import { CALIBRATION_POLICY, type FactProvenance, type ViolinReference, type CalibrationPolicy } from "./calibration-types";
 
-export function calibrationAmbiguity(hz: number, reference: ViolinReference) {
-  if ([0.25, 0.5, 2, 3, 4].some((ratio) => Math.abs(centsBetween(hz, reference.frequencyHz * ratio)) <= CALIBRATION_POLICY.harmonicCents)) {
+export function calibrationAmbiguity(hz: number, reference: ViolinReference, policy: CalibrationPolicy = CALIBRATION_POLICY) {
+  if ([0.25, 0.5, 2, 3, 4].some((ratio) => Math.abs(centsBetween(hz, reference.frequencyHz * ratio)) <= policy.harmonicCents)) {
     return "possible-harmonic-or-different-pitch" as const;
   }
-  return Math.abs(centsBetween(hz, reference.frequencyHz)) > CALIBRATION_POLICY.fundamentalCents + 1e-9
+  return Math.abs(centsBetween(hz, reference.frequencyHz)) > policy.fundamentalCents + 1e-9
     ? "outside-fundamental-region" as const : null;
 }
 

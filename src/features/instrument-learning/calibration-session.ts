@@ -1,12 +1,12 @@
-import { emptyCalibrationMeasurement, VIOLIN_REFERENCES, type CalibrationAttempt, type CalibrationMeasurement, type CalibrationSession } from "./calibration-types";
+import { CALIBRATION_POLICY, emptyCalibrationMeasurement, VIOLIN_REFERENCES, type CalibrationAttempt, type CalibrationMeasurement, type CalibrationSession } from "./calibration-types";
 
 export function createCalibrationSession(id: string, replacesCalibrationId: string | null = null): CalibrationSession {
   return { id, revision: 1, replacesCalibrationId, instrument: "violin", profileId: "violin-standard-open-strings", profileVersion: 1,
-    referenceA4Hz: 440, temperament: "12-tone-equal", policyVersion: 1, referenceIndex: 0, phase: "collecting",
+    referenceA4Hz: 440, temperament: "12-tone-equal", policyVersion: CALIBRATION_POLICY.version, referenceIndex: 0, phase: "collecting",
     measurement: emptyCalibrationMeasurement(), attempts: [] };
 }
 export function assessCalibration(state: CalibrationSession, measurement: CalibrationMeasurement): CalibrationSession {
-  if (state.phase !== "collecting") return state;
+  if (state.phase === "summary") return state;
   return { ...state, measurement, phase: measurement.status === "valid" ? "assessed" : "collecting" };
 }
 export function advanceCalibration(state: CalibrationSession, choice: "automatic" | "continue" | "skip" | "retry"): CalibrationSession {

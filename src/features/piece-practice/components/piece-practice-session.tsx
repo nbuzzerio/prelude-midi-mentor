@@ -480,7 +480,7 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
       {returnToTargetedPractice}
     </header>
     <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{statusText}</div>
-    {input.kind === "microphone" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} />}
+    {input.kind === "microphone" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} />}
     <div className={isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}>
       <section aria-labelledby="piece-practice-current-target" className="grid min-h-0 gap-3 rounded-lg bg-zinc-900 p-3">
         <div><h2 className="font-bold" id="piece-practice-current-target">{target ? "Current target" : "Current measure"}</h2>{target ? <p>Expected: {expectedNames.join(", ")}</p> : <p>No notes to play in this measure.</p>}</div>

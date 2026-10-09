@@ -5,7 +5,7 @@ import { readAnalysisPreference, saveAnalysisPreference, downloadAcousticAnalysi
 import { version } from "../../../package.json";
 import { createCalibrationSession, assessCalibration, advanceCalibration } from "@/features/instrument-learning/calibration-session";
 import { createCalibrationStability } from "@/features/instrument-learning/pitch-stability";
-import { VIOLIN_REFERENCES } from "@/features/instrument-learning/calibration-types";
+import { VIOLIN_REFERENCES, emptyCalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
 import type { PitchObservationEnvelope } from "@/lib/audio/monophonic/pitch-analysis-types";
 
 function source(at: number): PitchObservationEnvelope {
@@ -27,8 +27,25 @@ describe("canonical analysis JSON", () => {
     expect(parsed.definitions.cents).toContain("Positive is sharp"); expect(parsed.definitions.reference).toContain("A4 = 440 Hz");
     expect(parsed.definitions.quality).toContain("NOT pitch-identity probability");
     expect(parsed.definitions.provenance.observation).toContain("measured-estimate");
+    expect(parsed.schemaVersion).toBe(1);
+    expect(parsed.policies.calibration).toMatchObject({ version: 3, id: "violin-beginner-pluck-10c", minimumSamples: 4, windowMs: 90, idealCents: 5, greenCents: 10, yellowCents: 25 });
+    expect(parsed.policies.preciseCalibration).toMatchObject({ version: 1, minimumSamples: 20, windowMs: 800 });
+    expect(parsed.policies.legacyBeginnerCalibration).toMatchObject({ version: 2, greenCents: 20, yellowCents: 40 });
     expect(parsed.analyzer.effectiveSampleRateHz).toBeNull(); expect(parsed.locationAssumptions).toEqual([]);
     expect(json).not.toMatch(/deviceId|groupId|deviceName|userAgent|MediaStream|PCM/);
+  });
+  it("preserves a previously accepted v2 result without reclassifying it under v3", () => {
+    const c = collector();
+    const legacy = advanceCalibration(assessCalibration({ ...createCalibrationSession("old"), policyVersion: 2 }, {
+      ...emptyCalibrationMeasurement(), status: "valid", stable: true, tuning: "within-band",
+      medianHz: VIOLIN_REFERENCES[0].frequencyHz * 2 ** (-18.64 / 1200), cents: -18.64,
+    }), "automatic");
+    c.calibration(legacy, 200);
+    const bundle = createAcousticAnalysisBundle(c.snapshot(), 0);
+    expect(bundle.calibrations[0].policyVersion).toBe(2);
+    expect(bundle.calibrations[0].attempts[0]).toMatchObject({ disposition: "completed", measurement: { cents: -18.64, tuning: "within-band" } });
+    expect(bundle.policies.calibration.version).toBe(3);
+    expect(bundle.policies.legacyBeginnerCalibration.greenCents).toBe(20);
   });
   it("exports selected raw calibration windows and retains retry revision meaning", () => {
     const c = collector(), tracker = createCalibrationStability(VIOLIN_REFERENCES[0]); let state = createCalibrationSession("cal");
@@ -39,8 +56,9 @@ describe("canonical analysis JSON", () => {
     c.calibration(state, 1000); state = advanceCalibration(state, "retry"); c.calibration(state, 1000);
     const bundle = createAcousticAnalysisBundle(c.snapshot(), 0);
     expect(bundle.calibrations[0].revision).toBe(2);
-    expect(bundle.calibrations[0].attempts[0].measurement.samples.length).toBeGreaterThanOrEqual(20);
-    expect(bundle.calibrations[0].attempts[0].measurement.supportingObservationIds[0]).toBe("o-200");
+    expect(bundle.calibrations[0].policyVersion).toBe(3);
+    expect(bundle.calibrations[0].attempts[0].measurement.samples.length).toBeGreaterThanOrEqual(4);
+    expect(bundle.calibrations[0].attempts[0].measurement.supportingObservationIds[0]).toBe("o-80");
   });
   it("keeps target visits, attacks and current grading evidence linked", () => {
     const c = collector(); const visit = c.setTarget({ id: "t", measureIndex: 0, sourceMeasureId: "m", expectedSemitone: 55,

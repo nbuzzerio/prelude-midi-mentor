@@ -214,6 +214,23 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it.each(["violin", "ocarina"])("shows the live target display for %s microphone practice", (instrument) => {
+    render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} />);
+    fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+    fireEvent.change(screen.getByLabelText("Instrument"), { target: { value: instrument } });
+    fireEvent.click(screen.getByLabelText("Upper Staff"));
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    if (instrument === "violin") {
+      for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Skip String" }));
+      fireEvent.click(screen.getByRole("button", { name: "Enter Piece Practice" }));
+    }
+    const display = screen.getByLabelText("Live microphone pitch");
+    expect(display.textContent).toContain("EXPECTED");
+    expect(display.textContent).toContain("ACTUAL / HEARD");
+    expect(display.textContent).toContain("No current pitch");
+    expect(display.querySelector('.text-\\[64px\\]')).toBeTruthy();
+  });
+
   it("refuses acoustic chords before capture and mounts only the acoustic owner after Staff Focus", () => {
     render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} />);
     fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });

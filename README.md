@@ -18,9 +18,9 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
-### Violin preflight and acoustic analysis (2.9.1, provisional)
+### Violin preflight and acoustic analysis (2.9.2, provisional)
 
-Microphone Piece Practice for violin now starts with a G3 → D4 → A4 → E5 open-string check. Start Listening explicitly, bow each open string steadily, and review detected note/Hz and signed cents against A440 equal-tempered targets. A stable result within ±5 cents advances after a brief acknowledgment; near-target (through ±15 cents) and larger offsets offer Retry or explicit continuation. Any string can be skipped. The summary identifies strings still needing tuning. Enter Piece Practice explicitly, leave a quiet gap, and re-articulate; calibration cannot grade targets or run the practice timer.
+Microphone Piece Practice for violin offers an optional G3 -> D4 -> A4 -> E5 open-string check. Start Listening once, pluck an open string, read its note/Hz and signed cents, adjust, then pluck again. Bowing also works. Beginner preparation uses a short robust pitch estimate rather than an 800 ms bow hold: ideal/excellent within 5 cents, green/ready within 10 cents, yellow/adjust tuning through 25 cents, red/significantly off beyond 25 cents. Agreeing green evidence commits immediately and advances after a 1.2-second confirmation without further sound. Live estimates, Last heard values and confirmed baselines are labeled separately; no Retry is required. Skip String and explicit Continue remain, and **Skip Calibration and Start Practice** bypasses all remaining strings while preserving accepted results. After the final summary, Enter Piece Practice is prominent. Both entry routes require a quiet gap and fresh articulation; calibration never changes practice tolerance, concert-pitch grading or practice time. These tuning bands are provisional beginner defaults, not universal tuning standards. Real short-pluck recognition still depends on usable microphone estimates and requires physical QA.
 
 Analysis data defaults On for microphone practice and remembers only that preference. It collects bounded local scalar evidence, never audio, and never uploads anything. Stop Listening, then choose **Export Acoustic Analysis**, or export from the current result. The self-describing version-1 JSON includes retained pitch observations, calibration, target visits, attacks, existing grading evidence, coverage and conservative summaries. Export before leaving/reloading/restarting or entering another run: calibration/trace are not part of V2 recovery. Ocarina retains its existing microphone practice and can collect analysis; ocarina calibration and all instrument diagrams remain future work.
 
@@ -439,7 +439,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Current package/application version is **2.9.1**, derived by the UI from `package.json`. No new release or tag is implied.
+Current package/application version is **2.9.2**, derived by the UI from `package.json`. No new release or tag is implied.
 
 The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
 

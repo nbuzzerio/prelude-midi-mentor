@@ -2,6 +2,9 @@ import type { usePiecePracticeAcousticInput } from "../hooks/use-piece-practice-
 import type { PiecePracticeInputConfiguration } from "../piece-practice-acoustic-types";
 import { PITCH_TOLERANCE_PRESETS, validPitchTolerance } from "../piece-practice-acoustic-validation";
 import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
+import { MONOPHONIC_CONFIG } from "@/lib/audio/monophonic/pitch-analysis-types";
+import type { PiecePracticeTarget } from "../piece-practice-types";
+import { centsBetween, describeFrequency, equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 import { formatAcousticHeardPitch } from "../piece-practice-report";
 import { ViolinPreflight } from "@/features/instrument-learning/components/violin-preflight";
 import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/components/acoustic-analysis-export-controls";
@@ -35,22 +38,45 @@ export function PiecePracticeAcousticSetup({ configuration, preset, onPreset, on
   </div>;
 }
 
-export function PiecePracticeAcousticControls({ input, available }: Readonly<{
-  input: ReturnType<typeof usePiecePracticeAcousticInput>; available: boolean;
+export function PiecePracticeAcousticControls({ input, available, target }: Readonly<{
+  input: ReturnType<typeof usePiecePracticeAcousticInput>; available: boolean; target?: PiecePracticeTarget | null;
 }>) {
   const active = ["requesting", "starting", "listening"].includes(input.status.state);
   const { lastAttempt, reading } = input;
-  const heard = reading.fresh && reading.pitch ? formatPiecePracticeMidiPitch(Math.round(69 + 12 * Math.log2(reading.pitch.frequencyHz / 440))) : null;
+  const expectedPitch = target?.attackedPitches[0];
+  const expectedMidi = expectedPitch?.midiNumber ?? target?.expectedMidiNumbers[0];
+  const expectedHz = expectedMidi === undefined ? null : equalTemperedFrequency(expectedMidi);
+  const live = input.status.state === "listening" && reading.state === "stable" && reading.fresh && reading.ageMs !== null && reading.ageMs >= 0 && reading.ageMs <= MONOPHONIC_CONFIG.staleMs && reading.pitch
+    ? describeFrequency(reading.pitch.frequencyHz) : null;
+  const heard = live ? formatPiecePracticeMidiPitch(live.semitone) : null;
+  const deviation = live && expectedHz ? centsBetween(live.frequencyHz, expectedHz) : null;
+  const direction = deviation === null ? null : Math.abs(deviation) < 0.05 ? "CENTERED" : deviation < 0 ? "FLAT" : "SHARP";
+  const pitchStatus = input.status.state !== "listening" ? "No current pitch" : reading.state === "uncertain" || reading.pitch ? "Uncertain" : "Listening";
   return <section aria-label="Microphone practice" className="grid gap-3 rounded border border-sky-400/40 p-3">
+    {input.phase === "practice" && <div aria-label="Live microphone pitch" className="grid min-w-0 gap-3 md:grid-cols-2">
+      <div className="min-w-0 rounded-lg border-2 border-sky-300 bg-sky-950/40 p-4 text-center">
+        <p className="font-bold tracking-wider">EXPECTED</p>
+        <p className="break-words text-[64px] font-black leading-tight">{expectedMidi === undefined ? "—" : formatPiecePracticeMidiPitch(expectedMidi, { expectedPitches: expectedPitch ? [expectedPitch] : [] })}</p>
+        <p className="break-words text-2xl tabular-nums">{expectedHz === null ? "No current target" : `${expectedHz.toFixed(2)} Hz`}</p>
+      </div>
+      <div className="min-w-0 rounded-lg border-2 border-amber-300 bg-amber-950/30 p-4 text-center">
+        <p className="font-bold tracking-wider">ACTUAL / HEARD</p>
+        {live ? <><p className="break-words text-[64px] font-black leading-tight">{formatPiecePracticeMidiPitch(live.semitone)}</p>
+          <p className="break-words text-2xl tabular-nums">{live.frequencyHz.toFixed(2)} Hz</p>
+          {deviation !== null && <p className="break-words text-2xl tabular-nums">{deviation < -0.05 ? "−" : "+"}{Math.abs(deviation).toFixed(1)}¢ · {direction}</p>}</>
+          : <p className="py-4 text-2xl font-semibold">{pitchStatus}</p>}
+      </div>
+    </div>}
     <p className="font-semibold">Microphone practice — Provisional</p>
     <div className="flex flex-wrap gap-3"><button className="min-h-11 rounded bg-sky-600 px-4 font-semibold disabled:opacity-40" type="button" disabled={active || !available} onClick={input.start}>Start Listening</button>
       <button className="min-h-11 rounded border border-zinc-500 px-4 disabled:opacity-40" type="button" disabled={!active} onClick={input.stop}>Stop Listening</button></div>
     <p role="status">{!available ? "End the active Practice Session before listening." : input.status.message}</p>
     <AcousticAnalysisExportControls control={input.analysis} capturing={active} />
-    {input.phase === "preflight" && <ViolinPreflight calibration={input.calibration} frequencyHz={input.calibrationHz}
-      listening={input.status.state === "listening"} onAction={input.calibrationAction} onEnterPractice={input.enterPractice} />}
+    {input.phase === "preflight" && <ViolinPreflight calibration={input.calibration} frequencyHz={input.calibrationHz} feedback={input.calibrationFeedback} accepted={input.calibrationAccepted}
+      listening={input.status.state === "listening"} onAction={input.calibrationAction} onEnterPractice={input.enterPractice} onSkipCalibration={input.skipCalibrationAndStartPractice} />}
     {input.phase === "practice" && input.status.state === "listening" && <p>{input.needsQuiet ? "Leave a brief quiet gap before playing." : heard ? `Listening · ${heard}` : reading.pitch ? "Uncertain — waiting for a reliable pitch." : "Listening — play one note."}</p>}
     {lastAttempt && <div key={lastAttempt.sequence} role="status" aria-live="polite" aria-atomic="true" className={lastAttempt.accepted ? "text-green-200" : "text-amber-200"}>
+      <p className="font-semibold">Last graded attempt</p>
       <p>Expected: {lastAttempt.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] })).join(", ")}</p>
       <p>Heard: {formatAcousticHeardPitch(lastAttempt)}</p>
       <p>{Math.abs(lastAttempt.centsFromExpected).toFixed(1)}¢ {lastAttempt.centsFromExpected < 0 ? "below" : "above"} expected</p>

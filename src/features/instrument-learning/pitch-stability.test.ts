@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createCalibrationStability, quantile } from "./pitch-stability";
-import { VIOLIN_REFERENCES, type CalibrationSample } from "./calibration-types";
+import { PRECISE_CALIBRATION_POLICY, VIOLIN_REFERENCES, type CalibrationSample } from "./calibration-types";
 import { advanceCalibration, assessCalibration, createCalibrationSession } from "./calibration-session";
 import { baselineRelativePitch } from "./instrument-interpretation";
 
@@ -11,7 +11,7 @@ export function sample(at: number, cents = 0): CalibrationSample {
     observedAtMs: at, audioSeconds: at / 1000, captureGeneration: 1 } };
 }
 function measure(cents: (at: number) => number, step = 40) {
-  const tracker = createCalibrationStability(VIOLIN_REFERENCES[0]);
+  const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
   let result = tracker.update(sample(0));
   for (let at = step; at <= 1200; at += step) result = tracker.update(sample(at, cents(at)));
   return result;
@@ -41,26 +41,25 @@ describe("provisional raw violin stability", () => {
     expect(result.stable).toBe(true); expect(result.cents).toBeCloseTo(0);
   });
   it("needs both settling and 800 ms of evidence", () => {
-    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0]);
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
     for (let at = 0; at < 1000; at += 40) expect(tracker.update(sample(at)).status).toBe("insufficient");
     expect(tracker.update(sample(1000)).status).toBe("valid");
   });
   it("requires at least 20 samples even when duration suffices", () => expect(measure(() => 0, 80).status).toBe("insufficient"));
   it("supports irregular cadence with one boundary sample", () => {
-    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0]); let at = 0;
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY); let at = 0;
     let result = tracker.update(sample(at));
     for (let i = 0; i < 40; i++) { at += i % 2 ? 31 : 39; result = tracker.update(sample(at)); }
     expect(result.status).toBe("valid"); expect(result.coverageMs).toBeGreaterThanOrEqual(800);
   });
-  it.each(["gap", "stalled", "reversed", "generation", "quiet", "stale", "low-quality"])("invalidates %s evidence", (kind) => {
-    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0]);
+  it.each(["gap", "stalled", "reversed", "generation", "quiet", "low-quality"])("invalidates %s evidence", (kind) => {
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
     for (let at = 0; at <= 1000; at += 40) tracker.update(sample(at));
     const next = sample(kind === "gap" ? 1200 : kind === "reversed" ? 900 : 1040);
     const envelope = { ...next.envelope };
     if (kind === "stalled") envelope.audioSeconds = 1;
     if (kind === "generation") envelope.captureGeneration = 2;
     if (kind === "quiet") envelope.observation = { ...envelope.observation, reason: "quiet", frequencyHz: null };
-    if (kind === "stale") envelope.snapshot = { ...envelope.snapshot, fresh: false };
     if (kind === "low-quality") envelope.observation = { ...envelope.observation, quality: 0.5 };
     expect(tracker.update({ ...next, envelope }).status).toBe("insufficient");
   });
@@ -69,6 +68,54 @@ describe("provisional raw violin stability", () => {
     expect(result.cents).toBeCloseTo(cents);
   });
   it("rejects a below-range sub-octave rather than supplying a baseline", () => expect(measure(() => -1200).status).toBe("insufficient"));
+  it("uses usable raw windows even while the shared tracker is reacquiring", () => {
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
+    let result = tracker.update(sample(0));
+    for (let at = 40; at <= 1400; at += 40) {
+      const next = sample(at, Math.sin(at / 90));
+      result = tracker.update({ ...next, envelope: { ...next.envelope, snapshot: { state: "acquiring", fresh: false, ageMs: 140, pitch: null } } });
+    }
+    expect(result.status).toBe("valid"); expect(result.tuning).toBe("within-band");
+  });
+  it("keeps useful samples after rejected frames instead of starting settling again", () => {
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
+    for (let at = 0; at <= 1200; at += 40) tracker.update(sample(at));
+    const bad = sample(1240);
+    expect(tracker.update({ ...bad, envelope: { ...bad.envelope, observation: { ...bad.envelope.observation, reason: "quiet", frequencyHz: null } } }).status).toBe("insufficient");
+    expect(tracker.update(sample(1280)).status).toBe("valid");
+  });
+  it("reports only participating post-settling samples and span, retaining them through a brief dropout", () => {
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
+    for (let at = 0; at <= 720; at += 40) tracker.update(sample(at, 12));
+    expect(tracker.progress(720)).toMatchObject({ sampleCount: 14, coverageMs: 520, requiredSamples: 20, requiredSpanMs: 800, blocker: "samples" });
+    expect(tracker.progress(740)).toMatchObject({ sampleCount: 14, coverageMs: 520 });
+    const rejected = sample(760, 12);
+    tracker.update({ ...rejected, envelope: { ...rejected.envelope, observation: { frequencyHz: null, reason: "quiet", quality: 0, levelDbfs: -80 } } });
+    expect(tracker.progress(760)).toMatchObject({ sampleCount: 14, coverageMs: 520, blocker: "quiet" });
+    expect(tracker.progress(920)).toMatchObject({ sampleCount: 0, coverageMs: 0, resetCause: "gap" });
+    tracker.update(sample(1000, 12));
+    expect(tracker.progress(1000)).toMatchObject({ sampleCount: 0, coverageMs: 0, blocker: "gap" });
+    tracker.reset();
+    expect(tracker.progress(1000)).toMatchObject({ sampleCount: 0, coverageMs: 0, blocker: "no-observations" });
+  });
+  it.each([[30, 780, 20, 570, "span"], [80, 1200, 13, 960, "samples"]] as const)("separates span and sample requirements at %s ms cadence", (step, end, count, span, blocker) => {
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
+    for (let at = 0; at <= end; at += step) tracker.update(sample(at, 12));
+    expect(tracker.progress(end)).toMatchObject({ sampleCount: count, coverageMs: span, blocker });
+  });
+  it.each(["spread", "drift"] as const)("reports an actual completed-window %s failure", (blocker) => {
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
+    for (let at = 0; at <= 1200; at += 40) tracker.update(sample(at, blocker === "spread" ? at % 80 ? 12 : -12 : at < 800 ? 0 : 6));
+    expect(tracker.progress(1200)).toMatchObject({ blocker, coverageMs: 800 });
+    expect(tracker.progress(1200).sampleCount).toBeGreaterThanOrEqual(20);
+  });
+  it("does not count a usable raw estimate outside the fundamental region or a harmonic", () => {
+    const tracker = createCalibrationStability(VIOLIN_REFERENCES[0], PRECISE_CALIBRATION_POLICY);
+    tracker.update(sample(0, -65));
+    expect(tracker.progress(0)).toMatchObject({ sampleCount: 0, coverageMs: 0, blocker: "outside-fundamental" });
+    tracker.update(sample(40, 1200));
+    expect(tracker.progress(40)).toMatchObject({ sampleCount: 0, coverageMs: 0, blocker: "harmonic" });
+  });
   it("defines quantiles by interpolated sorted rank", () => {
     expect(quantile([0, 10, 20], 0.1)).toBe(2); expect(quantile([0, 10, 20], 0.9)).toBe(18);
   });
