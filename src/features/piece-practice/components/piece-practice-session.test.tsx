@@ -13,6 +13,7 @@ import { PiecePracticeResults } from "./piece-practice-results";
 import type { PiecePracticeSessionState } from "../piece-practice-session";
 import type { CaptureOptions } from "@/lib/audio/monophonic/microphone-capture";
 import { createPitchStabilizer } from "@/lib/audio/monophonic/pitch-stabilizer";
+import * as analysisBrowser from "@/features/acoustic-analysis/acoustic-analysis-browser";
 
 const mocks = vi.hoisted(() => ({
   feedback: { status: "idle", source: null, grade: null } as PiecePracticeInputFeedback,
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   useInputCalls: 0,
   inputOptions: null as null | { piece: PiecePracticePiece; sessionState: import("../piece-practice-session").PiecePracticeSessionState; onSessionStateChange: (state: import("../piece-practice-session").PiecePracticeSessionState) => void },
   scoreProps: null as null | Record<string, unknown>,
+  keyboardProps: null as null | Record<string, unknown>,
   success: vi.fn(), incorrect: vi.fn(),
 }));
 const microphone = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; epoch: number; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] }));
@@ -70,7 +72,10 @@ vi.mock("../hooks/use-piece-practice-input", () => ({
     };
   },
 }));
-vi.mock("@/components/notation/piano-keyboard", () => ({ default: ({ onNoteToggle }: { onNoteToggle: (midi: number) => void }) => <div data-testid="piano-keyboard"><button onClick={() => onNoteToggle(60)} type="button">Virtual C4</button></div> }));
+vi.mock("@/components/notation/piano-keyboard", () => ({ default: (props: { onNoteToggle: (midi: number) => void }) => {
+  mocks.keyboardProps = props;
+  return <div data-testid="piano-keyboard"><button onClick={() => props.onNoteToggle(60)} type="button">Virtual C4</button></div>;
+} }));
 
 function pitch(sourceEventId: string, sourcePitchId: string, midiNumber: number, letter: "C" | "E" | "G" | "A", staff: "treble" | "bass" = "treble") {
   return { sourceEventId, sourcePitchId, staff, midiNumber, letter, accidental: "natural" as const, octave: 4, duration: "quarter" as const, durationTicks: 480, incomingTieIds: [], outgoingTieIds: [] };
@@ -214,6 +219,130 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it("places authoritative measure/current/remaining progress beside playing panels, through completion", () => {
+    start();
+    expect(screen.getByLabelText("Measure progress").textContent).toBe("Measure 1 of 3 · 3 measures remaining in practice (including current)");
+    act(() => submit([60, 64])); act(() => submit([67]));
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 2 of 3 · 2 measures remaining");
+    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 3 of 3 · 1 measure remaining");
+    act(() => submit([69]));
+    expect(screen.getByLabelText("Measure progress").textContent).toBe("Measure 3 of 3 · 0 measures remaining in practice · Complete");
+  });
+
+  it("counts only the selected inclusive practice range", () => {
+    start(piece(), 2, 2);
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 2 of 3 · 1 measure remaining");
+    fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 2 of 3 · 0 measures remaining");
+  });
+
+  it("acknowledges the previous target briefly without changing the new target highlight", () => {
+    vi.useFakeTimers();
+    try {
+      start(); act(() => submit([60, 64]));
+      const acknowledgment = screen.getByRole("status", { name: "Accepted pitch/attack" });
+      expect(acknowledgment.textContent).toContain("✓ C4, E4 accepted");
+      expect(acknowledgment.querySelector("span")?.getAttribute("data-target-id")).toBe("m1:attack:0");
+      expect(screen.getByText("Expected: G4")).toBeTruthy();
+      expect(mocks.scoreProps?.eventHighlights).toEqual([{ eventId: "polyphonic-event", status: "current" }]);
+      expect(mocks.keyboardProps?.lastAnswer).toBeNull();
+      expect(mocks.keyboardProps?.targetMidiNumbers).toEqual(new Set([67]));
+      expect(screen.queryByText("✓ Correct")).toBeNull();
+      act(() => vi.advanceTimersByTime(1199)); expect(acknowledgment.textContent).toContain("accepted");
+      act(() => vi.advanceTimersByTime(1)); expect(acknowledgment.textContent).toBe("");
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("replaces rapid acknowledgments and gives repeated identical pitches a fresh identity", () => {
+    vi.useFakeTimers();
+    try {
+      const source = piece();
+      const repeated = target("repeat", 0, 480, [pitch("repeat-event", "repeat-pitch", 60, "C")]);
+      start({ ...source, measures: [{ ...source.measures[0], targets: [target("first", 0, 0, [pitch("first-event", "first-pitch", 60, "C")]), repeated] }, ...source.measures.slice(1)] });
+      act(() => submit([60]));
+      const acknowledgment = screen.getByLabelText("Accepted pitch/attack");
+      const firstSpan = acknowledgment.firstElementChild;
+      act(() => vi.advanceTimersByTime(600)); act(() => submit([60]));
+      expect(acknowledgment.textContent).toContain("✓ C4 accepted");
+      expect(acknowledgment.firstElementChild).not.toBe(firstSpan);
+      expect(acknowledgment.firstElementChild?.getAttribute("data-target-id")).toBe("repeat");
+      act(() => vi.advanceTimersByTime(600)); expect(acknowledgment.textContent).toContain("accepted");
+      act(() => vi.advanceTimersByTime(600)); expect(acknowledgment.textContent).toBe("");
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(["pause", "Restart Measure", "Restart Piece", "exit", "unmount"])("clears acknowledgment on %s and cancels its timer", (action) => {
+    vi.useFakeTimers();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      const view = start(); act(() => submit([60, 64]));
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toContain("accepted");
+      if (action === "pause") act(() => mocks.inputOptions!.onSessionStateChange({ ...mocks.inputOptions!.sessionState, clockPaused: true }));
+      else if (action === "unmount") view.unmount();
+      else fireEvent.click(screen.getByRole("button", { name: action === "exit" ? "Exit Piece Practice" : action }));
+      expect(screen.queryByText(/✓ C4, E4 accepted/)).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { confirm.mockRestore(); vi.useRealTimers(); }
+  });
+
+  it("identifies whole-note acceptance as pitch/attack, retains it at completion, and clears it for Practice Again", async () => {
+    const source = piece();
+    const measure = source.measures[2];
+    const wholeTarget = { ...measure.targets[0], attackedPitches: measure.targets[0].attackedPitches.map((note) => ({ ...note, duration: "whole" as const, durationTicks: 1920 })) };
+    start({ ...source, measures: [...source.measures.slice(0, 2), { ...measure, targets: [{ ...wholeTarget,
+      checks: [{ ...wholeTarget.checks[0], attackedPitches: wholeTarget.attackedPitches }] }] }] }, 3);
+    act(() => submit([69]));
+    expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("✓ A4 accepted · pitch/attack");
+    expect(screen.queryByText(/duration success|held for four beats/i)).toBeNull();
+    await screen.findByText("Completed practice saved.");
+    fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
+    expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("");
+  });
+
+  it("collects and exports while analysis is collapsed and clears microphone acknowledgment on Stop", () => {
+    vi.useFakeTimers();
+    const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
+    localStorage.clear();
+    try {
+      let now = 0;
+      render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} now={() => now} />);
+      fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+      fireEvent.change(screen.getByLabelText("Instrument"), { target: { value: "ocarina" } });
+      fireEvent.click(screen.getByLabelText("Upper Staff"));
+      fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+      const analysis = screen.getByText(/Acoustic Analysis \/ Export/).closest("details")!;
+      expect(analysis.open).toBe(false);
+      const progress = screen.getByLabelText("Measure progress");
+      expect(progress.nextElementSibling?.getAttribute("aria-label")).toBe("Live microphone pitch");
+      fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+      const capture = microphone.sessions.at(-1)!; const tracker = createPitchStabilizer();
+      const frames = (hz: number | null, count: number) => {
+        for (let i = 0; i < count; i++) {
+          now += 40;
+          const observation = { frequencyHz: hz, quality: hz ? 0.99 : 0, levelDbfs: hz ? -20 : -80, reason: hz ? "usable" as const : "quiet" as const };
+          act(() => capture.options.onObservation?.({ observation, snapshot: tracker.update(observation, now, now / 1000), observedAtMs: now, audioSeconds: now / 1000, captureGeneration: capture.epoch }));
+        }
+      };
+      frames(null, 3); frames(261.625565, 8);
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toContain("✓ C4 accepted");
+      expect(screen.getByLabelText("Live microphone pitch").textContent).toContain("G4");
+      expect(analysis.open).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Stop Listening" }));
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("");
+      fireEvent.click(analysis.querySelector("summary")!);
+      fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" }));
+      const bundle = JSON.parse(download.mock.calls[0][0]);
+      expect(bundle.trace.length).toBeGreaterThan(0);
+      expect(bundle.attempts).toHaveLength(1);
+      expect(bundle.attempts[0].evidence.accepted).toBe(true);
+      expect(bundle.policies.calibration.version).toBe(3);
+      expect(bundle.schemaVersion).toBe(1);
+      act(() => vi.advanceTimersByTime(1200));
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("");
+    } finally { download.mockRestore(); vi.useRealTimers(); }
+  });
+
   it.each(["violin", "ocarina"])("shows the live target display for %s microphone practice", (instrument) => {
     render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} />);
     fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
@@ -279,6 +408,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByRole("heading", { name: "Microphone pitch attacks" })).toBeTruthy();
     expect(mocks.success).not.toHaveBeenCalled(); expect(mocks.incorrect).not.toHaveBeenCalled(); expect(mocks.inputMounts).toBe(0);
     expect(store.records.at(-1)!.checkpoint.acousticEvidence).toHaveLength(2);
+    expect(screen.getByLabelText("Accepted pitch/attack").textContent).toContain("✓ A4 accepted");
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
     expect(microphone.sessions.at(-1)!.start).not.toHaveBeenCalled();
     expect(store.records.at(-1)!.configuration.inputConfiguration).toMatchObject({ mode: "microphone", pitchToleranceCents: 25 });
@@ -1018,7 +1148,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("Missing: E4")).toBeTruthy();
     expect(screen.getByText("Extra: F4")).toBeTruthy();
     expect(screen.getByText("Target 1 of 2")).toBeTruthy();
-    expect(within(screen.getByRole("status")).getByText(/Incorrect/)).toBeTruthy();
+    expect(screen.getAllByRole("status").some((status) => /Incorrect/.test(status.textContent ?? ""))).toBe(true);
     expect(mocks.incorrect).toHaveBeenCalledTimes(1);
   });
 

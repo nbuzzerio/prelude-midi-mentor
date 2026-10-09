@@ -27,6 +27,26 @@ function fixture() {
 }
 
 describe("completed-run Targeted Practice interface", () => {
+  it("starts both review levels collapsed, retaining visible warnings and opening ancestors for return focus", () => {
+    const { score, state } = fixture();
+    const view = render(<PiecePracticeTargetedPractice score={score} state={state} onPractice={vi.fn()} unsavedMeasureIndices={[1]} />);
+    const region = screen.getByRole("region", { name: "Targeted Practice" });
+    const outer = region.querySelector("details")!;
+    expect(outer.open).toBe(false);
+    const list = within(region).getByLabelText("Measures to revisit");
+    expect([...list.querySelectorAll("details")].every((details) => !details.open)).toBe(true);
+    expect(screen.getByText(/completed focused results are currently/).closest("details")).toBeNull();
+    fireEvent.click(outer.querySelector("summary")!); expect(outer.open).toBe(true);
+    const first = list.querySelector("details")!;
+    fireEvent.click(first.querySelector("summary")!); expect(first.open).toBe(true);
+    fireEvent.click(outer.querySelector("summary")!);
+    view.rerender(<PiecePracticeTargetedPractice score={score} state={state} onPractice={vi.fn()} focusMeasureIndex={1} />);
+    expect(outer.open).toBe(true);
+    const button = screen.getByRole("button", { name: "Practice measure 2" });
+    expect(button.closest("details")!.open).toBe(true);
+    expect(document.activeElement).toBe(button);
+  });
+
   it("retains recorded reasons but disables unavailable snapshot measures instead of rendering invalid notation", () => {
     const { score, state } = fixture(); const onPractice = vi.fn();
     render(<PiecePracticeTargetedPractice onPractice={onPractice} score={{ ...score, measures: [] }} state={state} />);

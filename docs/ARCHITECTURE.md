@@ -2,6 +2,12 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
+## Piece Practice feedback presentation (2.9.3)
+
+The session component observes newly appended completed target timings at its existing shared state-update boundary. A private transient acknowledgment carries written-pitch snapshot names, target ID, evidence sequence and a monotonically increasing presentation identity. Its 1.2-second timer is canceled and invalidated on replacement, pause, restart, exit and unmount; it does not postpone grading or input. Recovered evidence is not replayed as newly accepted. Presentation denotes pitch/attack acceptance only, never sustained duration. Current-target notation and piano key highlights remain independent of prior success.
+
+Progress derives from the existing session progress selector; remaining measures are practiced-range count minus completed measures, including the unfinished current measure. Native disclosures affect display only. Shared keyboard/microphone result actions remain outside collapsed evidence; printed and copied reports continue using unchanged evidence selectors and formatters. The acoustic owner/collector is not mounted inside a disclosure. Capture, detector, calibration, tolerance, MIDI, timing, report and persistence contracts are unchanged. [The separate optional-recording handoff](./PIECE_PRACTICE_RECORDING_HANDOFF.md) identifies the currently private stream and a proposed future observer boundary; that boundary is not implemented here.
+
 ## Instrument learning Stage 1A/1B/1D (2.9.2, provisional)
 
 `features/instrument-learning` owns React-independent calibration contracts, raw log-frequency stability, harmonic ambiguity checks and violin preflight presentation. `features/acoustic-analysis` owns a bounded scalar collector, explicit local On/Off preference and canonical JSON export. Piece Practice's existing acoustic hook owns both transient instances and the sole microphone controller. Shared detector, stabilizer and capture remain unchanged; no global microphone service or additional capture owner exists.
@@ -68,7 +74,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.9.2, not a release/tag assertion. Together they support:
+The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.9.3, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals

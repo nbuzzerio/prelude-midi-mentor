@@ -44,6 +44,7 @@ function formatElapsed(elapsedMs: number): string {
 
 const monotonicNow = () => performance.now();
 const IDLE_KEYBOARD_FEEDBACK: PiecePracticeInputFeedback = { status: "idle", source: null, grade: null };
+type AcceptedTarget = Readonly<{ identity: number; targetId: string; sequence: number; names: string }>;
 
 type RunSaveProgress = Readonly<{ runId: string | null; requestedRevision: number; persistedRevision: number; failedRevision: number | null }>;
 type LatestRunSave = Readonly<{ runId: string; revision: number; promise: Promise<void> }>;
@@ -77,6 +78,19 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
   const [selectedAssessmentFocus, setSelectedAssessmentFocus] = useState<PiecePracticeAssessmentFocus>("both");
   const [sessionState, setSessionState] = useState<PiecePracticeSessionState | null>(() => recoveredRun ? hydratePiecePracticeRun(recoveredRun, now()) : null);
   const sessionRef = useRef(sessionState);
+  const [acceptedTarget, setAcceptedTarget] = useState<AcceptedTarget | null>(null);
+  const acceptanceEpoch = useRef(0);
+  const acceptanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearAcceptance = () => {
+    acceptanceEpoch.current++;
+    if (acceptanceTimer.current !== null) clearTimeout(acceptanceTimer.current);
+    acceptanceTimer.current = null;
+    setAcceptedTarget(null);
+  };
+  useEffect(() => () => {
+    acceptanceEpoch.current++;
+    if (acceptanceTimer.current !== null) clearTimeout(acceptanceTimer.current);
+  }, []);
   const runRef = useRef<PiecePracticeRunRecordV2 | null>(recoveredRun ?? null);
   const [saveProgress, setSaveProgress] = useState<RunSaveProgress>(() => ({
     runId: recoveredRun?.runId ?? null,
@@ -123,6 +137,27 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
   };
   const commitState = (next: PiecePracticeSessionState) => {
     if (sessionRef.current === next) return;
+    const previous = sessionRef.current;
+    if (previous) {
+      const reset = next.clockPaused || next.restartEvidence.length !== previous.restartEvidence.length
+        || next.targetTimings.length < previous.targetTimings.length;
+      if (reset) clearAcceptance();
+      else {
+        const accepted = next.targetTimings.slice(previous.targetTimings.length)
+          .filter((timing) => timing.outcome === "completed" && timing.expectedPitches.length > 0).at(-1);
+        if (accepted) {
+          clearAcceptance();
+          const identity = acceptanceEpoch.current;
+          setAcceptedTarget({ identity, targetId: accepted.targetId, sequence: accepted.sequence,
+            names: accepted.expectedPitches.map((pitch) => formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] })).join(", ") });
+          acceptanceTimer.current = setTimeout(() => {
+            if (acceptanceEpoch.current !== identity) return;
+            acceptanceTimer.current = null;
+            setAcceptedTarget(null);
+          }, 1200);
+        }
+      }
+    }
     sessionRef.current = next;
     setSessionState(next);
     if (next.inputConfiguration?.mode === "microphone" && !next.clockPaused) setRecoveredNotice(false);
@@ -146,6 +181,7 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
     }
   });
   const startRun = (state: PiecePracticeSessionState, score = sourceScore ?? displayScore) => {
+    clearAcceptance();
     const record = createPiecePracticeRun(score, state, now());
     runRef.current = record;
     sessionRef.current = state;
@@ -189,6 +225,7 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
       }
       if (!isRunDurable(runRef.current, progressRef.current)
         && !window.confirm(`The completed practice result is not safely stored. ${actionLabel} anyway?`)) return;
+      clearAcceptance();
       action();
     } finally {
       exitAwaitingRef.current = false;
@@ -214,6 +251,7 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
       runRef.current = revisePiecePracticeRun(runRef.current, current, now(), "ended-incomplete");
       void persist(runRef.current).catch(() => setSecondaryStorageWarning(true));
     }
+    clearAcceptance();
     action();
   };
   const exitPractice = () => leavePractice(onExit, "Leave Piece Practice");
@@ -318,13 +356,14 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
     {saveProgress.runId !== null && saveProgress.failedRevision === saveProgress.requestedRevision && sessionState.status !== "piece-complete"
       && <p role="alert">Practice is continuing, but crash or reload recovery is currently unavailable for this run.</p>}
     {recoveredNotice && <div role="status"><strong>Recovered practice session</strong>{sessionState.inputConfiguration?.mode === "microphone" ? <p>Restored from the last saved checkpoint, paused with microphone off. Press Start Listening, leave a brief quiet gap, then re-articulate.</p> : <><p>Restored from the last saved checkpoint. MIDI key state and any in-progress chord or roll were reset.</p><button onClick={() => { commitState(resumePiecePracticeClock(sessionRef.current!, now())); setRecoveredNotice(false); }} type="button">Resume Practice</button></>}</div>}
-    <ActivePiecePracticeSession microphoneAvailable={microphoneAvailable} acousticRunId={saveProgress.runId ?? "new"} targetedPractice={{ review: targetedPracticeReview, latestResults: targetedPracticeResults.map((result) => result.state), unsavedMeasureIndices: targetedPracticeResults.filter((result) => !result.saved).map((result) => result.state.startMeasureIndex), notice: targetedPracticeNotice, error: targetedPracticeError, onPractice: startTargetedPractice, onReturn: returnToTargetedPractice }} completionSaveState={sessionState.status === "piece-complete"
+    <ActivePiecePracticeSession acceptedTarget={acceptedTarget} microphoneAvailable={microphoneAvailable} acousticRunId={saveProgress.runId ?? "new"} targetedPractice={{ review: targetedPracticeReview, latestResults: targetedPracticeResults.map((result) => result.state), unsavedMeasureIndices: targetedPracticeResults.filter((result) => !result.saved).map((result) => result.state.startMeasureIndex), notice: targetedPracticeNotice, error: targetedPracticeError, onPractice: startTargetedPractice, onReturn: returnToTargetedPractice }} completionSaveState={sessionState.status === "piece-complete"
       ? saveProgress.runId !== null && saveProgress.persistedRevision >= saveProgress.requestedRevision ? "saved" : saveProgress.failedRevision === saveProgress.requestedRevision ? "failed" : "saving"
       : null} displayScore={displayScore} exitAwaitingSave={exitAwaitingSave} now={now} onExit={exitPractice} onRestartPiece={restartWholePiece} onSessionStateChange={commitState} piece={assessedPiece} resetHeldOnMount={Boolean(recoveredRun && recoveredRun.status === "active")} sessionState={sessionState} />
   </>;
 }
 
 type ActivePiecePracticeSessionProps = Readonly<{
+  acceptedTarget: AcceptedTarget | null;
   microphoneAvailable: boolean;
   acousticRunId: string;
   completionSaveState: "saved" | "saving" | "failed" | null;
@@ -365,7 +404,7 @@ function AcousticPiecePracticeOwner(props: ActivePiecePracticeSessionProps) {
   const controller = usePiecePracticeAcousticInput({ ...props, available: props.microphoneAvailable, runId: props.acousticRunId });
   return <PiecePracticeSessionView {...props} input={{ kind: "microphone", controller }} />;
 }
-function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwaitingSave, targetedPractice, now, onExit, onRestartPiece, onSessionStateChange, piece, sessionState, input, microphoneAvailable }: ActivePiecePracticeSessionProps & Readonly<{ input: SessionInput }>) {
+function PiecePracticeSessionView({ acceptedTarget, completionSaveState, displayScore, exitAwaitingSave, targetedPractice, now, onExit, onRestartPiece, onSessionStateChange, piece, sessionState, input, microphoneAvailable }: ActivePiecePracticeSessionProps & Readonly<{ input: SessionInput }>) {
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
   const completionHeadingRef = useRef<HTMLHeadingElement>(null);
   const practiceHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -377,6 +416,11 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
   const target = getCurrentPiecePracticeTarget(piece, sessionState);
   const measure = piece.measures[sessionState.currentMeasureIndex];
   const progress = getPiecePracticeProgress(piece, sessionState, now());
+  const remainingMeasures = Math.max(0, progress.practiceMeasureCount - progress.practicedMeasureCount);
+  const measureProgress = <p aria-label="Measure progress" className="min-h-6 font-semibold tabular-nums">Measure {progress.currentMeasureNumber} of {progress.totalPieceMeasures} · {remainingMeasures} {remainingMeasures === 1 ? "measure" : "measures"} remaining in practice{sessionState.status === "piece-complete" ? " · Complete" : " (including current)"}</p>;
+  const acknowledgment = <div aria-label="Accepted pitch/attack" aria-live="polite" aria-atomic="true" role="status" className="min-h-12 min-w-0 break-words py-2 font-semibold text-green-200">
+    {acceptedTarget && <span key={acceptedTarget.identity} data-target-id={acceptedTarget.targetId} data-attempt-sequence={acceptedTarget.sequence}>✓ {acceptedTarget.names} accepted <span className="text-sm text-zinc-300">· pitch/attack</span></span>}
+  </div>;
   const rangeText = sessionState.endMeasureIndex === null
     ? `Measure ${sessionState.startMeasureIndex + 1} through end`
     : sessionState.startMeasureIndex === sessionState.endMeasureIndex
@@ -429,15 +473,14 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
   const statusText = sessionState.status === "piece-complete" ? "Piece complete."
     : sessionState.status === "awaiting-explicit-measure-advance" ? `Measure ${sessionState.currentMeasureIndex + 1}. No notes to play in this measure.`
       : feedback.status === "incorrect" ? `Incorrect. Try target ${(sessionState.currentTargetIndex ?? 0) + 1} again.`
-        : feedback.status === "correct" ? `Correct. Measure ${sessionState.currentMeasureIndex + 1}, target ${(sessionState.currentTargetIndex ?? 0) + 1}.`
-          : `Measure ${sessionState.currentMeasureIndex + 1}, target ${(sessionState.currentTargetIndex ?? 0) + 1}.`;
+        : `Measure ${sessionState.currentMeasureIndex + 1}, target ${(sessionState.currentTargetIndex ?? 0) + 1}.`;
 
   if (sessionState.status === "piece-complete") {
     return <section className={isMobilePlayMode ? "piece-practice-session piece-practice-complete mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto border border-green-700 bg-zinc-900 text-zinc-100" : "piece-practice-session piece-practice-complete mx-auto grid w-full max-w-3xl gap-5 rounded-xl border border-green-700 bg-zinc-900 p-6 text-zinc-100"}>
       {mobilePlayExit}
       <div aria-live="polite" className="sr-only" role="status">Piece complete.</div>
       <h1 className="text-3xl font-bold text-green-300" ref={completionHeadingRef} tabIndex={-1}>Piece complete</h1>
-      {input.kind === "microphone" && <AcousticAnalysisExportControls control={input.controller.analysis} capturing={false} />}
+      {acknowledgment}
       {targetedPractice.error && <p role="alert">{targetedPractice.error}</p>}
       {targetedPractice.notice && <p role="status">{targetedPractice.notice}</p>}
       {completionSaveState === "saving" && <p role="status">Saving the completed practice result. Browser close protection remains active until it is saved.</p>}
@@ -445,6 +488,7 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
       {completionSaveState === "failed" && <p role="alert">The completed result is available here, but it is not safely stored for crash or reload recovery.</p>}
       {exitAwaitingSave && <p role="status">Waiting for the completed result to finish saving.</p>}
       <p>You completed {rangeText} for <strong>{piece.title}</strong>.</p>
+      {measureProgress}
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><dt className="text-sm text-zinc-400">Measures practiced</dt><dd className="text-xl font-bold">{progress.practicedMeasureCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Completed targets</dt><dd className="text-xl font-bold">{progress.completedTargetCount}</dd></div>
@@ -453,6 +497,7 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
       <PiecePracticeResults displayScore={displayScore} piece={piece} rangeText={rangeText} state={sessionState} title={piece.title} />
+      {input.kind === "microphone" && <AcousticAnalysisExportControls control={input.controller.analysis} capturing={false} />}
       {targetedPracticeMeasureIndex === null
         ? <PiecePracticeTargetedPractice disabled={exitAwaitingSave} focusMeasureIndex={targetedPracticeReturnMeasure} latestResults={targetedPractice.latestResults} unsavedMeasureIndices={targetedPractice.unsavedMeasureIndices} onPractice={(measureIndex) => { input.controller.resetInput(); targetedPractice.onPractice(measureIndex); }} score={displayScore} state={sessionState} />
         : <div className="grid gap-3"><p>Focused practice for Targeted Practice: Measure {targetedPracticeMeasureIndex + 1}. Return to the original run to review another passage.</p>{targetedPracticeComparison && <PiecePracticeTargetedPracticeComparisonView comparison={targetedPracticeComparison} focusedResultUnsaved={completionSaveState !== "saved"} />}{returnToTargetedPractice}</div>}
@@ -469,7 +514,7 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
   const missing = grade?.missingMidiNumbers.map(feedbackPitchName) ?? [];
   const extra = grade?.extraMidiNumbers.map(feedbackPitchName) ?? [];
   const failedNotes = feedback.status === "incorrect" ? new Set(grade?.receivedMidiNumbers ?? []) : new Set<number>();
-  const lastAnswer = feedback.status === "idle" || !grade ? null : { midiNumbers: new Set(grade.receivedMidiNumbers), result: feedback.status };
+  const lastAnswer = feedback.status === "incorrect" && grade ? { midiNumbers: new Set(grade.receivedMidiNumbers), result: "incorrect" as const } : null;
   const activeNotes = input.kind === "keyboard" ? new Set([...input.controller.virtualSelectedMidiNumbers, ...input.controller.midiChordAttemptMidiNumbers]) : new Set<number>();
 
   return <section className={isMobilePlayMode ? "piece-practice-session piece-practice-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100" : "piece-practice-session mx-auto grid w-full max-w-6xl gap-4 text-zinc-100"}>
@@ -480,18 +525,20 @@ function PiecePracticeSessionView({ completionSaveState, displayScore, exitAwait
       {returnToTargetedPractice}
     </header>
     <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{statusText}</div>
-    {input.kind === "microphone" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} />}
+    {acknowledgment}
+    {input.kind === "microphone" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} />}
     <div className={isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}>
       <section aria-labelledby="piece-practice-current-target" className="grid min-h-0 gap-3 rounded-lg bg-zinc-900 p-3">
-        <div><h2 className="font-bold" id="piece-practice-current-target">{target ? "Current target" : "Current measure"}</h2>{target ? <p>Expected: {expectedNames.join(", ")}</p> : <p>No notes to play in this measure.</p>}</div>
+        {input.kind === "keyboard" && measureProgress}
+        <div><h2 className="font-bold" id="piece-practice-current-target">{target ? "Current target" : "Current measure"}</h2>{target ? input.kind === "keyboard" && <p className="min-h-16 break-words text-4xl font-bold sm:text-5xl">Expected: {expectedNames.join(", ")}</p> : <p>No notes to play in this measure.</p>}</div>
+        {input.kind === "keyboard" && <div><p className="text-sm text-zinc-300">Actual / Played · {activeNotes.size ? "Current input" : "Last attempt"}</p><p className="min-h-16 break-words text-4xl font-bold sm:text-5xl">{(activeNotes.size ? [...activeNotes].map(feedbackPitchName) : received).join(", ") || "—"}</p></div>}
         {checkProgress.length > 1 || checkProgress.some(({ check }) => check.kind === "rolled-chord") ? <div aria-label="Current target checks" className="grid gap-1 text-sm text-zinc-300">
           {checkProgress.map(({ check, progress }) => check.kind === "normal"
             ? <p key={check.id}>Normal {check.attackedPitches.map(writtenPitchName).join(", ")} — {progress?.completed ? "complete" : "pending"}</p>
             : <div key={check.id}><p>Rolled upward:</p><ul className="flex flex-wrap gap-x-3">{check.attackedPitches.map((pitch) => <li key={pitch.sourcePitchId}>{writtenPitchName(pitch)} {progress?.accumulatedMidiNumbers.includes(pitch.midiNumber) ? "✓" : "pending"}</li>)}</ul></div>)}
         </div> : null}
         <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} ghostedStaff={sessionState.assessmentFocus === "upper" ? "bass" : sessionState.assessmentFocus === "lower" ? "treble" : undefined} />
-        {feedback.status === "correct" ? <p className="rounded-md border border-green-600 bg-green-950 p-3 font-semibold text-green-200">✓ Correct</p> : null}
-        {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map(feedbackPitchName).join(", ")}</p> : null}</div> : null}
+        {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><details><summary className="min-h-11 cursor-pointer py-2">Practice Details - Last played attempt</summary><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map(feedbackPitchName).join(", ")}</p> : null}</details></div> : null}
         {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" disabled={sessionState.clockPaused} onClick={input.controller.skipCurrentTarget} type="button">Skip Target</button> : null}
         {sessionState.status === "awaiting-explicit-measure-advance" ? <button className="justify-self-start rounded-lg bg-sky-600 px-4 py-2 font-semibold" disabled={sessionState.clockPaused} onClick={() => {
           const result = advancePiecePracticeNoAttackMeasure(piece, sessionState, now());

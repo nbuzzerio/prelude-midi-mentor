@@ -48,11 +48,21 @@ function Recommendation({ result, score, state, disabled, onPractice, latest, la
   const [showNotation, setShowNotation] = useState(false);
   const measureAvailable = score.measures[result.measureIndex]?.id === result.sourceMeasureId;
   const practiceButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => { if (focusRequested && !disabled) practiceButton.current?.focus(); }, [focusRequested, disabled]);
+  useEffect(() => {
+    if (!focusRequested || disabled || !practiceButton.current) return;
+    // Restore the original recommendation through both collapsed levels.
+    let ancestor = practiceButton.current.parentElement;
+    while (ancestor) {
+      if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+      ancestor = ancestor.parentElement;
+    }
+    practiceButton.current.focus();
+  }, [focusRequested, disabled]);
   const notationId = useId();
   const comparison = latest ? comparePiecePracticeTargetedPractice(state, latest, result.measureIndex) : null;
   return <li className="grid min-w-0 gap-3 rounded-lg border border-zinc-600 p-3">
-    <h3 className="text-lg font-semibold">Measure {result.measureNumber}</h3>
+    <details><summary className="min-h-11 cursor-pointer py-2 text-lg font-semibold">Measure {result.measureNumber} · {evidenceReasons(result).join("; ")}</summary>
+    <div className="grid gap-3">
     <p>Recorded in the original run: {evidenceReasons(result).join("; ")}.</p>
     <div className="flex flex-wrap gap-2">
       {onPractice && <button className="min-h-11 rounded-lg bg-sky-600 px-4 py-2 font-semibold hover:bg-sky-500 disabled:opacity-50" disabled={disabled || !measureAvailable} onClick={() => onPractice(result.measureIndex)} ref={practiceButton} type="button">Practice measure {result.measureNumber}</button>}
@@ -61,6 +71,7 @@ function Recommendation({ result, score, state, disabled, onPractice, latest, la
     {!measureAvailable && <p>This measure is unavailable in the score snapshot. Its recorded evidence is shown above.</p>}
     <div aria-label={`Measure ${result.measureNumber} notation`} className="min-w-0 overflow-x-auto" hidden={!showNotation || !measureAvailable} id={notationId} role="region" tabIndex={0}>{showNotation && measureAvailable && <StaffBuilderScoreView measureIndex={result.measureIndex} score={score} ghostedStaff={state.assessmentFocus === "upper" ? "bass" : state.assessmentFocus === "lower" ? "treble" : undefined} />}</div>
     {comparison && <PiecePracticeTargetedPracticeComparisonView comparison={comparison} focusedResultUnsaved={latestUnsaved} />}
+    </div></details>
   </li>;
 }
 
@@ -75,8 +86,10 @@ export function PiecePracticeTargetedPractice({ state, score, disabled = false, 
 }>) {
   const headingId = useId();
   const recommendations = selectPiecePracticeTargetedPractice(state);
-  return <section aria-labelledby={headingId} className="grid min-w-0 gap-3 rounded-xl border border-sky-700/70 p-4">
-    <h2 className="text-xl font-bold" id={headingId} tabIndex={-1}>Targeted Practice</h2>
+  return <section aria-label="Targeted Practice" className="grid min-w-0 gap-3 rounded-xl border border-sky-700/70 p-4">
+    {unsavedMeasureIndices.length > 0 && <p role="status">Focused result is not safely stored; completed focused results are currently available only in this visit.</p>}
+    <details><summary className="min-h-11 cursor-pointer py-2"><h2 className="inline text-xl font-bold" id={headingId}>Targeted Practice</h2> · {recommendations.length} suggested measures</summary>
+    <div className="grid gap-3">
     <p>Revisit measures using evidence from this completed run. Assessment: {piecePracticeAssessmentLabel(state.assessmentFocus)}.</p>
     <details className="text-sm text-zinc-300"><summary className="min-h-11 cursor-pointer py-2 font-semibold">How measures are suggested · provisional</summary>
       <p>Higher mistake counts come first, then skipped targets, measure restarts, and recorded slow responses. Ties use score order. Measures with mistakes, skips or restarts come before measures with slow responses alone. These provisional suggestions are not difficulty or ability scores.</p>
@@ -85,5 +98,6 @@ export function PiecePracticeTargetedPractice({ state, score, disabled = false, 
     {state.status !== "piece-complete" ? <p>Complete this Piece Practice run to see measures to revisit.</p>
       : recommendations.length === 0 ? <p>No measures to recommend: this run recorded no mistakes, skips, measure restarts or slow-response diagnostics.</p>
         : <ol aria-label="Measures to revisit" className="grid gap-3">{recommendations.map((result) => <Recommendation disabled={disabled} focusRequested={focusMeasureIndex === result.measureIndex} key={result.sourceMeasureId} latest={latestResults.find((latest) => latest.startMeasureIndex === result.measureIndex)} latestUnsaved={unsavedMeasureIndices.includes(result.measureIndex)} onPractice={onPractice} result={result} score={score} state={state} />)}</ol>}
+    </div></details>
   </section>;
 }

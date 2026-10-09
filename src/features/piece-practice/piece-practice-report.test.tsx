@@ -37,6 +37,28 @@ const view = (state = completed()) => <PiecePracticeResults displayScore={{} as 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Piece Practice note-name-first results and reports", () => {
+  it("starts measure review collapsed with report actions first and unchanged copied content", async () => {
+    const state = completed();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(view(state));
+    const disclosure = screen.getByText(/Measure results ·/).closest("details")!;
+    expect(disclosure.open).toBe(false);
+    const generate = screen.getByRole("button", { name: "Generate Report" });
+    const copy = screen.getByRole("button", { name: "Copy Report" });
+    expect(generate.closest("details")).toBeNull(); expect(copy.closest("details")).toBeNull();
+    expect(generate.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(copy.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(copy); await screen.findByText("Report copied.");
+    expect(writeText).toHaveBeenLastCalledWith(report(state));
+    fireEvent.click(disclosure.querySelector("summary")!);
+    expect(disclosure.open).toBe(true);
+    fireEvent.click(copy); await screen.findByText("Report copied.");
+    expect(writeText).toHaveBeenLastCalledWith(report(state));
+    expect(screen.getByLabelText("Show MIDI details")).toBeTruthy();
+    expect(screen.getByLabelText("Include MIDI attack strength")).toBeTruthy();
+  });
+
   it.each([0, 0.049, -0.049])("renders %s cents as centered when rounded to zero", (cents) => {
     const text = formatAcousticHeardPitch({ nearestSemitone: 64, expectedPitches: [],
       frequencyHz: equalTemperedFrequency(64) * 2 ** (cents / 1200) });
@@ -58,6 +80,7 @@ describe("Piece Practice note-name-first results and reports", () => {
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     render(view(state));
+    expect(screen.getByText(/Microphone Pitch Attacks · 1/).closest("details")!.open).toBe(false);
     expect(screen.getByRole("heading", { name: "Microphone pitch attacks" })).toBeTruthy();
     expect(screen.getByText(/Expected G♭4; heard G♭4/)).toBeTruthy();
     expect(screen.queryByLabelText("Include MIDI attack strength")).toBeNull();

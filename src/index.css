@@ -49,7 +49,7 @@ button {
 .piece-practice-session { min-width: 0; }
 .piece-practice-stage { min-width: 0; }
 .piece-practice-stage > section { min-width: 0; }
-.piece-practice-session :is(button, select):focus-visible { outline: 3px solid rgb(125 211 252); outline-offset: 2px; }
+.piece-practice-session :is(button, select, summary):focus-visible { outline: 3px solid rgb(125 211 252); outline-offset: 2px; }
 .piece-practice-mobile-play { align-content: start; gap: 0.5rem; max-width: none; }
 .piece-practice-mobile-play > header { padding-right: 9rem; }
 .piece-practice-mobile-play .piece-practice-stage { grid-template-rows: minmax(12rem, auto) minmax(12rem, 1fr); }

@@ -41,6 +41,16 @@ describe("acoustic setup and feedback", () => {
     const target = { id: "live", attackedPitches: [expected], expectedMidiNumbers: [66] } as unknown as import("../piece-practice-types").PiecePracticeTarget;
     const view = render(<PiecePracticeAcousticControls input={input} available target={target} />);
     const live = screen.getByLabelText("Live microphone pitch");
+    const details = screen.getByText(/Practice Details/).closest("details")!;
+    const gradedFrequencyLabel = `Detected frequency at graded attempt: ${input.lastAttempt!.frequencyHz.toFixed(2)} Hz`;
+    expect(details.querySelector("summary")!.textContent).toBe("Practice Details · Last graded attempt");
+    expect(details.textContent).not.toContain("Last heard");
+    expect(details.open).toBe(false);
+    expect(live.textContent).toContain("Live");
+    expect(live.textContent).toContain("Target frequency: 369.99 Hz");
+    expect(live.textContent).toContain("Detected frequency: 376.69 Hz");
+    expect(live.closest('[aria-live]')).toBeNull();
+    expect(screen.getByText(gradedFrequencyLabel).closest('[aria-live]')).toBeNull();
     expect(live.textContent).toContain("369.99 Hz");
     expect(live.textContent).toContain("376.69 Hz");
     expect(live.textContent).toContain("+31.0¢ · SHARP");
@@ -48,6 +58,7 @@ describe("acoustic setup and feedback", () => {
     view.rerender(<PiecePracticeAcousticControls input={{ ...input, reading: { ...input.reading, pitch: { semitone: 78, frequencyHz: 739.99 } } }} available target={target} />);
     expect(live.textContent).toContain("739.99 Hz");
     expect(live.textContent).toContain("+1200.0¢");
+    expect(screen.getByText(gradedFrequencyLabel).closest("details")).toBe(details);
     view.rerender(<PiecePracticeAcousticControls input={{ ...input, reading: { ...input.reading, pitch: { semitone: 66, frequencyHz: 369.99 } } }} available target={target} />);
     expect(live.textContent).toContain("CENTERED");
     view.rerender(<PiecePracticeAcousticControls input={{ ...input, reading: { ...input.reading, pitch: { semitone: 66, frequencyHz: 360 } } }} available target={target} />);
@@ -57,17 +68,27 @@ describe("acoustic setup and feedback", () => {
     view.rerender(<PiecePracticeAcousticControls input={input} available target={{ ...target, attackedPitches: [], expectedMidiNumbers: [78] }} />);
     expect(live.textContent).toContain("739.99 Hz");
     expect(live.textContent).toContain("FLAT");
-    for (const reading of [{ ...input.reading, fresh: false }, { ...input.reading, state: "uncertain" as const }, { ...input.reading, pitch: null }]) {
+    for (const reading of [{ ...input.reading, fresh: false }, { ...input.reading, state: "uncertain" as const }, { ...input.reading, pitch: null }, { ...input.reading, ageMs: null }, { ...input.reading, ageMs: -1 }, { ...input.reading, ageMs: 10000 }]) {
       view.rerender(<PiecePracticeAcousticControls input={{ ...input, reading }} available target={target} />);
       expect(live.textContent).not.toContain("376.69 Hz");
+      expect(live.textContent).toContain("Detected frequency: unavailable");
+      expect(live.textContent).toContain("Cents unavailable");
+      expect(live.textContent).not.toContain("Last heard");
+      expect(details.textContent).toContain(gradedFrequencyLabel);
     }
     view.rerender(<PiecePracticeAcousticControls input={{ ...input, status: { state: "idle", message: "Off" } }} available target={target} />);
     expect(live.textContent).toContain("No current pitch");
+    expect(details.textContent).toContain(gradedFrequencyLabel);
     view.rerender(<PiecePracticeAcousticControls input={input} available target={target} />);
     expect(screen.getByText("Expected: F♯4")).toBeTruthy();
     expect(screen.getByText(/Heard: F♯4 · 31.0¢ sharp/)).toBeTruthy();
     expect(screen.getByText("✓ Accepted within ±40¢")).toBeTruthy();
     expect(screen.queryByText(/in tune/i)).toBeNull();
     expect(screen.getByText("Listening · F♯4").closest('[aria-live]')).toBeNull();
+    fireEvent.click(screen.getByText(/Practice Details/));
+    expect(details.open).toBe(true);
+    view.rerender(<PiecePracticeAcousticControls input={{ ...input, lastAttempt: null }} available target={target} />);
+    expect(details.querySelector("summary")!.textContent).toBe("Practice Details");
+    expect(screen.queryByText(gradedFrequencyLabel)).toBeNull();
   });
 });

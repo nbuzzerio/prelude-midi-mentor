@@ -18,6 +18,10 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
+### Piece Practice feedback cleanup (2.9.3)
+
+Measure progress appears beside the playing pitch fields; remaining measures include the unfinished current measure within the selected practice range. A brief checkmark names the specific pitch/attack just accepted, independently of the next target and live tuning feedback. This does not grade written note duration. Microphone feedback prominently separates signed cents and FLAT/SHARP/CENTERED from detected frequency; graded evidence is labeled Last graded attempt and Detected frequency at graded attempt in collapsed Practice Details. Acoustic Analysis / Export defaults closed while scalar collection continues. Completion summary, statistics and Generate/Copy Report are followed by collapsed measure results, microphone attacks and Targeted Practice details. Unsaved-data notices remain visible, and reports/exports retain their evidence. [Optional local recording is the next research-only handoff](./docs/PIECE_PRACTICE_RECORDING_HANDOFF.md); no audio is recorded in this update.
+
 ### Violin preflight and acoustic analysis (2.9.2, provisional)
 
 Microphone Piece Practice for violin offers an optional G3 -> D4 -> A4 -> E5 open-string check. Start Listening once, pluck an open string, read its note/Hz and signed cents, adjust, then pluck again. Bowing also works. Beginner preparation uses a short robust pitch estimate rather than an 800 ms bow hold: ideal/excellent within 5 cents, green/ready within 10 cents, yellow/adjust tuning through 25 cents, red/significantly off beyond 25 cents. Agreeing green evidence commits immediately and advances after a 1.2-second confirmation without further sound. Live estimates, Last heard values and confirmed baselines are labeled separately; no Retry is required. Skip String and explicit Continue remain, and **Skip Calibration and Start Practice** bypasses all remaining strings while preserving accepted results. After the final summary, Enter Piece Practice is prominent. Both entry routes require a quiet gap and fresh articulation; calibration never changes practice tolerance, concert-pitch grading or practice time. These tuning bands are provisional beginner defaults, not universal tuning standards. Real short-pluck recognition still depends on usable microphone estimates and requires physical QA.
@@ -439,7 +443,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Current package/application version is **2.9.2**, derived by the UI from `package.json`. No new release or tag is implied.
+Current package/application version is **2.9.3**, derived by the UI from `package.json`. No new release or tag is implied.
 
 The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
 
