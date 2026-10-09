@@ -8,7 +8,8 @@ const MIME_CANDIDATES = ["audio/webm;codecs=opus", "audio/mp4;codecs=mp4a.40.2",
 
 export type RecordingPhase = "off" | "armed" | "starting" | "recording" | "finalizing" | "stopped" | "limited" | "unsupported" | "error";
 export type RecordingSegment = Readonly<{
-  ownerInstanceId: string; runId: string; analysisSessionId: string; sequence: number; captureGeneration: number;
+  ownerInstanceId: string; runId: string; analysisSessionId: string | null; sequence: number; captureGeneration: number;
+  source: "room-microphone";
   startedAt: string; startedAtMs: number; endedAtMs: number;
   durationMs: number; size: number; mimeType: string; filename: string; blob: Blob; url: string;
 }>;
@@ -18,7 +19,7 @@ export type RecordingSnapshot = Readonly<{
 }>;
 
 type RecordingOptions = Readonly<{
-  runId: string; instrument: "violin" | "ocarina"; analysisSessionId: string; originMs: number;
+  runId: string; instrument: "piano" | "violin" | "ocarina"; analysisSessionId: string | null; originMs: number;
   now?: () => number; wallNow?: () => Date; Recorder?: typeof MediaRecorder;
   createObjectURL?: (blob: Blob) => string; revokeObjectURL?: (url: string) => void;
   onChange?: (snapshot: RecordingSnapshot) => void;
@@ -127,7 +128,7 @@ export function createPiecePracticeRecording(options: RecordingOptions) {
         const blob = new Blob(item.chunks, { type: reported });
         const url = createURL(blob);
         const stamp = item.startedAt.replace(/[-:.]/g, "").replace(/Z$/, "Z");
-        segments = [...segments, { ownerInstanceId, runId: options.runId, analysisSessionId: options.analysisSessionId,
+        segments = [...segments, { ownerInstanceId, runId: options.runId, analysisSessionId: options.analysisSessionId, source: "room-microphone",
           sequence: item.sequence, captureGeneration: item.lease.generation,
           startedAt: item.startedAt, startedAtMs: Math.max(0, (item.startedAtMs ?? now()) - options.originMs),
           endedAtMs: Math.max(0, (item.endingAtMs ?? now()) - options.originMs), durationMs: item.durationMs,
@@ -180,7 +181,7 @@ export function createPiecePracticeRecording(options: RecordingOptions) {
       else if (limited) setPhase("limited", "Recording limit reached for this run.");
       else if (failed) setPhase("error", "Recording failed for this run. Practice continues.");
       else if (unsupported) setPhase("unsupported", "This browser does not support local performance recording. Practice continues.");
-      else { setPhase("armed", "Recording armed. Audio starts when microphone practice begins."); maybeStart(); }
+      else { setPhase("armed", "Recording armed. Audio starts when eligible practice and microphone capture begin."); maybeStart(); }
     },
     setEligible(value: boolean) {
       if (disposed) return;

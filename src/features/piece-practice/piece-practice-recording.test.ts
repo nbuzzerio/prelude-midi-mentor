@@ -46,6 +46,16 @@ beforeEach(() => { vi.useFakeTimers(); FakeRecorder.instances = []; FakeRecorder
 afterEach(() => vi.useRealTimers());
 
 describe("local performance recording", () => {
+  it("keeps piano room-audio identity without fabricating acoustic analysis", () => {
+    const controller = createPiecePracticeRecording({ runId: "piano-run", instrument: "piano", analysisSessionId: null,
+      originMs: 500, now: () => time, Recorder: FakeRecorder as unknown as typeof MediaRecorder,
+      createObjectURL: createURL, revokeObjectURL: revokeURL });
+    const recorder = start(controller); time += 100; controller.onStreamEnding(lease()); recorder.emitData(chunk()); recorder.emitStop();
+    expect(controller.snapshot().segments[0]).toMatchObject({ source: "room-microphone", analysisSessionId: null,
+      runId: "piano-run", captureGeneration: 1, startedAtMs: 500, endedAtMs: 600, durationMs: 100 });
+    expect(controller.snapshot().segments[0].filename).toMatch(/^prelude-piano-.*\.webm$/);
+    controller.dispose();
+  });
   it("defaults Off and borrows the exact stream only after eligibility", () => {
     const controller = make();
     controller.onStreamReady(lease());

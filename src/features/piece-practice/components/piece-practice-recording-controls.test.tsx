@@ -5,7 +5,7 @@ import type { RecordingSegment, RecordingSnapshot } from "../piece-practice-reco
 
 afterEach(cleanup);
 const segment: RecordingSegment = {
-  ownerInstanceId: "owner", runId: "run", analysisSessionId: "analysis", sequence: 1, captureGeneration: 2,
+  ownerInstanceId: "owner", runId: "run", analysisSessionId: "analysis", sequence: 1, captureGeneration: 2, source: "room-microphone",
   startedAt: "2026-10-09T14:30:00.000Z", startedAtMs: 1000, endedAtMs: 5000, durationMs: 4000,
   size: 5000, mimeType: "audio/webm;codecs=opus", filename: "prelude-violin-run-segment-001.webm",
   blob: new Blob(["audio"]), url: "blob:test",
@@ -46,5 +46,16 @@ describe("performance recording controls", () => {
     const download = screen.getByRole("link", { name: "Download segment 1" }) as HTMLAnchorElement;
     expect(download.download).toBe(segment.filename);
     expect(download.href).toBe(segment.url);
+  });
+
+  it("labels piano room audio and headphones limits without invented acoustic analysis", () => {
+    render(<PiecePracticeRecordingControls listening={false} recording={recording({ phase: "stopped", segments: [{ ...segment, analysisSessionId: null }] })}
+      keyboard={{ status: { state: "idle", message: "Microphone off" }, canRecord: true, resume: vi.fn() }} />);
+    expect(screen.getByText(/Recording captures the piano sound heard by your microphone/)).toBeTruthy();
+    expect(screen.getByText(/headphones/)).toBeTruthy();
+    expect(screen.getByText(/Room microphone/)).toBeTruthy();
+    expect(screen.queryByText(/Analysis null/)).toBeNull();
+    expect(screen.getByText(/this run.s recording timeline/)).toBeTruthy();
+    expect(screen.getByText("Performance Recordings (1)").closest("details")!.open).toBe(false);
   });
 });

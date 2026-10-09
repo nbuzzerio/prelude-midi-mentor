@@ -16,6 +16,7 @@ import { serializeAcousticAnalysis } from "@/features/acoustic-analysis/acoustic
 import { equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 import { formatPiecePracticeWrittenPitch } from "../piece-practice-evidence";
 import { createPiecePracticeRecording, type RecordingSnapshot } from "../piece-practice-recording";
+import { stopPiecePracticeRecordingPlayback } from "../piece-practice-recording-playback";
 
 type Options = Readonly<{
   piece: PiecePracticePiece; sessionState: PiecePracticeSessionState;
@@ -288,6 +289,7 @@ export function usePiecePracticeAcousticInput(options: Options) {
     const { piece, sessionState } = latest.current;
     const eligibility = getAcousticEligibility(piece, sessionState.startMeasureIndex, sessionState.endMeasureIndex);
     if (!eligibility.eligible) { setStatus({ state: "unavailable", message: eligibility.message }); return; }
+    stopPiecePracticeRecordingPlayback();
     resetInput(); void captureRef.current?.start();
   }, [resetInput]);
   const stop = useCallback(() => captureRef.current?.stop(), []);

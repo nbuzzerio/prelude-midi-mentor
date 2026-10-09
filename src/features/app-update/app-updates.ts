@@ -52,6 +52,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Play back and download temporary recording segments before leaving or closing the page. Audio is never automatically uploaded.",
     "Recording does not change pitch grading, scalar analysis JSON, reports or saved run evidence.",
   ],
+}, {
+  id: "2026-10-09-piano-performance-recording",
+  sequence: 5,
+  title: "Record audible piano performances",
+  date: "2026-10-09",
+  version: "2.9.5",
+  changes: [
+    "Piano Piece Practice now offers optional local microphone recording while MIDI continues to handle note grading.",
+    "Record the piano sound audible in the room, then play back and download separate temporary segments. Headphones-only piano output may not be captured.",
+    "Recording defaults Off, never automatically uploads audio, and can fail or stop without interrupting MIDI practice. Resume recording explicitly after an interruption.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

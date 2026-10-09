@@ -18,6 +18,12 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
+### Optional performance audio recording (2.9.5)
+
+Piano MIDI Piece Practice now offers default-Off **Record performance audio**, extending 2.9.4's violin/ocarina recording. Recording captures the piano sound heard by your microphone; MIDI still handles note grading. Headphones-only piano output may not be captured. Virtual keys can use the same room microphone option but do not synthesize recorded audio. Only explicit opt-in requests microphone permission; no pitch detector or analyzer is started for piano recording.
+
+Recordings stay local and temporary, separate from scalar JSON, reports and saved runs. Stop recording before playback, then open **Performance Recordings** to listen and download each native-format segment. Download desired files before leaving: no audio is recovered after closure, and mobile termination may bypass warnings. Restart Measure remains continuous; pause/interruption releases the microphone, with an explicit **Resume recording** action afterward. Completion can cut off the final note's tail. Existing 20-minute and soft 16 MiB limits remain. See the [recording handoff](./docs/PIECE_PRACTICE_RECORDING_HANDOFF.md) and [physical QA checklist](./docs/TESTING.md).
+
 ### Piece Practice feedback cleanup (2.9.3)
 
 Measure progress appears beside the playing pitch fields; remaining measures include the unfinished current measure within the selected practice range. A brief checkmark names the specific pitch/attack just accepted, independently of the next target and live tuning feedback. This does not grade written note duration. Microphone feedback prominently separates signed cents and FLAT/SHARP/CENTERED from detected frequency; graded evidence is labeled Last graded attempt and Detected frequency at graded attempt in collapsed Practice Details. Acoustic Analysis / Export defaults closed while scalar collection continues. Completion summary, statistics and Generate/Copy Report are followed by collapsed measure results, microphone attacks and Targeted Practice details. Unsaved-data notices remain visible, and reports/exports retain their evidence. [Optional local recording is the next research-only handoff](./docs/PIECE_PRACTICE_RECORDING_HANDOFF.md); no audio is recorded in this update.

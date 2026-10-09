@@ -1,6 +1,14 @@
 # Optional local performance audio recording — 2.9.4 implementation handoff
 
-Implemented for the pending 2.9.4 worktree, October 9, 2026. This was research only in 2.9.3; tagging and release remain owner-controlled.
+The 2.9.4 implementation is committed at `be243f5`; 2.9.5 is a pending bounded piano extension, October 9, 2026. This was research only in 2.9.3; tagging and release remain owner-controlled.
+
+## Piano extension (2.9.5)
+
+The stable keyboard owner adds `use-piece-practice-keyboard-recording`, constructing a recording-only adapter and the existing native recorder together per run/effect lifetime. Explicit opt-in is the only permission trigger; no analyzer/pitch detector or acoustic analysis session exists. The adapter owns its acquired tracks, lends generation leases to the recorder, requests finalization before release, and cancels late grants. Strict Mode replay, actual cleanup and stale-event isolation follow the 2.9.4 ownership principle. MIDI input/clock/evidence and persistence are independent. Piano filenames and room-microphone metadata use null analysisSessionId and approximate monotonic recording-timeline offsets.
+
+Pause, background/track interruption, opt-out and completion finalize and release capture; resume is an explicit action, never clock-driven acquisition. Restart Measure stays continuous. New/recovered runs default Off. Shared playback/download and audio-loss guards protect every run replacement, focused return and App mode change; stop existing recording playback before acquiring capture. All existing format, budget, memory-only/privacy and final-note-cutoff policies remain. A room microphone may miss headphones-only piano output; VKB recording does not synthesize sound. Physical MIDI integration tests use real input/session owners with fake browser devices; real instrument fidelity and downloaded external-player QA remain owner work.
+
+## Original acoustic ownership (2.9.4)
 
 The monophonic capture controller retains exclusive MediaStream and track ownership in `src/lib/audio/monophonic/microphone-capture.ts`. Optional ready/ending callbacks lend the initialized stream and generation to the Piece Practice recording controller without another microphone request. The Piece Practice acoustic hook owns one capture and one recorder controller per run. Stop, background/freeze/pagehide, muted/ended tracks, interruption, completion and unmount stop tracks. There is no stream-preserving capture pause/resume. Restart Piece replaces the owner; Restart Measure resets input within the same owner. Recovery starts paused with microphone and recording off. Scalar analysis and run evidence/report persistence remain separate.
 
