@@ -18,6 +18,10 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
+### Playing workspace cleanup (pending 2.9.7)
+
+Piece Practice now keeps its header compact and puts measure progress, large Expected/Actual feedback and essential listening buttons ahead of notation. The violin fingerboard remains a right-side companion on wide screens. Recording controls, Practice Details and acoustic analysis/export follow the workspace; active recording, failure/limit notices and temporary-audio warnings remain visible near the top. The violin diagram enlarges the proportional first-position region, omits the unused string length toward the bridge, and groups string/sticker/alternate controls in **Fingerboard options and details**. Grading, calibration, recording, MIDI and saved evidence are unchanged.
+
 ### Violin first-position fingerboard (pending 2.9.6)
 
 Violin microphone Piece Practice includes an advisory four-string fingerboard beside notation on wide desktops, stacked on smaller screens. A diamond identifies the expected pitch and suggested first-position location; a separate dashed circle identifies a reliable live pitch-derived possible location on the assumed string. Choose a string, inspect open-string/fourth-finger alternatives, or hide beginner pitch-name stickers. Written accidentals are preserved where supplied by the score.

@@ -40,9 +40,11 @@ export function PiecePracticeAcousticSetup({ configuration, preset, onPreset, on
   </div>;
 }
 
-export function PiecePracticeAcousticControls({ input, available, target, measureProgress }: Readonly<{
+export function PiecePracticeAcousticControls({ input, available, target, measureProgress, presentation = "all" }: Readonly<{
   input: ReturnType<typeof usePiecePracticeAcousticInput>; available: boolean; target?: PiecePracticeTarget | null; measureProgress?: ReactNode;
+  presentation?: "all" | "playing" | "secondary";
 }>) {
+  const playing = presentation !== "secondary", secondary = presentation !== "playing";
   const active = ["requesting", "starting", "listening"].includes(input.status.state);
   const { lastAttempt, reading } = input;
   const expectedPitch = target?.attackedPitches[0];
@@ -53,30 +55,31 @@ export function PiecePracticeAcousticControls({ input, available, target, measur
   const deviation = live && expectedHz ? centsBetween(live.frequencyHz, expectedHz) : null;
   const direction = deviation === null ? null : Math.abs(deviation) < 0.05 ? "CENTERED" : deviation < 0 ? "FLAT" : "SHARP";
   const pitchStatus = input.status.state !== "listening" ? "No current pitch" : reading.state === "uncertain" || reading.pitch ? "Uncertain" : "Listening";
-  return <section aria-label="Microphone practice" className="grid gap-3 rounded border border-sky-400/40 p-3">
-    {input.phase === "practice" && measureProgress}
-    {input.phase === "practice" && <div aria-label="Live microphone pitch" className="grid min-w-0 gap-3 md:grid-cols-2">
-      <div className="grid min-h-64 min-w-0 content-start gap-1 rounded-lg border-2 border-sky-300 bg-sky-950/40 p-4 text-center">
+  const listeningButtons = <div className="flex flex-wrap justify-center gap-2"><button className="min-h-11 rounded bg-sky-600 px-3 font-semibold disabled:opacity-40" type="button" disabled={active || !available} onClick={input.start}>Start Listening</button>
+    <button className="min-h-11 rounded border border-zinc-500 px-3 disabled:opacity-40" type="button" disabled={!active} onClick={input.stop}>Stop Listening</button></div>;
+  return <section aria-label={presentation === "playing" ? "Microphone playing feedback" : presentation === "secondary" ? "Microphone practice details" : "Microphone practice"} className="grid gap-2 rounded border border-sky-400/40 p-2">
+    {playing && input.phase === "practice" && measureProgress}
+    {playing && input.phase === "practice" && <div aria-label="Live microphone pitch" className="grid min-w-0 gap-2 md:grid-cols-2">
+      <div className="grid min-h-48 min-w-0 content-start gap-1 rounded-lg border-2 border-sky-300 bg-sky-950/40 p-3 text-center">
         <p className="font-bold tracking-wider">EXPECTED</p>
-        <p className="break-words text-[64px] font-black leading-tight">{expectedMidi === undefined ? "—" : formatPiecePracticeMidiPitch(expectedMidi, { expectedPitches: expectedPitch ? [expectedPitch] : [] })}</p>
+        <p className="break-words text-[64px] font-black leading-none">{expectedMidi === undefined ? "—" : formatPiecePracticeMidiPitch(expectedMidi, { expectedPitches: expectedPitch ? [expectedPitch] : [] })}</p>
         <p className="break-words text-base tabular-nums">{expectedHz === null ? "No current target" : `Target frequency: ${expectedHz.toFixed(2)} Hz`}</p>
+        {listeningButtons}
       </div>
-      <div className="grid min-h-64 min-w-0 content-start gap-1 rounded-lg border-2 border-amber-300 bg-amber-950/30 p-4 text-center">
-        <p className="font-bold tracking-wider">ACTUAL / HEARD</p>
-        <p className="min-h-6 text-sm">{live ? "Live" : pitchStatus}</p>
-        <p className="min-h-20 break-words text-[64px] font-black leading-tight">{live ? heard : "—"}</p>
-        <p className="min-h-16 break-words text-2xl font-bold tabular-nums sm:text-3xl">{deviation === null ? "Cents unavailable" : `${deviation < -0.05 ? "−" : "+"}${Math.abs(deviation).toFixed(1)}¢ · ${direction}`}</p>
+      <div className="grid min-h-48 min-w-0 content-start gap-1 rounded-lg border-2 border-amber-300 bg-amber-950/30 p-3 text-center">
+        <div className="flex min-h-6 flex-wrap justify-center gap-x-2"><p className="font-bold tracking-wider">ACTUAL / HEARD</p><p className="text-sm">{live ? "Live" : pitchStatus}</p></div>
+        <p className="min-h-16 break-words text-[64px] font-black leading-none">{live ? heard : "—"}</p>
+        <p className="min-h-10 break-words text-2xl font-bold tabular-nums sm:text-3xl">{deviation === null ? "Cents unavailable" : `${deviation < -0.05 ? "−" : "+"}${Math.abs(deviation).toFixed(1)}¢ · ${direction}`}</p>
         <p className="min-h-6 break-words text-base tabular-nums">{live ? `Detected frequency: ${live.frequencyHz.toFixed(2)} Hz` : "Detected frequency: unavailable"}</p>
       </div>
     </div>}
-    <p className="font-semibold">Microphone practice — Provisional</p>
-    <div className="flex flex-wrap gap-3"><button className="min-h-11 rounded bg-sky-600 px-4 font-semibold disabled:opacity-40" type="button" disabled={active || !available} onClick={input.start}>Start Listening</button>
-      <button className="min-h-11 rounded border border-zinc-500 px-4 disabled:opacity-40" type="button" disabled={!active} onClick={input.stop}>Stop Listening</button></div>
+    {playing && input.phase === "preflight" && listeningButtons}
+    {playing && input.phase === "practice" && <p className="min-h-6 break-words text-sm font-semibold">{!available ? "End the active Practice Session before listening." : input.status.state !== "listening" ? input.status.message : input.needsQuiet ? "Leave a brief quiet gap, then re-articulate." : lastAttempt && !lastAttempt.accepted && lastAttempt.targetId === target?.id ? "Outside tolerance — re-articulate to try again." : heard ? `Listening · ${heard}` : reading.pitch ? "Uncertain — waiting for a reliable pitch." : "Listening — play one note."}</p>}
+    {secondary && <><p className="text-sm font-semibold">Microphone practice — Provisional</p>
+    <p role="status">{!available ? "End the active Practice Session before listening." : input.status.message}</p>
     <PiecePracticeRecordingControls listening={active} recording={input.recording} />
-    <p role="status" className="min-h-12">{!available ? "End the active Practice Session before listening." : input.status.message}</p>
     {input.phase === "preflight" && <ViolinPreflight calibration={input.calibration} frequencyHz={input.calibrationHz} feedback={input.calibrationFeedback} accepted={input.calibrationAccepted}
       listening={input.status.state === "listening"} onAction={input.calibrationAction} onEnterPractice={input.enterPractice} onSkipCalibration={input.skipCalibrationAndStartPractice} />}
-    {input.phase === "practice" && <p className="min-h-12 font-semibold">{input.status.state !== "listening" ? "Start Listening to play." : input.needsQuiet ? "Leave a brief quiet gap, then re-articulate." : lastAttempt && !lastAttempt.accepted && lastAttempt.targetId === target?.id ? "Outside tolerance — re-articulate to try again." : heard ? `Listening · ${heard}` : reading.pitch ? "Uncertain — waiting for a reliable pitch." : "Listening — play one note."}</p>}
     <details><summary className="min-h-11 cursor-pointer py-2 font-semibold">Practice Details{lastAttempt ? " · Last graded attempt" : ""}</summary>
     {lastAttempt && <div className="grid gap-1 text-zinc-300">
       <p className="font-semibold">Last graded attempt</p>
@@ -90,5 +93,6 @@ export function PiecePracticeAcousticControls({ input, available, target, measur
     <p className="text-sm text-zinc-300">One note at a time. Weak bow restarts may need a brief gap. Harmonics can cause octave errors. Keep other playback quiet; use headphones if needed. Microphone audio is analyzed locally. Performance audio is recorded only when enabled, remains local until downloaded, and is never automatically uploaded by Prelude.</p>
     </details>
     <AcousticAnalysisExportControls control={input.analysis} capturing={active} />
+    </>}
   </section>;
 }

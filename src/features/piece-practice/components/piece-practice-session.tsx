@@ -7,7 +7,7 @@ import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import { usePiecePracticeAcousticInput } from "../hooks/use-piece-practice-acoustic-input";
 import { PiecePracticeAcousticControls, PiecePracticeAcousticSetup } from "./piece-practice-acoustic-controls";
 import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/components/acoustic-analysis-export-controls";
-import { PiecePracticeRecordingControls } from "./piece-practice-recording-controls";
+import { PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
 import { usePiecePracticeKeyboardRecording } from "../hooks/use-piece-practice-keyboard-recording";
 import { usePiecePracticeRecordingGuard } from "../hooks/use-piece-practice-recording-guard";
 import { getInstrumentLiveContext, type InstrumentPitchContext } from "@/features/instrument-learning/instrument-pitch-context";
@@ -449,7 +449,7 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
   const progress = getPiecePracticeProgress(piece, sessionState, now());
   const remainingMeasures = Math.max(0, progress.practiceMeasureCount - progress.practicedMeasureCount);
   const measureProgress = <p aria-label="Measure progress" className="min-h-6 font-semibold tabular-nums">Measure {progress.currentMeasureNumber} of {progress.totalPieceMeasures} · {remainingMeasures} {remainingMeasures === 1 ? "measure" : "measures"} remaining in practice{sessionState.status === "piece-complete" ? " · Complete" : " (including current)"}</p>;
-  const acknowledgment = <div aria-label="Accepted pitch/attack" aria-live="polite" aria-atomic="true" role="status" className="min-h-12 min-w-0 break-words py-2 font-semibold text-green-200">
+  const acknowledgment = <div aria-label="Accepted pitch/attack" aria-live="polite" aria-atomic="true" role="status" className="min-h-6 min-w-0 break-words font-semibold text-green-200">
     {acceptedTarget && <span key={acceptedTarget.identity} data-target-id={acceptedTarget.targetId} data-attempt-sequence={acceptedTarget.sequence}>✓ {acceptedTarget.names} accepted <span className="text-sm text-zinc-300">· pitch/attack</span></span>}
   </div>;
   const rangeText = sessionState.endMeasureIndex === null
@@ -548,18 +548,20 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
   const lastAnswer = feedback.status === "incorrect" && grade ? { midiNumbers: new Set(grade.receivedMidiNumbers), result: "incorrect" as const } : null;
   const activeNotes = input.kind === "keyboard" ? new Set([...input.controller.virtualSelectedMidiNumbers, ...input.controller.midiChordAttemptMidiNumbers]) : new Set<number>();
 
-  return <section className={isMobilePlayMode ? "piece-practice-session piece-practice-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100" : "piece-practice-session mx-auto grid w-full max-w-6xl gap-4 text-zinc-100"}>
+  return <section className={isMobilePlayMode ? "piece-practice-session piece-practice-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100" : "piece-practice-session mx-auto grid w-full max-w-6xl gap-2 text-zinc-100"}>
     {mobilePlayExit}
-    <header className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-zinc-900 p-4">
-      <div><h1 className="text-2xl font-bold" ref={practiceHeadingRef} tabIndex={-1}>{piece.title}</h1>{targetedPracticeMeasureIndex !== null && <p className="font-semibold text-sky-200">Targeted Practice · focused practice</p>}<p>Measure {sessionState.currentMeasureIndex + 1} of {piece.measures.length} · Practicing {rangeText}</p><p>Assessing: {piecePracticeAssessmentLabel(sessionState.assessmentFocus)}</p>{target ? <p>Target {(sessionState.currentTargetIndex ?? 0) + 1} of {measure?.targets.length ?? 0}</p> : null}</div>
+    <header className="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-zinc-900 p-3">
+      <div className="min-w-0"><h1 className="break-words text-2xl font-bold" ref={practiceHeadingRef} tabIndex={-1}>{piece.title}</h1>{targetedPracticeMeasureIndex !== null && <p className="font-semibold text-sky-200">Targeted Practice · focused practice</p>}<div className="flex flex-wrap gap-x-3 text-sm text-zinc-300"><p>Practicing {rangeText}</p><p>Assessing: {piecePracticeAssessmentLabel(sessionState.assessmentFocus)}</p>{target ? <p>Target {(sessionState.currentTargetIndex ?? 0) + 1} of {measure?.targets.length ?? 0}</p> : null}</div></div>
       <div className="piece-practice-actions flex flex-wrap items-center gap-2">{input.kind === "keyboard" && <MidiStatus deviceName={input.controller.deviceName} error={input.controller.error} onConnect={input.controller.connectMidi} status={input.controller.status} />}{!isMobilePlayMode ? mobilePlayEntry : null}<button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={restartMeasure} type="button">Restart Measure</button><button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={restartWholePiece} type="button">Restart Piece</button><button className="rounded-lg border border-zinc-600 px-3 py-2" onClick={onExit} type="button">Exit Piece Practice</button></div>
       {returnToTargetedPractice}
     </header>
     <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{statusText}</div>
     {acknowledgment}
-    {input.kind === "keyboard" && <PiecePracticeRecordingControls listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
-    {input.kind === "microphone" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} />}
-    <div className={`${isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}${violinContext ? " piece-practice-violin-stage" : ""}`}>
+    <PiecePracticeRecordingNotice recording={input.kind === "keyboard" ? input.audio.recording : input.controller.recording} />
+    {input.kind === "microphone" && input.controller.phase === "preflight" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} />}
+    <div aria-label="Active practice workspace" className={`${isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}${violinContext ? " piece-practice-violin-stage" : ""}`}>
+      <div className="grid min-w-0 content-start gap-2">
+      {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} presentation="playing" />}
       <section aria-labelledby="piece-practice-current-target" className="grid min-h-0 gap-3 rounded-lg bg-zinc-900 p-3">
         {input.kind === "keyboard" && measureProgress}
         <div><h2 className="font-bold" id="piece-practice-current-target">{target ? "Current target" : "Current measure"}</h2>{target ? input.kind === "keyboard" && <p className="min-h-16 break-words text-4xl font-bold sm:text-5xl">Expected: {expectedNames.join(", ")}</p> : <p>No notes to play in this measure.</p>}</div>
@@ -580,10 +582,13 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
           }
         }} type="button">Next Measure</button> : null}
       </section>
+      </div>
       {violinContext && <ViolinFingerboard context={violinContext} />}
       {input.kind === "keyboard" && <div aria-label="Practice keyboard" className={isMobilePlayMode ? "mobile-play-keyboard-region min-h-0" : "min-h-52"} data-presentation={isMobilePlayMode ? "mobile-play" : "standard"}>
         <PianoKeyboard activeMidiNumbers={activeNotes} failedMidiNumbers={failedNotes} lastAnswer={lastAnswer} onNoteToggle={input.controller.onVirtualNoteToggle} targetMidiNumbers={new Set(target?.expectedMidiNumbers ?? [])} />
       </div>}
     </div>
+    {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} presentation="secondary" />}
+    {input.kind === "keyboard" && <PiecePracticeRecordingControls listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
   </section>;
 }

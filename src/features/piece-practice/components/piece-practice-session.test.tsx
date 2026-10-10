@@ -299,6 +299,37 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it.each(["violin", "ocarina"] as const)("places %s playing feedback and notation ahead of secondary controls", (instrument) => {
+    render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} />);
+    fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+    fireEvent.change(screen.getByLabelText("Instrument"), { target: { value: instrument } });
+    fireEvent.click(screen.getByLabelText("Upper Staff"));
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    if (instrument === "violin") fireEvent.click(screen.getByRole("button", { name: "Skip Calibration and Start Practice" }));
+    const playing = screen.getByLabelText("Microphone playing feedback"), workspace = screen.getByLabelText("Active practice workspace"), secondary = screen.getByLabelText("Microphone practice details");
+    expect(workspace.contains(playing)).toBe(true);
+    expect(playing.compareDocumentPosition(within(workspace).getByTestId("score-view")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(workspace.compareDocumentPosition(secondary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(playing).getByRole("button", { name: "Start Listening" })).toBeTruthy();
+    expect(within(playing).getByLabelText("Measure progress")).toBeTruthy();
+    expect(within(playing).getByLabelText("Live microphone pitch")).toBeTruthy();
+    expect(within(playing).queryByRole("checkbox", { name: "Record performance audio" })).toBeNull();
+    expect(within(secondary).getByRole("checkbox", { name: "Record performance audio" })).toBeTruthy();
+    expect(within(workspace).getByTestId("score-view")).toBeTruthy();
+    expect(within(workspace).queryByLabelText("Violin first-position guide") !== null).toBe(instrument === "violin");
+    for (const summary of secondary.querySelectorAll("summary")) expect(summary.parentElement!.hasAttribute("open")).toBe(false);
+    expect(microphone.sessions).toHaveLength(1);
+  });
+
+  it("places keyboard playing information ahead of its microphone recording controls", () => {
+    start();
+    const workspace = screen.getByLabelText("Active practice workspace"), recording = screen.getByLabelText("Performance audio recording");
+    expect(within(workspace).getByLabelText("Measure progress")).toBeTruthy();
+    expect(within(workspace).getByText("Expected: C4, E4")).toBeTruthy();
+    expect(workspace.compareDocumentPosition(recording) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByLabelText("Performance audio notice")).toBeNull();
+    expect(microphone.sessions).toHaveLength(0);
+  });
   it("updates violin expected and live markers independently while preserving grading, acknowledgment, recording and analysis", () => {
     vi.useFakeTimers(); localStorage.clear();
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
@@ -322,6 +353,10 @@ describe("PiecePracticeSession", () => {
       fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
       expect(NativeRecorder.instances).toHaveLength(1);
       expect(NativeRecorder.instances[0].stream).toBe(stream);
+      const notice = screen.getByLabelText("Performance audio notice");
+      expect(notice.textContent).toContain("Recording performance audio");
+      expect(notice.textContent).toContain("Temporary audio");
+      expect(notice.compareDocumentPosition(screen.getByLabelText("Active practice workspace")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       const frames = (hz: number | null, count: number) => {
         for (let i = 0; i < count; i++) {
           now += 40;
@@ -352,6 +387,7 @@ describe("PiecePracticeSession", () => {
       expect(marker("live")?.getAttribute("data-midi")).toBe("62");
       expect(marker("expected")?.getAttribute("data-midi")).toBe("67");
       expect(acknowledged.textContent).toContain("✓ C4 accepted");
+      fireEvent.click(screen.getByText("Fingerboard options and details"));
       fireEvent.change(screen.getByLabelText("String for diagram"), { target: { value: "G" } });
       expect(marker("expected")).toBeNull(); expect(marker("live")?.getAttribute("data-string")).toBe("G");
       expect(screen.getByText(/Selected G string cannot produce/)).toBeTruthy();
@@ -1431,7 +1467,8 @@ describe("PiecePracticeSession", () => {
   });
   it("offers an accessible Start at Measure setup and initializes the selected range", () => {
     start(piece(), 3);
-    expect(screen.getByText("Measure 3 of 3 · Practicing Measure 3 through end")).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 3 of 3");
+    expect(screen.getByText("Practicing Measure 3 through end")).toBeTruthy();
     expect(screen.getByText("Target 1 of 1")).toBeTruthy();
   });
 
@@ -1506,7 +1543,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("Target 2 of 2")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Next Measure" })).toBeNull();
     act(() => submit([67]));
-    expect(screen.getByText(/Measure 2 of 3 · Practicing/)).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 2 of 3");
     expect(screen.getByText("No notes to play in this measure.")).toBeTruthy();
     expect(mocks.success).toHaveBeenCalledTimes(2);
   });
@@ -1521,7 +1558,7 @@ describe("PiecePracticeSession", () => {
     start(extraRest);
     expect(screen.queryByRole("button", { name: "Skip Target" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
-    expect(screen.getByText(/Measure 2 of 3 · Practicing/)).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 2 of 3");
     expect(screen.getByRole("button", { name: "Next Measure" })).toBeTruthy();
   });
 
@@ -1565,7 +1602,8 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await screen.findByText("Completed practice saved.");
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
-    expect(screen.getByText("Measure 3 of 3 · Practicing Measure 3 through end")).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 3 of 3");
+    expect(screen.getByText("Practicing Measure 3 through end")).toBeTruthy();
     expect(mocks.resetInput).toHaveBeenCalledTimes(1);
   });
 
@@ -1581,7 +1619,8 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByText("No problem measures in this attempt.")).toBeTruthy();
     await screen.findByText("Completed practice saved.");
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
-    expect(screen.getByText("Measure 1 of 3 · Practicing Measures 1–2")).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 1 of 3");
+    expect(screen.getByText("Practicing Measures 1–2")).toBeTruthy();
   });
 
   it("requires explicit Mobile Play on narrow/coarse layouts and preserves one input tree", () => {
@@ -1640,10 +1679,10 @@ describe("PiecePracticeSession", () => {
 
     act(() => submit([60, 64]));
     act(() => submit([67]));
-    expect(screen.getByText(/Measure 2 of 3 · Practicing/)).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 2 of 3");
     expect(screen.getByRole("button", { name: "Next Measure" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
-    expect(screen.getByText(/Measure 3 of 3 · Practicing/)).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 3 of 3");
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
   });
 
@@ -1677,7 +1716,8 @@ describe("PiecePracticeSession", () => {
     await screen.findByText("Completed practice saved.");
     fireEvent.click(screen.getByRole("button", { name: "Practice Again" }));
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
-    expect(screen.getByText(/Measure 3 of 3 .* Practicing Measure 3 through end/)).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 3 of 3");
+    expect(screen.getByText("Practicing Measure 3 through end")).toBeTruthy();
   });
 
   it("routes virtual keyboard presses through the single input owner", () => {
@@ -1717,7 +1757,7 @@ describe("PiecePracticeSession", () => {
     act(() => submit([60]));
     act(() => submit([62]));
     act(() => submit([65]));
-    expect(screen.getByText(/Measure 2 of 2 · Practicing/)).toBeTruthy();
+    expect(screen.getByLabelText("Measure progress").textContent).toContain("Measure 2 of 2");
     expect(screen.getByText("Expected: E3, A4")).toBeTruthy();
     act(() => submit([52, 69]));
     expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();

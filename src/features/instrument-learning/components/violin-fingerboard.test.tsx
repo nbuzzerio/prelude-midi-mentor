@@ -11,11 +11,28 @@ const frame = (midi = 62, label = "D4", detected = 64): InstrumentPitchContext =
 const marker = (container: HTMLElement, kind: string) => container.querySelector(`[data-violin-marker="${kind}"]`);
 
 describe("advisory violin fingerboard", () => {
+  it("renders proportional landmarks with narrowing gaps and aligns expected/live markers", () => {
+    const s = render(<ViolinFingerboard context={frame(62, "D4", 64)} />);
+    for (const string of ["G", "D", "A", "E"]) {
+      const points = Array.from({ length: 8 }, (_, offset) => Number(s.container.querySelector(`[data-violin-landmark="${string}:${offset}"]`)!.getAttribute("cy")));
+      const gaps = points.slice(1).map((y, index) => y - points[index]);
+      expect(points[0]).toBe(60);
+      expect(points[7]).toBeCloseTo(60 + 720 * (1 - 2 ** (-7 / 12)));
+      expect(gaps.every((gap, index) => gap > 0 && (index === 0 || gap < gaps[index - 1]))).toBe(true);
+      expect(gaps[6] / gaps[0]).toBeCloseTo(2 ** (-6 / 12));
+    }
+    expect(marker(s.container, "expected")!.getAttribute("transform")).toBe("translate(141, 60)");
+    const liveY = Number(s.container.querySelector('[data-violin-landmark="D:2"]')!.getAttribute("cy"));
+    expect(Number(marker(s.container, "live")!.getAttribute("transform")!.match(/, ([^)]+)/)![1])).toBeCloseTo(liveY);
+    expect(s.container.querySelector("svg")!.getAttribute("viewBox")).toBe("0 0 360 355");
+    expect(screen.getByRole("img").textContent).toContain("bridge beyond this enlarged first-position view");
+  });
   it("identifies continuous strings, orientation, default suggestion and distinct expected/live shapes", () => {
     const { container } = render(<ViolinFingerboard context={frame()} />);
     expect(screen.getByRole("img", { name: /Advisory violin first-position fingerboard/ })).toBeTruthy();
     for (const note of ["G3", "D4", "A4", "E5"]) expect(container.querySelector("svg")!.textContent).toContain(note);
-    expect(screen.getByText("Nut · open strings")).toBeTruthy(); expect(screen.getByText(/Bridge · pitch rises/)).toBeTruthy();
+    expect(screen.getByText("Nut · open strings")).toBeTruthy(); expect(screen.getByText(/Toward bridge · remaining string omitted/)).toBeTruthy();
+    expect(screen.getByText("Fingerboard options and details").closest("details")!.open).toBe(false);
     expect(screen.getByLabelText("Diagram string assumption").textContent).toBe("Suggested string: D");
     expect(marker(container, "expected")?.querySelector("path")).toBeTruthy(); expect(marker(container, "live")?.querySelector("circle")).toBeTruthy();
     expect(container.querySelectorAll("[data-violin-sticker]")).toHaveLength(32);
@@ -23,6 +40,7 @@ describe("advisory violin fingerboard", () => {
   });
   it("switches to a supported fourth-finger alternate and preserves explicit selection across targets", () => {
     const s = render(<ViolinFingerboard context={frame()} />);
+    fireEvent.click(screen.getByText("Fingerboard options and details"));
     fireEvent.click(screen.getByRole("button", { name: "Use G string · finger 4" }));
     expect(screen.getByLabelText("Diagram string assumption").textContent).toBe("User-selected string: G");
     expect(marker(s.container, "expected")?.getAttribute("data-string")).toBe("G");
@@ -37,6 +55,7 @@ describe("advisory violin fingerboard", () => {
     expect(screen.getByLabelText("Live fingerboard position").textContent).toContain("Live pitch: E♭4");
     expect(s.container.querySelector('[data-violin-sticker="D:1"]')!.textContent).toBe("E♭4");
     expect(marker(s.container, "expected")!.textContent).toContain("E♭4");
+    fireEvent.click(screen.getByText("Fingerboard options and details"));
     fireEvent.click(screen.getByRole("checkbox", { name: "Show pitch-name stickers" }));
     expect(s.container.querySelectorAll("[data-violin-sticker]")).toHaveLength(0);
     expect(marker(s.container, "expected")).not.toBeNull();
@@ -69,6 +88,7 @@ describe("advisory violin fingerboard", () => {
     const s = render(<ViolinFingerboard context={frame(84, "C6", 83)} />);
     expect(screen.getByText(/outside the modeled first-position guide/)).toBeTruthy(); expect(marker(s.container, "expected")).toBeNull();
     s.rerender(<ViolinFingerboard context={frame(76, "E5", 64)} />);
+    fireEvent.click(screen.getByText("Fingerboard options and details"));
     fireEvent.change(screen.getByLabelText("String for diagram"), { target: { value: "D" } });
     expect(screen.getByText(/Possible harmonic or different note/)).toBeTruthy(); expect(marker(s.container, "live")).toBeNull();
     expect(screen.getByText(/Selected D string cannot produce/)).toBeTruthy();

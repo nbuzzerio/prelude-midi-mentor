@@ -6,6 +6,21 @@ function duration(ms: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+function recordingLabel(phase: RecordingSnapshot["phase"]) {
+  return phase === "recording" ? "● Recording performance audio" : phase === "armed" ? "Recording armed" : phase === "finalizing" ? "Finalizing recording" : phase === "limited" ? "Recording limit reached" : phase === "unsupported" ? "Recording unsupported" : phase === "error" ? "Recording failed" : phase === "starting" ? "Starting recording" : "Recording stopped";
+}
+
+/** Compact visible notice; the full controls retain the single recording-state announcer. */
+export function PiecePracticeRecordingNotice({ recording }: Readonly<{ recording: RecordingSnapshot }>) {
+  const unsaved = recording.segments.length > 0 || ["starting", "recording", "finalizing"].includes(recording.phase);
+  if (recording.phase === "off" && !unsaved) return null;
+  return <div aria-label="Performance audio notice" className="flex flex-wrap gap-x-3 text-sm font-semibold">
+    <p className={recording.phase === "recording" ? "text-red-200" : "text-amber-200"}>Audio status: {recordingLabel(recording.phase)}</p>
+    {unsaved && <p className="text-amber-200">Temporary audio — download before leaving. Controls below the workspace.</p>}
+    {["limited", "error", "unsupported"].includes(recording.phase) && <p>{recording.message}</p>}
+  </div>;
+}
+
 export function PiecePracticeRecordingControls({ recording, listening, keyboard }: Readonly<{
   recording: RecordingSnapshot & { setEnabled: (enabled: boolean) => void };
   listening: boolean;
@@ -16,7 +31,7 @@ export function PiecePracticeRecordingControls({ recording, listening, keyboard 
     <label className="flex min-h-11 items-center gap-3 font-semibold"><input checked={recording.enabled} disabled={Boolean(keyboard && !keyboard.canRecord && !recording.enabled)} onChange={(event) => recording.setEnabled(event.target.checked)} type="checkbox" />Record performance audio</label>
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <p aria-live="polite" className={recording.phase === "recording" ? "font-bold text-red-200" : "text-zinc-200"}>
-        {recording.phase === "recording" ? "● Recording performance audio" : recording.phase === "armed" ? "Recording armed" : recording.phase === "finalizing" ? "Finalizing recording" : recording.phase === "limited" ? "Recording limit reached" : recording.phase === "unsupported" ? "Recording unsupported" : recording.phase === "error" ? "Recording failed" : recording.phase === "starting" ? "Starting recording" : "Recording stopped"}
+        {recordingLabel(recording.phase)}
       </p>
       <span aria-label="Captured audio time" className="tabular-nums">{duration(recording.elapsedMs)}</span>
     </div>

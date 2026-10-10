@@ -74,6 +74,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Expected notes and live pitch-derived possible locations use separate markers. Microphone pitch cannot identify your actual string or finger.",
     "The schematic guide does not change calibration, grading or recording. Ocarina fingering diagrams still require a verified instrument chart.",
   ],
+}, {
+  id: "2026-10-10-piece-practice-layout",
+  sequence: 7,
+  title: "Keep the music in view while practicing",
+  date: "2026-10-10",
+  version: "2.9.7",
+  changes: [
+    "Piece Practice puts playing feedback, notation and the violin guide ahead of recording controls, practice details and acoustic exports.",
+    "The violin guide enlarges proportional first-position spacing and puts string, sticker and alternate-location controls in a disclosure.",
+    "Recording notices remain visible near the playing area. Grading, calibration, recording and saved evidence are unchanged.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

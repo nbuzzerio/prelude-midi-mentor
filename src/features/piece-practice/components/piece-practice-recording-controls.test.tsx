@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PiecePracticeRecordingControls } from "./piece-practice-recording-controls";
+import { PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
 import type { RecordingSegment, RecordingSnapshot } from "../piece-practice-recording";
 
 afterEach(cleanup);
@@ -16,6 +16,15 @@ const recording = (changes: Partial<RecordingSnapshot> = {}) => ({
 });
 
 describe("performance recording controls", () => {
+  it.each(["starting", "recording", "finalizing", "limited", "unsupported", "error", "armed", "stopped"] as const)("keeps a compact %s notice separate from recording controls and numeric announcements", (phase) => {
+    const view = render(<PiecePracticeRecordingNotice recording={recording({ phase, segments: phase === "stopped" ? [segment] : [] })} />);
+    const notice = screen.getByLabelText("Performance audio notice");
+    expect(notice.querySelector("[aria-live], [role=status]")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    if (["starting", "recording", "finalizing", "stopped"].includes(phase)) expect(notice.textContent).toContain("Temporary audio");
+    view.rerender(<PiecePracticeRecordingNotice recording={recording()} />);
+    expect(screen.queryByLabelText("Performance audio notice")).toBeNull();
+  });
   it("starts with opt-in Off and keeps the disclosure collapsed", () => {
     const control = recording();
     render(<PiecePracticeRecordingControls listening={false} recording={control} />);

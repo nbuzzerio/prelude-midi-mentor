@@ -1,6 +1,12 @@
 # Prelude: MIDI Mentor — Testing
 
-Current pending package/application version is **2.9.6**. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
+Current pending package/application version is **2.9.7**. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
+
+## Playing workspace cleanup 2.9.7
+
+Mounted session tests verify violin/ocarina progress and live pitch before notation, recording/details/export afterward, a single unchanged capture owner and equivalent keyboard ordering. Existing native recording, analysis exports, MIDI progression, Targeted Practice, recovery and App guards remain covered. Compact recording notice tests cover active/finalizing/retained, armed, failure and limit states without duplicate numeric announcements. Diagram tests verify every rendered landmark on all strings, narrowing semitone gaps and expected/live alignment; the 32 mappings and live freshness rules remain unchanged. Options start closed and are opened before exercising string/sticker/alternate controls.
+
+Local Chrome QA uses the mounted session and actual acoustic hook, controlled pitch observations and native synthetic microphone recording. `.dev/piece-layout-browser-results.json` records desktop/laptop viewport geometry, 64px feedback, right-side versus stacked layout, 200% CSS reflow/effective viewport, keyboard disclosures, stale clearing and retained downloads/track cleanup. This is separate from physical violin, audio fidelity, screen-reader and actual browser-zoom QA. App/navigation chrome, unusually long labels, smaller laptop heights and enlarged system fonts can require scrolling. Preserve the existing 320px body-minimum baseline on Windows scrollbars; verify real mobile layouts manually.
 
 ## Advisory violin fingerboard 2.9.6
 

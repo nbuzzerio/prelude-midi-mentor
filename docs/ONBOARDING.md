@@ -1,7 +1,7 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Current pending package/application version:** 2.9.6 (2.9.5 is committed)
-> **Last updated:** October 9, 2026
+> **Current pending package/application version:** 2.9.7 (2.9.6 is committed)
+> **Last updated:** October 10, 2026
 > **Product direction:** owner-approved [rolling roadmap](./ROADMAP.md); instrument learning now precedes Improv
 >
 > Implementation, automated validation, physical QA and owner-controlled release/tag/deployment are separate facts. Broad device/instrument QA remains pending; this document does not assert a release.
@@ -205,7 +205,7 @@ Violin microphone runs first check G3/D4/A4/E5, using the same capture owner whi
 
 Pure calibration and presentation live under `features/instrument-learning`; bounded scalar collection/export lives under `features/acoustic-analysis`. Analysis defaults On with a separate localStorage preference. Stop Listening to export JSON, or export from the current completed result. Export before leaving/reloading/restarting/Targeted Practice: calibration and trace are transient. Limits stop analysis visibly while practice continues. Analysis JSON contains no audio, and optional performance audio remains separate in memory. No new IndexedDB store or V3 migration exists. Ocarina analysis is available but ocarina calibration/profile and diagrams remain future work. See ARCHITECTURE for exact policy and TESTING for physical QA.
 
-Pending 2.9.6 adds a violin-only advisory first-position fingerboard beside microphone Piece Practice notation on wide screens and stacked below it on smaller screens. It uses the shared immutable instrument pitch context, preserves written accidentals, prefers open-string suggestions and supports explicit alternate strings. Diamond expected and dashed-circle live possible positions are independent of acceptance. The microphone cannot identify physical fingering; stale/uncertain/unsupported readings disappear. Optional stickers and the schematic proportional-string model are documented in [VIOLIN_FINGERBOARD.md](./VIOLIN_FINGERBOARD.md). No capture, calibration or grading owner changes. Real violin, physical browser zoom and screen-reader QA remain required. The suspected Huazzzyi ZO-1 12-hole Alto C ocarina requires owner verification of its manufacturer chart before implementation.
+2.9.6 adds a violin-only advisory first-position fingerboard beside microphone Piece Practice notation on wide screens and stacked below it on smaller screens. It uses the shared immutable instrument pitch context, preserves written accidentals, prefers open-string suggestions and supports explicit alternate strings. Diamond expected and dashed-circle live possible positions are independent of acceptance. The microphone cannot identify physical fingering; stale/uncertain/unsupported readings disappear. Optional stickers and the schematic proportional-string model are documented in [VIOLIN_FINGERBOARD.md](./VIOLIN_FINGERBOARD.md). No capture, calibration or grading owner changes. Real violin, physical browser zoom and screen-reader QA remain required. The suspected Huazzzyi ZO-1 12-hole Alto C ocarina requires owner verification of its manufacturer chart before implementation.
 
 ### Optional local performance recording — 2.9.4
 
