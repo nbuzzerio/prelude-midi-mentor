@@ -2,6 +2,14 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
+## Advisory violin fingerboard (pending 2.9.6)
+
+`instrument-pitch-context.ts` supplies immutable expected pitch, live provenance and score-aware labels. Its live selector extracts the existing pitch-panel predicate unchanged: capture listening, stable/fresh reading, nonnegative age through 120 ms. It adds no retained-pitch state. `PiecePracticeSessionView` derives this context from existing targets, current measure spelling and the acoustic owner's snapshot, only for violin after preflight. Last graded attempts and confirmed calibration remain separate.
+
+`violin-first-position.ts` contains the owner-supplied 0–7 semitone beginner profile, deterministic open-string-first recommendations, explicit selected-string limitations and proportional string geometry. `ViolinFingerboard` owns only transient string/sticker display choices. Continuous strings have distinct expected/live shapes and textual equivalents, alternatives and honest unavailable states. Live geometry uses current frequency, never a graded attempt, and conservatively suppresses possible target-relative harmonics without changing pitch panels or grading. See [mapping, formula and limitations](./VIOLIN_FINGERBOARD.md).
+
+The existing stage stacks by default and adds a right-hand companion column at 1200 CSS pixels; large playing pitch panels remain outside that grid. Capture, calibration, recording, analysis/export, grading, MIDI, persistence and reports retain their existing owners and contracts. A later verified ocarina component can accept the same context without introducing a detector; no ocarina chart/panel exists yet.
+
 ## Optional Piece Practice performance recording (2.9.4)
 
 ### Piano companion recording extension (2.9.5)

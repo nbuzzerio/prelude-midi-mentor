@@ -63,6 +63,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Record the piano sound audible in the room, then play back and download separate temporary segments. Headphones-only piano output may not be captured.",
     "Recording defaults Off, never automatically uploads audio, and can fail or stop without interrupting MIDI practice. Resume recording explicitly after an interruption.",
   ],
+}, {
+  id: "2026-10-09-violin-fingerboard",
+  sequence: 6,
+  title: "Find violin notes in first position",
+  date: "2026-10-09",
+  version: "2.9.6",
+  changes: [
+    "Violin microphone Piece Practice now shows a beginner first-position fingerboard with suggested strings, alternatives and optional pitch-name stickers.",
+    "Expected notes and live pitch-derived possible locations use separate markers. Microphone pitch cannot identify your actual string or finger.",
+    "The schematic guide does not change calibration, grading or recording. Ocarina fingering diagrams still require a verified instrument chart.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

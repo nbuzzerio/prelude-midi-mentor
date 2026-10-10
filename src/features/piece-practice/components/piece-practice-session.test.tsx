@@ -13,6 +13,7 @@ import { PiecePracticeResults } from "./piece-practice-results";
 import type { PiecePracticeSessionState } from "../piece-practice-session";
 import type { CaptureOptions, CaptureStreamLease } from "@/lib/audio/monophonic/microphone-capture";
 import { createPitchStabilizer } from "@/lib/audio/monophonic/pitch-stabilizer";
+import type { PitchSnapshot } from "@/lib/audio/monophonic/pitch-analysis-types";
 import * as analysisBrowser from "@/features/acoustic-analysis/acoustic-analysis-browser";
 
 const mocks = vi.hoisted(() => ({
@@ -26,10 +27,10 @@ const mocks = vi.hoisted(() => ({
   keyboardProps: null as null | Record<string, unknown>,
   success: vi.fn(), incorrect: vi.fn(),
 }));
-const microphone = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; epoch: number; lease: CaptureStreamLease | null;
+const microphone = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; epoch: number; lease: CaptureStreamLease | null; reading: PitchSnapshot;
   start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; emitReady: (stream: MediaStream) => void }[] }));
 vi.mock("@/lib/audio/monophonic/microphone-capture", () => ({ createMicrophoneCapture: (options: CaptureOptions) => {
-  const capture = { options, epoch: 0, lease: null as CaptureStreamLease | null, start: vi.fn(), stop: vi.fn(),
+  const capture = { options, epoch: 0, lease: null as CaptureStreamLease | null, reading: { state: "listening", pitch: null, fresh: false, ageMs: null } as PitchSnapshot, start: vi.fn(), stop: vi.fn(),
     emitReady(stream: MediaStream) {
       capture.lease = { stream, generation: capture.epoch, atMs: 0 };
       options.onStreamReady?.(capture.lease);
@@ -44,7 +45,7 @@ vi.mock("@/lib/audio/monophonic/microphone-capture", () => ({ createMicrophoneCa
     capture.epoch++; options.onStatus({ state: "idle", message: "Off" });
   });
   microphone.sessions.push(capture);
-  return { ...capture, generation: () => capture.epoch, snapshot: () => ({ state: "listening", pitch: null, fresh: false, ageMs: null }) };
+  return { ...capture, generation: () => capture.epoch, snapshot: () => capture.reading };
 } }));
 
 vi.mock("@/features/staff-builder/components/staff-builder-score-view", () => ({
@@ -298,6 +299,99 @@ afterEach(() => {
 });
 
 describe("PiecePracticeSession", () => {
+  it("updates violin expected and live markers independently while preserving grading, acknowledgment, recording and analysis", () => {
+    vi.useFakeTimers(); localStorage.clear();
+    const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
+    const { NativeRecorder, revoke } = installRecordingHarness();
+    try {
+      let now = 0;
+      const { container, unmount } = render(<PiecePracticeSession piece={piece()} onExit={vi.fn()} runStore={runStore()} now={() => now} />);
+      fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+      fireEvent.click(screen.getByLabelText("Upper Staff"));
+      fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+      expect(screen.queryByLabelText("Violin first-position guide")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Skip Calibration and Start Practice" }));
+      const marker = (kind: string) => container.querySelector(`[data-violin-marker="${kind}"]`);
+      expect(marker("expected")?.getAttribute("data-midi")).toBe("60");
+      expect(marker("expected")?.getAttribute("data-string")).toBe("G");
+      expect(screen.getByLabelText("Live microphone pitch").querySelector('.text-\\[64px\\]')).toBeTruthy();
+      expect(microphone.sessions).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+      const capture = microphone.sessions[0], tracker = createPitchStabilizer();
+      const { stream, stopTrack } = deliverMockStream(capture);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
+      expect(NativeRecorder.instances).toHaveLength(1);
+      expect(NativeRecorder.instances[0].stream).toBe(stream);
+      const frames = (hz: number | null, count: number) => {
+        for (let i = 0; i < count; i++) {
+          now += 40;
+          const observation = { frequencyHz: hz, quality: hz ? 0.99 : 0, levelDbfs: hz ? -20 : -80, reason: hz ? "usable" as const : "quiet" as const };
+          capture.reading = tracker.update(observation, now, now / 1000);
+          act(() => {
+            capture.options.onObservation?.({ observation, snapshot: capture.reading, observedAtMs: now, audioSeconds: now / 1000, captureGeneration: capture.epoch });
+            vi.advanceTimersByTime(40);
+          });
+        }
+      };
+      frames(246.94165, 6); // Fresh B3, but no quiet boundary: no graded attack.
+      expect(marker("live")?.getAttribute("data-midi")).toBe("59");
+      expect(marker("expected")?.getAttribute("data-midi")).toBe("60");
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("");
+      frames(null, 3); frames(261.625565, 8);
+      expect(marker("expected")?.getAttribute("data-midi")).toBe("67");
+      expect(marker("expected")?.getAttribute("data-string")).toBe("D");
+      const acknowledged = screen.getByLabelText("Accepted pitch/attack");
+      expect(acknowledged.textContent).toContain("✓ C4 accepted");
+      capture.reading = { ...capture.reading, fresh: true, ageMs: 121 };
+      act(() => vi.advanceTimersByTime(100));
+      expect(marker("live")).toBeNull();
+      expect(marker("expected")?.getAttribute("data-midi")).toBe("67");
+      frames(293.664768, 3);
+      expect(screen.getAllByLabelText("Accepted pitch/attack")).toHaveLength(1);
+      frames(293.664768, 8);
+      expect(marker("live")?.getAttribute("data-midi")).toBe("62");
+      expect(marker("expected")?.getAttribute("data-midi")).toBe("67");
+      expect(acknowledged.textContent).toContain("✓ C4 accepted");
+      fireEvent.change(screen.getByLabelText("String for diagram"), { target: { value: "G" } });
+      expect(marker("expected")).toBeNull(); expect(marker("live")?.getAttribute("data-string")).toBe("G");
+      expect(screen.getByText(/Selected G string cannot produce/)).toBeTruthy();
+      expect(capture.start).toHaveBeenCalledTimes(1); expect(microphone.sessions).toHaveLength(1);
+      expect(mocks.useInputCalls).toBe(0);
+      frames(null, 3); expect(marker("live")).toBeNull();
+      expect(screen.getByText(/Practice Details.*Last graded attempt/)).toBeTruthy();
+      expect(screen.getByRole("checkbox", { name: "Record performance audio" })).toBeTruthy();
+      const analysis = screen.getByText(/Acoustic Analysis \/ Export/).closest("details")!;
+      expect(analysis.open).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Stop Listening" }));
+      act(() => NativeRecorder.instances[0].finish());
+      expect(stopTrack).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Performance Recordings (1)")).toBeTruthy();
+      expect(screen.getByRole("link", { name: /Download/ }).getAttribute("download")).toMatch(/^prelude-violin-.*\.webm$/);
+      fireEvent.click(analysis.querySelector("summary")!); fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" }));
+      const bundle = JSON.parse(download.mock.calls[0][0]);
+      expect(bundle.schemaVersion).toBe(1); expect(bundle.policies.calibration.version).toBe(3);
+      expect(bundle.attempts.some((attempt: { evidence: { accepted: boolean } }) => attempt.evidence.accepted)).toBe(true);
+      unmount(); expect(revoke).toHaveBeenCalledTimes(1);
+    } finally { download.mockRestore(); cleanup(); vi.useRealTimers(); }
+  });
+
+  it("preserves authored flat spelling in the mounted violin target and stickers", () => {
+    const score: StaffBuilderScore = { ...realisticPolyphonicScore(), ties: [], annotations: [], initialTimeSignature: "4/4", measures: [{ id: "flat-measure", events: [
+      { id: "flat-event", kind: "notes", staff: "treble", startTick: 0, rhythm: { status: "final", duration: "whole" },
+        pitches: [{ id: "flat-pitch", midiNumber: 63, letter: "E", accidental: "flat", octave: 4 }] },
+      { id: "flat-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
+    ] }] };
+    const projected = projectStaffBuilderPieceForPractice(score);
+    if (!projected.ok) throw new Error(`Invalid flat fixture: ${JSON.stringify(projected.issues)}`);
+    const { container } = render(<PiecePracticeSession piece={projected.piece} sourceScore={score} onExit={vi.fn()} runStore={runStore()} />);
+    fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip Calibration and Start Practice" }));
+    expect(screen.getByLabelText("Expected fingerboard position").textContent).toContain("E♭4");
+    expect(container.querySelector('[data-violin-sticker="D:1"]')?.textContent).toBe("E♭4");
+    expect(container.querySelector('[data-violin-marker="expected"]')?.getAttribute("data-midi")).toBe("63");
+  });
+
   it("places authoritative measure/current/remaining progress beside playing panels, through completion", () => {
     start();
     expect(screen.getByLabelText("Measure progress").textContent).toBe("Measure 1 of 3 · 3 measures remaining in practice (including current)");

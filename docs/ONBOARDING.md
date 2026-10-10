@@ -1,7 +1,7 @@
 # Prelude: MIDI Mentor — ONBOARDING
 
-> **Current package/application version:** 2.9.1
-> **Last updated:** October 7, 2026
+> **Current pending package/application version:** 2.9.6 (2.9.5 is committed)
+> **Last updated:** October 9, 2026
 > **Product direction:** owner-approved [rolling roadmap](./ROADMAP.md); instrument learning now precedes Improv
 >
 > Implementation, automated validation, physical QA and owner-controlled release/tag/deployment are separate facts. Broad device/instrument QA remains pending; this document does not assert a release.
@@ -203,7 +203,9 @@ The shared monophonic code lives in `src/lib/audio/monophonic`; onset, eligibili
 
 Violin microphone runs first check G3/D4/A4/E5, using the same capture owner while practice timing and grading are paused. Start Listening, pluck a short open-string note, read the tuning estimate, adjust if needed, and pluck again. Beginner calibration policy v3 treats ±5 cents as ideal and automatically accepts within ±10 cents only after qualifying pitch evidence; its 1.2-second acknowledgment is presentation time, not an extra hold requirement. The independent Forgiving Piece Practice tolerance is ±40 cents and does not relax calibration. Use **Skip Calibration and Start Practice** to bypass remaining checks, or enter practice from the completed calibration summary; a fresh quiet or re-articulation boundary separates strings. Recovered unfinished violin runs require fresh preflight or Skip; no prior calibration is recovered. There is no mid-run recalibration UI. Physical violin and device QA remains necessary before claiming reliable tuning behavior.
 
-Pure calibration and presentation live under `features/instrument-learning`; bounded scalar collection/export lives under `features/acoustic-analysis`. Analysis defaults On with a separate localStorage preference. Stop Listening to export JSON, or export from the current completed result. Export before leaving/reloading/restarting/Targeted Practice: calibration and trace are transient. Limits stop analysis visibly while practice continues. Analysis JSON contains no audio, and optional performance audio remains separate in memory. No new IndexedDB store or V3 migration exists. Ocarina analysis is available but ocarina calibration/profile and all instrument diagrams remain future work. See ARCHITECTURE for exact policy and TESTING for physical QA.
+Pure calibration and presentation live under `features/instrument-learning`; bounded scalar collection/export lives under `features/acoustic-analysis`. Analysis defaults On with a separate localStorage preference. Stop Listening to export JSON, or export from the current completed result. Export before leaving/reloading/restarting/Targeted Practice: calibration and trace are transient. Limits stop analysis visibly while practice continues. Analysis JSON contains no audio, and optional performance audio remains separate in memory. No new IndexedDB store or V3 migration exists. Ocarina analysis is available but ocarina calibration/profile and diagrams remain future work. See ARCHITECTURE for exact policy and TESTING for physical QA.
+
+Pending 2.9.6 adds a violin-only advisory first-position fingerboard beside microphone Piece Practice notation on wide screens and stacked below it on smaller screens. It uses the shared immutable instrument pitch context, preserves written accidentals, prefers open-string suggestions and supports explicit alternate strings. Diamond expected and dashed-circle live possible positions are independent of acceptance. The microphone cannot identify physical fingering; stale/uncertain/unsupported readings disappear. Optional stickers and the schematic proportional-string model are documented in [VIOLIN_FINGERBOARD.md](./VIOLIN_FINGERBOARD.md). No capture, calibration or grading owner changes. Real violin, physical browser zoom and screen-reader QA remain required. The suspected Huazzzyi ZO-1 12-hole Alto C ocarina requires owner verification of its manufacturer chart before implementation.
 
 ### Optional local performance recording — 2.9.4
 

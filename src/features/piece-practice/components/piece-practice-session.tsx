@@ -10,6 +10,9 @@ import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/com
 import { PiecePracticeRecordingControls } from "./piece-practice-recording-controls";
 import { usePiecePracticeKeyboardRecording } from "../hooks/use-piece-practice-keyboard-recording";
 import { usePiecePracticeRecordingGuard } from "../hooks/use-piece-practice-recording-guard";
+import { getInstrumentLiveContext, type InstrumentPitchContext } from "@/features/instrument-learning/instrument-pitch-context";
+import { VIOLIN_FIRST_POSITION_PITCHES } from "@/features/instrument-learning/violin-first-position";
+import { ViolinFingerboard } from "@/features/instrument-learning/components/violin-fingerboard";
 import { DEFAULT_PIECE_PRACTICE_INPUT, type PiecePracticeInputConfiguration } from "../piece-practice-acoustic-types";
 import { validPiecePracticeInputConfiguration } from "../piece-practice-acoustic-validation";
 import { getAcousticEligibility } from "../piece-practice-acoustic-eligibility";
@@ -436,6 +439,13 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const target = getCurrentPiecePracticeTarget(piece, sessionState);
   const measure = piece.measures[sessionState.currentMeasureIndex];
+  const violinContext: InstrumentPitchContext | null = input.kind === "microphone" && input.controller.phase === "practice"
+    && sessionState.inputConfiguration?.mode === "microphone" && sessionState.inputConfiguration.instrument === "violin" ? {
+      expected: target ? { semitone: target.expectedMidiNumbers[0], label: writtenPitchName(target.attackedPitches[0]) } : null,
+      live: getInstrumentLiveContext(input.controller.status.state, input.controller.reading),
+      pitchLabels: Object.fromEntries(VIOLIN_FIRST_POSITION_PITCHES.map((midi) => [midi,
+        formatPiecePracticeMidiPitch(midi, { expectedPitches: target?.attackedPitches, keySignatureId: measure?.keySignatureId })])),
+    } : null;
   const progress = getPiecePracticeProgress(piece, sessionState, now());
   const remainingMeasures = Math.max(0, progress.practiceMeasureCount - progress.practicedMeasureCount);
   const measureProgress = <p aria-label="Measure progress" className="min-h-6 font-semibold tabular-nums">Measure {progress.currentMeasureNumber} of {progress.totalPieceMeasures} · {remainingMeasures} {remainingMeasures === 1 ? "measure" : "measures"} remaining in practice{sessionState.status === "piece-complete" ? " · Complete" : " (including current)"}</p>;
@@ -549,7 +559,7 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
     {acknowledgment}
     {input.kind === "keyboard" && <PiecePracticeRecordingControls listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
     {input.kind === "microphone" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} />}
-    <div className={isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}>
+    <div className={`${isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}${violinContext ? " piece-practice-violin-stage" : ""}`}>
       <section aria-labelledby="piece-practice-current-target" className="grid min-h-0 gap-3 rounded-lg bg-zinc-900 p-3">
         {input.kind === "keyboard" && measureProgress}
         <div><h2 className="font-bold" id="piece-practice-current-target">{target ? "Current target" : "Current measure"}</h2>{target ? input.kind === "keyboard" && <p className="min-h-16 break-words text-4xl font-bold sm:text-5xl">Expected: {expectedNames.join(", ")}</p> : <p>No notes to play in this measure.</p>}</div>
@@ -570,6 +580,7 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
           }
         }} type="button">Next Measure</button> : null}
       </section>
+      {violinContext && <ViolinFingerboard context={violinContext} />}
       {input.kind === "keyboard" && <div aria-label="Practice keyboard" className={isMobilePlayMode ? "mobile-play-keyboard-region min-h-0" : "min-h-52"} data-presentation={isMobilePlayMode ? "mobile-play" : "standard"}>
         <PianoKeyboard activeMidiNumbers={activeNotes} failedMidiNumbers={failedNotes} lastAnswer={lastAnswer} onNoteToggle={input.controller.onVirtualNoteToggle} targetMidiNumbers={new Set(target?.expectedMidiNumbers ?? [])} />
       </div>}

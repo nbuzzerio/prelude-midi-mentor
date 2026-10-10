@@ -3,9 +3,9 @@ import type { usePiecePracticeAcousticInput } from "../hooks/use-piece-practice-
 import type { PiecePracticeInputConfiguration } from "../piece-practice-acoustic-types";
 import { PITCH_TOLERANCE_PRESETS, validPitchTolerance } from "../piece-practice-acoustic-validation";
 import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
-import { MONOPHONIC_CONFIG } from "@/lib/audio/monophonic/pitch-analysis-types";
+import { getLiveInstrumentPitch } from "@/features/instrument-learning/instrument-pitch-context";
 import type { PiecePracticeTarget } from "../piece-practice-types";
-import { centsBetween, describeFrequency, equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
+import { centsBetween, equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 import { formatAcousticHeardPitch } from "../piece-practice-report";
 import { ViolinPreflight } from "@/features/instrument-learning/components/violin-preflight";
 import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/components/acoustic-analysis-export-controls";
@@ -48,8 +48,7 @@ export function PiecePracticeAcousticControls({ input, available, target, measur
   const expectedPitch = target?.attackedPitches[0];
   const expectedMidi = expectedPitch?.midiNumber ?? target?.expectedMidiNumbers[0];
   const expectedHz = expectedMidi === undefined ? null : equalTemperedFrequency(expectedMidi);
-  const live = input.status.state === "listening" && reading.state === "stable" && reading.fresh && reading.ageMs !== null && reading.ageMs >= 0 && reading.ageMs <= MONOPHONIC_CONFIG.staleMs && reading.pitch
-    ? describeFrequency(reading.pitch.frequencyHz) : null;
+  const live = getLiveInstrumentPitch(input.status.state, reading);
   const heard = live ? formatPiecePracticeMidiPitch(live.semitone) : null;
   const deviation = live && expectedHz ? centsBetween(live.frequencyHz, expectedHz) : null;
   const direction = deviation === null ? null : Math.abs(deviation) < 0.05 ? "CENTERED" : deviation < 0 ? "FLAT" : "SHARP";
