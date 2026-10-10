@@ -1,8 +1,24 @@
 # Prelude: MIDI Mentor — Testing
 
-Current pending package/application version is **2.9.10**; 2.9.9 is committed at a3f457a. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
+Current pending package/application version is **2.9.11**; 2.9.10 is committed at 40a2919. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
 
-## Improv performance journal Phase 2 (pending 2.9.10)
+## Improv local take library Phase 3 (pending 2.9.11)
+
+`features/improv/persistence/improv-indexeddb.test.ts` exercises the actual IndexedDB implementation through a dependency-free request/transaction fake with structured clone, serialized competing transactions, injected request/commit errors, delayed completion and rollback. It covers Start/first identity, empty/interrupted takes, monotonic cross-handle allocation, duplicate Start, rename isolation, explicit confirmed take/collection deletion and tombstones, bounded listings/allocation, raw bytes/CC64/encodings/nonfinite timestamps and context, async mutation fencing, chunk sequencing/watermark agreement, exact retry, competing ownership, silence liveness, partial/incomplete recovery, missing versus observed terminal boundaries, late writer rejection and corrupt/incompatible records. Reopened fake database handles share committed records; this is synthetic persistence evidence, not an actual browser restart.
+
+`features/improv/improv-take-persistence.test.ts` connects the real Phase 2 journal and Phase 3 store/adapter. It covers idle cancellation, periodic silent checkpoints, native transaction completion acknowledgment, bounded multi-chunk flush and large single messages, all CC64 values/repeats, selected-device interruption without releases, caller-reported background/owner loss, Stop/disposal during writes, quota/unavailable/lost acknowledgments, explicit retry without duplication, exact backlog interruption, explicit over-budget refusal and expired/recovered ownership. Existing journal/raw/provider/useMidi and Piece Practice/Staff Builder persistence suites remain compatibility coverage.
+
+```powershell
+$env:pnpm_config_verify_deps_before_run='false'
+pnpm.cmd exec vitest run src/features/improv/persistence/improv-indexeddb.test.ts src/features/improv/improv-take-persistence.test.ts src/features/improv/improv-take-recorder.test.ts src/components/midi/midi-raw-input.test.tsx src/components/midi/midi-provider.test.tsx src/hooks/use-midi.test.ts src/features/piece-practice/persistence/piece-practice-runs.test.ts src/features/staff-builder/persistence/staff-builder-storage.test.ts
+pnpm.cmd verify
+```
+
+Use existing dependencies; the command-local pnpm setting avoids automatic pre-run installation without repository config changes or Husky bypass. Final Phase 3 validation passes **8 focused files / 240 tests**: IndexedDB library 38, persistence adapter 27, journal 74, raw input 21, provider 9, useMidi 24, Piece Practice runs 39 and Staff Builder storage 8. Full `pnpm verify` passes **239 files / 3,233 tests**, lint, type-check and build. Only existing acoustic-ref lint, jsdom Canvas and large-bundle warnings remain; no new warnings/regressions. Logs: `.dev/improv-phase3-focused.log` (plus JSON) and `.dev/improv-phase3-verify.log`.
+
+Pending real-browser QA: IndexedDB denial/quota and low-storage behavior; reopening after reload/browser restart; abrupt termination between requests and transaction completion; two actual tabs racing allocation, liveness/recovery and confirmed deletion; throttled/background/frozen tabs and changed system time; storage clearing/eviction; upgrade/versionchange behavior. Physical MIDI throughput/timing, browser navigation guards and display remain future workspace/hardware work. Native transaction completion is not a promise of permanent disk retention. Test fakes intentionally serialize all transactions and do not model every browser event-loop or durability behavior.
+
+## Improv performance journal Phase 2 (committed 2.9.10)
 
 `features/improv/improv-take-recorder.test.ts` covers explicit Start/Stop including empty takes and silence, first terminal boundary/idempotence, rejected transitions and no implicit resume, new-controller identity, unknown initial keys/controllers and no fabricated releases. Deterministic raw fixtures cover channels/velocities, both release encodings, chords/repeated/unmatched notes, all 128 CC64 values with repeats, other/system/malformed/unavailable messages, equal/regressing/nonfinite/negative timestamps, unverified clock domains and numeric pre-Start/post-Stop relations. Deeply frozen snapshots remain independent of caller mutations and subsequent appends.
 

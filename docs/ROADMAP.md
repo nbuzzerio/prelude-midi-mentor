@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026, with the six-phase Improv capture direction subsequently approved. Current pending package/application version: **2.9.10**; 2.9.9 is committed at a3f457a. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
+> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026, with the six-phase Improv capture direction subsequently approved. Current pending package/application version: **2.9.11**; 2.9.10 is committed at 40a2919. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
 Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
 
@@ -40,7 +40,7 @@ Stage 1A/1B/1D is implemented provisionally from 2.9.1: violin G3/D4/A4/E5 prefl
 
 ## 1. Improv / Creative Exploration
 
-**Status:** PHASE 1 TRANSPORT COMMITTED IN 2.9.9; PHASE 2 IN-MEMORY JOURNAL IMPLEMENTED IN PENDING 2.9.10; no usable Improv workspace yet. Permanent creative thread.
+**Status:** PHASE 1 TRANSPORT COMMITTED IN 2.9.9; PHASE 2 JOURNAL COMMITTED IN 2.9.10; PHASE 3 LOCAL LIBRARY IMPLEMENTED IN PENDING 2.9.11; no usable Improv workspace yet. Permanent creative thread.
 
 **Purpose:** Help players invent, explore, compare and develop musical ideas. Free Play observes and helps understand what is played; Piece Practice helps learn existing music; Guided Studies teach concepts; Improv supports invention and experimentation.
 
@@ -49,13 +49,13 @@ Stage 1A/1B/1D is implemented provisionally from 2.9.1: violin G3/D4/A4/E5 prefl
 | Phase | Scope and current status |
 | --- | --- |
 | 1. Raw MIDI Capture Foundation | Committed in 2.9.9: copied raw bytes, browser/receipt timing, delivery order, source metadata/availability and optional raw-source selection through the existing owner. Current normalized consumers remain unchanged. |
-| 2. Performance Journal | Implemented in pending 2.9.10: React-independent one-take controller, immutable unquantized evidence, explicit boundaries, source/clock continuity, interruption, bounded prefix retention and take-local watermark reads. Memory-only; no browser lifecycle listeners or UI mounted. |
-| 3. Persistent Local Take Library | Required MVP: named pieces/improvisation sessions, protected original first take, numbered subsequent takes, explicit deletion, storage failure and recovery. Browser-local retention is not guaranteed permanent. |
+| 2. Performance Journal | Committed in 2.9.10: React-independent one-take controller, immutable unquantized evidence, explicit boundaries, source/clock continuity, interruption, bounded prefix retention and take-local watermark reads. Memory-only journal; no browser lifecycle listeners or UI mounted. |
+| 3. Persistent Local Take Library | Implemented in pending 2.9.11: separate versioned IndexedDB library, named pieces/improvisation sessions, atomic first-take/number allocation, immutable chunks and committed watermarks, explicit confirmed deletion/tombstones, silence checkpoints, bounded failed-save backlog and lease-fenced incomplete recovery. No library screen mounted. Browser-local retention is not guaranteed permanent. |
 | 4. Playback and Exports | Future replay and MIDI/JSON backup/export, preserving raw evidence separately from rendering. |
 | 5. Improv Workspace | Future playing-first controls, live music, review and library for both activities. |
 | 6. Optional Room Audio Recording | Future explicit opt-in temporary/downloadable room audio; no permanent audio storage requirement. |
 
-The current ticket authorizes Phase 2 only; Phases 3–6 require separate bounded implementation approval. Selected-device loss, owner loss or background interruption ends a take; return requires an explicit new take, never silent resume. The first started capture counts as Take 1 even when empty/interrupted; numbering and first-take protection belong to Phase 3. Full CC64 values remain raw evidence; synthesized pedal interpretation belongs to later playback. Key/scale context can aid display; it never corrects, transposes or discards captured notes. Harmony coaching, composition analysis and broader Flow remain later work.
+The current ticket authorizes Phase 3 only; Phases 4–6 require separate bounded implementation approval. Selected-device loss, owner loss or background interruption ends a take; return requires an explicit new take, never silent resume. Start registration allocates Take 1 even when empty/interrupted; canceling before Start does not allocate. Allocation commits serialize across tabs; failed initial registration cannot reserve a durable number until retry commits. Deleting the first take never promotes another take or reuses a number. Full CC64 values remain raw evidence; synthesized pedal interpretation belongs to later playback. Key/scale context can aid display; it never corrects, transposes or discards captured notes. Harmony coaching, composition analysis and broader Flow remain later work.
 
 **Dependencies:** Existing theory, spelling, notation, input and playback where their semantics fit. Microphone support is not a prerequisite.
 

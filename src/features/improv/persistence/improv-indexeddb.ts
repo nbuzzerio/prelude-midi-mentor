@@ -1,0 +1,325 @@
+import type { ImprovTakeMetadata } from "../improv-take";
+import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, immutableCopy, libraryError, sameEvidence,
+  type ImprovCheckpoint, type ImprovCollection, type ImprovDeletedTake, type ImprovEventChunk,
+  type ImprovLibrary, type ImprovLoadedTake, type ImprovStoredTake } from "../improv-library";
+import { chunkAccountedBytes, connectionAccountedBytes, EMPTY_IMPROV_CONTINUITY, initialAccountedBytes,
+  integer, requireChunk, requireCollection, requireConnections, requireMetadata, requireTake,
+  usableId, validateEvents, wallTime } from "../improv-library-validation";
+
+export const IMPROV_DB_NAME = "prelude-improv";
+export const IMPROV_DB_VERSION = 1;
+const STORES = ["collections", "takes", "eventChunks"];
+type Read = <T>(request: IDBRequest<T>, next: (value: T) => void) => void;
+type TransactionWork<T> = (tx: IDBTransaction, read: Read, result: (value: T) => void) => void;
+
+/** All mutations share a transaction scope: allocation and writer fencing work across DB handles/tabs. */
+export class IndexedDbImprovLibrary implements ImprovLibrary {
+  private opening: Promise<IDBDatabase> | null = null;
+  private handle: IDBDatabase | null = null;
+  private closed = false;
+  constructor(private readonly options: Readonly<{ factory?: IDBFactory; now?: () => number }> = {}) {}
+
+  private now(): number {
+    const value = (this.options.now ?? Date.now)();
+    if (!wallTime(value)) throw new ImprovLibraryError("clock-regressed");
+    return value;
+  }
+  private open(): Promise<IDBDatabase> {
+    if (this.closed) return Promise.reject(new ImprovLibraryError("closed"));
+    this.opening ??= new Promise<IDBDatabase>((resolve, reject) => {
+      const factory = this.options.factory ?? globalThis.indexedDB;
+      if (!factory) { reject(new ImprovLibraryError("unavailable")); return; }
+      const request = factory.open(IMPROV_DB_NAME, IMPROV_DB_VERSION);
+      let rejected = false;
+      request.onblocked = () => { rejected = true; reject(new ImprovLibraryError("blocked")); };
+      request.onerror = () => reject(new ImprovLibraryError(request.error?.name === "VersionError" ? "unsupported" : "unavailable"));
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        db.createObjectStore("collections", { keyPath: "collectionId" });
+        const takes = db.createObjectStore("takes", { keyPath: "takeId" });
+        takes.createIndex("collectionId", "collectionId");
+        takes.createIndex("collectionNumber", ["collectionId", "number"], { unique: true });
+        const chunks = db.createObjectStore("eventChunks", { keyPath: ["takeId", "index"] });
+        chunks.createIndex("takeId", "takeId");
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        if (rejected || this.closed) { db.close(); reject(new ImprovLibraryError("closed")); return; }
+        try {
+          if (!STORES.every((name) => db.objectStoreNames.contains(name))) throw new ImprovLibraryError("unsupported");
+          const schema = db.transaction(STORES, "readonly");
+          if (!["collectionId", "collectionNumber"].every((index) => schema.objectStore("takes").indexNames.contains(index))
+            || !schema.objectStore("eventChunks").indexNames.contains("takeId")) throw new ImprovLibraryError("unsupported");
+        } catch { db.close(); reject(new ImprovLibraryError("unsupported")); return; }
+        this.handle = db;
+        db.onversionchange = () => { db.close(); this.handle = null; this.opening = null; };
+        resolve(db);
+      };
+    }).catch((error: unknown) => { this.opening = null; throw error instanceof ImprovLibraryError ? error : new ImprovLibraryError("unavailable"); });
+    return this.opening;
+  }
+  private async transaction<T>(mode: IDBTransactionMode, work: TransactionWork<T>): Promise<T> {
+    const db = await this.open();
+    if (this.closed) throw new ImprovLibraryError("closed");
+    return new Promise<T>((resolve, reject) => {
+      let tx: IDBTransaction;
+      try { tx = db.transaction(STORES, mode); } catch (error) { reject(libraryError(error)); return; }
+      let value: T; let ready = false; let failure: unknown;
+      const guard = (callback: () => void) => {
+        try { callback(); } catch (error) { failure = error; tx.abort(); }
+      };
+      const read: Read = (request, next) => { request.onsuccess = () => guard(() => next(request.result)); };
+      tx.oncomplete = () => ready ? resolve(immutableCopy(value)) : reject(new ImprovLibraryError("corrupt"));
+      tx.onabort = () => reject(libraryError(failure ?? tx.error));
+      tx.onerror = () => { /* Abort is the authoritative failure; no request-success save acknowledgment. */ };
+      guard(() => work(tx, read, (result) => { value = result; ready = true; }));
+    });
+  }
+  close(): void { this.closed = true; this.handle?.close(); this.handle = null; }
+  private collection(value: unknown): ImprovCollection {
+    if (value === undefined) throw new ImprovLibraryError("not-found");
+    requireCollection(value);
+    if (value.deletedAtMs !== null) throw new ImprovLibraryError("not-found");
+    return value;
+  }
+  private take(value: unknown): ImprovStoredTake {
+    if (value === undefined) throw new ImprovLibraryError("not-found");
+    requireTake(value);
+    if (value.kind === "deleted-take") throw new ImprovLibraryError("not-found");
+    return value;
+  }
+  private page(after: number, limit: number) {
+    if (!integer(after) || !integer(limit) || limit < 1 || limit > L.pageSize) throw new ImprovLibraryError("limit");
+  }
+  private checkTime(now: number, previous: number) {
+    if (now < previous) throw new ImprovLibraryError("clock-regressed");
+  }
+  createCollection(collectionId: string, title: string, activity: ImprovCollection["activity"]): Promise<ImprovCollection> {
+    return this.transaction("readwrite", (tx, read, result) => {
+      const now = this.now();
+      const value: ImprovCollection = { schemaVersion: 1, collectionId, title, activity, firstTakeId: null,
+        nextTakeNumber: 1, revision: 1, createdAtMs: now, updatedAtMs: now, deletedAtMs: null };
+      requireCollection(value);
+      const store = tx.objectStore("collections");
+      read(store.get(collectionId), (existing) => {
+        if (existing !== undefined) throw new ImprovLibraryError("collision");
+        read(store.count(), (count) => {
+          if (count >= L.collections) throw new ImprovLibraryError("limit");
+          store.add(value); result(value);
+        });
+      });
+    });
+  }
+  async listCollections(afterId = "", limit = 50): Promise<readonly ImprovCollection[]> {
+    this.page(0, limit);
+    return this.transaction("readonly", (tx, read, result) => read(tx.objectStore("collections").getAll(undefined, L.collections + 1), (values: unknown[]) => {
+      if (values.length > L.collections) throw new ImprovLibraryError("limit");
+      values.forEach(requireCollection);
+      result((values as ImprovCollection[]).filter((c) => c.deletedAtMs === null && c.collectionId > afterId)
+        .sort((a, b) => a.collectionId < b.collectionId ? -1 : a.collectionId > b.collectionId ? 1 : 0).slice(0, limit));
+    }));
+  }
+  renameCollection(collectionId: string, title: string, expectedRevision: number): Promise<ImprovCollection> {
+    return this.transaction("readwrite", (tx, read, result) => read(tx.objectStore("collections").get(collectionId), (value) => {
+      const existing = this.collection(value); const now = this.now(); this.checkTime(now, existing.updatedAtMs);
+      if (expectedRevision !== existing.revision) throw new ImprovLibraryError("stale");
+      const changed = { ...existing, title, revision: existing.revision + 1, updatedAtMs: now };
+      requireCollection(changed); tx.objectStore("collections").put(changed); result(changed);
+    }));
+  }
+  async allocateTake(collectionId: string, metadata: ImprovTakeMetadata, writerToken: string): Promise<ImprovStoredTake> {
+    requireMetadata(metadata); const capture = immutableCopy(metadata);
+    if (!usableId(writerToken)) return Promise.reject(new ImprovLibraryError("corrupt"));
+    return this.transaction("readwrite", (tx, read, result) => read(tx.objectStore("collections").get(collectionId), (value) => {
+      const collection = this.collection(value);
+      read(tx.objectStore("takes").get(capture.takeId), (prior) => {
+        if (prior !== undefined) {
+          const existing = this.take(prior);
+          if (existing.collectionId !== collectionId || existing.writerToken !== writerToken
+            || !sameEvidence(existing.capture.start, capture.start) || !sameEvidence(existing.capture.selectedInput, capture.selectedInput)
+            || !sameEvidence(existing.capture.limits, capture.limits)) throw new ImprovLibraryError("collision");
+          if (capture.eventWatermark < existing.committedEventWatermark) throw new ImprovLibraryError("stale");
+          result(existing); return; // Retry of the same durable Start does not allocate another number.
+        }
+        if (collection.nextTakeNumber > L.takesPerCollection) throw new ImprovLibraryError("limit");
+        const now = this.now(); this.checkTime(now, collection.updatedAtMs);
+        const take: ImprovStoredTake = { schemaVersion: 1, kind: "take", takeId: capture.takeId, collectionId,
+          number: collection.nextTakeNumber, writerToken, capture, status: "recording", storageStatus: "committed",
+          committedEventWatermark: 0, committedAccountedBytes: initialAccountedBytes(capture), chunkCount: 0,
+          continuity: EMPTY_IMPROV_CONTINUITY, connections: [], revision: 1, checkpointAtMs: now,
+          lease: { token: writerToken, expiresAtMs: now + L.leaseMs }, recovery: null, captureFailure: null, lastCommit: null };
+        requireTake(take);
+        tx.objectStore("takes").add(take);
+        tx.objectStore("collections").put({ ...collection, firstTakeId: collection.firstTakeId ?? capture.takeId,
+          nextTakeNumber: collection.nextTakeNumber + 1, revision: collection.revision + 1, updatedAtMs: now });
+        result(take);
+      });
+    }));
+  }
+  async checkpoint(request: ImprovCheckpoint): Promise<ImprovStoredTake> {
+    if (!Array.isArray(request.events) || request.events.length > L.chunkEvents) throw new ImprovLibraryError("limit");
+    const value = immutableCopy(request); requireMetadata(value.capture);
+    return this.transaction("readwrite", (tx, read, result) => read(tx.objectStore("takes").get(value.takeId), (raw) => {
+      const existing = this.take(raw);
+      if (existing.writerToken !== value.writerToken || existing.status === "incomplete") throw new ImprovLibraryError("owned");
+      const duplicate = existing.lastCommit?.operationId === value.operationId;
+      if (duplicate) {
+        const last = existing.lastCommit!;
+        if (value.expectedRevision !== last.previousRevision || value.finalize !== last.finalized
+          || !sameEvidence(existing.capture, value.capture) || !sameEvidence(existing.connections, value.connections)
+          || !sameEvidence(existing.captureFailure, value.captureFailure)) throw new ImprovLibraryError("collision");
+        if (last.chunkIndex === null) {
+          if (value.events.length) throw new ImprovLibraryError("collision");
+          result(existing);
+        } else read(tx.objectStore("eventChunks").get([value.takeId, last.chunkIndex]), (chunk) => {
+          requireChunk(chunk, value.takeId, last.chunkIndex!);
+          if (!sameEvidence(chunk.events, value.events)) throw new ImprovLibraryError("collision");
+          result(existing);
+        });
+        return;
+      }
+      if (existing.status !== "recording" || existing.lease?.token !== value.writerToken) throw new ImprovLibraryError("owned");
+      if (existing.revision !== value.expectedRevision) throw new ImprovLibraryError("stale");
+      const now = this.now(); this.checkTime(now, existing.checkpointAtMs);
+      // A stopped owner's explicit retry may save its suffix after expiry, unless recovery already fenced it.
+      if (now >= existing.lease.expiresAtMs && value.capture.status === "recording") throw new ImprovLibraryError("lease-expired");
+      if (!usableId(value.operationId) || value.capture.takeId !== existing.takeId
+        || !sameEvidence(value.capture.start, existing.capture.start) || !sameEvidence(value.capture.selectedInput, existing.capture.selectedInput)
+        || !sameEvidence(value.capture.limits, existing.capture.limits) || value.capture.eventWatermark < existing.capture.eventWatermark
+        || (existing.capture.terminal !== null && !sameEvidence(existing.capture, value.capture))
+        || (existing.captureFailure !== null && !sameEvidence(existing.captureFailure, value.captureFailure))) throw new ImprovLibraryError("corrupt");
+      const continuity = validateEvents(value.events, value.capture, existing.committedEventWatermark, existing.continuity);
+      const watermark = existing.committedEventWatermark + value.events.length;
+      const chunkBytes = chunkAccountedBytes(value.events);
+      if (chunkBytes > L.chunkBytes && (value.events.length !== 1 || chunkBytes > L.bytesPerTake)) throw new ImprovLibraryError("limit");
+      if (watermark > value.capture.eventWatermark || (value.events.length && existing.chunkCount >= L.chunksPerTake)) throw new ImprovLibraryError("limit");
+      requireConnections(value.connections, value.capture, watermark);
+      if (value.connections.length < existing.connections.length || !sameEvidence(existing.connections, value.connections.slice(0, existing.connections.length))) throw new ImprovLibraryError("corrupt");
+      if (value.finalize && (value.capture.status === "recording" || watermark !== value.capture.eventWatermark
+        || value.connections.length !== value.capture.connectionCount)) throw new ImprovLibraryError("corrupt");
+      const changed: ImprovStoredTake = { ...existing, capture: value.capture,
+        status: value.finalize ? value.capture.status : "recording", committedEventWatermark: watermark,
+        committedAccountedBytes: existing.committedAccountedBytes + chunkBytes
+          + value.connections.slice(existing.connections.length).reduce((sum, c) => sum + connectionAccountedBytes(c), 0),
+        chunkCount: existing.chunkCount + (value.events.length ? 1 : 0), continuity,
+        connections: value.connections, revision: existing.revision + 1, checkpointAtMs: now,
+        lease: value.finalize ? null : { token: value.writerToken, expiresAtMs: now + L.leaseMs },
+        captureFailure: value.captureFailure,
+        lastCommit: { operationId: value.operationId, previousRevision: existing.revision,
+          chunkIndex: value.events.length ? existing.chunkCount : null, fromWatermark: existing.committedEventWatermark, finalized: value.finalize } };
+      requireTake(changed);
+      if (watermark === value.capture.eventWatermark && (continuity.lastTransportSequence !== value.capture.lastTransportSequence
+        || (value.connections.length === value.capture.connectionCount && changed.committedAccountedBytes !== value.capture.accountedBytes))) throw new ImprovLibraryError("corrupt");
+      if (value.events.length) {
+        const chunk: ImprovEventChunk = { schemaVersion: 1, takeId: value.takeId, index: existing.chunkCount,
+          startSequence: existing.committedEventWatermark + 1, endSequence: watermark, events: value.events };
+        tx.objectStore("eventChunks").add(chunk); // Never put/replace recorded chunks.
+      }
+      tx.objectStore("takes").put(changed); result(changed);
+    }));
+  }
+  private readEvidence(tx: IDBTransaction, read: Read, record: ImprovStoredTake, result: (loaded: ImprovLoadedTake) => void) {
+    const takeId = record.takeId;
+    read(tx.objectStore("collections").get(record.collectionId), (collectionValue) => {
+      if (collectionValue === undefined) throw new ImprovLibraryError("corrupt");
+      requireCollection(collectionValue);
+      if (collectionValue.deletedAtMs !== null || record.number >= collectionValue.nextTakeNumber
+        || (record.number === 1 && collectionValue.firstTakeId !== takeId)) throw new ImprovLibraryError("corrupt");
+      read(tx.objectStore("eventChunks").index("takeId").getAll(takeId, L.chunksPerTake + 1), (values: unknown[]) => {
+        if (values.length !== record.chunkCount) throw new ImprovLibraryError("corrupt");
+        for (const value of values) {
+          const candidate = value as Partial<ImprovEventChunk> | null;
+          if (!candidate || !integer(candidate.index)) throw new ImprovLibraryError("corrupt");
+          requireChunk(candidate, takeId, candidate.index);
+        }
+        values.sort((a, b) => Number((a as ImprovEventChunk).index) - Number((b as ImprovEventChunk).index));
+        let watermark = 0; let continuity = EMPTY_IMPROV_CONTINUITY; let bytes = initialAccountedBytes(record.capture);
+        values.forEach((chunk, index) => {
+          requireChunk(chunk, takeId, index);
+          if (chunk.startSequence !== watermark + 1) throw new ImprovLibraryError("corrupt");
+          continuity = validateEvents(chunk.events, record.capture, watermark, continuity);
+          const size = chunkAccountedBytes(chunk.events);
+          if (size > L.chunkBytes && chunk.events.length !== 1) throw new ImprovLibraryError("corrupt");
+          bytes += size; watermark = chunk.endSequence;
+        });
+        bytes += record.connections.reduce((sum, c) => sum + connectionAccountedBytes(c), 0);
+        if (watermark !== record.committedEventWatermark || bytes !== record.committedAccountedBytes
+          || !sameEvidence(continuity, record.continuity)
+          || (watermark === record.capture.eventWatermark && (continuity.lastTransportSequence !== record.capture.lastTransportSequence
+            || (record.connections.length === record.capture.connectionCount && bytes !== record.capture.accountedBytes)))) throw new ImprovLibraryError("corrupt");
+        result({ record, chunks: values as ImprovEventChunk[] });
+      });
+    });
+  }
+  loadTake(takeId: string): Promise<ImprovLoadedTake> {
+    return this.transaction("readonly", (tx, read, result) => read(tx.objectStore("takes").get(takeId), (value) => {
+      this.readEvidence(tx, read, this.take(value), result);
+    }));
+  }
+  async listTakes(collectionId: string, afterNumber = 0, limit = 50): Promise<readonly (ImprovStoredTake | ImprovDeletedTake)[]> {
+    this.page(afterNumber, limit);
+    return this.transaction("readonly", (tx, read, result) => read(tx.objectStore("collections").get(collectionId), (raw) => {
+      const collection = this.collection(raw);
+      read(tx.objectStore("takes").index("collectionId").getAll(collectionId, L.takesPerCollection + 1), (values: unknown[]) => {
+        if (values.length > L.takesPerCollection) throw new ImprovLibraryError("limit");
+        values.forEach(requireTake);
+        const ordered = (values as (ImprovStoredTake | ImprovDeletedTake)[]).sort((a, b) => a.number - b.number);
+        if (ordered.length !== collection.nextTakeNumber - 1 || ordered.some((t, i) => t.collectionId !== collectionId || t.number !== i + 1)
+          || (ordered.length && ordered[0].takeId !== collection.firstTakeId)) throw new ImprovLibraryError("corrupt");
+        result((values as (ImprovStoredTake | ImprovDeletedTake)[]).filter((t) => t.number > afterNumber).sort((a, b) => a.number - b.number).slice(0, limit));
+      });
+    }));
+  }
+  recoverTake(takeId: string): Promise<ImprovStoredTake> {
+    return this.transaction("readwrite", (tx, read, result) => read(tx.objectStore("takes").get(takeId), (value) => {
+      const existing = this.take(value);
+      if (existing.status !== "recording") { result(existing); return; }
+      const now = this.now(); this.checkTime(now, existing.checkpointAtMs);
+      if (now < existing.lease!.expiresAtMs) throw new ImprovLibraryError("owned");
+      this.readEvidence(tx, read, existing, () => {
+        const recovered: ImprovStoredTake = { ...existing, status: "incomplete", lease: null,
+          revision: existing.revision + 1, recovery: { reason: "lease-expired", inferredAtMs: now } };
+        requireTake(recovered); tx.objectStore("takes").put(recovered); result(recovered);
+      });
+    }));
+  }
+  deleteTake(takeId: string, confirmation: Readonly<{ takeId: string; revision: number; confirmed: true }>): Promise<void> {
+    return this.transaction("readwrite", (tx, read, result) => read(tx.objectStore("takes").get(takeId), (value) => {
+      const take = this.take(value);
+      if (confirmation?.confirmed !== true || confirmation.takeId !== takeId) throw new ImprovLibraryError("confirmation-required");
+      if (confirmation.revision !== take.revision) throw new ImprovLibraryError("stale");
+      if (take.status === "recording") throw new ImprovLibraryError("owned");
+      read(tx.objectStore("eventChunks").index("takeId").getAll(takeId, L.chunksPerTake + 1), (chunks: ImprovEventChunk[]) => {
+        if (chunks.length > L.chunksPerTake) throw new ImprovLibraryError("limit");
+        chunks.forEach((c) => tx.objectStore("eventChunks").delete([takeId, c.index]));
+        tx.objectStore("takes").put({ schemaVersion: 1, kind: "deleted-take", takeId, collectionId: take.collectionId,
+          number: take.number, deletedAtMs: this.now() } satisfies ImprovDeletedTake);
+        result(undefined);
+      });
+    }));
+  }
+  deleteCollection(collectionId: string, confirmation: Readonly<{ collectionId: string; revision: number; confirmed: true }>): Promise<void> {
+    return this.transaction("readwrite", (tx, read, result) => read(tx.objectStore("collections").get(collectionId), (value) => {
+      const collection = this.collection(value);
+      if (confirmation?.confirmed !== true || confirmation.collectionId !== collectionId) throw new ImprovLibraryError("confirmation-required");
+      if (confirmation.revision !== collection.revision) throw new ImprovLibraryError("stale");
+      read(tx.objectStore("takes").index("collectionId").getAll(collectionId, L.takesPerCollection + 1), (takes: unknown[]) => {
+        if (takes.length > L.takesPerCollection) throw new ImprovLibraryError("limit");
+        takes.forEach(requireTake);
+        if ((takes as (ImprovStoredTake | ImprovDeletedTake)[]).some((t) => t.kind === "take" && t.status === "recording")) throw new ImprovLibraryError("owned");
+        const now = this.now(); this.checkTime(now, collection.updatedAtMs);
+        (takes as (ImprovStoredTake | ImprovDeletedTake)[]).forEach((take) => {
+          if (take.kind === "deleted-take") return;
+          read(tx.objectStore("eventChunks").index("takeId").getAll(take.takeId, L.chunksPerTake + 1), (chunks: ImprovEventChunk[]) => {
+            if (chunks.length > L.chunksPerTake) throw new ImprovLibraryError("limit");
+            chunks.forEach((c) => tx.objectStore("eventChunks").delete([take.takeId, c.index]));
+            tx.objectStore("takes").put({ schemaVersion: 1, kind: "deleted-take", takeId: take.takeId, collectionId,
+              number: take.number, deletedAtMs: now } satisfies ImprovDeletedTake);
+          });
+        });
+        tx.objectStore("collections").put({ ...collection, title: "Deleted collection", deletedAtMs: now, updatedAtMs: now, revision: collection.revision + 1 });
+        result(undefined);
+      });
+    }));
+  }
+}
