@@ -49,15 +49,19 @@ button {
 .piece-practice-session { min-width: 0; }
 .piece-practice-stage { min-width: 0; }
 .piece-practice-stage > :is(section, div) { min-width: 0; }
-.piece-practice-violin-stage { align-items: start; }
+.piece-practice-instrument-stage { align-items: start; }
+@media (max-width: 320px) {
+  /* Fit the available width even when a classic scrollbar occupies part of 320px. */
+  body:has(.ocarina-fingering-guide) { min-width: 0; }
+}
 @media (min-width: 1100px) {
-  .piece-practice-violin-stage { grid-template-columns: minmax(0, 1fr) minmax(19rem, 22rem); }
+  .piece-practice-instrument-stage { grid-template-columns: minmax(0, 1fr) minmax(19rem, 22rem); }
 }
 .piece-practice-session :is(button, select, summary):focus-visible { outline: 3px solid rgb(125 211 252); outline-offset: 2px; }
 .piece-practice-mobile-play { align-content: start; gap: 0.5rem; max-width: none; }
 .piece-practice-mobile-play > header { padding-right: 9rem; }
 .piece-practice-mobile-play .piece-practice-stage { grid-template-rows: minmax(12rem, auto) minmax(12rem, 1fr); }
-.piece-practice-mobile-play .piece-practice-violin-stage { grid-template-rows: auto; }
+.piece-practice-mobile-play .piece-practice-instrument-stage { grid-template-rows: auto; }
 .piece-practice-mobile-play .mobile-play-keyboard-region,
 .piece-practice-mobile-play .piano-keyboard { min-height: 10rem; }
 .piece-practice-complete.mobile-play-mode { align-content: start; gap: 1rem; padding: max(3.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); }

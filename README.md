@@ -18,15 +18,19 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
-### Playing workspace cleanup (pending 2.9.7)
+### Ocarina fingering guide (pending 2.9.8)
+
+Ocarina microphone Piece Practice now shows a **Standard 12-hole Alto C — provisional profile** with FRONT finger/subhole and BACK thumb diagrams, expected-note instructions, and separate fresh live pitch-derived suggestions. Thirteen natural concert pitches from A4 through F6 are mapped; unsupported pitches retain their written targets and show unavailable fingering. Filled means cover; outlined means open, with accessible text equivalents. The manufacturer's chart and physical subhole layout remain unverified. Pitch cannot identify actual covered holes, and the guide changes no grading or recording. See [the complete provisional chart and limitations](./docs/OCARINA_FINGERING.md).
+
+### Playing workspace cleanup (2.9.7, committed)
 
 Piece Practice now keeps its header compact and puts measure progress, large Expected/Actual feedback and essential listening buttons ahead of notation. The violin fingerboard remains a right-side companion on wide screens. Recording controls, Practice Details and acoustic analysis/export follow the workspace; active recording, failure/limit notices and temporary-audio warnings remain visible near the top. The violin diagram enlarges the proportional first-position region, omits the unused string length toward the bridge, and groups string/sticker/alternate controls in **Fingerboard options and details**. Grading, calibration, recording, MIDI and saved evidence are unchanged.
 
-### Violin first-position fingerboard (pending 2.9.6)
+### Violin first-position fingerboard (2.9.6, committed)
 
 Violin microphone Piece Practice includes an advisory four-string fingerboard beside notation on wide desktops, stacked on smaller screens. A diamond identifies the expected pitch and suggested first-position location; a separate dashed circle identifies a reliable live pitch-derived possible location on the assumed string. Choose a string, inspect open-string/fourth-finger alternatives, or hide beginner pitch-name stickers. Written accidentals are preserved where supplied by the score.
 
-Microphone pitch cannot identify the actual string or finger. Stale, uncertain, absent, unsupported and conservatively flagged harmonic readings have no live marker. The schematic uses proportional string length, not measured finger distances; it changes no calibration, grading, duration assessment, recording or evidence. See the [verified mapping and limits](./docs/VIOLIN_FINGERBOARD.md). Ocarina diagrams await a verified manufacturer profile.
+Microphone pitch cannot identify the actual string or finger. Stale, uncertain, absent, unsupported and conservatively flagged harmonic readings have no live marker. The schematic uses proportional string length, not measured finger distances; it changes no calibration, grading, duration assessment, recording or evidence. See the [verified mapping and limits](./docs/VIOLIN_FINGERBOARD.md). The separate ocarina guide uses the provisional standard profile described above.
 
 ### Optional performance audio recording (2.9.5)
 
@@ -42,7 +46,7 @@ Measure progress appears beside the playing pitch fields; remaining measures inc
 
 Microphone Piece Practice for violin offers an optional G3 -> D4 -> A4 -> E5 open-string check. Start Listening once, pluck an open string, read its note/Hz and signed cents, adjust, then pluck again. Bowing also works. Beginner preparation uses a short robust pitch estimate rather than an 800 ms bow hold: ideal/excellent within 5 cents, green/ready within 10 cents, yellow/adjust tuning through 25 cents, red/significantly off beyond 25 cents. Agreeing green evidence commits immediately and advances after a 1.2-second confirmation without further sound. Live estimates, Last heard values and confirmed baselines are labeled separately; no Retry is required. Skip String and explicit Continue remain, and **Skip Calibration and Start Practice** bypasses all remaining strings while preserving accepted results. After the final summary, Enter Piece Practice is prominent. Both entry routes require a quiet gap and fresh articulation; calibration never changes practice tolerance, concert-pitch grading or practice time. These tuning bands are provisional beginner defaults, not universal tuning standards. Real short-pluck recognition still depends on usable microphone estimates and requires physical QA.
 
-Analysis data defaults On for microphone practice and remembers only that preference. It collects bounded local scalar evidence, never audio, and never uploads anything. Stop Listening, then choose **Export Acoustic Analysis**, or export from the current result. The self-describing version-1 JSON includes retained pitch observations, calibration, target visits, attacks, existing grading evidence, coverage and conservative summaries. Export before leaving/reloading/restarting or entering another run: calibration/trace are not part of V2 recovery. Ocarina retains its existing microphone practice and can collect analysis; ocarina calibration and diagrams remain future work. The violin advisory fingerboard is implemented in pending 2.9.6.
+Analysis data defaults On for microphone practice and remembers only that preference. It collects bounded local scalar evidence, never audio, and never uploads anything. Stop Listening, then choose **Export Acoustic Analysis**, or export from the current result. The self-describing version-1 JSON includes retained pitch observations, calibration, target visits, attacks, existing grading evidence, coverage and conservative summaries. Export before leaving/reloading/restarting or entering another run: calibration/trace are not part of V2 recovery. Ocarina retains its existing microphone practice and analysis; calibration remains future work. Violin and provisional ocarina guides are separate presentation features.
 
 The trace uses actual observations in 100 ms bins, a four-second diagnostic ring and bounded high-resolution windows. Collection stops visibly at the first duration (60 minutes), event (10,000), or conservative memory allowance (roughly 16 MiB) limit while practice continues. Long sessions may reach that allowance before 60 minutes. Tuning and detector thresholds remain provisional pending physical QA; a stable harmonic can still be the wrong octave. Concert pitch and existing practice acceptance/mistake semantics remain unchanged.
 
@@ -176,7 +180,7 @@ Melody is monophonic 4/4 without rests, chords, two-hand material, hold-duration
 - Interruption handling, bounded resource cleanup and capture exclusion during active Practice Session runs
 - A4=440 Hz / equal temperament, estimated range 120–2300 Hz; no recording/upload or practice grading
 
-Desktop synthetic browser validation exists, plus one owner-observed successful real violin test. Broader Chromebook/Android and violin/ocarina/sung-voice QA remains pending. Strong harmonics can still produce confident octave mistakes; instrument diagrams and acoustic practice integration are future work.
+Desktop synthetic browser validation exists, plus one owner-observed successful real violin test. Broader Chromebook/Android and violin/ocarina/sung-voice QA remains pending. Strong harmonics can still produce confident octave mistakes; Piece Practice acoustic input and advisory instrument diagrams remain provisional.
 
 ### Practice Statistics
 
@@ -477,7 +481,7 @@ See [ROADMAP.md](./docs/ROADMAP.md) for the authoritative rolling direction.
 
 Instrument learning now precedes Improv: Acoustic Piece Practice → violin calibration/acoustic analysis → instrument learning visualizers → later Intonation Search/Practice Coach → Improv. Flow Sight-Reading has a foundation in Melody; sustained reading beyond short trials remains a major future milestone. Guided Studies will teach through explanation, demonstration, experiment, repetition, comparison and reflection while composing native modes.
 
-Violin first-position guidance is implemented in pending 2.9.6, integrated with microphone Piece Practice through presentation-only pitch context. Ocarina calibration/diagrams require a defined profile/chart; voice means sung pitch. Microphone Staff Builder authoring remains later. Acoustic participation in practice is conditional on evidence and activity-specific semantics, not automatic MIDI substitution.
+Violin first-position guidance is committed in 2.9.6; pending 2.9.8 adds a provisional common Alto C ocarina chart through the same presentation-only pitch context. Manufacturer-specific fingerings and ocarina calibration remain unverified/deferred; voice means sung pitch. Microphone Staff Builder authoring remains later. Acoustic participation in practice is conditional on evidence and activity-specific semantics, not automatic MIDI substitution.
 
 PWA Update + What's New is implemented; small QOL work and physical QA continue alongside musical milestones. Broader creative tools extend Improv rather than a competing Composer mode; Prelude remains focused on learning rather than DAW production. Full priorities and deferred choices live only in [ROADMAP.md](./docs/ROADMAP.md).
 

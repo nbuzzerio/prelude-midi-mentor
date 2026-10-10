@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026. Current pending package/application version: **2.9.7**; 2.9.6 is committed. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
+> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026. Current pending package/application version: **2.9.8**; 2.9.7 is committed. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
 Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
 
@@ -36,7 +36,7 @@ The former numbered Harmony, Musicianship, Guided Lessons, Lesson Builder, Playb
 
 Owner-observed violin use now prioritizes: **2.9.0 Acoustic Piece Practice → Instrument Calibration / Acoustic Analysis → Instrument Learning Visualizers → later Intonation Search / Practice Coach → Improv**.
 
-Stage 1A/1B/1D is implemented provisionally from 2.9.1: violin G3/D4/A4/E5 preflight (now short-pluck calibration policy v3) plus transient bounded scalar JSON export. Local performance recording is implemented for violin/ocarina in 2.9.4 and piano MIDI in committed 2.9.5. Stage 2 violin first-position guidance is implemented in 2.9.6 through presentation-only instrument pitch context. Physical threshold/device and diagram QA remain pending. Ocarina calibration and diagrams require an identified profile and verified manufacturer chart; the suspected Huazzzyi ZO-1 12-hole Alto C is not yet verified. Intonation Search/Practice Coach requires a separate approved learning-semantics plan; current mistake semantics are unchanged. Microphone Staff Builder authoring remains behind the instrument-learning stages. The numbered continuing threads below are not a strict delivery order.
+Stage 1A/1B/1D is implemented provisionally from 2.9.1: violin G3/D4/A4/E5 preflight (now short-pluck calibration policy v3) plus transient bounded scalar JSON export. Local performance recording is implemented for violin/ocarina in 2.9.4 and piano MIDI in committed 2.9.5. Stage 2 violin first-position guidance is committed in 2.9.6 through presentation-only instrument pitch context; committed 2.9.7 keeps playing feedback and notation high. Owner-approved pending 2.9.8 adds the [Standard 12-hole Alto C provisional fingering profile](./OCARINA_FINGERING.md), limited to thirteen supplied natural concert pitches, with independent expected/live guidance. Physical threshold/device and diagram QA remain pending. The suspected Huazzzyi ZO-1's manufacturer chart and subhole layout are still unverified; manufacturer-specific/chromatic additions and ocarina calibration remain deferred. Intonation Search/Practice Coach requires a separate approved learning-semantics plan; current mistake semantics are unchanged. Microphone Staff Builder authoring remains behind the instrument-learning stages. The numbered continuing threads below are not a strict delivery order.
 
 ## 1. Improv / Creative Exploration
 
@@ -90,11 +90,11 @@ Studies own the teaching journey. Native feature domains continue owning renderi
 
 ## 4. Microphone Instruments / Instrument-Aware Tuner
 
-**Status:** TUNER MVP COMPLETE; VIOLIN FIRST-POSITION GUIDE IMPLEMENTED IN 2.9.6; permanent thread.
+**Status:** TUNER MVP COMPLETE; VIOLIN FIRST-POSITION GUIDE COMMITTED IN 2.9.6; PROVISIONAL STANDARD OCARINA GUIDE IMPLEMENTED IN PENDING 2.9.8; permanent thread.
 
 **Purpose:** Connect a detected or target pitch to useful instrument guidance while preserving measurement uncertainty.
 
-**Likely next milestone:** Physical QA of violin preflight/analysis and the first-position guide, then a separately bounded ocarina diagram using the owner's verified manufacturer chart. The standalone tuner remains independently owned; no separate instrument tuner apps are required.
+**Likely next milestone:** Physical QA of violin preflight/analysis, the first-position guide and the provisional ocarina guide; verify the owner's actual ocarina booklet and physical subhole layout before manufacturer-specific additions. The standalone tuner remains independently owned; no separate instrument tuner apps are required.
 
 **Conceptual architecture, not implemented global services:**
 
@@ -107,7 +107,7 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 
 **Violin:** 2.9.6 shows a recommended string/fingering, selectable open/fourth-finger alternatives, optional score-spelled stickers and independent expected/live possible positions. The schematic models offsets 0–7 per string using proportional vibrating length. Prelude measures pitch; it does not know which physical string/finger produced it. Higher positions, bow tracking and vibrato/duration assessment are deferred. See [the verified mapping and limits](./VIOLIN_FINGERBOARD.md).
 
-**Ocarina:** Standard fingering visualization requires a specifically identified instrument/profile, tuning/system and authoritative chart. The exact profile remains deferred; there is no universal ocarina hole map. Alternate/cross fingerings can follow later.
+**Ocarina:** Pending 2.9.8 implements the owner-supplied common **Standard 12-hole Alto C — provisional profile**, limited to thirteen natural concert pitches A4–F6. Manufacturer chart, model and physical subholes remain unverified; there is no universal ocarina hole map. Unsupported chromatic notes show unavailable guidance. Manufacturer-specific/alternate/cross fingerings require separate verified evidence; calibration remains deferred.
 
 **Voice:** Sung-pitch detection with note, octave, frequency/cents and stability; no speech recognition or fingering diagram.
 
@@ -123,7 +123,7 @@ Potential monophonic consumers include Tuner, instrument visualization, acoustic
 
 **Current bounded consumer:** Owner-approved monophonic Piece Practice offers violin/ocarina metadata, explicit Start, deterministic fresh articulations, configurable cents tolerance, range/focus eligibility, separate acoustic reports and V2 paused recovery. Same-note reattack thresholds are provisional; both instruments use the same detector. No physical reliability claim follows from automated tests.
 
-**Likely next milestone:** Physical repeated-passage, violin preflight/analysis, violin visualizer and lifecycle QA on desktop, Chromebook and Android, including the owner's He's a Pirate (easy), followed by separately approved verified ocarina profile work. Other consumers such as ungraded acoustic Free Play/live staff or stable single-note Flashcards still require their own acceptance decisions.
+**Likely next milestone:** Physical repeated-passage, violin preflight/analysis, both instrument guides and lifecycle QA on desktop, Chromebook and Android, including the owner's He's a Pirate (easy), followed by separately approved manufacturer-verified ocarina profile work. Other consumers such as ungraded acoustic Free Play/live staff or stable single-note Flashcards still require their own acceptance decisions.
 
 **Possible later integrations:** Violin scales and intonation practice, selected Sequences, Guided Studies and broader Piece Practice experiences.
 
@@ -181,6 +181,6 @@ This is a practical preference, not an immutable dependency chain. Physical QA a
 
 ## Deferred owner decisions and exploratory boundary
 
-When the relevant thread becomes active, choose the first Flow increment, the first D Minor Study objective/audience, and the exact ocarina profile/fingering system. No resolution is required during documentation consolidation.
+When the relevant thread becomes active, choose the first Flow increment and the first D Minor Study objective/audience. The owner has approved the provisional standard ocarina profile for 2.9.8; exact manufacturer verification and chromatic additions remain future decisions.
 
 Bounded scalar JSON export is now implemented; broader adaptive coaching, analytics dashboards, community/teacher sharing, cloud accounts/synchronization, desktop packaging, large instrument libraries and other advanced exports remain exploratory. [IDEAS.md](./IDEAS.md) holds noncommittal ideas. Future feature plans still require owner approval, exact scope, native ownership, musical decisions and proportionate validation under AGENTS.md.

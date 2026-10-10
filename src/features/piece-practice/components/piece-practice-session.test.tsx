@@ -317,6 +317,7 @@ describe("PiecePracticeSession", () => {
     expect(within(secondary).getByRole("checkbox", { name: "Record performance audio" })).toBeTruthy();
     expect(within(workspace).getByTestId("score-view")).toBeTruthy();
     expect(within(workspace).queryByLabelText("Violin first-position guide") !== null).toBe(instrument === "violin");
+    expect(within(workspace).queryByLabelText("Ocarina fingering guide") !== null).toBe(instrument === "ocarina");
     for (const summary of secondary.querySelectorAll("summary")) expect(summary.parentElement!.hasAttribute("open")).toBe(false);
     expect(microphone.sessions).toHaveLength(1);
   });
@@ -329,6 +330,91 @@ describe("PiecePracticeSession", () => {
     expect(workspace.compareDocumentPosition(recording) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByLabelText("Performance audio notice")).toBeNull();
     expect(microphone.sessions).toHaveLength(0);
+    expect(screen.queryByLabelText("Ocarina fingering guide")).toBeNull();
+  });
+  it("preserves ocarina grading, completion, reports, recording and analysis while expected/live fingerings update independently", () => {
+    vi.useFakeTimers(); localStorage.clear();
+    const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
+    const { NativeRecorder, revoke } = installRecordingHarness();
+    try {
+      let now = 0;
+      const score: StaffBuilderScore = { ...realisticPolyphonicScore(), ties: [], annotations: [], initialTimeSignature: "4/4", measures: [{ id: "ocarina-measure", events: [
+        ...([{ midiNumber: 72, letter: "C", accidental: "natural" }, { midiNumber: 79, letter: "G", accidental: "natural" },
+          { midiNumber: 75, letter: "E", accidental: "flat" }] as const).map((pitch, index) => ({ id: `ocarina-event-${index}`, kind: "notes" as const,
+          staff: "treble" as const, startTick: index * 480, rhythm: { status: "final" as const, duration: index === 2 ? "half" as const : "quarter" as const },
+          pitches: [{ ...pitch, id: `ocarina-pitch-${index}`, octave: 5 }] })),
+        { id: "ocarina-bass-rest", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
+      ] }] };
+      const projected = projectStaffBuilderPieceForPractice(score);
+      if (!projected.ok) throw Error("Invalid ocarina fixture");
+      const store = runStore();
+      const { container, unmount } = render(<PiecePracticeSession piece={projected.piece} sourceScore={score} onExit={vi.fn()} runStore={store} now={() => now} />);
+      expect(screen.queryByLabelText("Ocarina fingering guide")).toBeNull();
+      fireEvent.change(screen.getByLabelText("Input"), { target: { value: "microphone" } });
+      fireEvent.change(screen.getByLabelText("Instrument"), { target: { value: "ocarina" } });
+      fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+      expect(screen.queryByRole("button", { name: "Skip Calibration and Start Practice" })).toBeNull();
+      expect(screen.queryByLabelText("Violin first-position guide")).toBeNull();
+      const expected = () => screen.getByLabelText("Expected ocarina fingering").getAttribute("data-ocarina-expected");
+      const live = () => screen.getByLabelText("Live ocarina fingering suggestion").getAttribute("data-ocarina-live");
+      expect(expected()).toBe("72");
+      const c5Holes = screen.getByLabelText("Expected hole states").textContent;
+      fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+      const capture = microphone.sessions[0], tracker = createPitchStabilizer();
+      const { stream, stopTrack } = deliverMockStream(capture);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Record performance audio" }));
+      expect(NativeRecorder.instances).toHaveLength(1); expect(NativeRecorder.instances[0].stream).toBe(stream);
+      const frames = (hz: number | null, count: number) => {
+        for (let i = 0; i < count; i++) {
+          now += 40;
+          const observation = { frequencyHz: hz, quality: hz ? 0.99 : 0, levelDbfs: hz ? -20 : -80, reason: hz ? "usable" as const : "quiet" as const };
+          capture.reading = tracker.update(observation, now, now / 1000);
+          act(() => {
+            capture.options.onObservation?.({ observation, snapshot: capture.reading, observedAtMs: now, audioSeconds: now / 1000, captureGeneration: capture.epoch });
+            vi.advanceTimersByTime(40);
+          });
+        }
+      };
+      frames(440, 6); // Fresh A4 with no quiet boundary: suggestion only, no accepted attack.
+      expect(live()).toBe("69"); expect(expected()).toBe("72");
+      expect(screen.getByLabelText("Expected hole states").textContent).toBe(c5Holes);
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("");
+      frames(null, 3); frames(523.25113, 8);
+      expect(expected()).toBe("79");
+      expect(container.querySelector('[data-ocarina-hole="RI"]')?.getAttribute("data-state")).toBe("open");
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toContain("C5 accepted");
+      capture.reading = { ...capture.reading, fresh: true, ageMs: 121 };
+      act(() => vi.advanceTimersByTime(100)); expect(live()).toBeNull(); expect(expected()).toBe("79");
+      frames(587.329536, 8); expect(live()).toBe("74"); expect(expected()).toBe("79");
+      expect(screen.getAllByLabelText("Accepted pitch/attack")).toHaveLength(1);
+      frames(null, 3); frames(783.990872, 8);
+      expect(expected()).toBeNull();
+      expect(screen.getByLabelText("Expected ocarina fingering").textContent).toContain("Expected E♭5");
+      expect(container.querySelectorAll('[data-state="unavailable"]')).toHaveLength(12);
+      expect(screen.getByLabelText("Accepted pitch/attack").textContent).toContain("G5 accepted");
+      expect(microphone.sessions).toHaveLength(1); expect(capture.start).toHaveBeenCalledTimes(1); expect(mocks.useInputCalls).toBe(0);
+      fireEvent.click(screen.getByRole("button", { name: "Stop Listening" }));
+      expect(screen.getByText("Finalizing recording")).toBeTruthy();
+      act(() => NativeRecorder.instances[0].finish());
+      expect(stopTrack).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("link", { name: /Download/ }).getAttribute("download")).toMatch(/^prelude-ocarina-.*\.webm$/);
+      expect(container.querySelector("audio")?.getAttribute("src")).toMatch(/^blob:/);
+      const analysis = screen.getByText(/Acoustic Analysis \/ Export/).closest("details")!;
+      fireEvent.click(analysis.querySelector("summary")!); fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" }));
+      const bundle = JSON.parse(download.mock.calls[0][0]);
+      expect(bundle.schemaVersion).toBe(1); expect(bundle.policies.calibration.version).toBe(3);
+      expect(bundle.attempts.filter((attempt: { evidence: { accepted: boolean } }) => attempt.evidence.accepted)).toHaveLength(2);
+      expect(bundle.derivedSummaries.every((summary: { actualPhysicalLocation: string }) => summary.actualPhysicalLocation === "unknown")).toBe(true);
+      expect(download.mock.calls[0][0]).not.toMatch(/coveredHoles|standard-12-hole-alto-c-provisional|ocarinaFingering/);
+      fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
+      fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
+      expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
+      expect(screen.queryByLabelText("Ocarina fingering guide")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Print / Save PDF" }));
+      expect(screen.getByRole("region", { name: /practice report/ }).textContent).not.toMatch(/fingering|covered holes/);
+      unmount(); expect(revoke).toHaveBeenCalledTimes(1);
+    } finally { download.mockRestore(); cleanup(); vi.useRealTimers(); }
   });
   it("updates violin expected and live markers independently while preserving grading, acknowledgment, recording and analysis", () => {
     vi.useFakeTimers(); localStorage.clear();
@@ -1217,7 +1303,8 @@ describe("PiecePracticeSession", () => {
     fireEvent.change(screen.getByLabelText("Start Measure"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
     const firstRunId = store.records[0].runId;
-    act(() => submit([69]));
+    // Flush the save promise's React update and unload-effect cleanup, not just the saved label.
+    await act(async () => { submit([69]); });
     expect(store.records.at(-1)?.status).toBe("completed");
     expect(store.records.at(-1)?.completedAt).toBeTruthy();
     await screen.findByText("Completed practice saved.");

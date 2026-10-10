@@ -85,6 +85,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "The violin guide enlarges proportional first-position spacing and puts string, sticker and alternate-location controls in a disclosure.",
     "Recording notices remain visible near the playing area. Grading, calibration, recording and saved evidence are unchanged.",
   ],
+}, {
+  id: "2026-10-10-ocarina-fingering",
+  sequence: 8,
+  title: "See which ocarina holes to cover",
+  date: "2026-10-10",
+  version: "2.9.8",
+  changes: [
+    "Ocarina microphone Piece Practice now shows front and back fingering diagrams for thirteen natural pitches in a provisional Standard 12-hole Alto C profile.",
+    "Expected fingering and live pitch-derived suggestions stay separate. The microphone cannot identify your actual covered holes; unsupported pitches show no verified fingering.",
+    "The manufacturer's chart and subhole layout remain unverified. Grading, calibration, recording and saved evidence are unchanged.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {
