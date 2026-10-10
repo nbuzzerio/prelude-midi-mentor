@@ -29,14 +29,15 @@ vi.mock("@/hooks/use-midi", () => ({
   },
 }));
 
-function Consumer({ label, onHeld, onNote, onRelease, onSustain = vi.fn() }: Readonly<{
+function Consumer({ label, onHeld, onNote, onRelease, onSustain = vi.fn(), onOwnership }: Readonly<{
   label: string;
   onHeld: (notes: ReadonlySet<number>) => void;
   onNote: (midiNumber: number, attackVelocity?: number, sourceTimeStampMs?: number) => void;
   onRelease?: (release: MidiReleaseObservation) => void;
   onSustain?: (isDown: boolean) => void;
+  onOwnership?: (active: boolean) => void;
 }>) {
-  const midi = useAppMidiInput({ onHeldNotesChanged: onHeld, onNotePlayed: onNote, onNoteReleased: onRelease, onSustainPedalChanged: onSustain });
+  const midi = useAppMidiInput({ onHeldNotesChanged: onHeld, onNotePlayed: onNote, onNoteReleased: onRelease, onSustainPedalChanged: onSustain, onOwnershipChange: onOwnership });
   return <button onClick={() => void midi.connectMidi()} type="button">{label}: {midi.status} {midi.deviceName}</button>;
 }
 
@@ -62,6 +63,19 @@ describe("MidiProvider", () => {
     lowLevel.ownerCount = 0;
   });
   afterEach(cleanup);
+  it("notifies replacement once and ignores stale consumer cleanup", () => {
+    const first = vi.fn(); const second = vi.fn();
+    const view = render(<MidiProvider><Consumer key="a" label="A" onHeld={vi.fn()} onNote={vi.fn()} onOwnership={first} /><Consumer key="b" label="B" onHeld={vi.fn()} onNote={vi.fn()} onOwnership={second} /></MidiProvider>);
+    expect(first.mock.calls).toEqual([[true], [false]]); expect(second.mock.calls).toEqual([[true]]);
+    view.rerender(<MidiProvider><Consumer key="b" label="B" onHeld={vi.fn()} onNote={vi.fn()} onOwnership={second} /></MidiProvider>);
+    expect(second.mock.calls).toEqual([[true]]); view.unmount(); expect(second.mock.calls).toEqual([[true], [false]]);
+  });
+  it("balances Strict Mode ownership notifications without reconnecting MIDI", () => {
+    const ownership = vi.fn();
+    const view = render(<StrictMode><MidiProvider><Consumer label="A" onHeld={vi.fn()} onNote={vi.fn()} onOwnership={ownership} /></MidiProvider></StrictMode>);
+    expect(ownership.mock.calls).toEqual([[true], [false], [true]]); view.unmount();
+    expect(ownership.mock.calls).toEqual([[true], [false], [true], [false]]); expect(lowLevel.connectMidi).not.toHaveBeenCalled();
+  });
 
   it("owns one low-level MIDI lifecycle and shares connection presentation", () => {
     render(<MidiProvider><Consumer label="Feature" onHeld={vi.fn()} onNote={vi.fn()} /></MidiProvider>);

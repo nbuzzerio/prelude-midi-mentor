@@ -11,6 +11,8 @@ export type AppMidiConsumer = Readonly<{
   rawInputId?: string;
   onRawMessage?: (message: RawMidiMessage) => void;
   onInputConnectionChange?: (change: MidiInputConnectionChange) => void;
+  /** Lifecycle only; no per-message context/state update. Replaced consumers aren't auto-restored. */
+  onOwnershipChange?: (active: boolean) => void;
 }>;
 
 export type AppMidiContextValue = Readonly<{

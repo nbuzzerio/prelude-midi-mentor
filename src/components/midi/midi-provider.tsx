@@ -52,10 +52,18 @@ export function MidiProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   const registerConsumer = useCallback((consumer: AppMidiConsumer) => {
     const token = Symbol("app-midi-consumer");
+    const previous = activeConsumerRef.current;
     activeConsumerRef.current = { token, consumer };
+    previous?.consumer.onOwnershipChange?.(false);
+    if (activeConsumerRef.current?.token !== token) return () => {};
+    consumer.onOwnershipChange?.(true);
+    if (activeConsumerRef.current?.token !== token) return () => {};
     consumer.onHeldNotesChanged?.(new Set(heldNotesRef.current));
     return () => {
-      if (activeConsumerRef.current?.token === token) activeConsumerRef.current = null;
+      if (activeConsumerRef.current?.token === token) {
+        activeConsumerRef.current = null;
+        consumer.onOwnershipChange?.(false);
+      }
     };
   }, []);
 

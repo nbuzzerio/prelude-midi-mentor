@@ -96,6 +96,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Expected fingering and live pitch-derived suggestions stay separate. The microphone cannot identify your actual covered holes; unsupported pitches show no verified fingering.",
     "The manufacturer's chart and subhole layout remain unverified. Grading, calibration, recording and saved evidence are unchanged.",
   ],
+}, {
+  id: "2026-10-10-improv-workspace",
+  sequence: 9,
+  title: "Preserve your first piano take",
+  date: "2026-10-10",
+  version: "2.9.13",
+  changes: [
+    "Improv records uninterrupted performances from one selected physical MIDI input: sight-read from your own book or explore freely without accuracy grading.",
+    "Named browser-local collections preserve the original first take and numbered later attempts, with confirmed saves, descriptive review and approximate piano replay.",
+    "Download MIDI projections or full JSON collection backups; restore backups into separate histories. Browser storage can be cleared or evicted. Room audio is still deferred.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

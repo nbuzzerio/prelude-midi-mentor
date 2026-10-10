@@ -89,6 +89,13 @@ vi.mock("./components/midi/midi-diagnostic", () => ({
 }));
 
 describe("App focus mode", () => {
+  it("excludes Improv while the retained hosted Practice Session is active", async () => {
+    render(<App />); fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start hosted test run" })); fireEvent.click(screen.getByRole("button", { name: "Improv" }));
+    expect(await screen.findByText(/Finish or end the active Practice Session/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start Take" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" })); expect(screen.getByText("Practice Sessions builder")).toBeTruthy();
+  });
   it("guards top-level mode changes while temporary performance audio belongs to Staff Builder", () => {
     audioDeparture.guard.mockReturnValue(false);
     render(<App />);
@@ -206,7 +213,7 @@ describe("App focus mode", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
     expect(within(navigation).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
-      "Free Play", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody", "Chromatic Tuner", "MIDI Diagnostic",
+      "Free Play", "Improv", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody", "Chromatic Tuner", "MIDI Diagnostic",
     ]);
     expect(within(screen.getByRole("button", { name: "Staff Builder" })).getByText("Staff")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: "Ear Training" })).getByText("Ear")).toBeTruthy();

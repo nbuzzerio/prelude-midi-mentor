@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 
 import FlashcardSession from "./features/flashcards/components/flashcard-session";
 import SequenceSession from "./features/sequences/components/sequence-session";
@@ -11,11 +11,13 @@ import MelodySession from "./features/melody/components/melody-session";
 import PracticeSessionBuilder from "./features/practice-session/components/practice-session-builder";
 import MidiDiagnostic from "./components/midi/midi-diagnostic";
 import TunerSession from "./features/tuner/components/tuner-session";
+import type { ImprovDepartureGuard } from "./features/improv/components/improv-workspace";
 import { version } from "../package.json";
 import type { PwaUpdateController } from "./lib/pwa/register-service-worker";
 import { AppUpdateNotices } from "./features/app-update/components/app-update-notices";
 
-type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session" | "midi-diagnostic" | "tuner";
+type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session" | "midi-diagnostic" | "tuner" | "improv";
+const ImprovWorkspace = lazy(() => import("./features/improv/components/improv-workspace"));
 
 export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateController }> = {}) {
   const [practiceSection, setPracticeSection] =
@@ -23,14 +25,19 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
   const [practiceRunActive, setPracticeRunActive] = useState(false);
   const audioDepartureGuard = useRef<(() => boolean) | null>(null);
   const registerAudioDepartureGuard = useCallback((guard: (() => boolean) | null) => { audioDepartureGuard.current = guard; }, []);
+  const improvDepartureGuard = useRef<ImprovDepartureGuard | null>(null);
+  const registerImprovGuard = useCallback((guard: ImprovDepartureGuard | null) => { improvDepartureGuard.current = guard; }, []);
   const changeSection = (next: PracticeSection) => {
     if (next === practiceSection) return;
     if (practiceSection === "staff-builder" && audioDepartureGuard.current && !audioDepartureGuard.current()) return;
+    if (practiceSection === "improv" && improvDepartureGuard.current) {
+      improvDepartureGuard.current(() => { exitFocusMode(); setPracticeSection(next); }); return;
+    }
     exitFocusMode();
     setPracticeSection(next);
   };
   const { exitFocusMode, isFocusMode, toggleFocusMode } = useFocusMode(
-    practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody" && practiceSection !== "practice-session" && practiceSection !== "tuner",
+    practiceSection !== "ear-training" && practiceSection !== "staff-builder" && practiceSection !== "melody" && practiceSection !== "practice-session" && practiceSection !== "tuner" && practiceSection !== "improv",
   );
 
   let content;
@@ -87,6 +94,10 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
       content = <TunerSession available={!practiceRunActive} />;
       break;
 
+    case "improv":
+      content = <Suspense fallback={<p role="status" className="p-4 text-white">Opening Improv…</p>}><ImprovWorkspace available={!practiceRunActive} onGuardChange={registerImprovGuard} /></Suspense>;
+      break;
+
     default:
       content = null;
   }
@@ -114,6 +125,8 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
         >
           Free Play
         </button>
+
+        <button aria-pressed={practiceSection === "improv"} className={`prelude-mode-button shrink-0 rounded border px-3 py-2 transition sm:px-4 ${practiceSection === "improv" ? "border-white bg-sky-700 font-bold text-white" : "border-transparent bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`} onClick={() => changeSection("improv")} type="button">Improv</button>
 
         <button
           aria-pressed={practiceSection === "staff-builder"}

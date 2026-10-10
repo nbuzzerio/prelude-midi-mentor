@@ -15,6 +15,7 @@ export function useAppMidiInput(consumer: AppMidiConsumer): Omit<AppMidiContextV
     get rawInputId() { return consumerRef.current.rawInputId; },
     onRawMessage: (message) => consumerRef.current.onRawMessage?.(message),
     onInputConnectionChange: (change) => consumerRef.current.onInputConnectionChange?.(change),
+    onOwnershipChange: (active) => consumerRef.current.onOwnershipChange?.(active),
     onHeldNotesChanged: (notes) => consumerRef.current.onHeldNotesChanged?.(notes),
     onNotePlayed: (midiNumber, attackVelocity, sourceTimeStampMs) => {
       if (sourceTimeStampMs === undefined) consumerRef.current.onNotePlayed?.(midiNumber, attackVelocity);
