@@ -13,6 +13,8 @@ export type ImprovCollection = Readonly<{
   activity: "first-take-sight-reading" | "free-improvisation";
   firstTakeId: string | null; nextTakeNumber: number; revision: number;
   createdAtMs: number; updatedAtMs: number; deletedAtMs: number | null;
+  /** Flat original context. Import never recursively embeds prior backups. */
+  importedFrom?: Omit<ImprovCollection, "importedFrom">;
 }>;
 export type ImprovCaptureFailure = Readonly<{
   reason: "unsaved-backlog-limit"; refusedTransportSequence: number | null;
@@ -28,22 +30,28 @@ export type ImprovStoredTake = Readonly<{
   connections: readonly ImprovTakeConnection[];
   revision: number; checkpointAtMs: number;
   lease: Readonly<{ token: string; expiresAtMs: number }> | null;
-  recovery: Readonly<{ reason: "lease-expired"; inferredAtMs: number }> | null;
+  recovery: Readonly<{ reason: "lease-expired" | "imported-prefix"; inferredAtMs: number }> | null;
   captureFailure: ImprovCaptureFailure | null;
   lastCommit: Readonly<{
     operationId: string; previousRevision: number; chunkIndex: number | null;
     fromWatermark: number; finalized: boolean;
   }> | null;
+  /** Original stored observation, separate from destination ownership/status. */
+  importedFrom?: Omit<ImprovStoredTake, "importedFrom">;
 }>;
 export type ImprovDeletedTake = Readonly<{
   schemaVersion: 1; kind: "deleted-take"; takeId: string; collectionId: string;
   number: number; deletedAtMs: number;
+  importedFrom?: Omit<ImprovDeletedTake, "importedFrom">;
 }>;
 export type ImprovEventChunk = Readonly<{
   schemaVersion: 1; takeId: string; index: number;
   startSequence: number; endSequence: number; events: readonly ImprovTakeEvent[];
 }>;
 export type ImprovLoadedTake = Readonly<{ record: ImprovStoredTake; chunks: readonly ImprovEventChunk[] }>;
+export type ImprovCollectionEvidence = Readonly<{
+  collection: ImprovCollection; takes: readonly (ImprovLoadedTake | ImprovDeletedTake)[];
+}>;
 export type ImprovCheckpoint = Readonly<{
   takeId: string; writerToken: string; expectedRevision: number; operationId: string;
   capture: ImprovTakeMetadata; events: readonly ImprovTakeEvent[];
@@ -77,6 +85,10 @@ export interface ImprovLibrary {
   deleteTake(takeId: string, confirmation: Readonly<{ takeId: string; revision: number; confirmed: true }>): Promise<void>;
   deleteCollection(collectionId: string, confirmation: Readonly<{ collectionId: string; revision: number; confirmed: true }>): Promise<void>;
   close(): void;
+}
+export interface ImprovArchiveLibrary extends ImprovLibrary {
+  exportCollection(collectionId: string): Promise<ImprovCollectionEvidence>;
+  importCollection(evidence: ImprovCollectionEvidence, createId?: () => string): Promise<ImprovCollection>;
 }
 
 /** IndexedDB uses structured clone, not JSON. Copies also fence caller mutation before async writes. */

@@ -1,12 +1,14 @@
 import { improvTimestampValidity, type ImprovTakeBoundary, type ImprovTakeConnection, type ImprovTakeEvent,
   type ImprovTakeMetadata } from "./improv-take";
 import { improvMessageAccountedBytes } from "./improv-take-recorder";
-import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, sameCaptureContext, type ImprovCollection,
+import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, sameCaptureContext, sameEvidence, type ImprovCollection, type ImprovLoadedTake,
   type ImprovDeletedTake, type ImprovEventChunk, type ImprovJournalContinuity, type ImprovStoredTake } from "./improv-library";
 
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 const shape = (v: unknown, keys: string): v is Record<string, unknown> => object(v)
   && Object.keys(v).length === keys.split(" ").length && keys.split(" ").every((key) => Object.hasOwn(v, key));
+const importShape = (v: unknown, keys: string): v is Record<string, unknown> => shape(v, keys)
+  || shape(v, `${keys} importedFrom`);
 export const usableId = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0 && v.length <= 1024;
 export const wallTime = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= Number.MAX_SAFE_INTEGER - L.leaseMs;
 export const integer = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
@@ -97,25 +99,36 @@ export function validateEvents(v: unknown, capture: ImprovTakeMetadata, after: n
 }
 export function requireCollection(v: unknown): asserts v is ImprovCollection {
   if (object(v) && v.schemaVersion !== 1) throw new ImprovLibraryError("unsupported");
-  if (!shape(v, "schemaVersion collectionId title activity firstTakeId nextTakeNumber revision createdAtMs updatedAtMs deletedAtMs")
+  if (!importShape(v, "schemaVersion collectionId title activity firstTakeId nextTakeNumber revision createdAtMs updatedAtMs deletedAtMs")
     || !usableId(v.collectionId) || typeof v.title !== "string" || !v.title.trim() || v.title.length > 256
     || !["first-take-sight-reading", "free-improvisation"].includes(String(v.activity))
     || (v.firstTakeId !== null && !usableId(v.firstTakeId)) || !integer(v.nextTakeNumber) || v.nextTakeNumber < 1 || v.nextTakeNumber > L.takesPerCollection + 1
     || (v.nextTakeNumber === 1) !== (v.firstTakeId === null) || !integer(v.revision) || v.revision < 1
     || !wallTime(v.createdAtMs) || !wallTime(v.updatedAtMs) || v.updatedAtMs < v.createdAtMs
     || (v.deletedAtMs !== null && !wallTime(v.deletedAtMs))) throw new ImprovLibraryError("corrupt");
+  if (Object.hasOwn(v, "importedFrom")) {
+    if (!object(v.importedFrom) || Object.hasOwn(v.importedFrom, "importedFrom")) throw new ImprovLibraryError("corrupt");
+    requireCollection(v.importedFrom);
+    if (v.activity !== v.importedFrom.activity) throw new ImprovLibraryError("corrupt");
+  }
 }
 export function requireTake(v: unknown): asserts v is ImprovStoredTake | ImprovDeletedTake {
   if (object(v) && v.schemaVersion !== 1) throw new ImprovLibraryError("unsupported");
   if (!object(v) || !usableId(v.takeId) || !usableId(v.collectionId) || !integer(v.number) || v.number < 1 || v.number > L.takesPerCollection) throw new ImprovLibraryError("corrupt");
   if (v.kind === "deleted-take") {
-    if (!shape(v, "schemaVersion kind takeId collectionId number deletedAtMs") || !wallTime(v.deletedAtMs)) throw new ImprovLibraryError("corrupt");
+    if (!importShape(v, "schemaVersion kind takeId collectionId number deletedAtMs") || !wallTime(v.deletedAtMs)) throw new ImprovLibraryError("corrupt");
+    if (Object.hasOwn(v, "importedFrom")) {
+      if (!object(v.importedFrom) || Object.hasOwn(v.importedFrom, "importedFrom")) throw new ImprovLibraryError("corrupt");
+      requireTake(v.importedFrom);
+      if (v.importedFrom.kind !== "deleted-take" || v.number !== v.importedFrom.number) throw new ImprovLibraryError("corrupt");
+    }
     return;
   }
-  if (!shape(v, "schemaVersion kind takeId collectionId number writerToken capture status storageStatus committedEventWatermark committedAccountedBytes chunkCount continuity connections revision checkpointAtMs lease recovery captureFailure lastCommit")
+  if (!importShape(v, "schemaVersion kind takeId collectionId number writerToken capture status storageStatus committedEventWatermark committedAccountedBytes chunkCount continuity connections revision checkpointAtMs lease recovery captureFailure lastCommit")
     || v.kind !== "take" || !usableId(v.writerToken)) throw new ImprovLibraryError("corrupt");
   requireMetadata(v.capture);
-  if (v.capture.takeId !== v.takeId || !["recording", "completed", "interrupted", "incomplete"].includes(String(v.status))
+  const imported = Object.hasOwn(v, "importedFrom");
+  if ((!imported && v.capture.takeId !== v.takeId) || !["recording", "completed", "interrupted", "incomplete"].includes(String(v.status))
     || v.storageStatus !== "committed" || !integer(v.committedEventWatermark) || v.committedEventWatermark > v.capture.eventWatermark
     || !integer(v.committedAccountedBytes) || v.committedAccountedBytes < initialAccountedBytes(v.capture) || v.committedAccountedBytes > v.capture.accountedBytes
     || !integer(v.chunkCount) || v.chunkCount > L.chunksPerTake || (v.chunkCount === 0) !== (v.committedEventWatermark === 0)
@@ -131,7 +144,7 @@ export function requireTake(v: unknown): asserts v is ImprovStoredTake | ImprovD
     if (!shape(v.lease, "token expiresAtMs") || v.lease.token !== v.writerToken || !wallTime(v.lease.expiresAtMs) || v.lease.expiresAtMs <= v.checkpointAtMs || v.recovery !== null) throw new ImprovLibraryError("corrupt");
   } else if (v.lease !== null) throw new ImprovLibraryError("corrupt");
   if (v.status === "incomplete") {
-    if (!shape(v.recovery, "reason inferredAtMs") || v.recovery.reason !== "lease-expired" || !wallTime(v.recovery.inferredAtMs)) throw new ImprovLibraryError("corrupt");
+    if (!shape(v.recovery, "reason inferredAtMs") || !(v.recovery.reason === "lease-expired" || (imported && v.recovery.reason === "imported-prefix")) || !wallTime(v.recovery.inferredAtMs)) throw new ImprovLibraryError("corrupt");
   } else if (v.recovery !== null) throw new ImprovLibraryError("corrupt");
   if (["completed", "interrupted"].includes(String(v.status)) && (v.status !== v.capture.status
     || v.committedEventWatermark !== v.capture.eventWatermark || v.connections.length !== v.capture.connectionCount)) throw new ImprovLibraryError("corrupt");
@@ -140,6 +153,14 @@ export function requireTake(v: unknown): asserts v is ImprovStoredTake | ImprovD
     || !(v.lastCommit.chunkIndex === null || (integer(v.lastCommit.chunkIndex) && v.lastCommit.chunkIndex < v.chunkCount))
     || !integer(v.lastCommit.fromWatermark) || v.lastCommit.fromWatermark > v.committedEventWatermark
     || typeof v.lastCommit.finalized !== "boolean")) throw new ImprovLibraryError("corrupt");
+  if (imported) {
+    const origin = v.importedFrom;
+    if (!object(origin) || Object.hasOwn(origin, "importedFrom")) throw new ImprovLibraryError("corrupt");
+    requireTake(origin);
+    if (origin.kind !== "take" || v.number !== origin.number || v.status === "recording" || v.lastCommit !== null
+      || v.status !== (origin.status === "recording" ? "incomplete" : origin.status)
+      || !["capture", "connections", "committedEventWatermark", "committedAccountedBytes", "chunkCount", "continuity", "captureFailure"].every((key) => sameEvidence(v[key], Reflect.get(origin, key)))) throw new ImprovLibraryError("corrupt");
+  }
 }
 export function requireChunk(v: unknown, takeId: string, index: number): asserts v is ImprovEventChunk {
   if (object(v) && v.schemaVersion !== 1) throw new ImprovLibraryError("unsupported");
@@ -149,4 +170,26 @@ export function requireChunk(v: unknown, takeId: string, index: number): asserts
 }
 export function chunkAccountedBytes(events: readonly ImprovTakeEvent[]): number {
   return events.reduce((sum, event) => sum + improvMessageAccountedBytes(event.raw), 0);
+}
+
+/** Shared by native loads and untrusted backups; no timestamp sorting or evidence repair. */
+export function requireLoadedTake(v: unknown): asserts v is ImprovLoadedTake {
+  if (!shape(v, "record chunks")) throw new ImprovLibraryError("corrupt");
+  requireTake(v.record);
+  if (v.record.kind !== "take" || !Array.isArray(v.chunks) || v.chunks.length !== v.record.chunkCount) throw new ImprovLibraryError("corrupt");
+  const record = v.record;
+  let watermark = 0; let continuity = EMPTY_IMPROV_CONTINUITY; let bytes = initialAccountedBytes(record.capture);
+  v.chunks.forEach((chunk, index) => {
+    requireChunk(chunk, record.takeId, index);
+    if (chunk.startSequence !== watermark + 1) throw new ImprovLibraryError("corrupt");
+    continuity = validateEvents(chunk.events, record.capture, watermark, continuity);
+    const size = chunkAccountedBytes(chunk.events);
+    if (size > L.chunkBytes && chunk.events.length !== 1) throw new ImprovLibraryError("corrupt");
+    bytes += size; watermark = chunk.endSequence;
+  });
+  bytes += record.connections.reduce((sum, c) => sum + connectionAccountedBytes(c), 0);
+  if (watermark !== record.committedEventWatermark || bytes !== record.committedAccountedBytes
+    || !sameEvidence(continuity, record.continuity)
+    || (watermark === record.capture.eventWatermark && (continuity.lastTransportSequence !== record.capture.lastTransportSequence
+      || (record.connections.length === record.capture.connectionCount && bytes !== record.capture.accountedBytes)))) throw new ImprovLibraryError("corrupt");
 }

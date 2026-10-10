@@ -1,0 +1,147 @@
+import { describe, expect, it, vi } from "vitest";
+import { createImprovReplay, type ImprovReplayScheduler, type ImprovReplaySound } from "./improv-replay";
+import { performanceFixture } from "./improv-test-fixture";
+
+function clock() {
+  let now = 0; const tasks = new Set<{ at: number; callback: () => void }>();
+  const scheduler: ImprovReplayScheduler = { now: () => now, after: (delay, callback) => {
+    const task = { at: now + delay, callback }; tasks.add(task); return () => { tasks.delete(task); };
+  } };
+  const advance = (end: number) => {
+    while (true) {
+      const task = [...tasks].filter((t) => t.at <= end).sort((a, b) => a.at - b.at)[0];
+      if (!task) break; now = task.at; tasks.delete(task); task.callback();
+    }
+    now = end;
+  };
+  return { scheduler, advance, tasks, setNow: (value: number) => { now = value; } };
+}
+function sound(started: () => Promise<boolean> = () => Promise.resolve(true)) {
+  const voices: { release: ReturnType<typeof vi.fn>; started: Promise<boolean> }[] = [];
+  const attack = vi.fn<ImprovReplaySound["attack"]>(() => {
+    const voice = { release: vi.fn(), started: started() }; voices.push(voice); return voice;
+  });
+  return { adapter: { attack, dispose: vi.fn() }, attack, voices };
+}
+function setup(started?: () => Promise<boolean>) { const c = clock(); const s = sound(started); return { ...c, ...s, engine: createImprovReplay(s.adapter, c.scheduler) }; }
+
+describe("explicit MIDI piano replay", () => {
+  it("does not play on construction, schedules leading silence, velocities and completion", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0x93, 60, 64], receivedAtMs: 200 }, { bytes: [0x83, 60, 10], receivedAtMs: 300 }]);
+    const s = setup(); expect(s.attack).not.toHaveBeenCalled(); const run = s.engine.play(loaded);
+    s.advance(99); expect(s.attack).not.toHaveBeenCalled(); s.advance(100);
+    expect(s.attack).toHaveBeenCalledWith({ pitch: 60, channel: 3, velocity: 64, gain: 64 / 127 });
+    s.advance(200); expect(s.voices[0].release).toHaveBeenCalledTimes(1); s.advance(400);
+    await expect(run.completion).resolves.toBe("completed"); expect(s.tasks.size).toBe(0);
+  });
+  it("preserves simultaneous chord attacks and overlapping pitch polyphony", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0x90, 60, 20], receivedAtMs: 100 }, { bytes: [0x90, 64, 60], receivedAtMs: 100 },
+      { bytes: [0x90, 60, 90], receivedAtMs: 100 }]);
+    const s = setup(); const run = s.engine.play(loaded);
+    expect(s.attack.mock.calls.map(([note]) => note.pitch)).toEqual([60, 64, 60]); expect(s.tasks.size).toBe(1);
+    s.advance(400); await expect(run.completion).resolves.toBe("completed"); expect(s.voices.every((v) => v.release.mock.calls.length === 1)).toBe(true);
+  });
+  it("uses FIFO for overlapping same-pitch release encodings", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0x90, 60, 20], receivedAtMs: 100 }, { bytes: [0x90, 60, 90], receivedAtMs: 100 },
+      { bytes: [0x90, 60, 0], receivedAtMs: 200 }, { bytes: [0x80, 60, 44], receivedAtMs: 300 }]);
+    const s = setup(); s.engine.play(loaded); s.advance(100);
+    expect(s.voices[0].release).toHaveBeenCalledTimes(1); expect(s.voices[1].release).not.toHaveBeenCalled();
+    s.advance(200); expect(s.voices[1].release).toHaveBeenCalledTimes(1); s.engine.stop();
+  });
+  it("pairs releases per channel without releasing another channel's pitch", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0x90, 60, 20], receivedAtMs: 100 }, { bytes: [0x91, 60, 90], receivedAtMs: 100 },
+      { bytes: [0x81, 60, 1], receivedAtMs: 200 }]);
+    const s = setup(); s.engine.play(loaded); s.advance(100);
+    expect(s.voices[0].release).not.toHaveBeenCalled(); expect(s.voices[1].release).toHaveBeenCalledTimes(1); s.engine.stop();
+  });
+  it("interprets CC64 >=64 conventionally while preserving repeated/intermediate evidence", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0xb1, 64, 64], receivedAtMs: 100 }, { bytes: [0x91, 60, 90], receivedAtMs: 100 },
+      { bytes: [0x81, 60, 1], receivedAtMs: 200 }, { bytes: [0xb1, 64, 90], receivedAtMs: 210 },
+      { bytes: [0xb1, 64, 90], receivedAtMs: 220 }, { bytes: [0xb1, 64, 63], receivedAtMs: 300 }]);
+    const before = structuredClone(loaded); const s = setup(); s.engine.play(loaded); s.advance(150);
+    expect(s.voices[0].release).not.toHaveBeenCalled(); s.advance(200); expect(s.voices[0].release).toHaveBeenCalledTimes(1);
+    s.advance(400); expect(loaded).toEqual(before);
+  });
+  it("pedal-up releases only deferred voices on its channel and keeps held keys sounding", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0xb0, 64, 127], receivedAtMs: 100 }, { bytes: [0x90, 60, 90], receivedAtMs: 100 },
+      { bytes: [0x90, 64, 90], receivedAtMs: 100 }, { bytes: [0x80, 60, 0], receivedAtMs: 150 },
+      { bytes: [0xb1, 64, 0], receivedAtMs: 200 }, { bytes: [0xb0, 64, 0], receivedAtMs: 300 }]);
+    const s = setup(); s.engine.play(loaded); s.advance(100); expect(s.voices[0].release).not.toHaveBeenCalled();
+    s.advance(200); expect(s.voices[0].release).toHaveBeenCalledTimes(1); expect(s.voices[1].release).not.toHaveBeenCalled(); s.engine.stop();
+  });
+  it("Stop releases held and sustained voices, cancels timers and is idempotent", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0xb0, 64, 127], receivedAtMs: 100 }, { bytes: [0x90, 60, 90], receivedAtMs: 100 },
+      { bytes: [0x80, 60, 0], receivedAtMs: 110 }, { bytes: [0x90, 64, 90], receivedAtMs: 120 }]);
+    const s = setup(); const run = s.engine.play(loaded); s.advance(20); run.stop(); run.stop(); s.engine.stop();
+    await expect(run.completion).resolves.toBe("cancelled"); expect(s.voices.every((v) => v.release.mock.calls.length === 1)).toBe(true);
+    expect(s.tasks.size).toBe(0); s.advance(1000); expect(s.attack).toHaveBeenCalledTimes(2);
+  });
+  it.each(["recording", "incomplete", "interrupted"] as const)("ends %s playback safely without modifying incomplete captures", async (mode) => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }], { mode }); const before = structuredClone(loaded);
+    const s = setup(); const run = s.engine.play(loaded); s.advance(400); await expect(run.completion).resolves.toBe("completed");
+    expect(s.voices[0].release).toHaveBeenCalledTimes(1); expect(loaded).toEqual(before);
+  });
+  it("empty takes retain duration, do not synthesize unknown initial keys/pedal and finish", async () => {
+    const { loaded } = await performanceFixture([], { end: 1000 }); const s = setup(); const run = s.engine.play(loaded);
+    s.advance(899); expect(s.attack).not.toHaveBeenCalled(); s.advance(900); await expect(run.completion).resolves.toBe("completed");
+  });
+  it("reports unrendered, malformed and unmatched messages without inventing voices", async () => {
+    const { loaded } = await performanceFixture([{ bytes: [0x80, 60, 1] }, { bytes: [0xc0, 2] }, { bytes: [0xf8] },
+      { bytes: [0x90, 60] }, { bytes: null, dataStatus: "unavailable" }]); const s = setup(); const run = s.engine.play(loaded); s.advance(400);
+    expect(s.attack).not.toHaveBeenCalled(); expect(run.ignored().map((e) => e.reason)).toEqual(["unmatched-release", "not-rendered-by-piano-replay", "unsupported", "malformed", "missing"]);
+  });
+  it("projects anomalous times without sorting or unbounded delays", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: NaN, sourceTimeStampMs: 200 }, { receivedAtMs: 150 }, { receivedAtMs: Infinity, sourceTimeStampMs: null }]);
+    const s = setup(); const run = s.engine.play(loaded); s.advance(100);
+    expect(s.attack).toHaveBeenCalledTimes(3); expect(run.timing.events.map((e) => e.atMs)).toEqual([100, 100, 100]); s.engine.stop();
+  });
+  it("replaces playback and ignores stale scheduled callbacks", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }, { receivedAtMs: 200 }]); const s = setup();
+    const one = s.engine.play(loaded); const stale = [...s.tasks][0].callback; const two = s.engine.play(loaded); stale();
+    await expect(one.completion).resolves.toBe("cancelled"); expect(s.attack).toHaveBeenCalledTimes(2); two.stop();
+  });
+  it("late start failure from a cancelled generation cannot cancel its replacement", async () => {
+    let finish!: (ok: boolean) => void; const s = setup(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }]); const one = s.engine.play(loaded); const oldFinish = finish;
+    const two = s.engine.play(loaded); oldFinish(false); await Promise.resolve(); expect(s.voices[1].release).not.toHaveBeenCalled();
+    finish(true); s.advance(400); await expect(one.completion).resolves.toBe("cancelled"); await expect(two.completion).resolves.toBe("completed");
+  });
+  it("failed or rejected audio startup ends the run and releases every voice", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }]); const s = setup(() => Promise.reject(new Error("blocked")));
+    const run = s.engine.play(loaded); await expect(run.completion).resolves.toBe("failed"); expect(s.voices[0].release).toHaveBeenCalledTimes(1); expect(s.tasks.size).toBe(0);
+  });
+  it("disposal is safe for Strict Mode setup/cleanup and new independent instances", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }]); const s = setup(); const run = s.engine.play(loaded);
+    s.engine.dispose(); s.engine.dispose(); await expect(run.completion).resolves.toBe("cancelled"); expect(s.adapter.dispose).toHaveBeenCalledTimes(1);
+    expect(() => s.engine.play(loaded)).toThrow(/disposed/); const next = setup(); next.engine.play(loaded); expect(next.attack).toHaveBeenCalledTimes(1); next.engine.dispose();
+  });
+  it("continues releasing other voices if one adapter release throws", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }, { bytes: [0x90, 64, 90], receivedAtMs: 100 }]); const s = setup(); const run = s.engine.play(loaded);
+    s.voices[0].release.mockImplementation(() => { throw new Error("voice failed"); }); run.stop();
+    await expect(run.completion).resolves.toBe("failed"); expect(s.voices[1].release).toHaveBeenCalledTimes(1);
+  });
+  it("fails safely if scheduling or the monotonic clock becomes unavailable", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }]); const s = sound();
+    const engine = createImprovReplay(s.adapter, { now: () => 0, after: () => { throw new Error("scheduler"); } });
+    await expect(engine.play(loaded).completion).resolves.toBe("failed"); expect(s.voices[0].release).toHaveBeenCalledTimes(1);
+  });
+  it("ends explicitly at the live voice limit, releases the prefix and never starts later attacks", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }, { receivedAtMs: 100 }, { receivedAtMs: 100 }, { receivedAtMs: 100 }]);
+    const c = clock(); const s = sound(); const engine = createImprovReplay(s.adapter, c.scheduler, { maxVoices: 2 });
+    const run = engine.play(loaded); await expect(run.completion).resolves.toBe("failed");
+    expect(s.attack).toHaveBeenCalledTimes(2); expect(s.voices.every((v) => v.release.mock.calls.length === 1)).toBe(true);
+    expect(run.ignored()).toContainEqual({ sequence: 3, reason: "replay-voice-limit" }); expect(loaded.record.committedEventWatermark).toBe(4);
+  });
+  it("naturally ended samples free voice capacity without inventing a captured release", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }, { receivedAtMs: 200 }]); const c = clock();
+    let end!: () => void;
+    const adapter = { attack: vi.fn(() => ({ started: Promise.resolve(true), release: vi.fn(), ended: new Promise<void>((done) => { end = done; }) })) };
+    const run = createImprovReplay(adapter, c.scheduler, { maxVoices: 1 }).play(loaded); end(); await Promise.resolve(); c.advance(100);
+    expect(adapter.attack).toHaveBeenCalledTimes(2); run.stop(); expect(loaded.chunks[0].events).toHaveLength(2);
+  });
+  it("a regressing scheduling clock ends safely instead of resuming a prior playback", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100 }]); const s = setup(); s.setNow(1000);
+    const run = s.engine.play(loaded); const stale = [...s.tasks][0].callback; s.setNow(500); stale();
+    await expect(run.completion).resolves.toBe("failed"); expect(s.voices[0].release).toHaveBeenCalledTimes(1);
+  });
+});

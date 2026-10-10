@@ -1,9 +1,10 @@
 import type { ImprovTakeMetadata } from "../improv-take";
 import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, immutableCopy, libraryError, sameEvidence,
   type ImprovCheckpoint, type ImprovCollection, type ImprovDeletedTake, type ImprovEventChunk,
-  type ImprovLibrary, type ImprovLoadedTake, type ImprovStoredTake } from "../improv-library";
+  type ImprovArchiveLibrary, type ImprovLoadedTake, type ImprovStoredTake, type ImprovCollectionEvidence } from "../improv-library";
+import { IMPROV_BACKUP_MAX_BYTES, requireImprovCollectionEvidence } from "../improv-backup";
 import { chunkAccountedBytes, connectionAccountedBytes, EMPTY_IMPROV_CONTINUITY, initialAccountedBytes,
-  integer, requireChunk, requireCollection, requireConnections, requireMetadata, requireTake,
+  integer, requireChunk, requireCollection, requireConnections, requireMetadata, requireTake, requireLoadedTake,
   usableId, validateEvents, wallTime } from "../improv-library-validation";
 
 export const IMPROV_DB_NAME = "prelude-improv";
@@ -13,7 +14,7 @@ type Read = <T>(request: IDBRequest<T>, next: (value: T) => void) => void;
 type TransactionWork<T> = (tx: IDBTransaction, read: Read, result: (value: T) => void) => void;
 
 /** All mutations share a transaction scope: allocation and writer fencing work across DB handles/tabs. */
-export class IndexedDbImprovLibrary implements ImprovLibrary {
+export class IndexedDbImprovLibrary implements ImprovArchiveLibrary {
   private opening: Promise<IDBDatabase> | null = null;
   private handle: IDBDatabase | null = null;
   private closed = false;
@@ -135,6 +136,7 @@ export class IndexedDbImprovLibrary implements ImprovLibrary {
       read(tx.objectStore("takes").get(capture.takeId), (prior) => {
         if (prior !== undefined) {
           const existing = this.take(prior);
+          if (existing.importedFrom) throw new ImprovLibraryError("owned");
           if (existing.collectionId !== collectionId || existing.writerToken !== writerToken
             || !sameEvidence(existing.capture.start, capture.start) || !sameEvidence(existing.capture.selectedInput, capture.selectedInput)
             || !sameEvidence(existing.capture.limits, capture.limits)) throw new ImprovLibraryError("collision");
@@ -161,6 +163,7 @@ export class IndexedDbImprovLibrary implements ImprovLibrary {
     const value = immutableCopy(request); requireMetadata(value.capture);
     return this.transaction("readwrite", (tx, read, result) => read(tx.objectStore("takes").get(value.takeId), (raw) => {
       const existing = this.take(raw);
+      if (existing.importedFrom) throw new ImprovLibraryError("owned"); // Imported evidence can never resume or accept writer retries.
       if (existing.writerToken !== value.writerToken || existing.status === "incomplete") throw new ImprovLibraryError("owned");
       const duplicate = existing.lastCommit?.operationId === value.operationId;
       if (duplicate) {
@@ -233,21 +236,8 @@ export class IndexedDbImprovLibrary implements ImprovLibrary {
           requireChunk(candidate, takeId, candidate.index);
         }
         values.sort((a, b) => Number((a as ImprovEventChunk).index) - Number((b as ImprovEventChunk).index));
-        let watermark = 0; let continuity = EMPTY_IMPROV_CONTINUITY; let bytes = initialAccountedBytes(record.capture);
-        values.forEach((chunk, index) => {
-          requireChunk(chunk, takeId, index);
-          if (chunk.startSequence !== watermark + 1) throw new ImprovLibraryError("corrupt");
-          continuity = validateEvents(chunk.events, record.capture, watermark, continuity);
-          const size = chunkAccountedBytes(chunk.events);
-          if (size > L.chunkBytes && chunk.events.length !== 1) throw new ImprovLibraryError("corrupt");
-          bytes += size; watermark = chunk.endSequence;
-        });
-        bytes += record.connections.reduce((sum, c) => sum + connectionAccountedBytes(c), 0);
-        if (watermark !== record.committedEventWatermark || bytes !== record.committedAccountedBytes
-          || !sameEvidence(continuity, record.continuity)
-          || (watermark === record.capture.eventWatermark && (continuity.lastTransportSequence !== record.capture.lastTransportSequence
-            || (record.connections.length === record.capture.connectionCount && bytes !== record.capture.accountedBytes)))) throw new ImprovLibraryError("corrupt");
-        result({ record, chunks: values as ImprovEventChunk[] });
+        const loaded = { record, chunks: values as ImprovEventChunk[] };
+        requireLoadedTake(loaded); result(loaded);
       });
     });
   }
@@ -255,6 +245,70 @@ export class IndexedDbImprovLibrary implements ImprovLibrary {
     return this.transaction("readonly", (tx, read, result) => read(tx.objectStore("takes").get(takeId), (value) => {
       this.readEvidence(tx, read, this.take(value), result);
     }));
+  }
+  /** One readonly transaction provides an internally consistent, bounded backup, even during capture. */
+  exportCollection(collectionId: string): Promise<ImprovCollectionEvidence> {
+    return this.transaction("readonly", (tx, read, result) => read(tx.objectStore("collections").get(collectionId), (raw) => {
+      const collection = this.collection(raw);
+      read(tx.objectStore("takes").index("collectionId").getAll(collectionId, L.takesPerCollection + 1), (values: unknown[]) => {
+        if (values.length > L.takesPerCollection) throw new ImprovLibraryError("limit");
+        values.forEach(requireTake);
+        const ordered = (values as (ImprovStoredTake | ImprovDeletedTake)[]).sort((a, b) => a.number - b.number);
+        if (ordered.reduce((sum, t) => sum + (t.kind === "take" ? t.committedAccountedBytes : 0), 0) > IMPROV_BACKUP_MAX_BYTES) throw new ImprovLibraryError("limit");
+        const takes: (ImprovLoadedTake | ImprovDeletedTake)[] = [];
+        const next = (index: number) => {
+          if (index === ordered.length) { const evidence = { collection, takes }; requireImprovCollectionEvidence(evidence); result(evidence); return; }
+          const item = ordered[index];
+          if (item.kind === "deleted-take") { takes.push(item); next(index + 1); }
+          else this.readEvidence(tx, read, item, (loaded) => { takes.push(loaded); next(index + 1); });
+        };
+        next(0);
+      });
+    }));
+  }
+  /** All-or-nothing new history; no merging, promotion, number reuse, live ownership or DB migration. */
+  async importCollection(source: ImprovCollectionEvidence, createId: () => string = () => crypto.randomUUID()): Promise<ImprovCollection> {
+    requireImprovCollectionEvidence(source);
+    const evidence = immutableCopy(source);
+    const collectionId = createId(); const takeIds = evidence.takes.map(() => createId());
+    if (![collectionId, ...takeIds].every(usableId) || new Set([collectionId, ...takeIds]).size !== takeIds.length + 1) return Promise.reject(new ImprovLibraryError("collision"));
+    return this.transaction("readwrite", (tx, read, result) => {
+      const now = this.now();
+      const collection: ImprovCollection = { ...evidence.collection, collectionId, firstTakeId: takeIds[0] ?? null,
+        revision: 1, createdAtMs: now, updatedAtMs: now, importedFrom: evidence.collection.importedFrom ?? evidence.collection };
+      requireCollection(collection);
+      const entries = evidence.takes.map((item, index) => {
+        const takeId = takeIds[index];
+        if ("kind" in item) {
+          const record: ImprovDeletedTake = { ...item, takeId, collectionId, importedFrom: item.importedFrom ?? item };
+          requireTake(record); return { record, chunks: [] };
+        }
+        const original = item.record;
+        const record: ImprovStoredTake = { ...original, takeId, collectionId, writerToken: "imported-no-writer",
+          status: original.status === "recording" ? "incomplete" : original.status, lease: null, revision: 1, lastCommit: null,
+          recovery: original.status === "recording" ? { reason: "imported-prefix", inferredAtMs: now } : original.recovery,
+          importedFrom: original.importedFrom ?? original };
+        const loaded = { record, chunks: item.chunks.map((chunk) => ({ ...chunk, takeId })) };
+        requireLoadedTake(loaded); return loaded;
+      });
+      const collections = tx.objectStore("collections"); const takes = tx.objectStore("takes");
+      read(collections.get(collectionId), (prior) => {
+        if (prior !== undefined) throw new ImprovLibraryError("collision");
+        read(collections.count(), (count) => {
+          if (count >= L.collections) throw new ImprovLibraryError("limit");
+          const check = (index: number) => {
+            if (index !== takeIds.length) {
+              read(takes.get(takeIds[index]), (existing) => { if (existing !== undefined) throw new ImprovLibraryError("collision"); check(index + 1); });
+              return;
+            }
+            collections.add(collection);
+            entries.forEach((entry) => { takes.add(entry.record); entry.chunks.forEach((chunk) => tx.objectStore("eventChunks").add(chunk)); });
+            result(collection);
+          };
+          check(0);
+        });
+      });
+    });
   }
   async listTakes(collectionId: string, afterNumber = 0, limit = 50): Promise<readonly (ImprovStoredTake | ImprovDeletedTake)[]> {
     this.page(afterNumber, limit);
@@ -317,7 +371,9 @@ export class IndexedDbImprovLibrary implements ImprovLibrary {
               number: take.number, deletedAtMs: now } satisfies ImprovDeletedTake);
           });
         });
-        tx.objectStore("collections").put({ ...collection, title: "Deleted collection", deletedAtMs: now, updatedAtMs: now, revision: collection.revision + 1 });
+        const tombstone = { ...collection, title: "Deleted collection", deletedAtMs: now, updatedAtMs: now, revision: collection.revision + 1 };
+        delete tombstone.importedFrom;
+        tx.objectStore("collections").put(tombstone);
         result(undefined);
       });
     }));
