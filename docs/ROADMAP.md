@@ -1,6 +1,6 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026. Current pending package/application version: **2.9.8**; 2.9.7 is committed. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
+> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026, with the six-phase Improv capture direction subsequently approved. Current pending package/application version: **2.9.9**; 2.9.8 is committed at c0825e8. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
 Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
 
@@ -36,15 +36,26 @@ The former numbered Harmony, Musicianship, Guided Lessons, Lesson Builder, Playb
 
 Owner-observed violin use now prioritizes: **2.9.0 Acoustic Piece Practice → Instrument Calibration / Acoustic Analysis → Instrument Learning Visualizers → later Intonation Search / Practice Coach → Improv**.
 
-Stage 1A/1B/1D is implemented provisionally from 2.9.1: violin G3/D4/A4/E5 preflight (now short-pluck calibration policy v3) plus transient bounded scalar JSON export. Local performance recording is implemented for violin/ocarina in 2.9.4 and piano MIDI in committed 2.9.5. Stage 2 violin first-position guidance is committed in 2.9.6 through presentation-only instrument pitch context; committed 2.9.7 keeps playing feedback and notation high. Owner-approved pending 2.9.8 adds the [Standard 12-hole Alto C provisional fingering profile](./OCARINA_FINGERING.md), limited to thirteen supplied natural concert pitches, with independent expected/live guidance. Physical threshold/device and diagram QA remain pending. The suspected Huazzzyi ZO-1's manufacturer chart and subhole layout are still unverified; manufacturer-specific/chromatic additions and ocarina calibration remain deferred. Intonation Search/Practice Coach requires a separate approved learning-semantics plan; current mistake semantics are unchanged. Microphone Staff Builder authoring remains behind the instrument-learning stages. The numbered continuing threads below are not a strict delivery order.
+Stage 1A/1B/1D is implemented provisionally from 2.9.1: violin G3/D4/A4/E5 preflight (now short-pluck calibration policy v3) plus transient bounded scalar JSON export. Local performance recording is implemented for violin/ocarina in 2.9.4 and piano MIDI in committed 2.9.5. Stage 2 violin first-position guidance is committed in 2.9.6 through presentation-only instrument pitch context; committed 2.9.7 keeps playing feedback and notation high. Committed 2.9.8 adds the [Standard 12-hole Alto C provisional fingering profile](./OCARINA_FINGERING.md), limited to thirteen supplied natural concert pitches, with independent expected/live guidance. Physical threshold/device and diagram QA remain pending. The suspected Huazzzyi ZO-1's manufacturer chart and subhole layout are still unverified; manufacturer-specific/chromatic additions and ocarina calibration remain deferred. Intonation Search/Practice Coach requires a separate approved learning-semantics plan; current mistake semantics are unchanged. Microphone Staff Builder authoring remains behind the instrument-learning stages. The numbered continuing threads below are not a strict delivery order.
 
 ## 1. Improv / Creative Exploration
 
-**Status:** FOLLOWS THE INSTRUMENT-LEARNING SEQUENCE; permanent creative thread.
+**Status:** PHASE 1 RAW MIDI TRANSPORT IMPLEMENTED IN PENDING 2.9.9; no usable Improv workspace yet. Permanent creative thread.
 
 **Purpose:** Help players invent, explore, compare and develop musical ideas. Free Play observes and helps understand what is played; Piece Practice helps learn existing music; Guided Studies teach concepts; Improv supports invention and experimentation.
 
-**Likely next milestone:** A bounded MIDI/VKB experience with key/scale context, constrained exploration, helpful musical guidance and obvious value beyond ordinary Free Play.
+**Approved direction:** Uninterrupted first-attempt sight-reading from physical books and free improvisation, sharing capture infrastructure. Physical scores need not be entered into Staff Builder. Without a reference score, review is descriptive and never invents note/rhythm accuracy grades.
+
+| Phase | Scope and current status |
+| --- | --- |
+| 1. Raw MIDI Capture Foundation | Implemented transport only: copied raw bytes, browser/receipt timing, delivery order, source metadata/availability and optional raw-source selection through the existing owner. Current normalized consumers remain unchanged. |
+| 2. Performance Journal | Future immutable unquantized event history, take boundaries, continuity and interruption policies. |
+| 3. Persistent Local Take Library | Required MVP: named pieces/improvisation sessions, protected original first take, numbered subsequent takes, explicit deletion, storage failure and recovery. Browser-local retention is not guaranteed permanent. |
+| 4. Playback and Exports | Future replay and MIDI/JSON backup/export, preserving raw evidence separately from rendering. |
+| 5. Improv Workspace | Future playing-first controls, live music, review and library for both activities. |
+| 6. Optional Room Audio Recording | Future explicit opt-in temporary/downloadable room audio; no permanent audio storage requirement. |
+
+Only Phase 1 implementation is authorized by the current ticket. Later phases require bounded plans/approval. Key/scale context can aid display; it never corrects, transposes or discards captured notes. Harmony coaching, composition analysis and broader Flow remain later work.
 
 **Dependencies:** Existing theory, spelling, notation, input and playback where their semantics fit. Microphone support is not a prerequisite.
 
@@ -90,7 +101,7 @@ Studies own the teaching journey. Native feature domains continue owning renderi
 
 ## 4. Microphone Instruments / Instrument-Aware Tuner
 
-**Status:** TUNER MVP COMPLETE; VIOLIN FIRST-POSITION GUIDE COMMITTED IN 2.9.6; PROVISIONAL STANDARD OCARINA GUIDE IMPLEMENTED IN PENDING 2.9.8; permanent thread.
+**Status:** TUNER MVP COMPLETE; VIOLIN FIRST-POSITION GUIDE COMMITTED IN 2.9.6; PROVISIONAL STANDARD OCARINA GUIDE COMMITTED IN 2.9.8; permanent thread.
 
 **Purpose:** Connect a detected or target pitch to useful instrument guidance while preserving measurement uncertainty.
 
