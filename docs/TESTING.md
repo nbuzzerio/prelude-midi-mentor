@@ -1,8 +1,24 @@
 # Prelude: MIDI Mentor — Testing
 
-Current pending package/application version is **2.9.9**; 2.9.8 is committed at c0825e8. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
+Current pending package/application version is **2.9.10**; 2.9.9 is committed at a3f457a. Test inventories below describe coverage; historical counts are labeled as historical. Report exact files/tests from a fresh `pnpm verify` in each validation handoff rather than treating an older count as current. Implementation, automated validation and physical support evidence are separate facts; the [rolling roadmap](./ROADMAP.md) preserves physical QA as a continuing lane.
 
-## Raw MIDI transport Phase 1 (pending 2.9.9)
+## Improv performance journal Phase 2 (pending 2.9.10)
+
+`features/improv/improv-take-recorder.test.ts` covers explicit Start/Stop including empty takes and silence, first terminal boundary/idempotence, rejected transitions and no implicit resume, new-controller identity, unknown initial keys/controllers and no fabricated releases. Deterministic raw fixtures cover channels/velocities, both release encodings, chords/repeated/unmatched notes, all 128 CC64 values with repeats, other/system/malformed/unavailable messages, equal/regressing/nonfinite/negative timestamps, unverified clock domains and numeric pre-Start/post-Stop relations. Deeply frozen snapshots remain independent of caller mutations and subsequent appends.
+
+Selected-source exclusion, separate disconnect observations, reconnect without fallback/resume, caller-reported lifecycle loss, clock/owner mismatches and non-advancing transport sequence are covered. Exact event/byte boundaries and oversized metadata/message/connection failure preserve the prefix without eviction. Bounded immutable cursor reads preserve contiguous take-local sequence separately from owner sequence gaps and do not imply durable save acknowledgment. No browser listener, recorder UI or storage is mounted; real selected-input readiness, visibility/owner-loss wiring, allocator pressure and hardware throughput require later integration/hardware testing.
+
+Run the journal and Phase 1 compatibility suites with existing dependencies only:
+
+```powershell
+$env:pnpm_config_verify_deps_before_run='false'
+pnpm.cmd exec vitest run src/features/improv/improv-take-recorder.test.ts src/hooks/use-midi.test.ts src/components/midi/midi-provider.test.tsx src/components/midi/midi-raw-input.test.tsx
+pnpm.cmd verify
+```
+
+The command-local pnpm setting prevents its automatic pre-run dependency-install path; it does not change repository configuration or bypass Husky. Final Phase 2 validation passes **4 focused files / 128 tests**: journal 74, raw input 21, provider 9 and useMidi 24. Full `pnpm verify` passes **237 files / 3,168 tests**, lint, type-check and build. Only existing acoustic-input cleanup-ref lint, jsdom Canvas and large-bundle warnings remain; no new warnings/regressions. Logs: `.dev/improv-phase2-focused.log`, its JSON report and `.dev/improv-phase2-verify.log`. Browser-local persistence and nonfinite-safe exports remain future contracts, not tested implementations.
+
+## Raw MIDI transport Phase 1 (committed 2.9.9)
 
 `components/midi/midi-raw-input.test.tsx` mounts the real shared provider/owner with deterministic MIDI ports and clocks. It covers frozen copied bytes and source metadata, receipt observation before data access, channel/velocity and both release encodings, all 128 CC64 values plus repetitions, repeated notes and equal/regressing timestamps, system/short/non-note messages, missing/unreadable/truncated/malformed payloads and anomalous timestamps. It checks single-source raw filtering alongside unchanged aggregate normalized behavior, availability loss without substitution, hotplug/reconnect, unavailable identities, current callbacks/selection, consumer replacement/unmount, stale attachment callbacks, Strict Mode, permission failure/retry and late permission completion. High-frequency non-note delivery does not rerender the consumer/context. Existing provider/useMidi, MIDI Diagnostic, Free Play, Melody and Piece Practice suites remain regression coverage; physical timestamp fidelity, high-rate hardware input and browser-specific device identity remain unverified. This is transport coverage, not evidence of an implemented recorder, permanent take storage or acoustic accuracy.
 
