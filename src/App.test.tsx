@@ -90,6 +90,8 @@ vi.mock("./components/midi/midi-diagnostic", () => ({
 
 describe("App focus mode", () => {
   it("excludes Improv while the retained hosted Practice Session is active", async () => {
+    // Await the actual lazy module; cold feature compilation is not an exclusion timeout.
+    await import("./features/improv/components/improv-workspace");
     render(<App />); fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
     fireEvent.click(screen.getByRole("button", { name: "Start hosted test run" })); fireEvent.click(screen.getByRole("button", { name: "Improv" }));
     expect(await screen.findByText(/Finish or end the active Practice Session/)).toBeTruthy();

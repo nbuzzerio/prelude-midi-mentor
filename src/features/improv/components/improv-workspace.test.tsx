@@ -68,7 +68,111 @@ async function stop() { fireEvent.click(screen.getByRole("button", { name: "Stop
 async function records() { const collection = (await library.listCollections())[0]; return library.listTakes(collection.collectionId); }
 function unload() { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; }
 
+class RoomRecorder {
+  static instances: RoomRecorder[] = []; static finalize = true;
+  static isTypeSupported = (mime: string) => mime === "audio/webm;codecs=opus";
+  state: RecordingState = "inactive"; mimeType = "audio/webm;codecs=opus";
+  onstart: ((e: Event) => void) | null = null; onstop: ((e: Event) => void) | null = null;
+  onerror: ((e: Event) => void) | null = null; ondataavailable: ((e: BlobEvent) => void) | null = null;
+  constructor() { RoomRecorder.instances.push(this); }
+  start() { this.state = "recording"; queueMicrotask(() => this.onstart?.(new Event("start"))); }
+  stop() { this.state = "inactive"; if (RoomRecorder.finalize) queueMicrotask(() => this.finish()); }
+  finish() { this.ondataavailable?.({ data: new Blob(["room sound"], { type: this.mimeType }) } as BlobEvent); this.onstop?.(new Event("stop")); }
+}
+function roomBrowser(request?: MediaDevices["getUserMedia"]) {
+  RoomRecorder.instances = []; RoomRecorder.finalize = true;
+  const track = Object.assign(new EventTarget(), { readyState: "live", muted: false, stop: vi.fn() });
+  const stream = { getTracks: () => [track], getAudioTracks: () => [track] } as unknown as MediaStream;
+  const getUserMedia = request ?? vi.fn(async () => stream);
+  vi.stubGlobal("isSecureContext", true); vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+  vi.stubGlobal("MediaRecorder", RoomRecorder);
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  return { track, stream, getUserMedia };
+}
+async function prepareRoom() {
+  fireEvent.click(screen.getByLabelText("Record room audio with this take"));
+  fireEvent.click(screen.getByRole("button", { name: "Prepare room microphone" }));
+  await screen.findByText("Microphone ready. Press Start Take.");
+}
+
 describe("playing-first Improv workspace", () => {
+  it("keeps MIDI-only default permission-free, including under Strict Mode", async () => {
+    const room = roomBrowser(); mount({ strict: true }); await setup(); await start(); send(); await stop();
+    expect(room.getUserMedia).not.toHaveBeenCalled(); expect(RoomRecorder.instances).toHaveLength(0);
+  });
+  it("records/finalizes room audio independently, protects replacement, and keeps it out of JSON", async () => {
+    const room = roomBrowser(); mount({ strict: true }); await setup(); await prepareRoom(); expect(await records()).toEqual([]);
+    await start(); send(); RoomRecorder.finalize = false; await stop();
+    expect(screen.getByText("Saved locally")).toBeTruthy(); expect(screen.queryByLabelText("Preview room audio")).toBeNull();
+    await act(async () => RoomRecorder.instances[0].finish()); await screen.findByLabelText("Preview room audio");
+    expect(room.getUserMedia).toHaveBeenCalledOnce(); expect(room.track.stop).toHaveBeenCalledOnce();
+    expect((screen.getByRole("button", { name: "Start Take" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText("Piece") as HTMLSelectElement).disabled).toBe(true); expect(unload()).toBe(true);
+    const history = await library.exportCollection((await library.listCollections())[0].collectionId);
+    expect(encodeImprovBackup(history)).not.toMatch(/room sound|blob:improv|audio\/webm/);
+    fireEvent.click(screen.getByRole("button", { name: "Download room audio" })); expect(unload()).toBe(true);
+    vi.spyOn(window, "confirm").mockReturnValue(true); fireEvent.click(screen.getByRole("button", { name: "Discard temporary audio" }));
+    await waitFor(() => expect(unload()).toBe(false));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Start Take" }) as HTMLButtonElement).disabled).toBe(false)); await start(); await stop();
+    expect(room.getUserMedia).toHaveBeenCalledOnce(); expect((await records()).map(t => t.number)).toEqual([1, 2]);
+  });
+  it("denied preparation consumes no take, and requires an explicit MIDI-only choice", async () => {
+    roomBrowser(vi.fn(async () => { throw Object.assign(new Error("denied"), { name: "NotAllowedError" }); })); mount(); await setup();
+    fireEvent.click(screen.getByLabelText("Record room audio with this take")); fireEvent.click(screen.getByRole("button", { name: "Prepare room microphone" }));
+    await screen.findAllByText(/Microphone permission denied/); expect(await records()).toEqual([]);
+    expect((screen.getByRole("button", { name: "Start Take" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Use MIDI only / Cancel audio" })); await start(); await stop(); expect((await records())[0].number).toBe(1);
+  });
+  it("cancels pending permission on selected device loss without allocating Take 1", async () => {
+    let resolve!: (stream: MediaStream) => void; const room = roomBrowser(vi.fn(() => new Promise<MediaStream>(r => { resolve = r; })));
+    mount(); await setup(); fireEvent.click(screen.getByLabelText("Record room audio with this take")); fireEvent.click(screen.getByRole("button", { name: "Prepare room microphone" }));
+    act(() => midi.options?.onInputConnectionChange?.({ provenance: "input-availability", input: { id: "piano", name: "Room piano" }, state: "disconnected", receivedAtMs: 100 }));
+    await act(async () => resolve(room.stream)); expect(room.track.stop).toHaveBeenCalledOnce(); expect(await records()).toEqual([]);
+  });
+  it.each(["pagehide", "freeze", "visibilitychange", "device", "consumer"])("ends room capture on %s and never resumes", async reason => {
+    const room = roomBrowser(); const view = mount(); await setup(); await prepareRoom(); await start(); send();
+    if (reason === "device") act(() => midi.options?.onInputConnectionChange?.({ provenance: "input-availability", input: { id: "piano", name: "Room piano" }, state: "disconnected", receivedAtMs: 100 }));
+    else if (reason === "consumer") {
+      function Competitor() { useAppMidiInput({ onNotePlayed: vi.fn() }); return null; }
+      view.rerender(<MidiProvider><ImprovWorkspace library={library} onGuardChange={setGuard} /><Competitor /></MidiProvider>);
+    } else act(() => { if (reason === "visibilitychange") Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }); (reason === "pagehide" ? window : document).dispatchEvent(new Event(reason)); });
+    await screen.findByLabelText("Preview room audio"); expect(room.track.stop).toHaveBeenCalledOnce();
+    expect((await library.loadTake((await records())[0].takeId)).record.status).toBe("interrupted"); expect(RoomRecorder.instances).toHaveLength(1);
+  });
+  it("retains audio departure protection after MIDI has been safely saved", async () => {
+    roomBrowser(); mount(); await setup(); await prepareRoom(); await start(); send(); await stop(); await screen.findByLabelText("Preview room audio");
+    const proceed = vi.fn(); act(() => guard?.(proceed)); await screen.findByRole("dialog"); expect(proceed).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Stop / Retry Save and Leave" })); await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(proceed).not.toHaveBeenCalled(); expect(unload()).toBe(true);
+    act(() => guard?.(proceed)); fireEvent.click(screen.getByRole("button", { name: "Leave Without Saving" })); expect(proceed).toHaveBeenCalledOnce();
+  });
+  it("releases tracks and preview resources on actual unmount", async () => {
+    const room = roomBrowser(); const view = mount({ strict: true }); await setup(); await prepareRoom(); await start();
+    view.unmount(); await act(async () => { await Promise.resolve(); }); expect(room.track.stop).toHaveBeenCalledOnce();
+  });
+  it("keeps MIDI recording after a microphone failure", async () => {
+    const room = roomBrowser(); mount(); await setup(); await prepareRoom(); await start();
+    act(() => RoomRecorder.instances[0].onerror?.(new Event("error"))); await waitFor(() => expect(room.track.stop).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Stop Take" })).toBeTruthy(); send(); await stop();
+    expect((await library.loadTake((await records())[0].takeId)).record.committedEventWatermark).toBe(1);
+  });
+  it("allocates one take/recorder despite rapid repeated Start and Stop", async () => {
+    const room = roomBrowser(); mount(); await setup(); await prepareRoom();
+    const startButton = screen.getByRole("button", { name: "Start Take" }); fireEvent.click(startButton); fireEvent.click(startButton);
+    const stopButton = await screen.findByRole("button", { name: "Stop Take" }); send(); fireEvent.click(stopButton); fireEvent.click(stopButton);
+    await screen.findByText("Saved locally"); await screen.findByLabelText("Preview room audio");
+    expect(await records()).toHaveLength(1); expect(RoomRecorder.instances).toHaveLength(1); expect(room.track.stop).toHaveBeenCalledOnce();
+  });
+  it("stops room audio when the MIDI unsaved-backlog limit terminates capture", async () => {
+    const room = roomBrowser(); mount(); await setup(); await prepareRoom(); await start();
+    await waitFor(async () => expect((await records())[0]?.number).toBe(1)); fake.commitError = "QuotaExceededError";
+    act(() => { for (let i = 0; i < 2049; i++) midi.options?.onRawMessage?.({ provenance: "browser-midi-message", input: { id: "piano", name: "Room piano" },
+      sequence: ++sequence, bytes: [0xb0, 64, 37], dataStatus: "available", sourceTimeStampMs: 100, receivedAtMs: 100 }); });
+    await screen.findByLabelText("Preview room audio"); expect(room.track.stop).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Stop Take" })).toBeNull(); fireEvent.click(await screen.findByRole("button", { name: "Retry Save" }));
+    await screen.findByText(/Interrupted.*captured prefix saved locally/);
+    expect((await library.loadTake((await records())[0].takeId)).record.committedEventWatermark).toBe(2048);
+  });
   it("clears the live staff on Stop and ignores later notes until a new take starts", async () => {
     mount(); await setup(); await start(); send(); await screen.findByText("C4"); await stop();
     send([0x90, 64, 90]); await screen.findByText("No held notes");

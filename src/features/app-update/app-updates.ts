@@ -107,6 +107,16 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Named browser-local collections preserve the original first take and numbered later attempts, with confirmed saves, descriptive review and approximate piano replay.",
     "Download MIDI projections or full JSON collection backups; restore backups into separate histories. Browser storage can be cleared or evicted. Room audio is still deferred.",
   ],
+}, {
+  id: "2026-10-10-improv-room-audio",
+  sequence: 10,
+  title: "Record the sound of your piano in Improv",
+  date: "2026-10-10",
+  version: "2.9.14",
+  changes: [
+    "Record microphone sound alongside Improv MIDI, off by default. Preview/download temporary audio in the browser's format; alignment is approximate.",
+    "Audio is not permanently stored or included in MIDI/JSON backups. MIDI stays browser-local, subject to eviction. No accuracy grading; physical audio fidelity still needs testing.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

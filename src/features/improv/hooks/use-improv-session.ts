@@ -10,7 +10,8 @@ function captureClock(initial: ImprovCaptureContext) {
   return { current: () => context, renewOwner: () => { context = { ...context, ownerId: createId() }; },
     observe: () => ({ atMs: performance.now(), context }) };
 }
-export function useImprovSession(library: ImprovArchiveLibrary, onBackground: () => void) {
+export function useImprovSession(library: ImprovArchiveLibrary, onBackground: () => void,
+  audio?: Readonly<{ onTerminal: () => void; needsGuard: () => boolean }>) {
   const [initialContext] = useState(() => ({ ownerId: createId(), clockId: createId(), timeOriginMs: performance.timeOrigin ?? null }));
   const [clock] = useState(() => captureClock(initialContext)); const ownerRef = useRef(false); const availability = useRef(new Map<string, boolean>());
   const [session] = useState(() => createImprovWorkspaceSession({ library, createId,
@@ -19,9 +20,15 @@ export function useImprovSession(library: ImprovArchiveLibrary, onBackground: ()
   const [ownerActive, setOwnerActive] = useState(false);
   const [display, setDisplay] = useState(() => ({ save: session.state(), pitches: [] as number[], elapsedSeconds: 0, heldVersion: -1 }));
   const lifetime = useRef(0); const backgroundRef = useRef(onBackground);
+  const audioRef = useRef(audio);
+  const notifiedTerminal = useRef<string | null>(null);
+  useEffect(() => { audioRef.current = audio; }, [audio]);
   useEffect(() => { backgroundRef.current = onBackground; }, [onBackground]);
   const sync = useCallback(() => {
     const metadata = session.metadata(); const save = session.state();
+    if ((save.captureStatus === "completed" || save.captureStatus === "interrupted") && save.takeId !== notifiedTerminal.current) {
+      notifiedTerminal.current = save.takeId; audioRef.current?.onTerminal();
+    }
     const end = metadata?.terminal?.boundary.observation.atMs ?? performance.now();
     const elapsed = metadata ? Math.floor((end - metadata.start.observation.atMs) / 1000) : 0;
     const elapsedSeconds = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
@@ -31,12 +38,13 @@ export function useImprovSession(library: ImprovArchiveLibrary, onBackground: ()
   }, [session]);
   const midi = useAppMidiInput({
     rawInputId: selectedInputId,
-    onRawMessage: (message) => { session.append(message, clock.current()); },
-    onInputConnectionChange: (change) => { if (change.input.id) availability.current.set(change.input.id, change.state === "connected"); session.connection(change, clock.current()); },
+    onRawMessage: (message) => { const wasRecording = session.state().captureStatus === "recording"; session.append(message, clock.current()); if (wasRecording && session.state().captureStatus !== "recording") audioRef.current?.onTerminal(); },
+    onInputConnectionChange: (change) => { if (change.input.id) availability.current.set(change.input.id, change.state === "connected"); session.connection(change, clock.current()); if (change.state === "disconnected" && change.input.id === selectedInputId) audioRef.current?.onTerminal(); },
     onOwnershipChange: (active) => {
       ownerRef.current = active;
       if (active) clock.renewOwner();
       else if (session.state().captureStatus === "recording") void session.interrupt("consumer-lost");
+      if (!active) audioRef.current?.onTerminal();
       setOwnerActive(active);
     },
   });
@@ -53,7 +61,7 @@ export function useImprovSession(library: ImprovArchiveLibrary, onBackground: ()
     const hidden = () => { if (document.visibilityState === "hidden") interrupt("background"); };
     const freeze = () => interrupt("freeze"); const pagehide = () => interrupt("pagehide");
     const unload = (event: BeforeUnloadEvent) => {
-      if (session.needsGuard()) { event.preventDefault(); event.returnValue = ""; }
+      if (session.needsGuard() || audioRef.current?.needsGuard()) { event.preventDefault(); event.returnValue = ""; }
     };
     document.addEventListener("visibilitychange", hidden); document.addEventListener("freeze", freeze);
     window.addEventListener("pagehide", pagehide); window.addEventListener("beforeunload", unload);
@@ -72,7 +80,7 @@ export function useImprovSession(library: ImprovArchiveLibrary, onBackground: ()
     if (!ownerRef.current || !input || availability.current.get(selectedInputId) === false || document.visibilityState === "hidden") throw new Error("Select an available physical MIDI input in the foreground before starting.");
     session.start(collection, input, clock.current()); sync();
   };
-  const stop = async () => { const pending = session.stop(); sync(); const state = await pending; sync(); return state; };
+  const stop = async () => { const pending = session.stop(); audioRef.current?.onTerminal(); sync(); const state = await pending; sync(); return state; };
   const retry = async () => { const pending = session.retry(); sync(); const state = await pending; sync(); return state; };
   const resetCompleted = () => { session.resetCompleted(); sync(); };
   return { midi, selectedInputId, selectedInput, ownerActive, selectInput, session, display, start, stop, retry, resetCompleted };
