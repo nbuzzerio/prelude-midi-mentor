@@ -127,6 +127,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Open Study View directly from a saved piece in the library, with full-sheet notation and printing.",
     "Lock Editing keeps the score and pending pitches read-only while your piano remains connected. Unlock to resume; opening another piece starts unlocked.",
   ],
+}, {
+  id: "2026-10-11-improv-rolling-staff",
+  sequence: 12,
+  title: "See recent playing in Improv",
+  date: "2026-10-11",
+  version: "2.9.16",
+  changes: [
+    "Improv now keeps recent notes on a scrolling grand staff with a blue elapsed-time playhead and key-down duration trails.",
+    "Reopen saved takes and explore earlier or later time windows. This is observed MIDI performance, not automatically transcribed or rhythmically validated sheet music.",
+    "Optional room audio remains temporary until downloaded and is not included in MIDI or JSON backups.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

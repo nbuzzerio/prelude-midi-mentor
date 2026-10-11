@@ -4,6 +4,7 @@ import { decodeImprovMessage } from "./improv-performance";
 import { createImprovTakeRecorder } from "./improv-take-recorder";
 import { createImprovTakePersistence, type ImprovSaveState } from "./improv-take-persistence";
 import type { ImprovCaptureContext, ImprovInterruptionReason, ImprovObservation } from "./improv-take";
+import { createImprovTimeline, type ImprovTimeline } from "./improv-timeline";
 
 /** Coordinates one attempt; React never owns the raw journal or committed watermark. */
 export function createImprovWorkspaceSession(options: Readonly<{
@@ -13,6 +14,7 @@ export function createImprovWorkspaceSession(options: Readonly<{
   let recorder: ReturnType<typeof createImprovTakeRecorder> | null = null;
   let collectionId: string | null = null;
   let selectedInputId: string | null = null;
+  let timeline: ImprovTimeline | null = null;
   const held = new Map<string, number>(); let heldVersion = 0;
   const idle: ImprovSaveState = Object.freeze({ storageStatus: "idle", captureStatus: "idle", takeId: null, number: null,
     committedEventWatermark: 0, pendingEventCount: 0, pendingAccountedBytes: 0, pendingConnections: 0, failure: null, captureFailure: null });
@@ -21,9 +23,10 @@ export function createImprovWorkspaceSession(options: Readonly<{
   const clearHeld = () => { if (held.size) { held.clear(); heldVersion++; } };
   return Object.freeze({
     state, needsGuard, collectionId: () => collectionId, heldVersion: () => heldVersion,
+    timeline: () => { const metadata = recorder?.metadata(); if (metadata) timeline?.finishCapture(metadata); return timeline; },
     resetCompleted() {
       if (needsGuard()) return false;
-      capture = null; recorder = null; collectionId = null;
+      capture = null; recorder = null; collectionId = null; timeline = null;
       return true;
     },
     selectInput(id: string | null) { if (id !== selectedInputId) { selectedInputId = id; clearHeld(); } },
@@ -38,12 +41,19 @@ export function createImprovWorkspaceSession(options: Readonly<{
       clearHeld();
       const result = capture.start(input, { atMs: options.observe().atMs, context });
       if (!result.ok) throw new Error("The take could not start. Check the MIDI source and clock.");
+      timeline = createImprovTimeline(recorder.metadata()!.start.observation.atMs);
+      timeline.finishCapture(recorder.metadata()!);
       return state();
     },
     append(message: RawMidiMessage, context: ImprovCaptureContext) {
       if (message.input.id !== selectedInputId) return;
       if (!capture || state().captureStatus !== "recording") { clearHeld(); return; }
       const result = capture.append(message, context);
+      if (result.ok) {
+        const event = recorder!.readEvents(result.eventWatermark - 1, 1)[0];
+        if (event) timeline?.append(event);
+      }
+      timeline?.finishCapture(recorder!.metadata()!);
       if (state().captureStatus !== "recording") { clearHeld(); return; }
       if (!result.ok) return;
       const decoded = decodeImprovMessage(message);

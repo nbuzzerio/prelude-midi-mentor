@@ -137,7 +137,7 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
       <button className={IMPROV_BUTTON} disabled={busy}>Create collection</button>
     </form> : <div className="mb-3 flex flex-wrap items-center gap-2"><h2 className="min-w-0 flex-1 break-words text-lg font-semibold">{selected.title}</h2><button className={IMPROV_BUTTON} disabled={busy || audioProtected || audio.state.phase === "ready"} onClick={() => selectCollection("")}>New collection</button></div>)}
     <div className="improv-playing grid min-w-0 gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <div className="order-2 min-w-0 lg:order-1"><ImprovLiveStaff pitches={capture.display.pitches} context={context} /></div>
+      <div className="order-2 min-w-0 lg:order-1"><ImprovLiveStaff pitches={capture.display.pitches} context={context} source={capture.session.timeline} /></div>
       <div className="order-1 min-w-0 rounded-xl border border-white/10 bg-white/5 p-4 lg:order-2">
         {recording ? <p className="break-words text-sm">Physical MIDI input: <strong>{capture.selectedInput?.name ?? "Selected input unavailable"}</strong></p> : <label className="block text-sm">Physical MIDI input<select className={IMPROV_SELECT} value={capture.selectedInputId} disabled={unsafe} onChange={(e) => capture.selectInput(e.target.value)}>
           <option value="">Select a physical input</option>{capture.selectedInputId && !capture.selectedInput && <option value={capture.selectedInputId}>Selected source disconnected</option>}
@@ -174,7 +174,7 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
     {(error || catalog.error) && <p role="alert" className="my-3 rounded-lg bg-red-950 p-3 text-red-100">{error || catalog.error}</p>}
     {message && <p role="status" className="my-3 text-sm text-zinc-300">{message}</p>}
     <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
-      <ImprovTakeReview take={take} playing={replay.playing} disabled={recording || busy || audio.controller.needsGuard()} error={replay.error} onPlay={() => { if (take && !audio.controller.needsGuard()) replay.play(take); }} onStop={replay.stop} onMidi={downloadMidi} />
+      <ImprovTakeReview take={take} context={context} playing={replay.playing} disabled={recording || busy || audio.controller.needsGuard()} error={replay.error} onPlay={() => { if (take && !audio.controller.needsGuard()) replay.play(take); }} onStop={replay.stop} onMidi={downloadMidi} />
       <ImprovLibraryView collection={selected} takes={catalog.takes} disabled={busy || audioProtected || audio.state.phase === "ready"} onReview={(item) => void review(item.takeId)} onRefresh={() => void catalog.refresh()}
         onRecover={(item) => void catalog.act(async () => { await library.recoverTake(item.takeId); await review(item.takeId); })}
         onRename={(value) => { if (selected) void catalog.act(() => library.renameCollection(selected.collectionId, value.trim(), selected.revision)); }} onDeleteTake={deleteTake}

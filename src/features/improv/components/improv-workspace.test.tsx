@@ -96,6 +96,37 @@ async function prepareRoom() {
 }
 
 describe("playing-first Improv workspace", () => {
+  it("shows an empty ready staff and keeps released accepted notes visible after Stop", async () => {
+    mount({ strict: true }); await setup(); send();
+    const live = document.querySelector('.improv-live svg')!;
+    expect(live.getAttribute('data-note-count')).toBe('0'); await start(); send([0x90, 60, 90]); send([0x80, 60, 0]);
+    await waitFor(() => expect(live.getAttribute('data-note-count')).toBe('1'));
+    await stop(); send([0x90, 67, 90]); await waitFor(() => expect(live.getAttribute('data-recording')).toBe('false'));
+    expect(live.querySelector('[data-pitch="60"]')).toBeTruthy(); expect(live.querySelector('[data-pitch="67"]')).toBeNull();
+    expect(live.querySelector('[data-pitch="60"]')?.getAttribute('data-release-ms')).not.toBe('unreleased');
+  });
+  it("loads original saved history and navigates windows without evidence writes", async () => {
+    const f = await performanceFixture([{ receivedAtMs: 200, bytes: [0x90, 60, 80] }, { receivedAtMs: 300, bytes: [0x80, 60, 0] },
+      { receivedAtMs: 20_100, bytes: [0x90, 67, 80] }], { end: 30_100 });
+    const load = vi.spyOn(f.lib, 'loadTake'); const checkpoint = vi.spyOn(f.lib, 'checkpoint'); mount({ supplied: f.lib });
+    await screen.findByRole('option', { name: 'Disney book' }); fireEvent.change(screen.getByLabelText('Piece'), { target: { value: 'book' } });
+    fireEvent.click(screen.getByText(/Take history and library/)); fireEvent.click(await screen.findByRole('button', { name: 'Review Take 1' }));
+    const slider = await screen.findByRole('slider', { name: 'Review time position' });
+    fireEvent.change(slider, { target: { value: '19000' } });
+    await waitFor(() => expect(document.querySelector('details[open] [data-pitch="67"]')).toBeTruthy());
+    expect(load).toHaveBeenCalledWith('take-1'); expect(checkpoint).not.toHaveBeenCalled();
+    expect((await f.lib.loadTake('take-1')).chunks).toEqual(f.loaded.chunks);
+  });
+  it("keeps first-take review available after later captures and resets a fresh live timeline", async () => {
+    mount(); await setup(); await start(); send([0x90, 60, 90]); await stop();
+    await waitFor(() => expect(document.querySelector('.improv-live [data-pitch="60"]')).toBeTruthy());
+    await start(); await waitFor(() => expect(document.querySelector('.improv-live [data-attack]')).toBeNull());
+    send([0x90, 67, 90]); await stop(); fireEvent.click(screen.getByText(/Take history and library/));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Take 1' }));
+    await screen.findByText(/Review Take 1.*Original/);
+    await waitFor(() => expect(document.querySelector('details[open] [data-pitch="60"]')).toBeTruthy());
+    expect((await records()).map(t => t.number)).toEqual([1, 2]);
+  });
   it("keeps MIDI-only default permission-free, including under Strict Mode", async () => {
     const room = roomBrowser(); mount({ strict: true }); await setup(); await start(); send(); await stop();
     expect(room.getUserMedia).not.toHaveBeenCalled(); expect(RoomRecorder.instances).toHaveLength(0);
@@ -210,8 +241,8 @@ describe("playing-first Improv workspace", () => {
     mount(); await setup(); fireEvent.click(screen.getByText("Notation context"));
     fireEvent.change(screen.getByLabelText("Display key"), { target: { value: "g-major" } }); await start();
     for (let i = 0; i < 40; i++) send([0x90, 66, 80]);
-    await screen.findByText(/F♯4|F#4/); expect(screen.getByLabelText("Elapsed time").getAttribute("aria-live")).toBe("off");
-    const held = screen.getByText(/F♯4|F#4/); expect(held.getAttribute("aria-live")).toBe("off");
+    await screen.findByText(/F♯4|F#4/, { selector: "span" }); expect(screen.getByLabelText("Elapsed time").getAttribute("aria-live")).toBe("off");
+    const held = screen.getByText(/F♯4|F#4/, { selector: "span" }); expect(held.getAttribute("aria-live")).toBe("off");
     await stop(); const take = await library.loadTake((await records())[0].takeId);
     expect(take.record.committedEventWatermark).toBe(40); expect(take.chunks[0].events.every((e) => e.raw.bytes?.[1] === 66)).toBe(true);
   });

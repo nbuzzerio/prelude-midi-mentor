@@ -19,6 +19,25 @@ async function fixture() {
 }
 
 describe("Improv workspace coordination", () => {
+  it("projects only accepted events, keeps final limit attack, and ignores terminal deliveries", async () => {
+    const f = await fixture(); expect(f.session.timeline()).toBeNull(); f.session.append(f.raw(1), context);
+    f.session.start(f.collection, input, context); await f.session.retry();
+    f.session.append({ ...f.raw(1), input: { id: "other", name: "Other" } }, context);
+    for (let i = 2; i <= 2049; i++) f.session.append(f.raw(i), context);
+    expect(f.session.state().captureStatus).toBe("interrupted");
+    const model = f.session.timeline()!; expect(model.view(100, 0)).toMatchObject({ retainedNotes: 2048, recording: false, crowded: true });
+    f.session.append(f.raw(2050), context); expect(model.view(100, 0).retainedNotes).toBe(2048);
+    await f.session.retry(); await f.session.retry();
+  });
+  it("preserves frozen Take 1 while a fresh take gets a separate display model", async () => {
+    const f = await fixture(); f.session.start(f.collection, input, context); f.session.append(f.raw(1), context);
+    f.setTime(500); await f.session.stop(); const firstId = f.session.state().takeId!; const first = f.session.timeline()!;
+    f.setTime(1000); f.session.start(f.collection, input, context); f.session.append(f.raw(2, [0x90, 67, 90]), context);
+    expect(f.session.timeline()).not.toBe(first); expect(first.view(9999, 0).notes[0].pitch).toBe(60);
+    expect(f.session.timeline()!.view(1000, 0).notes[0].pitch).toBe(67);
+    await f.session.stop(); expect((await f.library.loadTake(firstId)).chunks[0].events[0].raw.bytes?.[1]).toBe(60);
+    f.session.resetCompleted(); expect(f.session.timeline()).toBeNull();
+  });
   it("clears held notes immediately on Stop and ignores subsequent messages", async () => {
     const f = await fixture(); f.session.start(f.collection, input, context); f.session.append(f.raw(1), context);
     expect(f.session.heldPitches()).toEqual([60]); const stopping = f.session.stop();

@@ -1,0 +1,112 @@
+// @vitest-environment jsdom
+import { Profiler, StrictMode } from "react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ImprovPerformanceStaff } from "./improv-performance-staff";
+import { ImprovTakeReview } from "./improv-take-review";
+import { createImprovTimeline } from "../improv-timeline";
+import { createImprovTakeRecorder } from "../improv-take-recorder";
+import { fixtureContext, fixtureInput, fixtureObservation, performanceFixture } from "../improv-test-fixture";
+
+const context = { type: "no-key" } as const;
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+function fixture() {
+  const model = createImprovTimeline(100); let current = model; let now = 100; let id = 0; let sequence = 0;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  const clock = { now: () => now, request: vi.fn((fn: FrameRequestCallback) => { callbacks.set(++id, fn); return id; }), cancel: vi.fn((id: number) => { callbacks.delete(id); }) };
+  const rec = createImprovTakeRecorder({ createId: () => "one" }); rec.start(fixtureInput, fixtureObservation(100));
+  const send = (bytes: number[]) => {
+    const result = rec.append({ provenance: "browser-midi-message", input: fixtureInput, sequence: ++sequence, bytes, dataStatus: "available", receivedAtMs: now, sourceTimeStampMs: now }, fixtureContext);
+    if (result.ok) model.append(rec.readEvents(result.eventWatermark - 1, 1)[0]);
+  };
+  const frame = (time: number) => { now = time; act(() => { const pending = [...callbacks.values()]; callbacks.clear(); pending.forEach(fn => fn(time)); }); };
+  const tick = (time: number) => { now = time; act(() => vi.advanceTimersByTime(100)); };
+  return { model, clock, callbacks, send, frame, tick, source: () => current, replace: () => { current = createImprovTimeline(now); } };
+}
+const staff = () => screen.getByRole("img", { name: "Time-based performance grand staff" });
+
+describe("bounded rolling grand staff", () => {
+  it("renders an empty ready grand staff without incoming unrecorded pitches", () => {
+    render(<ImprovPerformanceStaff source={() => null} context={context} />);
+    expect(staff().getAttribute("data-note-count")).toBe("0"); expect(screen.getByText(/Ready.*Start Take/)).toBeTruthy();
+    expect(staff().querySelectorAll("ellipse")).toHaveLength(0); expect(staff().getAttribute("aria-describedby")).toBeTruthy();
+  });
+  it("moves a blue playhead between React updates, including silence", () => {
+    const f = fixture(); const commits = vi.fn(); render(<Profiler id="staff" onRender={commits}><ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} /></Profiler>);
+    const before = commits.mock.calls.length; f.frame(1100);
+    expect(staff().getAttribute("data-playhead-ms")).toBe("1000"); expect(commits.mock.calls.length).toBe(before);
+    expect(staff().querySelector('[aria-label="Blue elapsed-time playhead"]')?.getAttribute("stroke")).toBe("#38bdf8");
+  });
+  it("retains noteheads after release and ends the growing key-down trail", () => {
+    const f = fixture(); render(<ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} />);
+    f.send([0x90, 60, 90]); f.tick(200); const trail = staff().querySelector('[data-held-onset]')!;
+    const before = Number(trail.getAttribute("x2")); f.frame(600); expect(Number(trail.getAttribute("x2"))).toBeGreaterThan(before);
+    f.send([0x80, 60, 64]); f.tick(700); expect(staff().querySelectorAll("ellipse")).toHaveLength(1);
+    expect(staff().querySelector('[data-attack="1"]')?.getAttribute("data-release-ms")).toBe("500"); expect(staff().querySelector('[data-held-onset]')).toBeNull();
+  });
+  it("scrolls near the threshold while keeping the playhead steady", () => {
+    const f = fixture(); render(<ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} />);
+    f.frame(10_100); const x = staff().querySelector('[aria-label="Blue elapsed-time playhead"]')?.getAttribute("x1");
+    expect(staff().getAttribute("data-window-start-ms")).toBe("400"); f.frame(11_100);
+    expect(staff().getAttribute("data-window-start-ms")).toBe("1400"); expect(staff().querySelector('[aria-label="Blue elapsed-time playhead"]')?.getAttribute("x1")).toBe(x);
+  });
+  it.each([true, false])("freezes terminal display with knownEnd=%s and rejects late messages", known => {
+    const f = fixture(); render(<ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} />);
+    f.send([0x90, 60, 90]); f.tick(200); f.model.finish(500, known); f.frame(1000); f.send([0x90, 64, 90]); f.tick(2000);
+    expect(staff().getAttribute("data-playhead-ms")).toBe("500"); expect(staff().getAttribute("data-note-count")).toBe("1");
+    f.frame(9000); expect(staff().getAttribute("data-playhead-ms")).toBe("500"); expect(staff().getAttribute("data-recording")).toBe("false");
+  });
+  it("caps render work for a dense burst without a per-message React commit", () => {
+    const f = fixture(); const commits = vi.fn(); render(<Profiler id="staff" onRender={commits}><ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} /></Profiler>);
+    const before = commits.mock.calls.length; for (let i = 0; i < 600; i++) f.send([0x90, i % 128, 90]);
+    expect(commits.mock.calls.length).toBe(before); f.tick(200); expect(staff().querySelectorAll("[data-attack]")).toHaveLength(512);
+    expect(screen.getByText(/display detail limited/)).toBeTruthy();
+  });
+  it("fences old geometry on replacement and starts the next take empty", () => {
+    const f = fixture(); render(<ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} />);
+    f.send([0x90, 60, 90]); f.tick(200); f.replace(); f.frame(300);
+    expect(staff().querySelector('[data-attack]')?.parentElement?.getAttribute("visibility")).toBe("hidden");
+    f.tick(400); expect(staff().querySelector('[data-attack]')).toBeNull();
+  });
+  it("cancels all frames, intervals and stale callbacks under Strict Mode/unmount", () => {
+    const f = fixture(); const view = render(<StrictMode><ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} /></StrictMode>);
+    expect(f.callbacks.size).toBe(1); const stale = [...f.callbacks.values()][0]; view.unmount();
+    expect(f.callbacks.size).toBe(0); expect(vi.getTimerCount()).toBe(0); stale(999); expect(f.callbacks.size).toBe(0);
+  });
+  it("uses restrained ten-Hz movement with reduced motion", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    const f = fixture(); render(<ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} />);
+    expect(f.callbacks.size).toBe(0); f.tick(1000); expect(staff().getAttribute("data-playhead-ms")).toBe("900");
+  });
+  it("retains actual extreme-pitch labels and selected key spelling", () => {
+    const f = fixture(); f.send([0x90, 21, 90]); f.send([0x90, 61, 90]);
+    render(<ImprovPerformanceStaff source={f.source} clock={f.clock} context={{ type: "key", keyId: "e-flat-major" }} />);
+    expect(staff().textContent).toContain("A0"); expect(staff().textContent).toContain("D♭4");
+  });
+  it("labels long cross-window trails with actual pitch after their attack leaves view", () => {
+    const f = fixture(); f.send([0x90, 21, 90]);
+    render(<ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} />);
+    f.tick(20_100); expect(staff().querySelector('ellipse')).toBeNull();
+    expect(staff().querySelector('text[x="56"]')?.textContent).toBe('A0');
+  });
+});
+
+describe("saved time-window review", () => {
+  it("reopens immutable history, navigates by labeled controls, and resets selection", async () => {
+    vi.useRealTimers();
+    const first = (await performanceFixture([{ receivedAtMs: 200, bytes: [0x90, 60, 90] }, { receivedAtMs: 300, bytes: [0x80, 60, 0] },
+      { receivedAtMs: 20_100, bytes: [0x90, 67, 90] }], { end: 30_100 })).loaded;
+    const original = structuredClone(first);
+    const props = { playing: false, disabled: false, error: "", onPlay: vi.fn(), onStop: vi.fn(), onMidi: vi.fn(), context };
+    const view = render(<ImprovTakeReview take={first} {...props} />);
+    expect(staff().querySelector('[data-pitch="60"]')).toBeTruthy(); expect(staff().querySelector('[data-pitch="67"]')).toBeNull();
+    fireEvent.change(screen.getByRole("slider", { name: "Review time position" }), { target: { value: "19000" } });
+    expect(staff().querySelector('[data-pitch="67"]')).toBeTruthy(); expect(staff().querySelector('[data-pitch="60"]')).toBeNull();
+    expect(screen.getByRole("slider").getAttribute("aria-valuetext")).toContain("19.0 seconds");
+    fireEvent.click(screen.getByRole("button", { name: "Earlier 10 seconds" })); expect((screen.getByRole("slider") as HTMLInputElement).value).toBe("9000");
+    const next = structuredClone(first); Reflect.set(next.record, "takeId", "two"); Reflect.set(next.record, "number", 2);
+    view.rerender(<ImprovTakeReview take={next} {...props} />); expect((screen.getByRole("slider") as HTMLInputElement).value).toBe("0");
+    expect(first).toEqual(original); expect(screen.getByRole("img").getAttribute("aria-describedby")).toBeTruthy();
+  });
+});

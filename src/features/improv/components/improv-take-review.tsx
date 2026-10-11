@@ -1,10 +1,32 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { summarizeImprovTake } from "../improv-performance";
 import type { ImprovLoadedTake } from "../improv-library";
 import { IMPROV_BUTTON } from "./improv-library-view";
+import type { FreeplayNotationContext } from "@/features/freeplay/freeplay-notation";
+import { timelineFromTake } from "../improv-timeline";
+import { ImprovPerformanceStaff } from "./improv-performance-staff";
 
-export function ImprovTakeReview({ take, playing, disabled, error, onPlay, onStop, onMidi }: Readonly<{
+function ReviewTimeline({ take, context }: { take: ImprovLoadedTake; context: FreeplayNotationContext }) {
+  const model = useMemo(() => timelineFromTake(take), [take]);
+  const source = useCallback(() => model, [model]);
+  const [position, setPosition] = useState(0);
+  const duration = model.elapsed(0); const maximum = Math.max(0, duration - 1000);
+  return <div className="mt-3 rounded-lg border border-white/10">
+    <ImprovPerformanceStaff source={source} context={context} positionMs={position} />
+    <label className="block px-3 pb-3 text-sm">Review window start: {(position / 1000).toFixed(1)} s
+      <input className="mt-2 block w-full accent-sky-400" type="range" aria-label="Review time position" min="0" max={maximum} step="100" value={position}
+        aria-valuetext={`${(position / 1000).toFixed(1)} seconds into ${(duration / 1000).toFixed(1)} seconds`} onChange={e => setPosition(Number(e.target.value))} />
+    </label>
+    <div className="flex flex-wrap gap-2 px-3 pb-3">
+      <button className={IMPROV_BUTTON} disabled={position === 0} onClick={() => setPosition(Math.max(0, position - 10_000))}>Earlier 10 seconds</button>
+      <button className={IMPROV_BUTTON} disabled={position >= maximum} onClick={() => setPosition(Math.min(maximum, position + 10_000))}>Later 10 seconds</button>
+    </div>
+  </div>;
+}
+
+export function ImprovTakeReview({ take, context, playing, disabled, error, onPlay, onStop, onMidi }: Readonly<{
   take: ImprovLoadedTake | null; playing: boolean; disabled: boolean; error: string;
+  context: FreeplayNotationContext;
   onPlay: () => void; onStop: () => void; onMidi: () => void;
 }>) {
   const summary = useMemo(() => take ? summarizeImprovTake(take) : null, [take]);
@@ -19,6 +41,7 @@ export function ImprovTakeReview({ take, playing, disabled, error, onPlay, onSto
       <button className={IMPROV_BUTTON} disabled={disabled} onClick={onMidi}>Download MIDI</button>
     </div>
     {error && <p className="mt-2 text-red-200" role="alert">{error}</p>}
+    <ReviewTimeline key={take.record.takeId} take={take} context={context} />
     <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
       <div><dt className="text-zinc-400">Recorded duration</dt><dd>{summary.observedBoundaryDurationMs === null ? "Unknown end · saved prefix" : `${(summary.observedBoundaryDurationMs / 1000).toFixed(1)} s`}</dd></div>
       <div><dt className="text-zinc-400">Note attacks</dt><dd>{summary.noteAttacks}</dd></div>

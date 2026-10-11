@@ -876,12 +876,10 @@ button {
 
 /* Improv keeps its live grand staff compact without changing Free Play presentation. */
 .improv-workspace :is(button, select, input, summary):focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
-.improv-live .music-staff-freeplay { min-height: 180px; height: 240px; overflow: hidden; }
-.improv-live .music-staff-freeplay svg { width: 100% !important; max-height: 235px !important; transform: none !important; }
-@media (max-width: 639px) {
-  .improv-live .music-staff-freeplay { height: 180px; }
-  .improv-live .music-staff-freeplay svg { max-height: 175px !important; transform: scale(1.8) !important; transform-origin: left center; }
-}
+/* A real-time staff uses seconds, with bounded octave-displaced extremes. */
+.improv-timeline { display: block; height: clamp(240px, 35vh, 360px); overflow: hidden; }
+@media (max-width: 639px) { .improv-timeline { height: 240px; } }
+@media (prefers-reduced-motion: reduce) { .improv-timeline { scroll-behavior: auto; } }
 @supports selector(body:has(*)) { body:has(.improv-workspace) { min-width: 0; } }
 
 .staff-builder-editing-controls { min-width: 0; margin: 0; padding: 0; border: 0; }

@@ -1,5 +1,6 @@
 import { immutableCopy, type ImprovLoadedTake } from "./improv-library";
 import type { RawMidiMessage } from "@/lib/midi/midi-transport";
+import type { ImprovTakeEvent } from "./improv-take";
 
 /** A bounded rendering policy, not a change to captured timing or an estimate of performed tempo. */
 export const IMPROV_PROJECTION_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -10,6 +11,25 @@ export type ImprovTimingProjection = Readonly<{
   durationMs: number; knownEnd: boolean; issues: readonly ImprovTimingIssue[];
 }>;
 
+/** Shared incremental policy for live display and immutable saved review. */
+export function projectImprovEventTiming(event: ImprovTakeEvent, start: number, previous: number,
+  issue: (reason: string) => void = () => {}) {
+  if (event.timing.sourceValidity !== "valid") issue("invalid-browser-timestamp");
+  if (event.timing.sourceTimestampRegressed) issue("regressing-browser-timestamp");
+  if (event.timing.receiptTimestampRegressed) issue("regressing-receipt-timestamp");
+  let source: ImprovTimingProjection["events"][number]["source"] = "receipt";
+  let position = event.raw.receivedAtMs - start;
+  if (!Number.isFinite(event.raw.receivedAtMs) || event.raw.receivedAtMs < 0) {
+    issue("invalid-receipt-timestamp"); source = "unverified-browser-fallback";
+    position = event.raw.sourceTimeStampMs === null ? NaN : event.raw.sourceTimeStampMs - start;
+    issue("browser-clock-unverified");
+  }
+  if (!Number.isFinite(position) || position < 0 || position > IMPROV_PROJECTION_LIMIT_MS) {
+    issue("position-unusable-or-outside-limit"); position = previous; source = "previous-position";
+  } else if (position < previous) { issue("position-held-in-delivery-order"); position = previous; }
+  return { sequence: event.sequence, atMs: position, source };
+}
+
 /** Delivery order is authoritative. Invalid/regressing positions hold at the previous position. */
 export function projectImprovTiming(take: ImprovLoadedTake): ImprovTimingProjection {
   const start = take.record.capture.start.observation.atMs;
@@ -17,22 +37,9 @@ export function projectImprovTiming(take: ImprovLoadedTake): ImprovTimingProject
   let previous = 0;
   const events = take.chunks.flatMap((chunk) => chunk.events).map((event) => {
     const issue = (reason: string) => issues.push({ sequence: event.sequence, reason });
-    if (event.timing.sourceValidity !== "valid") issue("invalid-browser-timestamp");
-    if (event.timing.sourceTimestampRegressed) issue("regressing-browser-timestamp");
-    if (event.timing.receiptTimestampRegressed) issue("regressing-receipt-timestamp");
-    let source: ImprovTimingProjection["events"][number]["source"] = "receipt";
-    let position = event.raw.receivedAtMs - start;
-    if (!Number.isFinite(event.raw.receivedAtMs) || event.raw.receivedAtMs < 0) {
-      issue("invalid-receipt-timestamp");
-      source = "unverified-browser-fallback";
-      position = event.raw.sourceTimeStampMs === null ? NaN : event.raw.sourceTimeStampMs - start;
-      issue("browser-clock-unverified");
-    }
-    if (!Number.isFinite(position) || position < 0 || position > IMPROV_PROJECTION_LIMIT_MS) {
-      issue("position-unusable-or-outside-limit"); position = previous; source = "previous-position";
-    } else if (position < previous) { issue("position-held-in-delivery-order"); position = previous; }
-    previous = position;
-    return { sequence: event.sequence, atMs: position, source };
+    const projected = projectImprovEventTiming(event, start, previous, issue);
+    previous = projected.atMs;
+    return projected;
   });
   const terminal = take.record.capture.terminal?.boundary;
   const fullPrefix = take.record.committedEventWatermark === take.record.capture.eventWatermark
