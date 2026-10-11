@@ -2,7 +2,13 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
-## Improv coordinated Pause/Resume (pending 2.9.17)
+## Production notation vendor boundary (pending 2.9.18)
+
+Verified baseline: clean committed **2.9.17**, HEAD `604b67213533bedea5d3bffa09630fc72fdcfa99`. Vite 8.1.4 / Rolldown 1.1.5 uses `build.rolldownOptions.output.codeSplitting.groups` to place only the VexFlow package into one statically imported `vexflow` vendor chunk. The module filter normalizes Windows separators and matches the package directory inside both ordinary and pnpm paths. Existing static notation imports and all six embedded fonts remain; Free Play notation is available on startup. React/React DOM stay together in the main runtime. No application ownership, MIDI/audio lifecycle, score semantics or routing changes are involved.
+
+The emitted main is **975,880 bytes**, down from **2,096,576**; vendor is **1,119,962 bytes**. Headroom under Workbox's unchanged 2 MiB per-file cap is **1,121,272** and **977,190 bytes** respectively. Generated HTML preloads the vendor, all application JS chunks resolve and are precached in the existing **35-entry** manifest, and the static chunk graph is acyclic. Improv (**113,661 bytes**) and Study View (**7,048 bytes**) retain their lazy boundaries. This creates budget headroom and a separate vendor cache identity, not an asserted startup speed improvement: eager notation still downloads both chunks and all fonts, with one additional preloaded request. Cache globs, offline/update policy and the cap remain unchanged; future additions still require actual production artifact checks.
+
+## Improv coordinated Pause/Resume (committed 2.9.17)
 
 Verified implementation baseline: clean committed **2.9.16**, HEAD `75629f8787f861ebc726e1af2708c581b3d31424`. Both physical-book First-Take Sight-Reading and Free Improvisation allow deliberate pauses inside one immutable take identity/number. A pause is a practice convenience, not a first-take violation. This section extends the historical Phase 2-7 contracts below; Piece Practice, Staff Builder, the shared MIDI/microphone owners and audio-retention policy remain unchanged.
 
@@ -190,7 +196,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides ten top-level modes/tools: Flashcards, Sequences, Free Play, Improv, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current pending package/application version is 2.9.15, not a release/tag assertion. Together they support:
+The current application provides ten top-level modes/tools: Flashcards, Sequences, Free Play, Improv, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current pending package/application version is 2.9.18, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals

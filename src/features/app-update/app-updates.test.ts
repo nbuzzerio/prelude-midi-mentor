@@ -1,4 +1,3 @@
-import { version } from "../../../package.json";
 import { describe, expect, it } from "vitest";
 import { APP_UPDATES, assertAppUpdateCatalog, parseAppUpdateAcknowledgment, unseenAppUpdates, type AppUpdate } from "./app-updates";
 
@@ -30,7 +29,7 @@ describe("curated product updates", () => {
     expect(APP_UPDATES[9]).toMatchObject({ sequence: 10, version: "2.9.14" });
     expect(APP_UPDATES[10]).toMatchObject({ sequence: 11, version: "2.9.15", date: "2026-10-11" });
     expect(APP_UPDATES[11]).toMatchObject({ sequence: 12, version: "2.9.16", date: "2026-10-11" });
-    expect(APP_UPDATES[12]).toMatchObject({ sequence: 13, version, date: "2026-10-11" });
+    expect(APP_UPDATES[12]).toMatchObject({ sequence: 13, version: "2.9.17", date: "2026-10-11" });
     expect(APP_UPDATES[12].changes.join(" ")).toMatch(/Pause.*Resume.*same take/);
     expect(APP_UPDATES[12].changes.join(" ")).toContain("independent microphone failure");
     expect(APP_UPDATES[11].changes.join(" ")).toContain("not automatically transcribed or rhythmically validated sheet music");

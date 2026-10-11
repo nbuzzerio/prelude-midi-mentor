@@ -74,6 +74,22 @@ export default defineConfig({
     }),
   ],
 
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "vexflow",
+              // Normalize Windows and pnpm paths without collecting app or React modules.
+              test: (id) => id.replaceAll("\\", "/").includes("/node_modules/vexflow/"),
+            },
+          ],
+        },
+      },
+    },
+  },
+
   test: {
     environment: "jsdom",
     exclude: [...configDefaults.exclude, ".dev/microphone-spike/**/*.test.mjs"],
