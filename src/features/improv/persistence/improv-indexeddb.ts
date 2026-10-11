@@ -1,10 +1,10 @@
-import type { ImprovTakeMetadata } from "../improv-take";
+import { improvControlAccountedBytes, type ImprovTakeMetadata } from "../improv-take";
 import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, immutableCopy, libraryError, sameEvidence,
   type ImprovCheckpoint, type ImprovCollection, type ImprovDeletedTake, type ImprovEventChunk,
   type ImprovArchiveLibrary, type ImprovLoadedTake, type ImprovStoredTake, type ImprovCollectionEvidence } from "../improv-library";
 import { IMPROV_BACKUP_MAX_BYTES, requireImprovCollectionEvidence } from "../improv-backup";
 import { chunkAccountedBytes, connectionAccountedBytes, EMPTY_IMPROV_CONTINUITY, initialAccountedBytes,
-  integer, requireChunk, requireCollection, requireConnections, requireMetadata, requireTake, requireLoadedTake,
+  integer, requireChunk, requireCollection, requireConnections, requireControls, requireMetadata, requireTake, requireLoadedTake,
   usableId, validateEvents, wallTime } from "../improv-library-validation";
 
 export const IMPROV_DB_NAME = "prelude-improv";
@@ -145,7 +145,7 @@ export class IndexedDbImprovLibrary implements ImprovArchiveLibrary {
         }
         if (collection.nextTakeNumber > L.takesPerCollection) throw new ImprovLibraryError("limit");
         const now = this.now(); this.checkTime(now, collection.updatedAtMs);
-        const take: ImprovStoredTake = { schemaVersion: 1, kind: "take", takeId: capture.takeId, collectionId,
+        const take: ImprovStoredTake = { schemaVersion: capture.schemaVersion, ...(capture.schemaVersion === 2 ? { controls: [], committedControlWatermark: 0 } : {}), kind: "take", takeId: capture.takeId, collectionId,
           number: collection.nextTakeNumber, writerToken, capture, status: "recording", storageStatus: "committed",
           committedEventWatermark: 0, committedAccountedBytes: initialAccountedBytes(capture), chunkCount: 0,
           continuity: EMPTY_IMPROV_CONTINUITY, connections: [], revision: 1, checkpointAtMs: now,
@@ -170,6 +170,7 @@ export class IndexedDbImprovLibrary implements ImprovArchiveLibrary {
         const last = existing.lastCommit!;
         if (value.expectedRevision !== last.previousRevision || value.finalize !== last.finalized
           || !sameEvidence(existing.capture, value.capture) || !sameEvidence(existing.connections, value.connections)
+          || !sameEvidence(existing.controls, value.controls)
           || !sameEvidence(existing.captureFailure, value.captureFailure)) throw new ImprovLibraryError("collision");
         if (last.chunkIndex === null) {
           if (value.events.length) throw new ImprovLibraryError("collision");
@@ -187,6 +188,7 @@ export class IndexedDbImprovLibrary implements ImprovArchiveLibrary {
       // A stopped owner's explicit retry may save its suffix after expiry, unless recovery already fenced it.
       if (now >= existing.lease.expiresAtMs && value.capture.status === "recording") throw new ImprovLibraryError("lease-expired");
       if (!usableId(value.operationId) || value.capture.takeId !== existing.takeId
+        || value.capture.schemaVersion !== existing.capture.schemaVersion || (value.capture.controlCount ?? 0) < (existing.capture.controlCount ?? 0)
         || !sameEvidence(value.capture.start, existing.capture.start) || !sameEvidence(value.capture.selectedInput, existing.capture.selectedInput)
         || !sameEvidence(value.capture.limits, existing.capture.limits) || value.capture.eventWatermark < existing.capture.eventWatermark
         || (existing.capture.terminal !== null && !sameEvidence(existing.capture, value.capture))
@@ -197,13 +199,19 @@ export class IndexedDbImprovLibrary implements ImprovArchiveLibrary {
       if (chunkBytes > L.chunkBytes && (value.events.length !== 1 || chunkBytes > L.bytesPerTake)) throw new ImprovLibraryError("limit");
       if (watermark > value.capture.eventWatermark || (value.events.length && existing.chunkCount >= L.chunksPerTake)) throw new ImprovLibraryError("limit");
       requireConnections(value.connections, value.capture, watermark);
+      const controls = value.controls ?? [];
+      requireControls(controls, value.capture, watermark);
+      if ((value.capture.schemaVersion === 2) !== (value.controls !== undefined) || controls.length < (existing.controls?.length ?? 0)
+        || !sameEvidence(existing.controls ?? [], controls.slice(0, existing.controls?.length ?? 0))) throw new ImprovLibraryError("corrupt");
       if (value.connections.length < existing.connections.length || !sameEvidence(existing.connections, value.connections.slice(0, existing.connections.length))) throw new ImprovLibraryError("corrupt");
       if (value.finalize && (value.capture.status === "recording" || watermark !== value.capture.eventWatermark
-        || value.connections.length !== value.capture.connectionCount)) throw new ImprovLibraryError("corrupt");
+        || value.connections.length !== value.capture.connectionCount || controls.length !== (value.capture.controlCount ?? 0))) throw new ImprovLibraryError("corrupt");
       const changed: ImprovStoredTake = { ...existing, capture: value.capture,
+        ...(value.capture.schemaVersion === 2 ? { controls, committedControlWatermark: controls.length } : {}),
         status: value.finalize ? value.capture.status : "recording", committedEventWatermark: watermark,
         committedAccountedBytes: existing.committedAccountedBytes + chunkBytes
-          + value.connections.slice(existing.connections.length).reduce((sum, c) => sum + connectionAccountedBytes(c), 0),
+          + value.connections.slice(existing.connections.length).reduce((sum, c) => sum + connectionAccountedBytes(c), 0)
+          + controls.slice(existing.controls?.length ?? 0).reduce((sum, c) => sum + improvControlAccountedBytes(c), 0),
         chunkCount: existing.chunkCount + (value.events.length ? 1 : 0), continuity,
         connections: value.connections, revision: existing.revision + 1, checkpointAtMs: now,
         lease: value.finalize ? null : { token: value.writerToken, expiresAtMs: now + L.leaseMs },
@@ -212,7 +220,8 @@ export class IndexedDbImprovLibrary implements ImprovArchiveLibrary {
           chunkIndex: value.events.length ? existing.chunkCount : null, fromWatermark: existing.committedEventWatermark, finalized: value.finalize } };
       requireTake(changed);
       if (watermark === value.capture.eventWatermark && (continuity.lastTransportSequence !== value.capture.lastTransportSequence
-        || (value.connections.length === value.capture.connectionCount && changed.committedAccountedBytes !== value.capture.accountedBytes))) throw new ImprovLibraryError("corrupt");
+        || (value.connections.length === value.capture.connectionCount && controls.length === (value.capture.controlCount ?? 0)
+          && changed.committedAccountedBytes !== value.capture.accountedBytes))) throw new ImprovLibraryError("corrupt");
       if (value.events.length) {
         const chunk: ImprovEventChunk = { schemaVersion: 1, takeId: value.takeId, index: existing.chunkCount,
           startSequence: existing.committedEventWatermark + 1, endSequence: watermark, events: value.events };

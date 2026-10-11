@@ -27,6 +27,21 @@ function fixture() {
 const staff = () => screen.getByRole("img", { name: "Time-based performance grand staff" });
 
 describe("bounded rolling grand staff", () => {
+  it("freezes Pause without a silent scroll gap, resumes, and replaces Paused with terminal state", () => {
+    const f = fixture(); render(<StrictMode><ImprovPerformanceStaff source={f.source} clock={f.clock} context={context} /></StrictMode>);
+    const rec = createImprovTakeRecorder({ createId: () => "controls", pauseSupport: true }); rec.start(fixtureInput, fixtureObservation(100));
+    const boundary = (kind: "pause" | "pause-ack" | "resume-request" | "resume-ack" | "resume", at: number) => {
+      rec.control(kind, fixtureObservation(at), "off"); f.model.control(rec.readControls().at(-1)!);
+    };
+    f.send([0x90, 60, 80]); boundary("pause", 500); boundary("pause-ack", 500); f.tick(1000); f.frame(10_000);
+    expect(staff().getAttribute("data-playhead-ms")).toBe("400"); expect(staff().getAttribute("data-paused")).toBe("true");
+    f.send([0x90, 70, 80]); f.tick(10_100); expect(staff().querySelector('[data-pitch="70"]')).toBeNull();
+    boundary("resume-request", 10_100); boundary("resume-ack", 10_100); boundary("resume", 10_100); f.tick(10_200); f.frame(10_300);
+    expect(staff().getAttribute("data-playhead-ms")).toBe("600"); expect(staff().getAttribute("data-paused")).toBe("false");
+    boundary("pause", 10_400); boundary("pause-ack", 10_400); f.tick(10_500); f.model.finish(700, true); f.tick(10_600);
+    expect(staff().getAttribute("data-paused")).toBe("false"); expect(staff().getAttribute("data-known-end")).toBe("true");
+    expect(screen.getByText(/Frozen performance.*observed end/)).toBeTruthy();
+  });
   it("renders an empty ready grand staff without incoming unrecorded pitches", () => {
     render(<ImprovPerformanceStaff source={() => null} context={context} />);
     expect(staff().getAttribute("data-note-count")).toBe("0"); expect(screen.getByText(/Ready.*Start Take/)).toBeTruthy();

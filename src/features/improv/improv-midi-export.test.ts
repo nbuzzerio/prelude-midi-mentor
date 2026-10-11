@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exportImprovMidi, improvMidiBlob } from "./improv-midi-export";
-import { performanceFixture } from "./improv-test-fixture";
+import { performanceFixture, pausePerformanceFixture, pauseSteps } from "./improv-test-fixture";
 
 /** Independent test decoder: consumes header/chunk lengths, four-byte VLQs, meta, SysEx and channel lengths. */
 function decodeFile(bytes: Uint8Array) {
@@ -32,6 +32,30 @@ function decodeFile(bytes: Uint8Array) {
 const musical = (events: ReturnType<typeof decodeFile>) => events.filter((event) => event.meta === undefined);
 
 describe("Standard MIDI File fixed transport projection", () => {
+  it("removes intentional breaks and emits seam cleanup before same-tick resumed attacks", async () => {
+    const f = await pausePerformanceFixture([{ atMs: 200, bytes: [0x90, 60, 80] }, ...pauseSteps(500, 10_500),
+      { atMs: 10_500, bytes: [0x90, 64, 90] }, { atMs: 10_600, bytes: [0x80, 64, 0] }], 10_700);
+    const before = structuredClone(f.loaded); const { bytes, report } = exportImprovMidi(f.loaded);
+    expect(musical(decodeFile(bytes)).map(e => [e.tick, e.bytes])).toEqual([[1000, [0x90, 60, 80]], [4000, [0x80, 60, 0]],
+      [4000, [0x90, 64, 90]], [5000, [0x80, 64, 0]]]);
+    expect(report.endTick).toBe(6000); expect(report.generated[0].reason).toBe("pause-boundary-cleanup"); expect(f.loaded).toEqual(before);
+  });
+  it("excludes paused notes and their late releases and restores explicitly observed sustain", async () => {
+    const p = pauseSteps(500, 10_500);
+    const f = await pausePerformanceFixture([{ atMs: 200, bytes: [0x90, 60, 80] }, { atMs: 300, bytes: [0xb0, 64, 127] }, p[0], p[1],
+      { atMs: 1000, bytes: [0x90, 60, 50] }, ...p.slice(2), { atMs: 10_500, bytes: [0x90, 60, 90] },
+      { atMs: 10_600, bytes: [0x80, 60, 0] }, { atMs: 10_700, bytes: [0x90, 60, 0] }, { atMs: 10_800, bytes: [0x80, 60, 20] }], 10_900);
+    const result = exportImprovMidi(f.loaded); const projected = musical(decodeFile(result.bytes));
+    expect(projected.filter(e => (e.bytes[0] & 0xf0) === 0x90 && e.bytes[2] > 0).map(e => e.bytes[2])).toEqual([80, 90]);
+    expect(projected.filter(e => (e.bytes[0] & 0xf0) === 0x80).map(e => e.tick)).toEqual([4000, 7000]);
+    expect(result.report.omitted.map(e => e.reason)).toEqual(["intentional-pause-context", "cross-pause-release", "cross-pause-release"]);
+    expect(result.report.generated.map(e => e.reason)).toEqual(["pause-boundary-cleanup", "pause-boundary-cleanup", "resume-observed-controller-restore", "terminal-cleanup"]);
+  });
+  it("Stop during Pause emits no Resume or long silent exported tail", async () => {
+    const f = await pausePerformanceFixture([{ atMs: 200 }, ...pauseSteps(500, 10_500).slice(0, 2), { atMs: 10_000, bytes: [0xf8] }], 90_100);
+    const result = exportImprovMidi(f.loaded); expect(decodeFile(result.bytes).at(-1)?.tick).toBe(4000);
+    expect(result.report.generated).toHaveLength(1); expect(result.report.omitted[0].reason).toBe("intentional-pause-context");
+  });
   it("writes the exact type-0 header, PPQ and 60 BPM transport tempo with empty trailing duration", async () => {
     const { loaded } = await performanceFixture([], { end: 2000 }); const result = exportImprovMidi(loaded);
     expect(Array.from(result.bytes.slice(0, 14))).toEqual([77, 84, 104, 100, 0, 0, 0, 6, 0, 0, 0, 1, 39, 16]);

@@ -1,5 +1,5 @@
 import type { MidiInputConnectionChange, MidiInputInfo, RawMidiMessage } from "@/lib/midi/midi-transport";
-import { improvTimestampValidity, type ImprovCaptureContext, type ImprovInterruptionReason, type ImprovObservation,
+import { improvTimestampValidity, improvControlAccountedBytes, IMPROV_MAX_CONTROLS, type ImprovTakeControl, type ImprovCaptureContext, type ImprovInterruptionReason, type ImprovObservation,
   type ImprovTake, type ImprovTakeBoundary, type ImprovTakeConnection, type ImprovTakeEvent,
   type ImprovTakeLimits, type ImprovTakeMetadata, type ImprovTakeTerminal } from "./improv-take";
 
@@ -17,6 +17,8 @@ export type ImprovTakeRecorder = Readonly<{
   interrupt: (reason: ImprovInterruptionReason, observation: ImprovObservation) => ImprovRecorderResult;
   metadata: () => ImprovTakeMetadata | null;
   readConnections: () => readonly ImprovTakeConnection[];
+  control: (kind: ImprovTakeControl["kind"], observation: ImprovObservation, audio: ImprovTakeControl["audio"]) => ImprovRecorderResult;
+  readControls: () => readonly ImprovTakeControl[];
   snapshot: () => ImprovTake | null;
   readEvents: (afterSequence: number, limit: number) => readonly ImprovTakeEvent[];
 }>;
@@ -42,12 +44,13 @@ function copyMessage(message: RawMidiMessage): RawMidiMessage {
 }
 
 /** One controller owns one take. New takes require new controllers and explicit Start. */
-export function createImprovTakeRecorder(options: Readonly<{ createId: () => string; limits?: Partial<ImprovTakeLimits> }>): ImprovTakeRecorder {
+export function createImprovTakeRecorder(options: Readonly<{ createId: () => string; limits?: Partial<ImprovTakeLimits>; pauseSupport?: boolean }>): ImprovTakeRecorder {
   const limits = Object.freeze({ ...DEFAULT_IMPROV_TAKE_LIMITS, ...options.limits });
   if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1)) throw new Error("Improv take limits must be positive safe integers.");
   let metadata: ImprovTakeMetadata | null = null;
   const events: ImprovTakeEvent[] = [];
   const connections: ImprovTakeConnection[] = [];
+  const controls: ImprovTakeControl[] = [];
   let lastFiniteSource: number | null = null;
   let lastFiniteReceipt: number | null = null;
   const success = (): ImprovRecorderResult => Object.freeze({ ok: true, takeId: metadata!.takeId, status: metadata!.status, eventWatermark: events.length });
@@ -77,7 +80,7 @@ export function createImprovTakeRecorder(options: Readonly<{ createId: () => str
       if (!takeId.trim()) return failure("invalid-start");
       const accountedBytes = 1_024 + inputBytes(input) + 2 * (takeId.length + observation.context.ownerId.length + observation.context.clockId.length);
       if (accountedBytes > limits.maxAccountedBytes) return failure("byte-limit");
-      metadata = Object.freeze({ schemaVersion: 1, takeId, selectedInput: Object.freeze({ ...input, id: input.id }),
+      metadata = Object.freeze({ schemaVersion: options.pauseSupport ? 2 : 1, ...(options.pauseSupport ? { controlCount: 0 } : {}), takeId, selectedInput: Object.freeze({ ...input, id: input.id }),
         status: "recording", start: boundary(observation), terminal: null,
         initialState: Object.freeze({ heldKeys: "unknown", controllers: "unknown" }),
         sourceTimestampClock: "browser-event-unverified", limits, eventCount: 0, eventWatermark: 0,
@@ -139,10 +142,28 @@ export function createImprovTakeRecorder(options: Readonly<{ createId: () => str
       finish("interrupted", reason, observation);
       return success();
     },
+    control(kind, observation, audio) {
+      if (!recording() || metadata!.schemaVersion !== 2) return failure("not-recording");
+      if (!sameContext(metadata!.start.observation.context, observation.context) || improvTimestampValidity(observation.atMs) !== "valid"
+        || observation.atMs < (controls.at(-1)?.boundary.observation.atMs ?? metadata!.start.observation.atMs)) {
+        return rejectAndInterrupt("continuity-mismatch", observation);
+      }
+      const expected = controls.length ? ({ pause: "pause-ack", "pause-ack": "resume-request", "resume-request": "resume-ack", "resume-ack": "resume", resume: "pause" } as const)[controls.at(-1)!.kind] : "pause";
+      if (kind !== expected) return failure("not-recording");
+      if (controls.length >= IMPROV_MAX_CONTROLS) return rejectAndInterrupt("control-limit", observation);
+      const control = Object.freeze({ sequence: controls.length + 1, afterEventSequence: events.length, kind, boundary: boundary(observation), audio });
+      const accountedBytes = metadata!.accountedBytes + improvControlAccountedBytes(control);
+      if (accountedBytes > limits.maxAccountedBytes) return rejectAndInterrupt("byte-limit", observation);
+      controls.push(control); metadata = Object.freeze({ ...metadata!, controlCount: controls.length, accountedBytes });
+      if (accountedBytes === limits.maxAccountedBytes) finish("interrupted", "byte-limit", observation);
+      return success();
+    },
+    readControls: () => Object.freeze([...controls]),
     metadata(): ImprovTakeMetadata | null { return metadata; },
     readConnections(): readonly ImprovTakeConnection[] { return Object.freeze([...connections]); },
     snapshot(): ImprovTake | null {
-      return metadata === null ? null : Object.freeze({ metadata, events: Object.freeze([...events]), connections: Object.freeze([...connections]) });
+      return metadata === null ? null : Object.freeze({ metadata, events: Object.freeze([...events]), connections: Object.freeze([...connections]),
+        ...(metadata.schemaVersion === 2 ? { controls: Object.freeze([...controls]) } : {}) });
     },
     /** Inclusive watermark cursor: read messages strictly after it, without copying earlier history. */
     readEvents(afterSequence: number, limit: number): readonly ImprovTakeEvent[] {

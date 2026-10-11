@@ -1,7 +1,7 @@
 import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, immutableCopy, type ImprovCollectionEvidence, type ImprovArchiveLibrary } from "./improv-library";
 import { requireCollection, requireLoadedTake, requireTake } from "./improv-library-validation";
 
-export const IMPROV_BACKUP_VERSION = 1;
+export const IMPROV_BACKUP_VERSION = 2;
 export const IMPROV_BACKUP_MAX_BYTES = 64 * 1024 * 1024;
 const NUMBER_TAG = "$preludeNumber";
 const specialNumbers = { NaN, Infinity, "-Infinity": -Infinity, "-0": -0 };
@@ -35,7 +35,8 @@ export function requireImprovCollectionEvidence(v: unknown): asserts v is Improv
 
 export function encodeImprovBackup(evidence: ImprovCollectionEvidence): string {
   requireImprovCollectionEvidence(evidence);
-  const json = JSON.stringify({ format: "prelude-improv-backup", version: IMPROV_BACKUP_VERSION,
+  const version = evidence.takes.some(t => "record" in t && t.record.schemaVersion === 2) ? 2 : 1;
+  const json = JSON.stringify({ format: "prelude-improv-backup", version,
     evidenceKind: "original-midi-delivery", evidence }, (_key, value: unknown) => {
     if (typeof value !== "number") return value;
     if (Object.is(value, -0)) return { [NUMBER_TAG]: "-0" };
@@ -66,8 +67,9 @@ export function parseImprovBackup(json: string): ImprovCollectionEvidence {
   const root = decode(parsed, 0);
   if (root === null || typeof root !== "object" || Object.keys(root).length !== 4 || !("format" in root) || root.format !== "prelude-improv-backup"
     || !("version" in root) || !("evidenceKind" in root) || root.evidenceKind !== "original-midi-delivery" || !("evidence" in root)) throw new ImprovLibraryError("corrupt");
-  if (root.version !== IMPROV_BACKUP_VERSION) throw new ImprovLibraryError("unsupported");
+  if (root.version !== 1 && root.version !== IMPROV_BACKUP_VERSION) throw new ImprovLibraryError("unsupported");
   requireImprovCollectionEvidence(root.evidence);
+  if (root.version === 1 && root.evidence.takes.some(t => "record" in t && t.record.schemaVersion === 2)) throw new ImprovLibraryError("corrupt");
   return immutableCopy(root.evidence);
 }
 

@@ -8,6 +8,9 @@ class Recorder {
   state: RecordingState = "inactive"; mimeType = Recorder.mime;
   onstart: ((e: Event) => void) | null = null; onstop: ((e: Event) => void) | null = null;
   onerror: ((e: Event) => void) | null = null; ondataavailable: ((e: BlobEvent) => void) | null = null;
+  onpause: ((e: Event) => void) | null = null; onresume: ((e: Event) => void) | null = null;
+  pause = vi.fn(() => { this.state = "paused"; }); resume = vi.fn(() => { this.state = "recording"; });
+  paused() { this.onpause?.(new Event("pause")); } resumed() { this.onresume?.(new Event("resume")); }
   constructor() { if (Recorder.throws) throw new Error("unsupported"); Recorder.instances.push(this); }
   start() { this.state = "recording"; } stop = vi.fn(() => { this.state = "inactive"; });
   started() { this.onstart?.(new Event("start")); }
@@ -30,6 +33,82 @@ beforeEach(() => { vi.useFakeTimers(); Recorder.instances = []; Recorder.mime = 
 afterEach(() => { owned.splice(0).forEach(c => c.dispose()); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("temporary Improv room audio", () => {
+  it("does not claim MIDI continues when a late recorder error follows the observed terminal", async () => {
+    const f = fixture(); const r = await f.start(); r.data();
+    f.controller.observeTerminal({ atMs: 300, context: fixtureContext }); r.onerror?.(new Event("error")); r.ended();
+    expect(f.controller.snapshot().segment?.size).toBe(10); expect(f.controller.snapshot().message).not.toContain("MIDI continues");
+    expect(f.controller.snapshot().message).toContain("MIDI save and audio finalization remain separate");
+  });
+  it("keeps the existing 20-minute wall-span limit inclusive of a long native pause", async () => {
+    const f = fixture(); const r = await f.start(); r.data(); const p = f.controller.pause(); r.paused(); await p;
+    f.setTime(21 * 60 * 1000); vi.advanceTimersByTime(1000); r.ended();
+    expect(f.controller.snapshot().phase).toBe("available"); expect(f.controller.snapshot().message).toMatch(/limit/);
+    expect(f.track.stop).toHaveBeenCalledOnce(); expect(r.resume).not.toHaveBeenCalled();
+  });
+  it("rechecks foreground eligibility before native Resume", async () => {
+    const f = fixture(); const r = await f.start(); const p = f.controller.pause(); r.paused(); await p; f.unavailable();
+    await expect(f.controller.resume()).rejects.toThrow(); expect(r.resume).not.toHaveBeenCalled(); f.controller.stop(); r.data(); r.ended();
+  });
+  it("waits for native Pause/Resume acknowledgment and keeps one recorder and stream", async () => {
+    const f = fixture(); const r = await f.start(); f.setTime(200); const pausing = f.controller.pause();
+    expect(f.controller.snapshot().phase).toBe("pausing"); vi.advanceTimersByTime(1000);
+    expect(f.controller.snapshot().phase).toBe("pausing"); f.setTime(210); r.paused(); await pausing;
+    expect(f.controller.snapshot().phase).toBe("paused"); expect(f.track.stop).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000); expect(f.controller.snapshot().phase).toBe("paused");
+    f.setTime(10_000); const resuming = f.controller.resume(); expect(f.controller.snapshot().phase).toBe("resuming");
+    f.setTime(10_030); r.resumed(); await resuming; expect(f.controller.snapshot().phase).toBe("recording");
+    expect(Recorder.instances).toHaveLength(1); expect(f.request).toHaveBeenCalledOnce(); expect(f.begin).toHaveBeenCalledOnce();
+    expect(f.controller.snapshot().timing.transitions).toEqual([{ kind: "pause", requestedAtMs: 200, acknowledgedAtMs: 210 }, { kind: "resume", requestedAtMs: 10_000, acknowledgedAtMs: 10_030 }]);
+    f.controller.stop(); r.data(); r.ended(); expect(f.controller.snapshot().segment?.size).toBe(10);
+  });
+  it("finalizes a paused native recorder without Resume and retains its real chunks", async () => {
+    const f = fixture(); const r = await f.start(); r.data(); const p = f.controller.pause(); r.paused(); await p;
+    f.controller.stop(); r.data(); r.ended(); expect(r.resume).not.toHaveBeenCalled();
+    expect(f.controller.snapshot().segment?.size).toBe(20); expect(f.controller.snapshot().phase).toBe("available"); expect(f.track.stop).toHaveBeenCalledOnce();
+  });
+  it.each(["pause", "resume"] as const)("Stop cancels a pending native %s and ignores its late acknowledgment", async kind => {
+    const f = fixture(); const r = await f.start();
+    if (kind === "resume") { const p = f.controller.pause(); r.paused(); await p; }
+    const p = f.controller[kind](); const rejection = expect(p).rejects.toThrow(/canceled/); f.controller.stop(); await rejection;
+    if (kind === "pause") r.paused(); else r.resumed(); r.data(); r.ended(); expect(f.controller.snapshot().phase).toBe("available");
+    expect(f.controller.snapshot().timing.transitions.at(-1)?.acknowledgedAtMs).toBeNull();
+  });
+  it.each(["pause", "resume"] as const)("reports a native %s exception for the coordinator to terminate", async kind => {
+    const f = fixture(); const r = await f.start();
+    if (kind === "resume") { const p = f.controller.pause(); r.paused(); await p; }
+    r[kind].mockImplementation(() => { throw new Error("Native refused"); }); await expect(f.controller[kind]()).rejects.toThrow(/failed/);
+    f.controller.stop(); r.data(); r.ended(); expect(f.controller.snapshot().segment).not.toBeNull();
+  });
+  it("bounds delayed native acknowledgments and cleans timers after Stop", async () => {
+    const f = fixture(); const r = await f.start(); const p = f.controller.pause(); const rejection = expect(p).rejects.toThrow(/timed out/);
+    vi.advanceTimersByTime(10_000); await rejection; f.controller.stop(); r.data(); r.ended(); expect(vi.getTimerCount()).toBe(0);
+  });
+  it("rejects inconsistent native state instead of claiming Paused", async () => {
+    const f = fixture(); const r = await f.start(); const p = f.controller.pause(); const rejection = expect(p).rejects.toThrow(/inconsistent/);
+    r.state = "recording"; r.paused(); await rejection; expect(f.controller.snapshot().phase).not.toBe("paused"); f.controller.stop(); r.data(); r.ended();
+  });
+  it("reports unsupported pause capability without changing existing Start/Stop capture", async () => {
+    const f = fixture(); const r = await f.start(); Reflect.set(r, "pause", undefined);
+    expect(f.controller.canPause()).toBe(false); await expect(f.controller.pause()).rejects.toThrow();
+    expect(f.controller.snapshot().phase).toBe("recording"); f.controller.stop(); r.data(); r.ended(); expect(f.controller.snapshot().segment).not.toBeNull();
+  });
+  it("reports an independent microphone failure while Paused and keeps its prefix", async () => {
+    const f = fixture(); const r = await f.start(); r.data(); const p = f.controller.pause(); r.paused(); await p;
+    f.track.dispatchEvent(new Event("ended")); r.ended(); expect(f.controller.active()).toBe(false);
+    expect(f.controller.status()).toBe("failed"); expect(f.controller.snapshot().message).toContain("MIDI continues independently");
+    expect(f.controller.snapshot().segment?.size).toBe(10); expect(f.begin).toHaveBeenCalledOnce();
+  });
+  it("rejects coordinated Pause on microphone loss without losing legitimate audio", async () => {
+    const f = fixture(); const r = await f.start(); r.data(); const p = f.controller.pause(); const rejection = expect(p).rejects.toThrow(/interrupted/);
+    f.track.dispatchEvent(new Event("mute")); await rejection; r.ended(); expect(f.controller.snapshot().segment?.size).toBe(10);
+  });
+  it("fences old native transition/error callbacks from a replacement recorder", async () => {
+    const f = fixture(); const old = await f.start(); const oldPause = old.onpause!, oldError = old.onerror!, oldStop = old.onstop!;
+    f.controller.discard(); const fresh = await f.start(); const p = f.controller.pause();
+    oldPause(new Event("pause")); oldError(new Event("error")); oldStop(new Event("stop"));
+    expect(f.controller.snapshot().phase).toBe("pausing"); fresh.paused(); await p; expect(f.controller.snapshot().phase).toBe("paused");
+    f.controller.stop(); fresh.data(); fresh.ended();
+  });
   it("defaults off and requests only audio with conservative processing constraints on explicit Prepare", async () => {
     const f = fixture(); expect(f.request).not.toHaveBeenCalled(); expect(f.controller.needsGuard()).toBe(false);
     await f.controller.prepare(); expect(f.request).toHaveBeenCalledExactlyOnceWith({ audio: { channelCount: { ideal: 1 }, echoCancellation: { ideal: false }, noiseSuppression: { ideal: false }, autoGainControl: { ideal: false } }, video: false });

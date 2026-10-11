@@ -252,7 +252,7 @@ describe("Improv chunks, durable acknowledgment, ownership and recovery", () => 
   it.each(["corrupt", "unsupported", "missing-chunk", "bad-count", "bad-continuity"])("reports %s stored records without repairing or erasing evidence", async (kind) => {
     const f = await fixture(); f.rec.append(message(1), context); const saved = await f.lib.checkpoint(checkpoint(f.rec, f.take));
     if (kind === "corrupt") f.fake.set("takes", "take-1", { ...saved, number: -1 });
-    if (kind === "unsupported") f.fake.set("takes", "take-1", { ...saved, schemaVersion: 2 });
+    if (kind === "unsupported") f.fake.set("takes", "take-1", { ...saved, schemaVersion: 3 });
     if (kind === "missing-chunk") f.fake.set("takes", "take-1", { ...saved, chunkCount: 2 });
     if (kind === "bad-count") f.fake.set("takes", "take-1", { ...saved, committedAccountedBytes: saved.committedAccountedBytes - 1 });
     if (kind === "bad-continuity") f.fake.set("eventChunks", ["take-1", 0], { ...(f.fake.get("eventChunks", ["take-1", 0]) as object), startSequence: 2 });

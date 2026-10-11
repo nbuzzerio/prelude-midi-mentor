@@ -1,4 +1,4 @@
-import { improvTimestampValidity, type ImprovTakeBoundary, type ImprovTakeConnection, type ImprovTakeEvent,
+import { improvTimestampValidity, improvControlAccountedBytes, IMPROV_MAX_CONTROLS, type ImprovTakeControl, type ImprovTakeBoundary, type ImprovTakeConnection, type ImprovTakeEvent,
   type ImprovTakeMetadata } from "./improv-take";
 import { improvMessageAccountedBytes } from "./improv-take-recorder";
 import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, sameCaptureContext, sameEvidence, type ImprovCollection, type ImprovLoadedTake,
@@ -21,7 +21,7 @@ const context = (v: unknown) => shape(v, "ownerId clockId timeOriginMs")
   && typeof v.ownerId === "string" && v.ownerId.length <= 1024 && typeof v.clockId === "string" && v.clockId.length <= 1024
   && maybeNumber(v.timeOriginMs);
 const reasons = new Set(["user-stop", "device-disconnected", "source-reconnected", "consumer-lost", "background", "freeze", "pagehide",
-  "capture-unavailable", "continuity-mismatch", "transport-order-mismatch", "event-limit", "byte-limit"]);
+  "capture-unavailable", "continuity-mismatch", "transport-order-mismatch", "event-limit", "byte-limit", "coordination-failed", "control-limit"]);
 
 function boundary(v: unknown): v is ImprovTakeBoundary {
   return shape(v, "observation validity contextMatchesStart precedesStart")
@@ -30,8 +30,9 @@ function boundary(v: unknown): v is ImprovTakeBoundary {
     && typeof v.contextMatchesStart === "boolean" && typeof v.precedesStart === "boolean";
 }
 export function requireMetadata(v: unknown): asserts v is ImprovTakeMetadata {
-  if (object(v) && v.schemaVersion !== 1) throw new ImprovLibraryError("unsupported");
-  if (!shape(v, "schemaVersion takeId selectedInput status start terminal initialState sourceTimestampClock limits eventCount eventWatermark lastTransportSequence connectionCount accountedBytes")
+  if (object(v) && v.schemaVersion !== 1 && v.schemaVersion !== 2) throw new ImprovLibraryError("unsupported");
+  if (!shape(v, `schemaVersion takeId selectedInput status start terminal initialState sourceTimestampClock limits eventCount eventWatermark lastTransportSequence connectionCount accountedBytes${object(v) && v.schemaVersion === 2 ? " controlCount" : ""}`)
+    || (v.schemaVersion === 2 && (!integer(v.controlCount) || v.controlCount > IMPROV_MAX_CONTROLS))
     || !usableId(v.takeId) || !input(v.selectedInput) || !object(v.selectedInput) || !usableId(v.selectedInput.id)
     || !["recording", "completed", "interrupted"].includes(String(v.status)) || !boundary(v.start)
     || v.start.validity !== "valid" || !v.start.contextMatchesStart || v.start.precedesStart
@@ -53,6 +54,19 @@ export function requireMetadata(v: unknown): asserts v is ImprovTakeMetadata {
       || v.terminal.boundary.contextMatchesStart !== sameCaptureContext(v.start.observation.context, v.terminal.boundary.observation.context)
       || v.terminal.boundary.precedesStart !== (Number.isFinite(v.terminal.boundary.observation.atMs)
         && v.terminal.boundary.observation.atMs < v.start.observation.atMs)) throw new ImprovLibraryError("corrupt");
+  }
+}
+export function requireControls(v: unknown, capture: ImprovTakeMetadata, watermark: number): asserts v is readonly ImprovTakeControl[] {
+  if (!Array.isArray(v) || v.length > (capture.controlCount ?? 0)) throw new ImprovLibraryError("corrupt");
+  const kinds = ["pause", "pause-ack", "resume-request", "resume-ack", "resume"];
+  let previous = capture.start.observation.atMs; let after = 0;
+  for (const [index, c] of v.entries()) {
+    if (!shape(c, "sequence afterEventSequence kind boundary audio") || c.sequence !== index + 1 || c.kind !== kinds[index % 5]
+      || !integer(c.afterEventSequence) || c.afterEventSequence < after || c.afterEventSequence > watermark
+      || !boundary(c.boundary) || c.boundary.validity !== "valid" || !c.boundary.contextMatchesStart || c.boundary.precedesStart
+      || !sameCaptureContext(c.boundary.observation.context, capture.start.observation.context)
+      || c.boundary.observation.atMs < previous || !["off", "recording", "paused", "failed"].includes(String(c.audio))) throw new ImprovLibraryError("corrupt");
+    previous = c.boundary.observation.atMs; after = c.afterEventSequence;
   }
 }
 export function initialAccountedBytes(capture: ImprovTakeMetadata): number {
@@ -113,10 +127,10 @@ export function requireCollection(v: unknown): asserts v is ImprovCollection {
   }
 }
 export function requireTake(v: unknown): asserts v is ImprovStoredTake | ImprovDeletedTake {
-  if (object(v) && v.schemaVersion !== 1) throw new ImprovLibraryError("unsupported");
+  if (object(v) && v.schemaVersion !== 1 && v.schemaVersion !== 2) throw new ImprovLibraryError("unsupported");
   if (!object(v) || !usableId(v.takeId) || !usableId(v.collectionId) || !integer(v.number) || v.number < 1 || v.number > L.takesPerCollection) throw new ImprovLibraryError("corrupt");
   if (v.kind === "deleted-take") {
-    if (!importShape(v, "schemaVersion kind takeId collectionId number deletedAtMs") || !wallTime(v.deletedAtMs)) throw new ImprovLibraryError("corrupt");
+    if (v.schemaVersion !== 1 || !importShape(v, "schemaVersion kind takeId collectionId number deletedAtMs") || !wallTime(v.deletedAtMs)) throw new ImprovLibraryError("corrupt");
     if (Object.hasOwn(v, "importedFrom")) {
       if (!object(v.importedFrom) || Object.hasOwn(v.importedFrom, "importedFrom")) throw new ImprovLibraryError("corrupt");
       requireTake(v.importedFrom);
@@ -124,9 +138,14 @@ export function requireTake(v: unknown): asserts v is ImprovStoredTake | ImprovD
     }
     return;
   }
-  if (!importShape(v, "schemaVersion kind takeId collectionId number writerToken capture status storageStatus committedEventWatermark committedAccountedBytes chunkCount continuity connections revision checkpointAtMs lease recovery captureFailure lastCommit")
+  if (!importShape(v, `schemaVersion kind takeId collectionId number writerToken capture status storageStatus committedEventWatermark committedAccountedBytes chunkCount continuity connections revision checkpointAtMs lease recovery captureFailure lastCommit${v.schemaVersion === 2 ? " controls committedControlWatermark" : ""}`)
     || v.kind !== "take" || !usableId(v.writerToken)) throw new ImprovLibraryError("corrupt");
   requireMetadata(v.capture);
+  if (v.schemaVersion !== v.capture.schemaVersion) throw new ImprovLibraryError("corrupt");
+  if (v.schemaVersion === 2) {
+    requireControls(v.controls, v.capture, Number(v.committedEventWatermark));
+    if (v.committedControlWatermark !== v.controls.length) throw new ImprovLibraryError("corrupt");
+  }
   const imported = Object.hasOwn(v, "importedFrom");
   if ((!imported && v.capture.takeId !== v.takeId) || !["recording", "completed", "interrupted", "incomplete"].includes(String(v.status))
     || v.storageStatus !== "committed" || !integer(v.committedEventWatermark) || v.committedEventWatermark > v.capture.eventWatermark
@@ -147,7 +166,8 @@ export function requireTake(v: unknown): asserts v is ImprovStoredTake | ImprovD
     if (!shape(v.recovery, "reason inferredAtMs") || !(v.recovery.reason === "lease-expired" || (imported && v.recovery.reason === "imported-prefix")) || !wallTime(v.recovery.inferredAtMs)) throw new ImprovLibraryError("corrupt");
   } else if (v.recovery !== null) throw new ImprovLibraryError("corrupt");
   if (["completed", "interrupted"].includes(String(v.status)) && (v.status !== v.capture.status
-    || v.committedEventWatermark !== v.capture.eventWatermark || v.connections.length !== v.capture.connectionCount)) throw new ImprovLibraryError("corrupt");
+    || v.committedEventWatermark !== v.capture.eventWatermark || v.connections.length !== v.capture.connectionCount
+    || (v.schemaVersion === 2 && v.committedControlWatermark !== v.capture.controlCount))) throw new ImprovLibraryError("corrupt");
   if (v.lastCommit !== null && (!shape(v.lastCommit, "operationId previousRevision chunkIndex fromWatermark finalized")
     || !usableId(v.lastCommit.operationId) || !integer(v.lastCommit.previousRevision) || v.lastCommit.previousRevision >= v.revision
     || !(v.lastCommit.chunkIndex === null || (integer(v.lastCommit.chunkIndex) && v.lastCommit.chunkIndex < v.chunkCount))
@@ -160,6 +180,7 @@ export function requireTake(v: unknown): asserts v is ImprovStoredTake | ImprovD
     if (origin.kind !== "take" || v.number !== origin.number || v.status === "recording" || v.lastCommit !== null
       || v.status !== (origin.status === "recording" ? "incomplete" : origin.status)
       || !["capture", "connections", "committedEventWatermark", "committedAccountedBytes", "chunkCount", "continuity", "captureFailure"].every((key) => sameEvidence(v[key], Reflect.get(origin, key)))) throw new ImprovLibraryError("corrupt");
+    if (v.schemaVersion === 2 && (!sameEvidence(v.controls, origin.controls) || v.committedControlWatermark !== origin.committedControlWatermark)) throw new ImprovLibraryError("corrupt");
   }
 }
 export function requireChunk(v: unknown, takeId: string, index: number): asserts v is ImprovEventChunk {
@@ -188,8 +209,10 @@ export function requireLoadedTake(v: unknown): asserts v is ImprovLoadedTake {
     bytes += size; watermark = chunk.endSequence;
   });
   bytes += record.connections.reduce((sum, c) => sum + connectionAccountedBytes(c), 0);
+  bytes += (record.controls ?? []).reduce((sum, c) => sum + improvControlAccountedBytes(c), 0);
   if (watermark !== record.committedEventWatermark || bytes !== record.committedAccountedBytes
     || !sameEvidence(continuity, record.continuity)
     || (watermark === record.capture.eventWatermark && (continuity.lastTransportSequence !== record.capture.lastTransportSequence
-      || (record.connections.length === record.capture.connectionCount && bytes !== record.capture.accountedBytes)))) throw new ImprovLibraryError("corrupt");
+      || (record.connections.length === record.capture.connectionCount && (record.committedControlWatermark ?? 0) === (record.capture.controlCount ?? 0)
+        && bytes !== record.capture.accountedBytes)))) throw new ImprovLibraryError("corrupt");
 }

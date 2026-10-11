@@ -1,15 +1,19 @@
 import { immutableCopy, type ImprovLoadedTake } from "./improv-library";
 import type { RawMidiMessage } from "@/lib/midi/midi-transport";
-import type { ImprovTakeEvent } from "./improv-take";
+import type { ImprovTakeControl, ImprovTakeEvent } from "./improv-take";
+import { createImprovMusicalClock, createImprovPerformanceFilter } from "./improv-musical-time";
 
 /** A bounded rendering policy, not a change to captured timing or an estimate of performed tempo. */
 export const IMPROV_PROJECTION_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
 export type ImprovTimingIssue = Readonly<{ sequence: number | null; reason: string }>;
 export type ImprovTimingProjection = Readonly<{
   provenance: "derived-receipt-timing";
-  events: readonly Readonly<{ sequence: number; atMs: number; source: "receipt" | "unverified-browser-fallback" | "previous-position" }>[];
+  events: readonly Readonly<{ sequence: number; atMs: number; source: "receipt" | "unverified-browser-fallback" | "previous-position"; elapsedMs?: number; paused?: boolean; represented?: boolean }>[];
+  steps?: readonly ImprovProjectionStep[];
+  elapsedDurationMs?: number; pauseCount?: number;
   durationMs: number; knownEnd: boolean; issues: readonly ImprovTimingIssue[];
 }>;
+export type ImprovProjectionStep = Readonly<{ atMs: number; control: ImprovTakeControl }> | Readonly<{ atMs: number; event: number; paused: boolean; represented: boolean }>;
 
 /** Shared incremental policy for live display and immutable saved review. */
 export function projectImprovEventTiming(event: ImprovTakeEvent, start: number, previous: number,
@@ -35,21 +39,48 @@ export function projectImprovTiming(take: ImprovLoadedTake): ImprovTimingProject
   const start = take.record.capture.start.observation.atMs;
   const issues: ImprovTimingIssue[] = [];
   let previous = 0;
+  const musical = createImprovMusicalClock(), filter = createImprovPerformanceFilter();
+  const controls = take.record.controls ?? []; let controlIndex = 0;
+  const steps: ImprovProjectionStep[] = [];
+  const consumeControls = (after: number) => {
+    while (controlIndex < controls.length && controls[controlIndex].afterEventSequence <= after) {
+      const control = controls[controlIndex++];
+      const relative = control.boundary.observation.atMs - start;
+      if (!Number.isFinite(relative) || relative < previous || relative > IMPROV_PROJECTION_LIMIT_MS) issues.push({ sequence: null, reason: "control-position-held-in-order" });
+      else previous = relative;
+      const atMs = musical.control(control, previous);
+      if (control.kind === "pause") filter.pause();
+      steps.push({ atMs, control });
+    }
+  };
   const events = take.chunks.flatMap((chunk) => chunk.events).map((event) => {
+    consumeControls(event.sequence - 1);
     const issue = (reason: string) => issues.push({ sequence: event.sequence, reason });
     const projected = projectImprovEventTiming(event, start, previous, issue);
     previous = projected.atMs;
+    if (take.record.schemaVersion === 2) {
+      const atMs = musical.position(previous), paused = musical.paused();
+      const decoded = decodeImprovMessage(event.raw);
+      const represented = decoded.kind === "channel" ? filter.accept(decoded.bytes, paused) : !paused;
+      steps.push({ atMs, event: event.sequence - 1, paused, represented });
+      return { ...projected, atMs, elapsedMs: previous, paused, represented };
+    }
     return projected;
   });
+  consumeControls(take.record.committedEventWatermark);
   const terminal = take.record.capture.terminal?.boundary;
   const fullPrefix = take.record.committedEventWatermark === take.record.capture.eventWatermark
-    && take.record.connections.length === take.record.capture.connectionCount;
+    && take.record.connections.length === take.record.capture.connectionCount
+    && (take.record.committedControlWatermark ?? 0) === (take.record.capture.controlCount ?? 0);
   const end = terminal ? terminal.observation.atMs - start : NaN;
   const knownEnd = ["completed", "interrupted"].includes(take.record.status) && fullPrefix && !!terminal
     && terminal.contextMatchesStart && terminal.validity === "valid" && end >= 0 && end <= IMPROV_PROJECTION_LIMIT_MS;
   if (!knownEnd) issues.push({ sequence: null, reason: "unknown-end-use-durable-prefix" });
   if (knownEnd && previous > end) issues.push({ sequence: null, reason: "delivered-events-after-observed-end" });
-  return immutableCopy({ provenance: "derived-receipt-timing", events, durationMs: knownEnd ? Math.max(previous, end) : previous, knownEnd, issues });
+  const elapsedDurationMs = knownEnd ? Math.max(previous, end) : previous;
+  return immutableCopy({ provenance: "derived-receipt-timing", events,
+    durationMs: take.record.schemaVersion === 2 ? musical.position(elapsedDurationMs) : elapsedDurationMs, knownEnd, issues,
+    ...(take.record.schemaVersion === 2 ? { steps, elapsedDurationMs, pauseCount: controls.filter(c => c.kind === "pause").length } : {}) });
 }
 
 export type ImprovDecodedMessage = Readonly<{
@@ -82,7 +113,18 @@ export function summarizeImprovTake(take: ImprovLoadedTake) {
   const pairs: number[] = []; const held = new Map<string, { at: number; valid: boolean; ambiguous: boolean }[]>();
   let attacks = 0; let pedalEvents = 0; let repeatedOverlappingAttacks = 0; let unmatchedReleases = 0; let keyDown = 0; let maximumKeyDownPolyphony = 0;
   const events = take.chunks.flatMap((c) => c.events);
+  let controlIndex = 0;
+  const controls = take.record.controls ?? [];
+  let pauseCutoffAttacks = 0;
+  const consumeControls = (before: number) => {
+    while (controlIndex < controls.length && controls[controlIndex].afterEventSequence < before) {
+      if (controls[controlIndex].kind === "pause") { pauseCutoffAttacks += keyDown; held.clear(); keyDown = 0; }
+      controlIndex++;
+    }
+  };
   events.forEach((event, i) => {
+    consumeControls(event.sequence);
+    if (timing.events[i].represented === false) return;
     const decoded = decodeImprovMessage(event.raw);
     if (decoded.kind !== "channel") return;
     const [, pitch, velocity] = decoded.bytes;
@@ -92,22 +134,24 @@ export function summarizeImprovTake(take: ImprovLoadedTake) {
       attacks++; pitches.push(pitch); velocities.push(velocity); attackPositions.push(timing.events[i].atMs);
       const queue = held.get(key) ?? [];
       if (queue.length) { repeatedOverlappingAttacks++; queue.forEach((n) => { n.ambiguous = true; }); }
-      queue.push({ at: event.raw.receivedAtMs, valid: event.timing.receiptValidity === "valid" && !event.timing.receiptTimestampRegressed, ambiguous: queue.length > 0 });
+      queue.push({ at: take.record.schemaVersion === 2 ? timing.events[i].atMs : event.raw.receivedAtMs, valid: event.timing.receiptValidity === "valid" && !event.timing.receiptTimestampRegressed, ambiguous: queue.length > 0 });
       held.set(key, queue); keyDown++; maximumKeyDownPolyphony = Math.max(maximumKeyDownPolyphony, keyDown);
     } else if (decoded.command === 0x80 || (decoded.command === 0x90 && velocity === 0)) {
       const attack = held.get(key)?.shift();
       if (!attack) { unmatchedReleases++; return; }
       keyDown--;
-      if (!attack.ambiguous && attack.valid && event.timing.receiptValidity === "valid" && !event.timing.receiptTimestampRegressed && event.raw.receivedAtMs >= attack.at) pairs.push(event.raw.receivedAtMs - attack.at);
+      const releaseAt = take.record.schemaVersion === 2 ? timing.events[i].atMs : event.raw.receivedAtMs;
+      if (!attack.ambiguous && attack.valid && event.timing.receiptValidity === "valid" && !event.timing.receiptTimestampRegressed && releaseAt >= attack.at) pairs.push(releaseAt - attack.at);
     }
   });
+  consumeControls(take.record.committedEventWatermark + 1);
   return immutableCopy({ provenance: "derived-descriptive-summary", observedEvents: events.length,
     observedBoundaryDurationMs: timing.knownEnd ? take.record.capture.terminal!.boundary.observation.atMs - take.record.capture.start.observation.atMs : null,
-    projectedDurationMs: timing.durationMs, noteAttacks: attacks,
+    projectedDurationMs: timing.durationMs, pauseCount: timing.pauseCount ?? 0, noteAttacks: attacks,
     lowestPitch: pitches.length ? pitches.reduce((a, b) => Math.min(a, b)) : null, highestPitch: pitches.length ? pitches.reduce((a, b) => Math.max(a, b)) : null,
     velocity: { minimum: velocities.length ? velocities.reduce((a, b) => Math.min(a, b)) : null, maximum: velocities.length ? velocities.reduce((a, b) => Math.max(a, b)) : null,
       mean: velocities.length ? velocities.reduce((a, b) => a + b, 0) / velocities.length : null },
-    pedalEvents, repeatedOverlappingAttacks, maximumKeyDownPolyphony, unmatchedReleases, unreleasedAttacks: keyDown,
+    pedalEvents, repeatedOverlappingAttacks, maximumKeyDownPolyphony, unmatchedReleases, unreleasedAttacks: keyDown, pauseCutoffAttacks,
     unambiguousReceiptPairedDurationsMs: pairs,
     projectedInterAttackGapsMs: attackPositions.slice(1).map((at, i) => at - attackPositions[i]), timingIssues: timing.issues });
 }

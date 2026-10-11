@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createImprovReplay, type ImprovReplayScheduler, type ImprovReplaySound } from "./improv-replay";
-import { performanceFixture } from "./improv-test-fixture";
+import { performanceFixture, pausePerformanceFixture, pauseSteps } from "./improv-test-fixture";
 
 function clock() {
   let now = 0; const tasks = new Set<{ at: number; callback: () => void }>();
@@ -26,6 +26,44 @@ function sound(started: () => Promise<boolean> = () => Promise.resolve(true)) {
 function setup(started?: () => Promise<boolean>) { const c = clock(); const s = sound(started); return { ...c, ...s, engine: createImprovReplay(s.adapter, c.scheduler) }; }
 
 describe("explicit MIDI piano replay", () => {
+  it.each(["completed", "cancelled"] as const)("labels generated %s replay cleanup separately from raw releases", async result => {
+    const f = await pausePerformanceFixture([{ atMs: 200 }], 500); const before = structuredClone(f.loaded);
+    const s = setup(); const run = s.engine.play(f.loaded); s.advance(100);
+    if (result === "completed") s.advance(400); else run.stop();
+    await expect(run.completion).resolves.toBe(result); expect(s.voices[0].release).toHaveBeenCalledOnce();
+    expect(run.generated()).toEqual([{ kind: result === "completed" ? "terminal-cleanup" : "replay-stop-cleanup", atMs: result === "completed" ? 400 : null }]);
+    expect(f.loaded).toEqual(before);
+  });
+  it("prepares long paused system-message context without scheduling a collapsed playback burst", async () => {
+    const p = pauseSteps(500, 10_500); const f = await pausePerformanceFixture([p[0], p[1],
+      ...Array.from({ length: 10_000 }, () => ({ atMs: 1000, bytes: [0xf8] })), ...p.slice(2), { atMs: 10_600 }], 10_700);
+    const s = setup(); const run = s.engine.play(f.loaded); expect(run.ignored()).toHaveLength(10_000);
+    expect(s.tasks.size).toBe(1); s.advance(500); expect(s.attack).toHaveBeenCalledOnce(); s.advance(600);
+    await expect(run.completion).resolves.toBe("completed"); expect(s.tasks.size).toBe(0); expect(f.loaded.record.committedEventWatermark).toBe(10_001);
+  });
+  it("replays compressed segments, cleans held voices at the seam and excludes paused attacks", async () => {
+    const p = pauseSteps(500, 10_500);
+    const f = await pausePerformanceFixture([{ atMs: 200, bytes: [0x90, 60, 80] }, p[0], p[1], { atMs: 1000, bytes: [0x90, 70, 50] },
+      ...p.slice(2), { atMs: 10_500, bytes: [0x90, 64, 90] }, { atMs: 10_600, bytes: [0x80, 64, 0] }], 10_700);
+    const s = setup(); const run = s.engine.play(f.loaded); s.advance(100); expect(s.attack).toHaveBeenCalledOnce();
+    s.advance(400); expect(s.voices[0].release).toHaveBeenCalledOnce(); expect(s.attack.mock.calls.map(([note]) => note.pitch)).toEqual([60, 64]);
+    s.advance(600); await expect(run.completion).resolves.toBe("completed"); expect(s.tasks.size).toBe(0);
+    expect(run.generated()).toEqual([{ kind: "pause-boundary-cleanup", atMs: 400 }]); expect(run.ignored()[0].reason).toBe("intentional-pause-context");
+  });
+  it("does not release a fresh same-pitch voice for a key held across Pause", async () => {
+    const f = await pausePerformanceFixture([{ atMs: 200 }, ...pauseSteps(500, 10_500), { atMs: 10_500, bytes: [0x90, 60, 90] },
+      { atMs: 10_600, bytes: [0x80, 60, 0] }, { atMs: 10_700, bytes: [0x80, 60, 0] }], 10_800);
+    const s = setup(); const run = s.engine.play(f.loaded); s.advance(500); expect(s.voices[1].release).not.toHaveBeenCalled();
+    s.advance(600); expect(s.voices[1].release).toHaveBeenCalledOnce(); s.advance(700); await run.completion;
+    expect(run.ignored()[0].reason).toBe("cross-pause-release");
+  });
+  it("restores observed pedal after Resume without claiming acoustic sustain", async () => {
+    const p = pauseSteps(500, 10_500); const f = await pausePerformanceFixture([p[0], p[1], { atMs: 1000, bytes: [0xb0, 64, 91] },
+      ...p.slice(2), { atMs: 10_500 }, { atMs: 10_600, bytes: [0x80, 60, 0] }, { atMs: 10_700, bytes: [0xb0, 64, 0] }], 10_800);
+    const s = setup(); const run = s.engine.play(f.loaded); s.advance(500); expect(s.voices[0].release).not.toHaveBeenCalled();
+    s.advance(600); expect(s.voices[0].release).toHaveBeenCalledOnce(); s.advance(700); await run.completion;
+    expect(run.generated().some(e => e.kind === "resume-observed-controller-restore")).toBe(true);
+  });
   it("does not play on construction, schedules leading silence, velocities and completion", async () => {
     const { loaded } = await performanceFixture([{ bytes: [0x93, 60, 64], receivedAtMs: 200 }, { bytes: [0x83, 60, 10], receivedAtMs: 300 }]);
     const s = setup(); expect(s.attack).not.toHaveBeenCalled(); const run = s.engine.play(loaded);

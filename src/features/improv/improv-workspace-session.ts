@@ -3,8 +3,14 @@ import type { ImprovArchiveLibrary, ImprovCollection } from "./improv-library";
 import { decodeImprovMessage } from "./improv-performance";
 import { createImprovTakeRecorder } from "./improv-take-recorder";
 import { createImprovTakePersistence, type ImprovSaveState } from "./improv-take-persistence";
-import type { ImprovCaptureContext, ImprovInterruptionReason, ImprovObservation } from "./improv-take";
+import type { ImprovCaptureContext, ImprovInterruptionReason, ImprovObservation, ImprovTakeControl } from "./improv-take";
 import { createImprovTimeline, type ImprovTimeline } from "./improv-timeline";
+export type ImprovAudioTransition = Readonly<{
+  active: () => boolean; status: () => ImprovTakeControl["audio"];
+  pause: () => Promise<void>; resume: () => Promise<void>; stop: () => void;
+  coordinationFailed?: (message: string) => void;
+}>;
+export type ImprovSessionPhase = "ready" | "recording" | "pausing" | "paused" | "resuming" | "stopping" | "saved" | "interrupted" | "failed";
 
 /** Coordinates one attempt; React never owns the raw journal or committed watermark. */
 export function createImprovWorkspaceSession(options: Readonly<{
@@ -15,17 +21,44 @@ export function createImprovWorkspaceSession(options: Readonly<{
   let collectionId: string | null = null;
   let selectedInputId: string | null = null;
   let timeline: ImprovTimeline | null = null;
+  let localPhase: ImprovSessionPhase = "ready", generation = 0, transitionError = "";
   const held = new Map<string, number>(); let heldVersion = 0;
   const idle: ImprovSaveState = Object.freeze({ storageStatus: "idle", captureStatus: "idle", takeId: null, number: null,
     committedEventWatermark: 0, pendingEventCount: 0, pendingAccountedBytes: 0, pendingConnections: 0, failure: null, captureFailure: null });
   const state = () => capture?.state() ?? idle;
   const needsGuard = () => state().captureStatus === "recording" || !["idle", "saved"].includes(state().storageStatus);
   const clearHeld = () => { if (held.size) { held.clear(); heldVersion++; } };
+  const phase = (): ImprovSessionPhase => {
+    const save = state();
+    if (save.captureStatus === "interrupted") return "interrupted";
+    if (save.captureStatus === "completed") return save.storageStatus === "saved" ? "saved" : "stopping";
+    return localPhase;
+  };
+  const control = (kind: ImprovTakeControl["kind"], audio?: ImprovAudioTransition) => {
+    if (!capture?.control(kind, options.observe(), audio?.status() ?? "off")) throw new Error("Pause/Resume control could not be recorded safely.");
+    const entry = recorder!.readControls().at(-1)!;
+    timeline?.control(entry);
+    if (state().captureStatus !== "recording") throw new Error("Capture reached a safety limit during Pause/Resume.");
+  };
+  const durable = async () => {
+    const target = recorder!.metadata()!.controlCount!;
+    if (!state().failure && (state().committedControlWatermark ?? 0) >= target) return;
+    const saved = await capture!.flush();
+    if (saved.failure || (saved.committedControlWatermark ?? 0) < target) throw new Error("Pause/Resume is waiting for a successful local save. Retry Save before resuming.");
+  };
+  const current = (token: number) => token === generation && state().captureStatus === "recording";
+  const coordinationFailure = async (error: unknown, audio?: ImprovAudioTransition) => {
+    transitionError = error instanceof Error ? error.message : "Pause/Resume coordination failed.";
+    generation++; audio?.coordinationFailed?.(transitionError); audio?.stop(); clearHeld();
+    if (capture) await capture.interrupt("coordination-failed", options.observe());
+    timeline?.finishCapture(recorder!.metadata()!);
+  };
   return Object.freeze({
-    state, needsGuard, collectionId: () => collectionId, heldVersion: () => heldVersion,
+    state, phase, transitionError: () => transitionError, needsGuard, collectionId: () => collectionId, heldVersion: () => heldVersion,
     timeline: () => { const metadata = recorder?.metadata(); if (metadata) timeline?.finishCapture(metadata); return timeline; },
     resetCompleted() {
       if (needsGuard()) return false;
+      generation++; localPhase = "ready"; transitionError = "";
       capture = null; recorder = null; collectionId = null; timeline = null;
       return true;
     },
@@ -35,12 +68,13 @@ export function createImprovWorkspaceSession(options: Readonly<{
       if (needsGuard()) throw new Error("Stop and save or retry the current take first.");
       if (!input.id || input.id !== selectedInputId) throw new Error("Select a connected physical MIDI input first.");
       collectionId = collection.collectionId;
-      recorder = createImprovTakeRecorder({ createId: options.createId });
+      generation++; localPhase = "recording"; transitionError = "";
+      recorder = createImprovTakeRecorder({ createId: options.createId, pauseSupport: true });
       capture = createImprovTakePersistence({ recorder, library: options.library, collectionId, writerToken: options.createId(),
         observe: options.observe, createOperationId: options.createId });
       clearHeld();
       const result = capture.start(input, { atMs: options.observe().atMs, context });
-      if (!result.ok) throw new Error("The take could not start. Check the MIDI source and clock.");
+      if (!result.ok) { localPhase = "failed"; throw new Error("The take could not start. Check the MIDI source and clock."); }
       timeline = createImprovTimeline(recorder.metadata()!.start.observation.atMs);
       timeline.finishCapture(recorder.metadata()!);
       return state();
@@ -68,13 +102,52 @@ export function createImprovWorkspaceSession(options: Readonly<{
       if (change.input.id !== selectedInputId) return;
       capture?.observeConnection(change, context); clearHeld();
     },
-    stop: async () => { clearHeld(); return capture ? capture.stop(options.observe()) : idle; },
+    async pause(audio?: ImprovAudioTransition) {
+      if (phase() !== "recording") return;
+      const token = ++generation; localPhase = "pausing"; transitionError = "";
+      try {
+        control("pause", audio);
+        if (audio?.active()) await audio.pause();
+        if (!current(token)) return;
+        control("pause-ack", audio); localPhase = "paused";
+        try { await durable(); } catch (error) { if (current(token)) transitionError = (error as Error).message; }
+      } catch (error) { if (current(token)) await coordinationFailure(error, audio); }
+    },
+    async resume(validate: () => void, audio?: ImprovAudioTransition) {
+      if (phase() !== "paused") return;
+      if (state().failure) { transitionError = "Retry Save before resuming this take."; return; }
+      const token = ++generation; localPhase = "resuming"; transitionError = "";
+      let nativeResumed = false, coordinationStarted = false;
+      const revalidate = () => { validate(); if (!capture!.checkSafety()) throw new Error("Capture continuity expired; this take cannot Resume."); };
+      try {
+        await durable(); if (!current(token)) return; revalidate();
+        if (recorder!.readControls().at(-1)!.kind === "pause-ack") control("resume-request", audio);
+        await durable(); if (!current(token)) return; revalidate();
+        const coordinated = audio?.active() ?? false;
+        if (coordinated) { coordinationStarted = true; await audio!.resume(); nativeResumed = true; }
+        if (!current(token)) return; revalidate();
+        if (coordinated && !audio!.active()) throw new Error("Room audio failed during coordinated Resume.");
+        control("resume-ack", audio);
+        await durable(); if (!current(token)) return; revalidate();
+        if (coordinated && !audio!.active()) throw new Error("Room audio failed during Resume acknowledgment.");
+        // Only durable authorization opens the gate. The actual cutover is sampled now,
+        // excluding storage wait. Its control is atomic with every subsequent event prefix.
+        control("resume", audio); localPhase = "recording";
+        await durable();
+      } catch (error) {
+        if (!current(token)) return;
+        if (state().failure && !coordinationStarted && !nativeResumed && recorder!.readControls().at(-1)?.kind !== "resume-ack" && recorder!.readControls().at(-1)?.kind !== "resume") {
+          localPhase = "paused"; transitionError = (error as Error).message;
+        } else await coordinationFailure(error, audio);
+      }
+    },
+    stop: async () => { generation++; localPhase = "stopping"; clearHeld(); return capture ? capture.stop(options.observe()) : idle; },
     retry: async () => capture ? capture.retry() : idle,
-    interrupt: async (reason: ImprovInterruptionReason) => { clearHeld(); return capture ? capture.interrupt(reason, options.observe()) : idle; },
+    interrupt: async (reason: ImprovInterruptionReason) => { generation++; clearHeld(); return capture ? capture.interrupt(reason, options.observe()) : idle; },
     metadata: () => recorder?.metadata() ?? null,
     // Explicit access only, never used in a per-message/render loop.
     pendingSnapshot: () => capture?.pendingSnapshot() ?? null,
-    dispose: async () => { clearHeld(); return capture ? capture.dispose() : idle; },
+    dispose: async () => { generation++; clearHeld(); return capture ? capture.dispose() : idle; },
   });
 }
 

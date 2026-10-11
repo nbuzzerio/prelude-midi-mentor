@@ -1,12 +1,13 @@
 import { decodeImprovMessage, IMPROV_PROJECTION_LIMIT_MS, projectImprovEventTiming, projectImprovTiming } from "./improv-performance";
 import type { ImprovLoadedTake } from "./improv-library";
-import type { ImprovTakeEvent, ImprovTakeMetadata } from "./improv-take";
+import type { ImprovTakeControl, ImprovTakeEvent, ImprovTakeMetadata } from "./improv-take";
+import { createImprovMusicalClock, createImprovPerformanceFilter } from "./improv-musical-time";
 import { spellFreeplayMidiNumber, type FreeplayNotationContext } from "@/features/freeplay/freeplay-notation";
 
 export const IMPROV_WINDOW_MS = 12_000;
 export const IMPROV_VISIBLE_NOTES = 512;
 export const IMPROV_LIVE_NOTES = 4096;
-export type TimelineNote = Readonly<{ sequence: number; pitch: number; channel: number; onsetMs: number; releaseMs: number | null }>;
+export type TimelineNote = Readonly<{ sequence: number; pitch: number; channel: number; onsetMs: number; releaseMs: number | null; endReason?: "pause" }>;
 type MutableNote = { -readonly [K in keyof TimelineNote]: TimelineNote[K] };
 type PairQueue = { notes: MutableNote[]; omitted: number };
 
@@ -23,6 +24,8 @@ export function createImprovTimeline(startMs: number, archive = false) {
   const notes: MutableNote[] = [];
   const held = new Map<string, PairQueue>(); const pedal = new Set<number>();
   let previous = 0; let lastSequence = 0; let endMs: number | null = null; let knownEnd = false;
+  let previousWall = 0, controlVersion = 0;
+  const clock = createImprovMusicalClock(), filter = createImprovPerformanceFilter();
   let lastElapsed = 0;
   let issueCount = 0; let omitted = 0; let unmatchedReleases = 0;
   let tree: Float64Array | null = null;
@@ -33,7 +36,7 @@ export function createImprovTimeline(startMs: number, archive = false) {
       queue.notes.shift(); queue.omitted++; // Keep FIFO release counts even for omitted display detail.
     }
   };
-  const elapsed = (now: number) => endMs ?? (lastElapsed = safePosition(now - startMs, Math.max(previous, lastElapsed)));
+  const elapsed = (now: number) => endMs ?? (lastElapsed = safePosition(clock.elapsed(now - startMs), Math.max(previous, lastElapsed)));
   function prune(left: number) {
     if (archive) return;
     // Closed intervals behind the live window need no retained display objects.
@@ -52,14 +55,29 @@ export function createImprovTimeline(startMs: number, archive = false) {
   }
   const model = {
     elapsed,
+    control(control: ImprovTakeControl) {
+      if (endMs !== null || control.sequence <= controlVersion) return;
+      controlVersion = control.sequence;
+      const relative = control.boundary.observation.atMs - startMs;
+      if (!Number.isFinite(relative) || relative < previousWall || relative > IMPROV_PROJECTION_LIMIT_MS) issueCount++;
+      previousWall = safePosition(relative, previousWall);
+      previous = clock.control(control, previousWall);
+      if (control.kind === "pause") {
+        filter.pause();
+        for (const queue of held.values()) for (const note of queue.notes) { note.releaseMs = previous; note.endReason = "pause"; }
+        held.clear();
+      }
+    },
     append(event: ImprovTakeEvent) {
       if (endMs !== null || event.sequence <= lastSequence) return;
       lastSequence = event.sequence;
-      previous = projectImprovEventTiming(event, startMs, previous, () => issueCount++).atMs;
+      previousWall = projectImprovEventTiming(event, startMs, previousWall, () => issueCount++).atMs;
+      previous = clock.position(previousWall);
       const decoded = decodeImprovMessage(event.raw);
       if (decoded.kind !== "channel") return;
       const [, pitch, velocity] = decoded.bytes; const channel = decoded.channel!;
       if (decoded.command === 0xb0 && pitch === 64) { if (velocity >= 64) pedal.add(channel); else pedal.delete(channel); return; }
+      if (!filter.accept(decoded.bytes, clock.paused())) return;
       const key = `${channel}:${pitch}`;
       if (decoded.command === 0x90 && velocity > 0) {
         const note: MutableNote = { sequence: event.sequence, pitch, channel, onsetMs: previous, releaseMs: null };
@@ -83,7 +101,7 @@ export function createImprovTimeline(startMs: number, archive = false) {
       if (!metadata.terminal) return;
       const boundary = metadata.terminal.boundary; const end = boundary.observation.atMs - startMs;
       const known = boundary.contextMatchesStart && boundary.validity === "valid" && end >= 0 && end <= IMPROV_PROJECTION_LIMIT_MS;
-      model.finish(known ? end : previous, known);
+      model.finish(known ? clock.position(end) : previous, known);
     },
     view(now: number, requestedLeft?: number, windowMs = IMPROV_WINDOW_MS) {
       const atMs = elapsed(now); const leftMs = requestedLeft ?? timelineWindow(atMs, windowMs).leftMs;
@@ -104,8 +122,8 @@ export function createImprovTimeline(startMs: number, archive = false) {
         query(1, 0, notes.length);
       } else for (let i = notes.length - 1; i >= 0; i--) { visit(notes[i]); if (crowded) break; }
       // Prefer recent attacks at the detail cap, then retain their original delivery order.
-      return { notes: visible.reverse(), atMs, leftMs, rightMs, recording: endMs === null, knownEnd,
-        pedalActive: pedal.size > 0, issueCount, crowded, omitted, unmatchedReleases, retainedNotes: notes.length, version: lastSequence };
+      return { notes: visible.reverse(), atMs, leftMs, rightMs, recording: endMs === null && !clock.paused(), paused: endMs === null && clock.paused(), knownEnd,
+        pedalActive: pedal.size > 0, issueCount, crowded, omitted, unmatchedReleases, retainedNotes: notes.length, version: lastSequence + controlVersion };
     },
   };
   return model;
@@ -114,7 +132,12 @@ export type ImprovTimeline = ReturnType<typeof createImprovTimeline>;
 
 export function timelineFromTake(take: ImprovLoadedTake) {
   const model = createImprovTimeline(take.record.capture.start.observation.atMs, true);
-  for (const chunk of take.chunks) for (const event of chunk.events) model.append(event);
+  const controls = take.record.controls ?? []; let index = 0;
+  for (const chunk of take.chunks) for (const event of chunk.events) {
+    while (index < controls.length && controls[index].afterEventSequence < event.sequence) model.control(controls[index++]);
+    model.append(event);
+  }
+  while (index < controls.length) model.control(controls[index++]);
   const timing = projectImprovTiming(take);
   model.finish(timing.durationMs, timing.knownEnd);
   return model;

@@ -23,6 +23,10 @@ export function ImprovRoomAudioControls({ state, onDownload, onDiscard }: Readon
       <details className="mt-2 text-xs text-zinc-400"><summary className="cursor-pointer py-2">Audio timing and format</summary>
         <p>{state.segment.mimeType} · {state.segment.size} bytes. Browser-observed recording span {(state.segment.durationMs / 1000).toFixed(1)} s; decoded audio duration is not verified.</p>
         <p>{offset === null ? "No confirmed MIDI/audio alignment." : `Browser-observed approximate audio-start offset: ${offset.toFixed(1)} ms relative to MIDI Start.`} This is not sample-accurate synchronization or microphone latency measurement. The browser may ignore requested processing settings.</p>
+        {timing.transitions.length > 0 && <>
+          <p>Native recording excludes acknowledged pauses. The observed session span above includes breaks; decoded audio duration is not verified. The microphone remains acquired during Pause.</p>
+          <ul>{timing.transitions.map((entry, i) => <li key={i}>{entry.kind}: requested {entry.requestedAtMs.toFixed(1)} ms; {entry.acknowledgedAtMs === null ? "not acknowledged" : `browser acknowledgment ${entry.acknowledgedAtMs.toFixed(1)} ms`}. MIDI and audio cutovers may differ.</li>)}</ul>
+        </>}
       </details>
     </>}
   </section>;

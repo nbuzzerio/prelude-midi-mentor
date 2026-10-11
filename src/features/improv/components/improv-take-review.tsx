@@ -43,7 +43,9 @@ export function ImprovTakeReview({ take, context, playing, disabled, error, onPl
     {error && <p className="mt-2 text-red-200" role="alert">{error}</p>}
     <ReviewTimeline key={take.record.takeId} take={take} context={context} />
     <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-      <div><dt className="text-zinc-400">Recorded duration</dt><dd>{summary.observedBoundaryDurationMs === null ? "Unknown end · saved prefix" : `${(summary.observedBoundaryDurationMs / 1000).toFixed(1)} s`}</dd></div>
+      <div><dt className="text-zinc-400">Musical duration</dt><dd>{(summary.projectedDurationMs / 1000).toFixed(1)} s{summary.observedBoundaryDurationMs === null ? " · uncertain end / saved prefix" : ""}</dd></div>
+      <div><dt className="text-zinc-400">Actual elapsed duration</dt><dd>{summary.observedBoundaryDurationMs === null ? "Unknown end · saved prefix" : `${(summary.observedBoundaryDurationMs / 1000).toFixed(1)} s`}</dd></div>
+      <div><dt className="text-zinc-400">Intentional pauses</dt><dd>{summary.pauseCount}</dd></div>
       <div><dt className="text-zinc-400">Note attacks</dt><dd>{summary.noteAttacks}</dd></div>
       <div><dt className="text-zinc-400">Pitch range (MIDI)</dt><dd>{summary.lowestPitch === null ? "No attacks" : `${summary.lowestPitch}–${summary.highestPitch}`}</dd></div>
       <div><dt className="text-zinc-400">Velocity (1–127)</dt><dd>{summary.velocity.minimum === null ? "No attacks" : `${summary.velocity.minimum}–${summary.velocity.maximum}; mean ${summary.velocity.mean!.toFixed(1)}`}</dd></div>
@@ -54,6 +56,7 @@ export function ImprovTakeReview({ take, context, playing, disabled, error, onPl
     <details className="mt-3 text-sm"><summary className="cursor-pointer py-2">Timing and continuity details</summary>
       <p>{summary.timingIssues.length ? `${summary.timingIssues.length} timing/uncertainty observations. Playback/export may use approximate timing.` : "Receipt timing is usable; exact physical key-contact timing remains unknown."}</p>
       <p>{summary.unreleasedAttacks} unmatched attacks; {summary.unmatchedReleases} unmatched releases. Replay/export cleanup does not add releases to captured evidence.</p>
+      {summary.pauseCutoffAttacks > 0 && <p>{summary.pauseCutoffAttacks} active attacks end at an intentional pause in the musical projection. Their original MIDI releases remain unchanged.</p>}
       <p>{take.record.capture.terminal ? `Capture ended: ${take.record.capture.terminal.reason.replaceAll("-", " ")}.` : "No captured terminal boundary."} {take.record.recovery ? "Recovery/import status is separate from original boundaries." : ""}</p>
     </details>
   </details>;

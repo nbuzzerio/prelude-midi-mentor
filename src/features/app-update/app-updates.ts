@@ -138,6 +138,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Reopen saved takes and explore earlier or later time windows. This is observed MIDI performance, not automatically transcribed or rhythmically validated sheet music.",
     "Optional room audio remains temporary until downloaded and is not included in MIDI or JSON backups.",
   ],
+}, {
+  id: "2026-10-11-improv-pause-resume",
+  sequence: 13,
+  title: "Pause and continue an Improv take",
+  date: "2026-10-11",
+  version: "2.9.17",
+  changes: [
+    "Pause and Resume keep the same take in sight-reading and free improvisation. Musical time, the rolling staff, replay and MIDI downloads exclude intentional breaks.",
+    "Paused MIDI remains original continuity evidence in JSON backups. Resume waits for local control acknowledgment; temporary room audio pauses with the take where supported.",
+    "Room audio remains temporary until downloaded. Its browser timing is approximate, and an independent microphone failure leaves healthy MIDI capture available.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

@@ -3,7 +3,7 @@ import type { FreeplayNotationContext } from "@/features/freeplay/freeplay-notat
 import { IMPROV_WINDOW_MS, timelinePitch, timelineWindow, type ImprovTimeline } from "../improv-timeline";
 
 const LEFT = 52;
-const EMPTY = { notes: [], atMs: 0, leftMs: 0, rightMs: IMPROV_WINDOW_MS, recording: false,
+const EMPTY = { notes: [], atMs: 0, leftMs: 0, rightMs: IMPROV_WINDOW_MS, recording: false, paused: false,
   knownEnd: false, pedalActive: false, issueCount: 0, crowded: false, omitted: 0, unmatchedReleases: 0, retainedNotes: 0, version: 0 };
 const browserTimelineClock = {
   now: () => performance.now(), request: (callback: FrameRequestCallback) => requestAnimationFrame(callback),
@@ -38,6 +38,7 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
       const model = source(); const next = model?.view(clock.now(), positionMs, windowMs) ?? EMPTY;
       setSnapshot(previous => previous.model === model && previous.view.atMs === next.atMs && previous.view.leftMs === next.leftMs
         && previous.view.rightMs === next.rightMs && previous.view.version === next.version && previous.view.recording === next.recording
+        && previous.view.paused === next.paused && previous.view.knownEnd === next.knownEnd
         ? previous : { model, view: next });
     };
     sync(); const timer = setInterval(sync, 100);
@@ -67,10 +68,10 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
   const notes = view.notes.map(note => ({ note, pitch: timelinePitch(note.pitch, context) }));
   const guides = Array.from({ length: 8 }, (_, i) => Math.floor(view.leftMs / 2000) * 2000 + i * 2000);
   return <div className="improv-performance min-w-0">
-    <p id={description} className="px-3 pt-2 text-xs text-zinc-300">Elapsed seconds; blue line = playhead. Trails show key-down time, not musical note values or acoustic sustain.</p>
+    <p id={description} className="px-3 pt-2 text-xs text-zinc-300">Time-based MIDI; seconds exclude pauses. Blue line = playhead; trails = key-down time.<span className="sr-only"> No conventional note values or acoustic sustain are inferred.</span></p>
     <svg ref={svg} role="img" aria-label="Time-based performance grand staff" aria-describedby={description}
       className="improv-timeline w-full" viewBox={`0 0 ${width} 316`} preserveAspectRatio="none"
-      data-note-count={view.notes.length} data-recording={view.recording} data-known-end={view.knownEnd}>
+      data-note-count={view.notes.length} data-recording={view.recording} data-paused={view.paused} data-known-end={view.knownEnd}>
       <defs><clipPath id={`${description}-clip`}><rect x={LEFT} y="20" width={width - LEFT - 12} height="284" /></clipPath></defs>
       {[90, 102, 114, 126, 138, 210, 222, 234, 246, 258].map(y => <line key={y} x1="12" x2={width - 12} y1={y} y2={y} stroke="#71717a" strokeWidth="1" />)}
       <line x1="12" x2="12" y1="90" y2="258" stroke="#a1a1aa" />
@@ -84,9 +85,9 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
             const x = LEFT + (note.onsetMs - view.leftMs) * scale;
             const end = Math.min(width - 12, LEFT + ((note.releaseMs ?? view.atMs) - view.leftMs) * scale);
             return <g key={note.sequence} data-attack={note.sequence} data-pitch={note.pitch} data-onset-ms={note.onsetMs} data-release-ms={note.releaseMs ?? "unreleased"}>
-              <title>{pitch.name}, attack {(note.onsetMs / 1000).toFixed(2)} seconds; {note.releaseMs === null ? "no recorded release" : `key-down ${((note.releaseMs - note.onsetMs) / 1000).toFixed(2)} seconds`}</title>
+              <title>{pitch.name}, attack {(note.onsetMs / 1000).toFixed(2)} seconds; {note.endReason === "pause" ? "display trail ends at intentional pause; no release invented" : note.releaseMs === null ? "no recorded release" : `key-down ${((note.releaseMs - note.onsetMs) / 1000).toFixed(2)} seconds`}</title>
               <line x1={Math.max(LEFT, x)} x2={end} y1={pitch.y} y2={pitch.y} stroke="#7dd3fc" strokeWidth="4" opacity=".45"
-                strokeDasharray={note.releaseMs === null && !view.recording ? "4 3" : undefined} data-held-onset={note.releaseMs === null ? note.onsetMs : undefined} />
+                strokeDasharray={note.endReason === "pause" || (note.releaseMs === null && !view.recording) ? "4 3" : undefined} data-held-onset={note.releaseMs === null ? note.onsetMs : undefined} />
               {x >= LEFT && <>
                 {pitch.ledgers.map(y => <line key={y} x1={x - 11} x2={x + 11} y1={y} y2={y} stroke="#d4d4d8" />)}
                 {pitch.accidental && <text x={x - 18} y={pitch.y + 5} fontSize="17" fill="#e4e4e7">{pitch.accidental}</text>}
@@ -101,7 +102,7 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
       </g>
     </svg>
     <p className="px-3 pb-1 text-xs text-zinc-400">{windowMs / 1000}-second window. Extreme notes use labeled octave displacement; names retain actual pitch. Dashed frozen trails have no recorded release.</p>
-    <p className="px-3 pb-2 text-xs text-zinc-400" aria-live="off">{source() ? view.recording ? "Recording performance" : `Frozen performance · ${view.knownEnd ? "observed end" : "uncertain end / retained prefix"}` : "Ready · press Start Take to begin"}
+    <p className="px-3 pb-2 text-xs text-zinc-400" aria-live="off">{source() ? view.paused ? "Paused performance · musical time frozen" : view.recording ? "Recording performance" : `Frozen performance · ${view.knownEnd ? "observed end" : "uncertain end / retained prefix"}` : "Ready · press Start Take to begin"}
       {view.pedalActive ? " · CC64 pedal observed down" : ""}{view.issueCount ? " · approximate timing contains anomalies" : ""}
       {(view.crowded || view.omitted > 0) && " · display detail limited; accepted MIDI remains in the take"}</p>
   </div>;

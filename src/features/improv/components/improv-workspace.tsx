@@ -51,6 +51,7 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
   const [leave, setLeave] = useState<(() => void) | null>(null); const [leavingSave, setLeavingSave] = useState(false);
   const reviewGeneration = useRef(0); const mounted = useRef(false);
   const save = capture.display.save; const unsafe = capture.session.needsGuard(); const recording = save.captureStatus === "recording";
+  const phase = capture.display.phase;
   const selected = catalog.selected;
   const audioStarting = ["preparing", "starting"].includes(audio.state.phase);
   const audioProtected = audio.state.segment !== null || audio.state.phase === "finalizing";
@@ -120,7 +121,7 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
   };
   const status = save.storageStatus === "saved" ? save.captureStatus === "interrupted" ? "Interrupted · captured prefix saved locally" : "Saved locally"
     : save.storageStatus === "failed" ? "Save failed · pending evidence retained in this tab"
-    : recording ? "Recording · local checkpoints active"
+    : recording ? `${phase === "paused" ? "Paused" : phase === "pausing" ? "Pausing…" : phase === "resuming" ? "Resuming…" : "Recording"} · local checkpoints active`
     : save.storageStatus === "idle" ? "Ready" : "Saving · wait for local acknowledgment";
   return <section className="improv-workspace mx-auto min-w-0 max-w-7xl text-white" aria-labelledby="improv-title">
     <header className="mb-3 flex flex-wrap items-center gap-2"><h1 className="mr-auto text-2xl font-bold" id="improv-title">Improv</h1>{!recording && <span className="text-sm text-zinc-400">Play first. Explore details second.</span>}</header>
@@ -148,10 +149,19 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
         {capture.midi.connectedInputs.some((input) => !input.id) && <p className="mt-2 text-amber-200">Some connected inputs have no usable browser identity and cannot be selected for Improv capture.</p>}
         {capture.midi.error && <p role="alert" className="mt-2 text-red-200">{capture.midi.error}</p>}
         <div className="my-3 flex items-center justify-between gap-2"><span className="text-sm">{save.number === null ? save.takeId ? "Take number pending" : "No active take" : `Take ${save.number}${save.number === 1 ? " · Original first attempt" : ""}`}</span>
-          <span className="font-mono text-3xl tabular-nums" aria-label="Elapsed time" aria-live="off">{String(Math.floor(capture.display.elapsedSeconds / 60)).padStart(2, "0")}:{String(capture.display.elapsedSeconds % 60).padStart(2, "0")}</span></div>
-        {recording ? <button className={`${IMPROV_BUTTON} w-full border-red-400 bg-red-700 text-xl`} onClick={() => void stop()}>Stop Take</button>
+          <span className="font-mono text-3xl tabular-nums" aria-label="Musical elapsed time" aria-live="off">{String(Math.floor(capture.display.elapsedSeconds / 60)).padStart(2, "0")}:{String(capture.display.elapsedSeconds % 60).padStart(2, "0")}</span></div>
+        {recording ? <div className="flex flex-wrap gap-2">
+          <button className={`${IMPROV_BUTTON} min-w-0 flex-1 border-sky-400 text-lg`}
+            disabled={phase === "pausing" || phase === "resuming" || (phase === "paused" && Boolean(save.failure || save.pendingControlCount)) || (phase === "recording" && audio.controller.active() && !audio.controller.canPause())}
+            onClick={() => void (phase === "paused" ? capture.resume(audio.controller) : capture.pause(audio.controller))}>
+            {phase === "paused" ? "Resume" : phase === "pausing" ? "Pausing…" : phase === "resuming" ? "Resuming…" : "Pause"}</button>
+          <button className={`${IMPROV_BUTTON} min-w-0 flex-1 border-red-400 bg-red-700 text-lg`} onClick={() => void stop()}>Stop Take</button>
+        </div>
           : <button className={`${IMPROV_BUTTON} w-full border-sky-400 bg-sky-700 text-xl`} disabled={busy || audioProtected || !selected || !capture.selectedInput || !capture.ownerActive || replay.playing || (roomRequested && audio.state.phase !== "ready")} onClick={() => void startTake()}>Start Take</button>}
         <p role="status" className="mt-3 font-semibold" aria-live="polite">{status}</p>
+        {recording && <p className="mt-2 text-xs text-zinc-400">Pauses freeze musical time. Paused MIDI stays in JSON evidence, outside the staff and replay. Resume keeps this take.</p>}
+        {recording && audio.controller.active() && !audio.controller.canPause() && <p className="mt-2 text-amber-200">This browser recorder does not support coordinated Pause/Resume. Stop Take remains available.</p>}
+        {capture.display.transitionError && <p role="alert" className="mt-2 text-amber-200">{capture.display.transitionError}</p>}
         {save.failure && <p role="alert" className="mt-2 text-red-200">{improvErrorMessage(new ImprovLibraryError(save.failure))}</p>}
         {save.captureFailure && <p role="alert" className="mt-2 text-amber-200">Capture ended at the unsaved-data limit. The retained prefix remains available; later events were not recorded.</p>}
         {save.storageStatus === "failed" && <button className={`${IMPROV_BUTTON} mt-2 w-full`} onClick={() => void capture.retry()}>Retry Save</button>}

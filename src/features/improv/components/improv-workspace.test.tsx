@@ -74,6 +74,9 @@ class RoomRecorder {
   state: RecordingState = "inactive"; mimeType = "audio/webm;codecs=opus";
   onstart: ((e: Event) => void) | null = null; onstop: ((e: Event) => void) | null = null;
   onerror: ((e: Event) => void) | null = null; ondataavailable: ((e: BlobEvent) => void) | null = null;
+  onpause: ((e: Event) => void) | null = null; onresume: ((e: Event) => void) | null = null;
+  pause() { this.state = "paused"; queueMicrotask(() => this.onpause?.(new Event("pause"))); }
+  resume() { this.state = "recording"; queueMicrotask(() => this.onresume?.(new Event("resume"))); }
   constructor() { RoomRecorder.instances.push(this); }
   start() { this.state = "recording"; queueMicrotask(() => this.onstart?.(new Event("start"))); }
   stop() { this.state = "inactive"; if (RoomRecorder.finalize) queueMicrotask(() => this.finish()); }
@@ -96,6 +99,65 @@ async function prepareRoom() {
 }
 
 describe("playing-first Improv workspace", () => {
+  it.each(["first-take-sight-reading", "free-improvisation"])("Pause/Resume preserves the same %s take and excludes paused notes", async activity => {
+    mount({ strict: true }); await setup(activity); await start(); send([0x90, 60, 80]);
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    const resume = await screen.findByRole("button", { name: "Resume" }); await waitFor(() => expect((resume as HTMLButtonElement).disabled).toBe(false));
+    send([0x90, 70, 100]); await waitFor(() => expect(document.querySelector('.improv-live svg')?.getAttribute('data-recording')).toBe('false'));
+    expect(document.querySelector('.improv-live [data-pitch="70"]')).toBeNull(); expect(screen.getByRole("button", { name: "Stop Take" })).toBeTruthy();
+    fireEvent.click(resume); await screen.findByRole("button", { name: "Pause" }); send([0x90, 64, 90]); await stop();
+    expect(await screen.findByText("Intentional pauses")).toBeTruthy(); const history = await records(); expect(history).toHaveLength(1);
+    const take = await library.loadTake(history[0].takeId); expect(take.record.number).toBe(1); expect(take.record.controls).toHaveLength(5);
+    expect(take.chunks.flatMap(c => c.events.map(e => e.raw.bytes))).toEqual([[0x90, 60, 80], [0x90, 70, 100], [0x90, 64, 90]]);
+  });
+  it("keeps keyboard-focusable Resume and Stop, protects departure, and stops a paused take", async () => {
+    mount(); await setup(); await start(); fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    const resume = await screen.findByRole("button", { name: "Resume" }); await waitFor(() => expect((resume as HTMLButtonElement).disabled).toBe(false));
+    resume.focus(); expect(document.activeElement).toBe(resume); expect(unload()).toBe(true);
+    let left = false; act(() => guard?.(() => { left = true; })); expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stay in Improv" })); expect(left).toBe(false); await stop();
+    const history = await records(); const take = await library.loadTake(history[0].takeId); expect(take.record.controls).toHaveLength(2);
+    expect(take.record.capture.terminal?.reason).toBe("user-stop"); expect(unload()).toBe(false);
+  });
+  it("keeps Resume disabled after a failed pause checkpoint until explicit Retry Save", async () => {
+    mount(); await setup(); await start(); await waitFor(async () => expect((await records()).length).toBe(1));
+    fake.commitError = "QuotaExceededError"; fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    const resume = await screen.findByRole("button", { name: "Resume" }); await screen.findByRole("button", { name: "Retry Save" });
+    expect((resume as HTMLButtonElement).disabled).toBe(true); send([0x90, 70, 90]);
+    fireEvent.click(screen.getByRole("button", { name: "Retry Save" })); await waitFor(() => expect((resume as HTMLButtonElement).disabled).toBe(false));
+    expect(document.querySelector('.improv-live [data-pitch="70"]')).toBeNull(); fireEvent.click(resume); await screen.findByRole("button", { name: "Pause" }); await stop();
+  });
+  it("keeps room audio and MIDI coordinated through Pause/Resume on one native recorder", async () => {
+    const room = roomBrowser(); mount(); await setup(); await prepareRoom(); await start(); send();
+    fireEvent.click(screen.getByRole("button", { name: "Pause" })); const resume = await screen.findByRole("button", { name: "Resume" });
+    await waitFor(() => expect((resume as HTMLButtonElement).disabled).toBe(false)); expect(RoomRecorder.instances[0].state).toBe("paused");
+    expect(room.track.stop).not.toHaveBeenCalled(); await screen.findByText(/microphone remains acquired/);
+    fireEvent.click(resume); await screen.findByRole("button", { name: "Pause" }); expect(RoomRecorder.instances[0].state).toBe("recording");
+    expect(RoomRecorder.instances).toHaveLength(1); await stop(); await screen.findByRole("button", { name: "Download room audio" });
+    expect(room.track.stop).toHaveBeenCalledOnce();
+  });
+  it.each([false, true])("independent microphone loss preserves MIDI and permits later MIDI-only Pause/Resume: paused=%s", async paused => {
+    const room = roomBrowser(); mount(); await setup(); await prepareRoom(); await start(); send();
+    if (paused) { fireEvent.click(screen.getByRole("button", { name: "Pause" })); const resume = await screen.findByRole("button", { name: "Resume" }); await waitFor(() => expect((resume as HTMLButtonElement).disabled).toBe(false)); }
+    act(() => room.track.dispatchEvent(new Event("ended"))); await screen.findAllByText(/MIDI continues independently/);
+    if (!paused) { fireEvent.click(screen.getByRole("button", { name: "Pause" })); await screen.findByRole("button", { name: "Resume" }); }
+    fireEvent.click(screen.getByRole("button", { name: "Resume" })); await screen.findByRole("button", { name: "Pause" }); send([0x90, 64, 90]); await stop();
+    const take = await library.loadTake((await records())[0].takeId); expect(take.record.capture.status).toBe("completed"); expect(take.record.controls).toHaveLength(5);
+    expect(take.chunks.flatMap(c => c.events)).toHaveLength(2);
+  });
+  it("a coordinated native transition exception interrupts MIDI instead of silently downgrading", async () => {
+    const room = roomBrowser(); mount(); await setup(); await prepareRoom(); await start(); send();
+    vi.spyOn(RoomRecorder.instances[0], "pause").mockImplementation(() => { throw new Error("Native pause failed"); });
+    fireEvent.click(screen.getByRole("button", { name: "Pause" })); await screen.findByText("Interrupted · captured prefix saved locally");
+    const take = await library.loadTake((await records())[0].takeId); expect(take.record.capture.terminal?.reason).toBe("coordination-failed");
+    expect(room.track.stop).toHaveBeenCalledOnce(); expect(take.chunks.flatMap(c => c.events)).toHaveLength(1);
+  });
+  it("source loss while Paused remains terminal and cannot silently Resume", async () => {
+    mount(); await setup(); await start(); fireEvent.click(screen.getByRole("button", { name: "Pause" })); await screen.findByRole("button", { name: "Resume" });
+    act(() => midi.options?.onInputConnectionChange?.({ provenance: "input-availability", input: { id: "piano", name: "Room piano" }, state: "disconnected", receivedAtMs: performance.now() }));
+    await screen.findByText("Interrupted · captured prefix saved locally"); expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+    const take = await library.loadTake((await records())[0].takeId); expect(take.record.capture.terminal?.reason).toBe("device-disconnected");
+  });
   it("shows an empty ready staff and keeps released accepted notes visible after Stop", async () => {
     mount({ strict: true }); await setup(); send();
     const live = document.querySelector('.improv-live svg')!;
@@ -241,7 +303,7 @@ describe("playing-first Improv workspace", () => {
     mount(); await setup(); fireEvent.click(screen.getByText("Notation context"));
     fireEvent.change(screen.getByLabelText("Display key"), { target: { value: "g-major" } }); await start();
     for (let i = 0; i < 40; i++) send([0x90, 66, 80]);
-    await screen.findByText(/F♯4|F#4/, { selector: "span" }); expect(screen.getByLabelText("Elapsed time").getAttribute("aria-live")).toBe("off");
+    await screen.findByText(/F♯4|F#4/, { selector: "span" }); expect(screen.getByLabelText("Musical elapsed time").getAttribute("aria-live")).toBe("off");
     const held = screen.getByText(/F♯4|F#4/, { selector: "span" }); expect(held.getAttribute("aria-live")).toBe("off");
     await stop(); const take = await library.loadTake((await records())[0].takeId);
     expect(take.record.committedEventWatermark).toBe(40); expect(take.chunks[0].events.every((e) => e.raw.bytes?.[1] === 66)).toBe(true);

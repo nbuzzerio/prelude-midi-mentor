@@ -50,7 +50,7 @@ describe("versioned JSON original-evidence backup", () => {
   });
   it("rejects unsupported format versions", async () => {
     const { evidence } = await performanceFixture();
-    const root = JSON.parse(encodeImprovBackup(evidence)); root.version = 2;
+    const root = JSON.parse(encodeImprovBackup(evidence)); root.version = 3;
     expect(() => parseImprovBackup(JSON.stringify(root))).toThrow(expect.objectContaining({ reason: "unsupported" }));
   });
   it("rejects oversized files before parsing", () => {

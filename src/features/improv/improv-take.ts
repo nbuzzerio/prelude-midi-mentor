@@ -10,7 +10,7 @@ export type ImprovObservation = Readonly<{ atMs: number; context: ImprovCaptureC
 export type ImprovTimestampValidity = "valid" | "unavailable" | "nonfinite" | "negative";
 export type ImprovInterruptionReason = "device-disconnected" | "source-reconnected" | "consumer-lost"
   | "background" | "freeze" | "pagehide" | "capture-unavailable" | "continuity-mismatch"
-  | "transport-order-mismatch" | "event-limit" | "byte-limit";
+  | "transport-order-mismatch" | "event-limit" | "byte-limit" | "coordination-failed" | "control-limit";
 export type ImprovTakeLimits = Readonly<{ maxEvents: number; maxAccountedBytes: number }>;
 export type ImprovTakeEvent = Readonly<{
   sequence: number;
@@ -25,6 +25,18 @@ export type ImprovTakeEvent = Readonly<{
   }>;
 }>;
 export type ImprovTakeConnection = Readonly<{ sequence: number; afterEventSequence: number; raw: MidiInputConnectionChange }>;
+/** User/native observations, never fabricated MIDI. Resume-ack is durable authorization;
+ * resume is the subsequent effective cutover, committed before its event prefix. */
+export type ImprovTakeControl = Readonly<{
+  sequence: number; afterEventSequence: number;
+  kind: "pause" | "pause-ack" | "resume-request" | "resume-ack" | "resume";
+  boundary: ImprovTakeBoundary;
+  audio: "off" | "recording" | "paused" | "failed";
+}>;
+export const IMPROV_MAX_CONTROLS = 2560; // 512 pauses, five observations each.
+export function improvControlAccountedBytes(control: ImprovTakeControl): number {
+  return 512 + 2 * (control.boundary.observation.context.ownerId.length + control.boundary.observation.context.clockId.length);
+}
 export type ImprovTakeBoundary = Readonly<{
   observation: ImprovObservation;
   validity: ImprovTimestampValidity;
@@ -38,7 +50,8 @@ export type ImprovTakeTerminal = Readonly<{
   refusedTransportSequence: number | null;
 }>;
 export type ImprovTakeMetadata = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
+  controlCount?: number;
   takeId: string;
   selectedInput: MidiInputInfo & Readonly<{ id: string }>;
   status: "recording" | "completed" | "interrupted";
@@ -58,6 +71,7 @@ export type ImprovTake = Readonly<{
   metadata: ImprovTakeMetadata;
   events: readonly ImprovTakeEvent[];
   connections: readonly ImprovTakeConnection[];
+  controls?: readonly ImprovTakeControl[];
 }>;
 
 export function improvTimestampValidity(value: number | null): ImprovTimestampValidity {

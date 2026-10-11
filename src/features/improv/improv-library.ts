@@ -1,4 +1,4 @@
-import type { ImprovCaptureContext, ImprovTakeConnection, ImprovTakeEvent, ImprovTakeMetadata } from "./improv-take";
+import type { ImprovCaptureContext, ImprovTakeControl, ImprovTakeConnection, ImprovTakeEvent, ImprovTakeMetadata } from "./improv-take";
 
 export const IMPROV_LIBRARY_LIMITS = Object.freeze({
   collections: 1_000, takesPerCollection: 1_000, pageSize: 100,
@@ -20,7 +20,8 @@ export type ImprovCaptureFailure = Readonly<{
   reason: "unsaved-backlog-limit"; refusedTransportSequence: number | null;
 }>;
 export type ImprovStoredTake = Readonly<{
-  schemaVersion: 1; kind: "take"; takeId: string; collectionId: string; number: number;
+  schemaVersion: 1 | 2; kind: "take"; takeId: string; collectionId: string; number: number;
+  controls?: readonly ImprovTakeControl[]; committedControlWatermark?: number;
   writerToken: string;
   capture: ImprovTakeMetadata;
   status: "recording" | "completed" | "interrupted" | "incomplete";
@@ -55,6 +56,7 @@ export type ImprovCollectionEvidence = Readonly<{
 export type ImprovCheckpoint = Readonly<{
   takeId: string; writerToken: string; expectedRevision: number; operationId: string;
   capture: ImprovTakeMetadata; events: readonly ImprovTakeEvent[];
+  controls?: readonly ImprovTakeControl[];
   connections: readonly ImprovTakeConnection[]; finalize: boolean;
   captureFailure: ImprovCaptureFailure | null;
 }>;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
-import { createImprovWorkspaceSession } from "../improv-workspace-session";
+import { createImprovWorkspaceSession, type ImprovAudioTransition } from "../improv-workspace-session";
 import type { ImprovArchiveLibrary, ImprovCollection } from "../improv-library";
 import type { ImprovCaptureContext } from "../improv-take";
 
@@ -18,23 +18,22 @@ export function useImprovSession(library: ImprovArchiveLibrary, onBackground: ()
     observe: clock.observe }));
   const [selectedInputId, setSelectedInputId] = useState("");
   const [ownerActive, setOwnerActive] = useState(false);
-  const [display, setDisplay] = useState(() => ({ save: session.state(), pitches: [] as number[], elapsedSeconds: 0, heldVersion: -1 }));
+  const [display, setDisplay] = useState(() => ({ save: session.state(), phase: session.phase(), transitionError: "", pitches: [] as number[], elapsedSeconds: 0, heldVersion: -1 }));
   const lifetime = useRef(0); const backgroundRef = useRef(onBackground);
   const audioRef = useRef(audio);
   const notifiedTerminal = useRef<string | null>(null);
   useEffect(() => { audioRef.current = audio; }, [audio]);
   useEffect(() => { backgroundRef.current = onBackground; }, [onBackground]);
   const sync = useCallback(() => {
-    const metadata = session.metadata(); const save = session.state();
+    const save = session.state(); const phase = session.phase(), transitionError = session.transitionError();
     if ((save.captureStatus === "completed" || save.captureStatus === "interrupted") && save.takeId !== notifiedTerminal.current) {
       notifiedTerminal.current = save.takeId; audioRef.current?.onTerminal();
     }
-    const end = metadata?.terminal?.boundary.observation.atMs ?? performance.now();
-    const elapsed = metadata ? Math.floor((end - metadata.start.observation.atMs) / 1000) : 0;
+    const elapsed = Math.floor((session.timeline()?.elapsed(performance.now()) ?? 0) / 1000);
     const elapsedSeconds = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
     const heldVersion = session.heldVersion();
-    setDisplay((previous) => JSON.stringify(previous.save) === JSON.stringify(save) && previous.heldVersion === heldVersion && previous.elapsedSeconds === elapsedSeconds
-      ? previous : { save, pitches: heldVersion === previous.heldVersion ? previous.pitches : session.heldPitches(), elapsedSeconds, heldVersion });
+    setDisplay((previous) => JSON.stringify(previous.save) === JSON.stringify(save) && previous.phase === phase && previous.transitionError === transitionError && previous.heldVersion === heldVersion && previous.elapsedSeconds === elapsedSeconds
+      ? previous : { save, phase, transitionError, pitches: heldVersion === previous.heldVersion ? previous.pitches : session.heldPitches(), elapsedSeconds, heldVersion });
   }, [session]);
   const midi = useAppMidiInput({
     rawInputId: selectedInputId,
@@ -81,7 +80,12 @@ export function useImprovSession(library: ImprovArchiveLibrary, onBackground: ()
     session.start(collection, input, clock.current()); sync();
   };
   const stop = async () => { const pending = session.stop(); audioRef.current?.onTerminal(); sync(); const state = await pending; sync(); return state; };
+  const validateResume = () => {
+    if (!ownerRef.current || !selectedInput || availability.current.get(selectedInputId) === false || document.visibilityState === "hidden") throw new Error("Resume requires the selected physical MIDI input, ownership and foreground capture.");
+  };
+  const pause = async (room?: ImprovAudioTransition) => { const pending = session.pause(room); sync(); await pending; sync(); };
+  const resume = async (room?: ImprovAudioTransition) => { const pending = session.resume(validateResume, room); sync(); await pending; sync(); };
   const retry = async () => { const pending = session.retry(); sync(); const state = await pending; sync(); return state; };
   const resetCompleted = () => { session.resetCompleted(); sync(); };
-  return { midi, selectedInputId, selectedInput, ownerActive, selectInput, session, display, start, stop, retry, resetCompleted };
+  return { midi, selectedInputId, selectedInput, ownerActive, selectInput, session, display, start, stop, pause, resume, retry, resetCompleted };
 }

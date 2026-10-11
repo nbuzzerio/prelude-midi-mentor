@@ -1,5 +1,5 @@
 import type { MidiInputConnectionChange, MidiInputInfo, RawMidiMessage } from "@/lib/midi/midi-transport";
-import type { ImprovCaptureContext, ImprovInterruptionReason, ImprovObservation } from "./improv-take";
+import { improvControlAccountedBytes, type ImprovTakeControl, type ImprovCaptureContext, type ImprovInterruptionReason, type ImprovObservation } from "./improv-take";
 import { improvMessageAccountedBytes, type ImprovRecorderResult, type ImprovTakeRecorder } from "./improv-take-recorder";
 import { IMPROV_LIBRARY_LIMITS as L, ImprovLibraryError, libraryError, sameEvidence, sameCaptureContext, type ImprovCaptureFailure,
   type ImprovCheckpoint, type ImprovLibrary, type ImprovLibraryFailure, type ImprovStoredTake } from "./improv-library";
@@ -9,6 +9,7 @@ export type ImprovSaveState = Readonly<{
   captureStatus: "idle" | "recording" | "completed" | "interrupted";
   takeId: string | null; number: number | null;
   committedEventWatermark: number; pendingEventCount: number; pendingAccountedBytes: number;
+  committedControlWatermark?: number; pendingControlCount?: number;
   pendingConnections: number; failure: ImprovLibraryFailure | null; captureFailure: ImprovCaptureFailure | null;
 }>;
 export type ImprovCheckpointScheduler = Readonly<{ every: (ms: number, callback: () => void) => () => void }>;
@@ -43,13 +44,16 @@ export function createImprovTakePersistence(options: Readonly<{
     const pendingEvents = (metadata?.eventWatermark ?? 0) - watermark;
     const pendingBytes = Math.max(0, (metadata?.accountedBytes ?? 0) - (record?.committedAccountedBytes ?? 0));
     const pendingConnections = (metadata?.connectionCount ?? 0) - (record?.connections.length ?? 0);
+    const controlWatermark = record?.committedControlWatermark ?? 0;
+    const pendingControls = (metadata?.controlCount ?? 0) - controlWatermark;
     const saved = record !== null && metadata?.status !== "recording" && record.status === metadata?.status
-      && pendingEvents === 0 && pendingConnections === 0 && sameEvidence(metadata, record.capture);
+      && pendingEvents === 0 && pendingConnections === 0 && pendingControls === 0 && sameEvidence(metadata, record.capture);
     return Object.freeze({ storageStatus: metadata === null ? "idle" : failure ? "failed" : inFlight ? "saving"
-      : saved ? "saved" : !record || pendingEvents || pendingConnections || metadata.status !== "recording" ? "pending" : "checkpointed",
+      : saved ? "saved" : !record || pendingEvents || pendingConnections || pendingControls || metadata.status !== "recording" ? "pending" : "checkpointed",
       captureStatus: metadata?.status ?? "idle",
       takeId: metadata?.takeId ?? null, number: record?.number ?? null, committedEventWatermark: watermark,
       pendingEventCount: pendingEvents, pendingAccountedBytes: pendingBytes, pendingConnections,
+      ...(metadata?.schemaVersion === 2 ? { committedControlWatermark: controlWatermark, pendingControlCount: pendingControls } : {}),
       failure: failure?.reason ?? null, captureFailure });
   };
   const interrupt = (reason: ImprovInterruptionReason, observation: ImprovObservation) => {
@@ -79,9 +83,11 @@ export function createImprovTakePersistence(options: Readonly<{
     const selectedEvents = Object.freeze(events.slice(0, count));
     const watermark = record!.committedEventWatermark + count;
     const connections = Object.freeze(recorder.readConnections().filter((c) => c.afterEventSequence <= watermark));
+    const controls = Object.freeze(recorder.readControls().filter(c => c.afterEventSequence <= watermark));
     return Object.freeze({ takeId: capture.takeId, writerToken: options.writerToken,
       expectedRevision: record!.revision, operationId: (options.createOperationId ?? (() => crypto.randomUUID()))(),
-      capture, events: selectedEvents, connections, finalize: capture.status !== "recording" && watermark === capture.eventWatermark,
+      capture, events: selectedEvents, connections, ...(capture.schemaVersion === 2 ? { controls } : {}),
+      finalize: capture.status !== "recording" && watermark === capture.eventWatermark && controls.length === (capture.controlCount ?? 0),
       captureFailure });
   };
   const savePass = async () => {
@@ -91,6 +97,7 @@ export function createImprovTakePersistence(options: Readonly<{
     expire();
     // Reach this watermark; later batches may also include newer immutable observations.
     const target = recorder.metadata()!.eventWatermark;
+    const controlTarget = recorder.metadata()!.controlCount ?? 0;
     do {
       const current = recorder.metadata()!;
       if (record.status !== "recording" && sameEvidence(record.capture, current)) break;
@@ -104,7 +111,7 @@ export function createImprovTakePersistence(options: Readonly<{
         }
         throw error;
       }
-    } while (record.committedEventWatermark < target);
+    } while (record.committedEventWatermark < target || (record.committedControlWatermark ?? 0) < controlTarget);
   };
   const drain = async () => {
     while (requested) {
@@ -133,6 +140,15 @@ export function createImprovTakePersistence(options: Readonly<{
   };
 
   return Object.freeze({
+    checkSafety() { if (disposed) return false; expire(); return recorder.metadata()?.status === "recording"; },
+    control(kind: ImprovTakeControl["kind"], observation: ImprovObservation, audio: ImprovTakeControl["audio"]) {
+      if (disposed || expire() || recorder.metadata()?.status !== "recording") return false;
+      const probe: ImprovTakeControl = { sequence: 0, afterEventSequence: 0, kind, boundary: recorder.metadata()!.start, audio };
+      if (state().pendingAccountedBytes + improvControlAccountedBytes(probe) > byteLimit) { limitReached(null, observation); return false; }
+      const result = recorder.control(kind, observation, audio);
+      if (result.ok && state().pendingAccountedBytes >= byteLimit) limitReached(null, observation);
+      return result.ok;
+    },
     start(input: MidiInputInfo, observation: ImprovObservation): ImprovRecorderResult {
       if (disposed) return Object.freeze({ ok: false, reason: "not-recording" });
       const result = recorder.start(input, observation);
