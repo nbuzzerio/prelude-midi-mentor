@@ -117,6 +117,16 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Record microphone sound alongside Improv MIDI, off by default. Preview/download temporary audio in the browser's format; alignment is approximate.",
     "Audio is not permanently stored or included in MIDI/JSON backups. MIDI stays browser-local, subject to eviction. No accuracy grading; physical audio fidelity still needs testing.",
   ],
+}, {
+  id: "2026-10-11-staff-builder-qol",
+  sequence: 11,
+  title: "Read and protect your Staff Builder scores",
+  date: "2026-10-11",
+  version: "2.9.15",
+  changes: [
+    "Open Study View directly from a saved piece in the library, with full-sheet notation and printing.",
+    "Lock Editing keeps the score and pending pitches read-only while your piano remains connected. Unlock to resume; opening another piece starts unlocked.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

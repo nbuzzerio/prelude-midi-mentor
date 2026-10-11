@@ -1,3 +1,4 @@
+import { createElement, StrictMode } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_STAFF_BUILDER_CAPTURE_STATE } from "../staff-builder-capture";
@@ -1015,4 +1016,165 @@ describe("useStaffBuilderEditor", () => {
     expect(result.current.score.measures[0]!.events).toEqual([]);
     expect(result.current.score.annotations).toEqual([]);
   });
+});
+
+
+describe("Staff Builder editing lock", () => {
+  function mount(source = score()) {
+    const onDraftChange = vi.fn();
+    const onValidatedSave = vi.fn(() => ({ ok: true }));
+    const confirmDiscardPending = vi.fn(() => true);
+    return { ...renderHook(() => useStaffBuilderEditor({ score: source, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, onDraftChange, onValidatedSave, confirmDiscardPending }), { wrapper: ({ children }) => createElement(StrictMode, null, children) }), onDraftChange, onValidatedSave, confirmDiscardPending };
+  }
+
+  it("starts unlocked, preserves pending MIDI pitches, and restores entry on unlock without saving the toggle", () => {
+    const { result, onDraftChange } = mount();
+    expect(result.current.editingLocked).toBe(false);
+    act(() => result.current.addMidiPitch(60));
+    const original = result.current.score;
+    act(() => result.current.toggleEditingLock());
+    act(() => { result.current.addMidiPitch(64); result.current.toggleVirtualPitch(67); result.current.clearCurrentEntry(); result.current.lockAndContinue(); });
+    expect(result.current.score).toBe(original);
+    expect(result.current.pending).toEqual({ treble: [60], bass: [] });
+    expect(onDraftChange).not.toHaveBeenCalled();
+    act(() => result.current.toggleEditingLock());
+    act(() => result.current.addMidiPitch(64));
+    act(() => result.current.lockAndContinue());
+    expect(result.current.score.measures[0].events[0]).toMatchObject({ kind: "notes", pitches: [{ midiNumber: 60 }, { midiNumber: 64 }] });
+    expect(onDraftChange).toHaveBeenCalledOnce();
+  });
+
+  it("fences retained MIDI and commit callbacks synchronously, including a rolled chord and queued updates", () => {
+    const { result, onDraftChange } = mount();
+    const old = result.current;
+    act(() => {
+      old.toggleEditingLock();
+      for (const pitch of [60, 64, 67, 72]) old.addMidiPitch(pitch);
+      old.toggleVirtualPitch(48);
+      old.lockAndContinue();
+      old.addRestAndContinue();
+    });
+    expect(result.current.pending).toEqual({ treble: [], bass: [] });
+    expect(result.current.score.measures[0].events).toEqual([]);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  it("preserves score history and pending edits through locked Undo and Redo", () => {
+    const { result, onDraftChange } = mount();
+    act(() => result.current.setTempo(108));
+    act(() => result.current.setTempo(120));
+    act(() => result.current.undo());
+    const before = result.current;
+    onDraftChange.mockClear();
+    act(() => before.toggleEditingLock());
+    act(() => { expect(before.undo()).toBe(false); expect(before.redo()).toBe(false); });
+    expect(result.current.score.tempoBpm).toBe(108);
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    act(() => result.current.toggleEditingLock());
+    expect(result.current.canUndo).toBe(true);
+    expect(result.current.canRedo).toBe(true);
+    act(() => result.current.redo());
+    expect(result.current.score.tempoBpm).toBe(120);
+  });
+
+  const mutations: readonly [string, (editor: ReturnType<typeof useStaffBuilderEditor>) => unknown][] = [
+    ["rest capture", (e) => e.addRestAndContinue()],
+    ["capture commit", (e) => e.lockAndContinue()],
+    ["forward capture (can append a measure)", (e) => e.nextPosition()],
+    ["delete measure", (e) => e.deleteMeasure(0)],
+    ["insert before", (e) => e.insertMeasureBefore(0)],
+    ["insert after", (e) => e.insertMeasureAfter(0)],
+    ["key signature", (e) => e.setMeasureKey(0, "g-major")],
+    ["time signature", (e) => e.setMeasureTime(0, "3/4")],
+    ["display clef", (e) => e.setMeasureClef(0, "treble", "bass")],
+    ["tempo", (e) => e.setTempo(140)],
+    ["duration", (e) => e.rhythm.assignDuration("quarter")],
+    ["rest conversion", (e) => e.rhythm.convertToRest("half")],
+    ["staff movement", (e) => e.rhythm.moveToStaff("bass")],
+    ["pitch respelling", (e) => e.rhythm.respellPitch(e.rhythm.selectedEvent?.kind === "notes" ? e.rhythm.selectedEvent.pitches[0].id : "missing", "D")],
+    ["event deletion", (e) => e.rhythm.deleteEvent()],
+    ["arpeggiation", (e) => e.rhythm.setArpeggiation("up")],
+    ["annotations", (e) => e.applyScoreMutation(addStaffBuilderAnnotation(e.score, { id: "locked-cue", kind: "study-note", anchor: { kind: "measure", measureId: e.score.measures[0].id }, text: "Cannot add" }))],
+    ["all validation gaps", (e) => e.validation.fillAllGaps()],
+    ["single correction", (e) => { const correction = e.validation.issues.flatMap((issue) => issue.corrections)[0]; if (!correction) throw Error("Expected correction"); return e.validation.applyCorrection(correction); }],
+  ];
+  it.each(mutations)("blocks %s at the command boundary without history or draft writes", (_name, mutate) => {
+    const source = insertUnresolvedStaffBuilderNotes(appendStaffBuilderMeasure(score()), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [61, 65, 68] });
+    const { result, onDraftChange } = mount(source);
+    const before = result.current;
+    const selection = before.rhythm.selection;
+    act(() => { before.toggleEditingLock(); mutate(before); });
+    expect(result.current.score).toBe(source);
+    expect(result.current.rhythm.selection).toEqual(selection);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    act(() => result.current.toggleEditingLock());
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
+  });
+
+  it("keeps measure navigation and event inspection available without mutating the score", () => {
+    const source = insertUnresolvedStaffBuilderNotes(appendStaffBuilderMeasure(score()), { measureIndex: 0, staff: "treble", startTick: 0, midiNumbers: [60] });
+    const { result } = mount(source);
+    act(() => result.current.toggleEditingLock());
+    act(() => expect(result.current.goToMeasure(1)).toBe(true));
+    expect(result.current.score).toBe(source);
+    act(() => expect(result.current.selectRhythmEventFromScore({ measureIndex: 0, eventId: source.measures[0].events[0].id })).toBe(true));
+    expect(result.current.score).toBe(source);
+    expect(result.current.editingLocked).toBe(true);
+  });
+
+  it("preserves pending pitches across stale navigation, inspection, pass switches and Save commands", () => {
+    const { result, confirmDiscardPending, onValidatedSave } = mount(appendStaffBuilderMeasure(score()));
+    const stale = result.current;
+    act(() => result.current.addMidiPitch(60));
+    act(() => result.current.toggleEditingLock());
+    act(() => { stale.goToMeasure(1); stale.switchToRhythm(); stale.switchToCapture(); stale.switchToLyrics(); stale.setStepDuration("eighth"); stale.setInputMode("bass"); stale.setCapturePosition({ measureIndex: 0, offsetTicks: 480 }); stale.validation.activate(); });
+    expect(result.current.pending).toEqual({ treble: [60], bass: [] });
+    expect(result.current.captureState).toEqual(DEFAULT_STAFF_BUILDER_CAPTURE_STATE);
+    expect(confirmDiscardPending).not.toHaveBeenCalled();
+    expect(onValidatedSave).not.toHaveBeenCalled();
+  });
+
+  it("rejects mutation callbacks retained after unmount and gives a new editor an unlocked session", () => {
+    const first = mount();
+    const stale = first.result.current;
+    act(() => stale.toggleEditingLock());
+    first.unmount();
+    const next = mount();
+    act(() => { stale.toggleEditingLock(); stale.addMidiPitch(60); stale.insertMeasureAfter(0); stale.setTempo(108); });
+    expect(first.onDraftChange).not.toHaveBeenCalled();
+    expect(next.result.current.editingLocked).toBe(false);
+    act(() => next.result.current.addMidiPitch(64));
+    expect(next.result.current.pending.treble).toEqual([64]);
+  });
+});
+
+
+it("protects tie creation, barline split, tie removal and sequential lyric authoring while locked", () => {
+  const empty = appendStaffBuilderMeasure(score());
+  const source = { ...empty, measures: empty.measures.map((measure, index) => ({ ...measure, events: [{ id: `note-${index}`, kind: "notes" as const, staff: "treble" as const, startTick: 0, rhythm: { status: "final" as const, duration: "whole" as const }, pitches: [{ id: `pitch-${index}`, midiNumber: 60, letter: "C" as const, accidental: "natural" as const, octave: 4 }] }] })) };
+  const onDraftChange = vi.fn();
+  const { result } = renderHook(() => useStaffBuilderEditor({ score: source, initialCaptureState: DEFAULT_STAFF_BUILDER_CAPTURE_STATE, initialEditorPass: "lyrics", onDraftChange }));
+  const stale = result.current;
+  act(() => stale.toggleEditingLock());
+  act(() => {
+    expect(stale.createTies("note-0", "note-1", ["pitch-0"])).toBe(false);
+    expect(stale.splitAndTie("note-0", "whole", ["pitch-0"])).toBe(false);
+    expect(stale.commitLyricAndContinue("Keep singing", "note-0")).toBe(false);
+  });
+  expect(result.current.score).toBe(source);
+  expect(onDraftChange).not.toHaveBeenCalled();
+  act(() => result.current.toggleEditingLock());
+  act(() => expect(result.current.createTies("note-0", "note-1", ["pitch-0"])).toBe(true));
+  const tied = result.current.score;
+  const remove = result.current.removeTie;
+  onDraftChange.mockClear();
+  act(() => result.current.toggleEditingLock());
+  act(() => expect(remove(tied.ties[0].id)).toBe(false));
+  expect(result.current.score).toBe(tied);
+  expect(onDraftChange).not.toHaveBeenCalled();
+  act(() => result.current.toggleEditingLock());
+  act(() => expect(result.current.removeTie(tied.ties[0].id)).toBe(true));
 });

@@ -5,7 +5,7 @@ import { sortStaffBuilderLibraryPieces, type StaffBuilderLibrarySort } from "../
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 
-export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByPieceId, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onPractice, onPrint, onRename }: Readonly<{
+export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByPieceId, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onStudy, onPractice, onPrint, onRename }: Readonly<{
   activePieceId: string | null;
   pieces: readonly StaffBuilderScore[];
   practiceMetadataByPieceId: Readonly<Record<string, StaffBuilderPiecePracticeMetadata>>;
@@ -14,6 +14,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByP
   onDuplicate: (id: string, mode: StaffBuilderDuplicationMode) => void;
   onImportFile: (file: File) => void;
   onOpen: (id: string) => void;
+  onStudy: (id: string, opener: HTMLButtonElement) => void;
   onPractice: (piece: StaffBuilderScore) => void;
   onPrint: (piece: StaffBuilderScore) => void;
   onRename: (id: string, title: string) => void;
@@ -53,6 +54,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByP
                 <div><strong>{piece.title}</strong>{activePieceId === piece.id && <span className="ml-2 text-sky-300">Current piece</span>}<span className={practiceEligible ? "ml-2 text-emerald-300" : "ml-2 text-amber-300"}>{practiceEligible ? "Validated" : "Needs validation"}</span><div className="text-sm text-zinc-400">Updated {new Date(piece.updatedAt).toLocaleString()}</div>{!practiceEligible && <div className="text-sm text-amber-200" id={practiceReasonId}>Complete structural validation before practicing this piece.</div>}</div>
                 <div className="flex flex-wrap gap-2">
                   <button aria-label={`Open ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onOpen(piece.id)} type="button">Open</button>
+                  <button aria-label={`Study View ${piece.title}`} className="staff-builder-secondary-button min-h-11" onClick={(event) => onStudy(piece.id, event.currentTarget)} type="button">Study View</button>
                   <button aria-describedby={!practiceEligible ? practiceReasonId : undefined} aria-label={`Practice ${piece.title}`} className="staff-builder-secondary-button" disabled={!practiceEligible} onClick={() => onPractice(piece)} title={!practiceEligible ? "Complete structural validation before practicing this piece." : undefined} type="button">Practice</button>
                   <button aria-label={`Download ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onDownload(piece)} type="button">Download</button>
                   <button aria-label={`Print / PDF ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onPrint(piece)} type="button">Print / PDF</button>

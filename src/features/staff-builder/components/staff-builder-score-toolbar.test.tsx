@@ -69,3 +69,22 @@ describe("StaffBuilderScoreToolbar", () => {
     expect(launcher.current).toBeInstanceOf(HTMLButtonElement);
   });
 });
+
+
+it("disables measure mutation separately from viewing navigation and Study View", () => {
+  const mutate = vi.fn();
+  const navigate = vi.fn();
+  const study = vi.fn();
+  render(<StaffBuilderScoreToolbar editingDisabled measureIndex={0} onDeleteMeasure={mutate} onInsertMeasureAfter={mutate} onInsertMeasureBefore={mutate} onNavigate={navigate} onOpenStudyView={study} score={score} />);
+  for (const name of ["Insert Measure Before Measure 1", "Insert Measure After Measure 1", "Delete Measure 1"]) {
+    const button = screen.getByRole("button", { name }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toContain("Unlock editing");
+    fireEvent.click(button);
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Next Measure" }));
+  fireEvent.click(screen.getByRole("button", { name: "Study View" }));
+  expect(mutate).not.toHaveBeenCalled();
+  expect(navigate).toHaveBeenCalledWith(1);
+  expect(study).toHaveBeenCalledOnce();
+});

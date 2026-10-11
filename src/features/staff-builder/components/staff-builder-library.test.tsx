@@ -7,19 +7,30 @@ const piece: StaffBuilderScore = { schemaVersion: 4, annotations: [], id: "saved
 afterEach(cleanup);
 
 describe("StaffBuilderLibrary", () => {
+  it("opens Study View by saved ID through an accessible independent action", () => {
+    const onStudy = vi.fn();
+    const onOpen = vi.fn();
+    const onPractice = vi.fn();
+    render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={onOpen} onStudy={onStudy} onPractice={onPractice} onPrint={vi.fn()} onRename={vi.fn()} pieces={[piece]} practiceMetadataByPieceId={{}} />);
+    const button = screen.getByRole("button", { name: "Study View Saved Piece" });
+    fireEvent.click(button);
+    expect(onStudy).toHaveBeenCalledWith(piece.id, button);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(onPractice).not.toHaveBeenCalled();
+  });
   it("places Print / PDF after Download and before Duplicate and returns the exact saved score", () => {
     const print = vi.fn();
     const before = JSON.stringify(piece);
-    const { container } = render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={vi.fn()} onPractice={vi.fn()} onPrint={print} onRename={vi.fn()} pieces={[piece]} practiceMetadataByPieceId={{}} />);
-    const actions = [...container.querySelectorAll(".staff-builder-library-item button, .staff-builder-library-item summary")].slice(0, 5).map(({ textContent }) => textContent);
-    expect(actions).toEqual(["Open", "Practice", "Download", "Print / PDF", "Duplicate"]);
+    const { container } = render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={vi.fn()} onStudy={vi.fn()} onPractice={vi.fn()} onPrint={print} onRename={vi.fn()} pieces={[piece]} practiceMetadataByPieceId={{}} />);
+    const actions = [...container.querySelectorAll(".staff-builder-library-item button, .staff-builder-library-item summary")].slice(0, 6).map(({ textContent }) => textContent);
+    expect(actions).toEqual(["Open", "Study View", "Practice", "Download", "Print / PDF", "Duplicate"]);
     fireEvent.click(screen.getByRole("button", { name: "Print / PDF Saved Piece" }));
     expect(print).toHaveBeenCalledWith(piece);
     expect(JSON.stringify(piece)).toBe(before);
   });
 
   it("keeps the existing primary and secondary actions available", () => {
-    render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={vi.fn()} onPractice={vi.fn()} onPrint={vi.fn()} onRename={vi.fn()} pieces={[piece]} practiceMetadataByPieceId={{}} />);
+    render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={vi.fn()} onStudy={vi.fn()} onPractice={vi.fn()} onPrint={vi.fn()} onRename={vi.fn()} pieces={[piece]} practiceMetadataByPieceId={{}} />);
     expect(screen.getByRole("button", { name: "Open Saved Piece" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Practice Saved Piece" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Download Saved Piece" })).toBeTruthy();
@@ -30,7 +41,7 @@ describe("StaffBuilderLibrary", () => {
 
   it("offers an accessible sort control and changes the rendered order", () => {
     const later = { ...piece, id: "later", title: "Alpha", updatedAt: "2026-02-01T00:00:00.000Z" };
-    render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={vi.fn()} onPractice={vi.fn()} onPrint={vi.fn()} onRename={vi.fn()} pieces={[piece, later]} practiceMetadataByPieceId={{ saved: { lastPracticedAt: "2026-03-01T00:00:00.000Z" } }} />);
+    render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={vi.fn()} onStudy={vi.fn()} onPractice={vi.fn()} onPrint={vi.fn()} onRename={vi.fn()} pieces={[piece, later]} practiceMetadataByPieceId={{ saved: { lastPracticedAt: "2026-03-01T00:00:00.000Z" } }} />);
     const titles = () => screen.getAllByRole("listitem").map((item) => item.querySelector("strong")?.textContent);
     expect((screen.getByRole("combobox", { name: "Sort" }) as HTMLSelectElement).value).toBe("recently-played");
     expect(titles()).toEqual(["Saved Piece", "Alpha"]);

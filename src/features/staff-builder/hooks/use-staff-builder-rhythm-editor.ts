@@ -37,9 +37,10 @@ function restoresEmptyMeasure(score: StaffBuilderScore, state: StaffBuilderRhyth
   return state.selectedEventId === null && score.measures[state.measureIndex]?.events.length === 0;
 }
 
-export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, onSelectionChange }: Readonly<{
+export function useStaffBuilderRhythmEditor({ score, initialState, canMutate = () => true, onMutation, onSelectionChange }: Readonly<{
   score: StaffBuilderScore;
   initialState: StaffBuilderRhythmState;
+  canMutate?: () => boolean;
   onMutation: (score: StaffBuilderScore, selection: StaffBuilderEventSelection | null) => void;
   onSelectionChange: (selection: StaffBuilderEventSelection | null) => void;
 }>) {
@@ -63,12 +64,13 @@ export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, o
   }, [onSelectionChange]);
 
   const apply = useCallback((result: ReturnType<typeof setStaffBuilderEventDuration>, nextSelection = activeSelection) => {
+    if (!canMutate()) return false;
     if (!result.ok) { setStatus(ERROR_MESSAGES[result.error]); return false; }
     if (result.score === score) { setStatus(null); return false; }
     setStatus(null);
     onMutation(result.score, nextSelection);
     return true;
-  }, [activeSelection, onMutation, score]);
+  }, [activeSelection, canMutate, onMutation, score]);
 
   return {
     selection: activeSelection,
@@ -97,7 +99,7 @@ export function useStaffBuilderRhythmEditor({ score, initialState, onMutation, o
     moveToStaff: (staff: StaffBuilderStaff) => activeSelection ? apply(moveStaffBuilderEventToStaff(score, activeSelection, staff)) : false,
     respellPitch: (pitchId: string, letter: NoteLetter) => activeSelection ? apply(respellStaffBuilderPitch(score, activeSelection, pitchId, letter)) : false,
     deleteEvent: () => {
-      if (!activeSelection) return false;
+      if (!canMutate() || !activeSelection) return false;
       const deleted = deleteStaffBuilderEvent(score, activeSelection);
       if (!deleted.result.ok) { setStatus(ERROR_MESSAGES[deleted.result.error]); return false; }
       setSelection(deleted.selection);

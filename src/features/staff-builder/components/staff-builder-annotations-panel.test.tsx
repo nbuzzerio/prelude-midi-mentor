@@ -233,3 +233,20 @@ describe("StaffBuilderAnnotationsPanel", () => {
     expect([studyNotes.checked, practiceMarks.checked, bookmarks.checked]).toEqual([false, false, false]);
   });
 });
+
+
+it("keeps layer visibility and annotation reading available while disabling authoring", () => {
+  const mutate = vi.fn();
+  const visibility = vi.fn();
+  const source: StaffBuilderScore = { ...trebleNoteScore(), annotations: [{ id: "note", kind: "study-note", anchor: { kind: "measure", measureId: "measure" }, text: "Read this cue" }] };
+  render(<StaffBuilderAnnotationsPanel editingLocked measureIndex={0} onLayerVisibilityChange={visibility} onScoreMutation={mutate} score={source} selectedEventId="event" visibleLayers={new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS)} />);
+  expect(screen.getByText("Read this cue")).toBeTruthy();
+  expect(screen.getByLabelText("Lyric Cue").matches(":disabled")).toBe(true);
+  for (const button of screen.getAllByRole("button")) {
+    expect(button.matches(":disabled")).toBe(true);
+    fireEvent.click(button);
+  }
+  fireEvent.click(screen.getByRole("checkbox", { name: "Study Notes" }));
+  expect(visibility).toHaveBeenCalledOnce();
+  expect(mutate).not.toHaveBeenCalled();
+});

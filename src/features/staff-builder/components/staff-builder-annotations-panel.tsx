@@ -35,6 +35,7 @@ function StaffBuilderLyricCueEditor({ initialText, onSave }: Readonly<{ initialT
 
 export function StaffBuilderAnnotationsPanel({
   score,
+  editingLocked = false,
   measureIndex,
   selectedEventId,
   visibleLayers,
@@ -44,6 +45,7 @@ export function StaffBuilderAnnotationsPanel({
   now,
 }: Readonly<{
   score: StaffBuilderScore;
+  editingLocked?: boolean;
   measureIndex: number;
   selectedEventId: string | null;
   visibleLayers: ReadonlySet<StaffBuilderAnnotationLayer>;
@@ -132,11 +134,11 @@ export function StaffBuilderAnnotationsPanel({
   return <section aria-labelledby="staff-builder-annotations-title" className="staff-builder-annotations-panel">
     <div className="staff-builder-annotations-heading">
       <div><h3 id="staff-builder-annotations-title">Study annotations</h3><p>Measure {measureIndex + 1}{selectedEventId ? " · Selected event available" : " · No event selected"}</p></div>
-      <button className="staff-builder-primary-button" onClick={beginAdd} type="button">Add Annotation</button>
+      <button className="staff-builder-primary-button" disabled={editingLocked} onClick={beginAdd} type="button">Add Annotation</button>
     </div>
     <fieldset className="staff-builder-annotation-layers"><legend>Score annotation layers</legend>{LAYER_CONTROLS.map(({ layer, label }) => <label key={layer}><input checked={visibleLayers.has(layer)} onChange={(event) => onLayerVisibilityChange(layer, event.target.checked)} type="checkbox" />{label}</label>)}</fieldset>
-    {selectedEvent?.kind === "notes" && selectedEvent.staff === "treble" && <StaffBuilderLyricCueEditor initialText={lyricCue?.text ?? ""} key={lyricSourceKey} onSave={saveLyricCue} />}
-    {formOpen && <div aria-label={editingId ? "Edit annotation" : "Add annotation"} className="staff-builder-annotation-form" role="group">
+    {selectedEvent?.kind === "notes" && selectedEvent.staff === "treble" && <fieldset className="staff-builder-editing-controls" disabled={editingLocked}><StaffBuilderLyricCueEditor initialText={lyricCue?.text ?? ""} key={lyricSourceKey} onSave={saveLyricCue} /></fieldset>}
+    {formOpen && <fieldset disabled={editingLocked} className="staff-builder-editing-controls"><div aria-label={editingId ? "Edit annotation" : "Add annotation"} className="staff-builder-annotation-form" role="group">
       <label>Annotation type<select onChange={(event) => { setKind(event.target.value as FormKind); setError(null); }} value={kind}><option value="study-note">Study Note</option><option value="practice-mark">Practice Mark</option><option value="bookmark">Bookmark</option></select></label>
       <fieldset><legend>Attach to</legend><label><input checked={anchor?.kind === "measure" && anchor.measureId === measure?.id} name="annotation-anchor" onChange={() => setAnchor(measure ? { kind: "measure", measureId: measure.id } : null)} type="radio" />Current measure</label>{originalEditAnchor?.kind === "event" && originalEditAnchor.eventId !== selectedEventId && <label><input checked={anchor?.kind === "event" && anchor.eventId === originalEditAnchor.eventId} name="annotation-anchor" onChange={() => setAnchor(originalEditAnchor)} type="radio" />Existing event</label>}{selectedEventId && <label><input checked={anchor?.kind === "event" && anchor.eventId === selectedEventId} name="annotation-anchor" onChange={() => setAnchor({ kind: "event", eventId: selectedEventId })} type="radio" />Selected event</label>}</fieldset>
       {kind === "study-note" && <label>Study note<textarea onChange={(event) => setText(event.target.value)} rows={3} value={text} /></label>}
@@ -144,12 +146,12 @@ export function StaffBuilderAnnotationsPanel({
       {kind === "bookmark" && <label>Bookmark category<select onChange={(event) => setBookmarkCategory(event.target.value as StaffBuilderBookmarkCategory)} value={bookmarkCategory}>{BOOKMARK_CATEGORIES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label>}
       {error && <p className="staff-builder-annotation-error">{error}</p>}
       <div className="staff-builder-annotation-form-actions"><button className="staff-builder-primary-button" onClick={submit} type="button">{editingId ? "Save Annotation" : "Add Annotation"}</button><button className="staff-builder-secondary-button" onClick={resetForm} type="button">Cancel</button></div>
-    </div>}
+    </div></fieldset>}
     <div className="staff-builder-annotation-list">{relevant.length === 0 ? <p>No annotations in this measure.</p> : relevant.map((annotation) => {
       const selected = annotation.anchor.kind === "event" && annotation.anchor.eventId === selectedEventId;
       const typeLabel = STAFF_BUILDER_ANNOTATION_KIND_LABELS[annotation.kind];
       const location = annotation.anchor.kind === "measure" ? `Measure ${measureIndex + 1}` : selected ? "Selected event" : "Event in this measure";
-      return <article className="staff-builder-annotation-item" data-selected-event={selected || undefined} key={annotation.id}><div><strong>{typeLabel}</strong><span>{location}</span><p>{describeStaffBuilderAnnotation(annotation)}</p></div><div><button aria-label={`Edit ${typeLabel}: ${describeStaffBuilderAnnotation(annotation)}`} className="staff-builder-secondary-button" onClick={() => beginEdit(annotation)} type="button">Edit</button><button aria-label={`Delete ${typeLabel}: ${describeStaffBuilderAnnotation(annotation)}`} className="staff-builder-danger-button" onClick={() => onScoreMutation(deleteStaffBuilderAnnotation(score, annotation.id, now ? { now } : undefined))} type="button">Delete</button></div></article>;
+      return <article className="staff-builder-annotation-item" data-selected-event={selected || undefined} key={annotation.id}><div><strong>{typeLabel}</strong><span>{location}</span><p>{describeStaffBuilderAnnotation(annotation)}</p></div><div><button aria-label={`Edit ${typeLabel}: ${describeStaffBuilderAnnotation(annotation)}`} className="staff-builder-secondary-button" disabled={editingLocked} onClick={() => beginEdit(annotation)} type="button">Edit</button><button aria-label={`Delete ${typeLabel}: ${describeStaffBuilderAnnotation(annotation)}`} className="staff-builder-danger-button" disabled={editingLocked} onClick={() => onScoreMutation(deleteStaffBuilderAnnotation(score, annotation.id, now ? { now } : undefined))} type="button">Delete</button></div></article>;
     })}</div>
   </section>;
 }

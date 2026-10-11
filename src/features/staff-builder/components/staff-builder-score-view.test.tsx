@@ -634,3 +634,17 @@ describe("StaffBuilderScoreView", () => {
     expect(position).not.toHaveBeenCalled();
   });
 });
+
+
+it("closes an existing signature editing menu when editing callbacks are removed and does not reopen it", async () => {
+  const source = score();
+  const change = vi.fn();
+  const { rerender } = render(<StaffBuilderScoreView measureIndex={0} onKeyChange={change} score={source} />);
+  fireEvent.click(await screen.findByRole("button", { name: /Change key signature/ }));
+  expect(screen.getByRole("dialog", { name: "Key signature choices" })).toBeTruthy();
+  rerender(<StaffBuilderScoreView measureIndex={0} score={source} />);
+  expect(screen.queryByRole("dialog", { name: "Key signature choices" })).toBeNull();
+  rerender(<StaffBuilderScoreView measureIndex={0} onKeyChange={change} score={source} />);
+  expect(screen.queryByRole("dialog", { name: "Key signature choices" })).toBeNull();
+  expect(change).not.toHaveBeenCalled();
+});

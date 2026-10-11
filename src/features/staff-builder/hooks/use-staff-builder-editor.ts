@@ -1,5 +1,5 @@
 import type { StaffBuilderClef } from "../staff-builder-clefs";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   commitStaffBuilderPendingCapture,
   commitStaffBuilderCaptureRest,
@@ -60,6 +60,20 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   confirmDiscardPending?: () => boolean;
 }>) {
   const [score, setScore] = useState(initialScore);
+  const [editingLocked, setEditingLocked] = useState(false);
+  const commandAccess = useRef({ mounted: false, locked: false, score: initialScore, pending: EMPTY_PENDING });
+  useLayoutEffect(() => {
+    const access = commandAccess.current;
+    access.mounted = true;
+    return () => { access.mounted = false; };
+  }, []);
+  const canEdit = useCallback(() => commandAccess.current.mounted && !commandAccess.current.locked, []);
+  const toggleEditingLock = useCallback(() => {
+    if (!commandAccess.current.mounted) return;
+    // Fence MIDI and retained command callbacks before React updates the controls.
+    commandAccess.current.locked = !commandAccess.current.locked;
+    setEditingLocked(commandAccess.current.locked);
+  }, []);
   const initialScoreFingerprint = scoreFingerprint(initialScore);
   const [sourceFingerprint, setSourceFingerprint] = useState(initialScoreFingerprint);
   const [externalScoreGeneration, setExternalScoreGeneration] = useState(0);
@@ -67,6 +81,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   const [editorPass, setEditorPass] = useState<StaffBuilderEditorPass>(initialEditorPass);
   const [rhythmState, setRhythmState] = useState<StaffBuilderRhythmState>(initialRhythmState);
   const [pending, setPending] = useState<StaffBuilderPendingCapture>(EMPTY_PENDING);
+  useLayoutEffect(() => {
+    commandAccess.current.score = score;
+    commandAccess.current.pending = pending;
+  }, [score, pending]);
   const [validationActive, setValidationActive] = useState(false);
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
   const [validationStatus, setValidationStatus] = useState<string | null>(null);
@@ -81,18 +99,21 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   const history = useStaffBuilderHistory(50, externalScoreGeneration);
 
   const persist = useCallback((nextScore: StaffBuilderScore, nextCaptureState: StaffBuilderCaptureState, nextEditorPass = editorPass, nextRhythmState = rhythmState) => {
-    const reconciledScore = reconcileStaffBuilderAnnotations(nextScore);
+    if (!commandAccess.current.mounted || (commandAccess.current.locked && nextScore !== commandAccess.current.score)) return;
+    const reconciledScore = commandAccess.current.locked ? nextScore : reconcileStaffBuilderAnnotations(nextScore);
+    commandAccess.current.score = reconciledScore;
     setScore(reconciledScore);
     setCaptureState(nextCaptureState);
     setEditorPass(nextEditorPass);
     setRhythmState(nextRhythmState);
-    onDraftChange(reconciledScore, { editorPass: nextEditorPass, captureState: nextCaptureState, rhythmState: nextRhythmState });
+    if (!commandAccess.current.locked) onDraftChange(reconciledScore, { editorPass: nextEditorPass, captureState: nextCaptureState, rhythmState: nextRhythmState });
   }, [editorPass, onDraftChange, rhythmState]);
 
   const persistOutsideRhythmHistory = useCallback((nextScore: StaffBuilderScore, nextCaptureState: StaffBuilderCaptureState) => {
+    if (!canEdit()) return false;
     if (nextScore !== score) history.clear();
     persist(nextScore, nextCaptureState);
-  }, [history, persist, score]);
+  }, [canEdit, history, persist, score]);
 
   const selectionToState = useCallback((selection: StaffBuilderEventSelection | null, fallback = rhythmState): StaffBuilderRhythmState => ({
     measureIndex: selection?.measureIndex ?? fallback.measureIndex,
@@ -104,11 +125,12 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, persist, score, selectionToState]);
 
   const handleRhythmMutation = useCallback((nextScore: StaffBuilderScore, selection: StaffBuilderEventSelection | null) => {
+    if (!canEdit()) return false;
     history.record(score);
     persist(nextScore, captureState, "rhythm", selectionToState(selection));
-  }, [captureState, history, persist, score, selectionToState]);
+  }, [canEdit, captureState, history, persist, score, selectionToState]);
 
-  const rhythm = useStaffBuilderRhythmEditor({ score, initialState: initialRhythmState, onMutation: handleRhythmMutation, onSelectionChange: handleRhythmSelectionChange });
+  const rhythm = useStaffBuilderRhythmEditor({ score, initialState: initialRhythmState, canMutate: canEdit, onMutation: handleRhythmMutation, onSelectionChange: handleRhythmSelectionChange });
   const issues = useMemo(() => validateStaffBuilderScore(score), [score]);
   const foundIssueIndex = activeIssueId === null ? -1 : issues.findIndex(({ id }) => id === activeIssueId);
   const activeIssueIndex = validationActive && activeIssueId !== null && issues.length > 0 ? Math.max(0, foundIssueIndex) : -1;
@@ -130,21 +152,24 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [rhythm]);
 
   const applyHistoryMutation = useCallback((nextScore: StaffBuilderScore, selection: StaffBuilderEventSelection | null = rhythm.selection) => {
+    if (!canEdit()) return false;
     if (nextScore === score) return false;
     history.record(score);
     const nextSelection = reconcileStaffBuilderEventSelection(nextScore, selection);
     persist(nextScore, captureState, editorPass, selectionToState(nextSelection));
     reconcileIssueAfterMutation(activeIssue, nextScore);
     return true;
-  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm.selection, score, selectionToState]);
+  }, [canEdit, activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm.selection, score, selectionToState]);
 
   const setInputMode = useCallback((inputMode: StaffBuilderCaptureInputMode) => {
+    if (!canEdit()) return false;
     if (inputMode === captureState.inputMode) return;
     const next = { ...captureState, inputMode };
     persist(score, next);
-  }, [captureState, persist, score]);
+  }, [canEdit, captureState, persist, score]);
 
   const setStepDuration = useCallback((stepDuration: StaffBuilderStepDuration) => {
+    if (!canEdit()) return false;
     if (stepDuration === captureState.stepDuration) return;
     const stepTicks = stepDurationToTicks(stepDuration);
     const offsetTicks = Math.floor(captureState.cursor.offsetTicks / stepTicks) * stepTicks;
@@ -153,9 +178,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     if (cursorMoves) setPending(EMPTY_PENDING);
     const next = { ...captureState, stepDuration, cursor: { ...captureState.cursor, offsetTicks } };
     persist(score, next);
-  }, [captureState, confirmDiscardPending, pending, persist, score]);
+  }, [canEdit, captureState, confirmDiscardPending, pending, persist, score]);
 
   const setCapturePosition = useCallback((position: Readonly<{ measureIndex: number; offsetTicks: number }>) => {
+    if (!canEdit()) return false;
     if (validationActive || (editorPass !== "capture" && editorPass !== "lyrics") || position.measureIndex !== captureState.cursor.measureIndex) return false;
     const capacity = resolveStaffBuilderMeasureContext(score, position.measureIndex).capacityTicks;
     if (!Number.isInteger(position.offsetTicks) || position.offsetTicks < 0 || position.offsetTicks >= capacity || position.offsetTicks % 120 !== 0) return false;
@@ -165,25 +191,30 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     setPending(EMPTY_PENDING);
     persist(score, nextCaptureState);
     return true;
-  }, [captureState, confirmDiscardPending, editorPass, pending, persist, score, validationActive]);
+  }, [canEdit, captureState, confirmDiscardPending, editorPass, pending, persist, score, validationActive]);
 
   const addMidiPitch = useCallback((midiNumber: number) => {
+    if (!canEdit()) return false;
     if (!Number.isInteger(midiNumber) || midiNumber < 0 || midiNumber > 127) return;
     setPending((current) => {
+      if (!canEdit()) return current;
       const staff = routeStaffBuilderCapturePitch(captureState.inputMode, midiNumber);
       if (current[staff].includes(midiNumber)) return current;
       return { ...current, [staff]: [...current[staff], midiNumber].sort((a, b) => a - b) };
     });
-  }, [captureState.inputMode]);
+  }, [canEdit, captureState.inputMode]);
 
   const toggleVirtualPitch = useCallback((midiNumber: number) => {
+    if (!canEdit()) return false;
     setPending((current) => {
+      if (!canEdit()) return current;
       const staff = routeStaffBuilderCapturePitch(captureState.inputMode, midiNumber);
       return { ...current, [staff]: toggleSorted(current[staff], midiNumber) };
     });
-  }, [captureState.inputMode]);
+  }, [canEdit, captureState.inputMode]);
 
   const navigate = useCallback((direction: "forward" | "backward") => {
+    if (!canEdit()) return false;
     if (direction === "backward") {
       const cursor = moveStaffBuilderCaptureBackward(score, captureState.cursor, captureState.stepDuration);
       if (cursor === captureState.cursor) return false;
@@ -197,18 +228,20 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     setPending(EMPTY_PENDING);
     persistOutsideRhythmHistory(moved.score, { ...captureState, cursor: moved.cursor });
     return true;
-  }, [captureState, confirmDiscardPending, pending, persistOutsideRhythmHistory, score]);
+  }, [canEdit, captureState, confirmDiscardPending, pending, persistOutsideRhythmHistory, score]);
 
   const lockAndContinue = useCallback(() => {
+    if (!canEdit()) return false;
     if (hasInvalidPending(pending)) return false;
     const committed = commitStaffBuilderPendingCapture(score, captureState.cursor, pending);
     const moved = moveStaffBuilderCaptureForward(committed, captureState.cursor, captureState.stepDuration);
     setPending(EMPTY_PENDING);
     persistOutsideRhythmHistory(moved.score, { ...captureState, cursor: moved.cursor });
     return true;
-  }, [captureState, pending, persistOutsideRhythmHistory, score]);
+  }, [canEdit, captureState, pending, persistOutsideRhythmHistory, score]);
 
   const addRestAndContinue = useCallback(() => {
+    if (!canEdit()) return false;
     const committed = commitStaffBuilderCaptureRest(score, captureState);
     if (!committed.ok) {
       setCaptureStatus("This position is tied. Remove the tie before replacing it with a rest.");
@@ -219,9 +252,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     setCaptureStatus(`${captureState.stepDuration === "quarter" ? "Quarter" : captureState.stepDuration === "eighth" ? "Eighth" : "Sixteenth"} rest added to ${committed.staves.length === 2 ? "treble and bass" : committed.staves[0]}.`);
     persistOutsideRhythmHistory(moved.score, { ...captureState, cursor: moved.cursor });
     return true;
-  }, [captureState, persistOutsideRhythmHistory, score]);
+  }, [canEdit, captureState, persistOutsideRhythmHistory, score]);
 
   const goToMeasure = useCallback((measureIndex: number) => {
+    if (!commandAccess.current.mounted || (commandAccess.current.locked && hasPending(commandAccess.current.pending))) return false;
     if (validationActive || !Number.isInteger(measureIndex) || measureIndex < 0 || measureIndex >= score.measures.length) return false;
     if (editorPass === "capture" || editorPass === "lyrics") {
       if (measureIndex === captureState.cursor.measureIndex && captureState.cursor.offsetTicks === 0) return false;
@@ -238,6 +272,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, validationActive]);
 
   const insertMeasure = useCallback((insertionIndex: number) => {
+    if (!canEdit()) return false;
     if (validationActive) return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
     const inserted = insertStaffBuilderMeasure(score, insertionIndex);
@@ -253,9 +288,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     rhythm.goToMeasure(inserted.measureIndex);
     persist(inserted.score, nextCaptureState, editorPass, nextRhythmState);
     return true;
-  }, [captureState, confirmDiscardPending, editorPass, history, pending, persist, rhythm, score, validationActive]);
+  }, [canEdit, captureState, confirmDiscardPending, editorPass, history, pending, persist, rhythm, score, validationActive]);
 
   const deleteMeasure = useCallback((measureIndex: number) => {
+    if (!canEdit()) return false;
     if (validationActive || hasPending(pending) && !confirmDiscardPending()) return false;
     const deleted = deleteStaffBuilderMeasure(score, measureIndex);
     if (!deleted.ok) return false;
@@ -272,9 +308,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     else rhythm.goToMeasure(deleted.measureIndex);
     persist(deleted.score, nextCaptureState, editorPass, nextRhythmState);
     return true;
-  }, [captureState, confirmDiscardPending, editorPass, history, pending, persist, rhythm, score, validationActive]);
+  }, [canEdit, captureState, confirmDiscardPending, editorPass, history, pending, persist, rhythm, score, validationActive]);
 
   const switchToRhythm = useCallback(() => {
+    if (!canEdit()) return false;
     if (!getInitialStaffBuilderRhythmSelection(score)) return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
     const measureIndex = captureState.cursor.measureIndex;
@@ -290,10 +327,16 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     else rhythm.goToMeasure(measureIndex);
     persist(score, captureState, "rhythm", nextRhythmState);
     return true;
-  }, [captureState, confirmDiscardPending, pending, persist, rhythm, score]);
+  }, [canEdit, captureState, confirmDiscardPending, pending, persist, rhythm, score]);
 
   const selectRhythmEventFromScore = useCallback((selection: StaffBuilderEventSelection) => {
     if (validationActive || !score.measures[selection.measureIndex]?.events.some(({ id }) => id === selection.eventId)) return false;
+    if (!commandAccess.current.mounted) return false;
+    if (commandAccess.current.locked) {
+      rhythm.setSelection(selection);
+      persist(score, captureState, editorPass, selectionToState(selection));
+      return true;
+    }
     if (editorPass === "capture" && hasPending(pending) && !confirmDiscardPending()) return false;
     const nextRhythmState = selectionToState(selection);
     setPending(EMPTY_PENDING);
@@ -303,21 +346,24 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
   }, [captureState, confirmDiscardPending, editorPass, pending, persist, rhythm, score, selectionToState, validationActive]);
 
   const switchToCapture = useCallback(() => {
+    if (!canEdit()) return false;
     const selected = rhythm.selectedEvent;
     const nextCursor = selected && rhythm.selection
       ? { measureIndex: rhythm.selection.measureIndex, offsetTicks: selected.startTick }
       : { measureIndex: rhythm.measureIndex, offsetTicks: rhythm.measureIndex === captureState.cursor.measureIndex ? captureState.cursor.offsetTicks : 0 };
     persist(score, { ...captureState, cursor: nextCursor }, "capture", { measureIndex: rhythm.measureIndex, selectedEventId: rhythm.selection?.eventId ?? null });
-  }, [captureState, persist, rhythm.measureIndex, rhythm.selectedEvent, rhythm.selection, score]);
+  }, [canEdit, captureState, persist, rhythm.measureIndex, rhythm.selectedEvent, rhythm.selection, score]);
 
   const switchToLyrics = useCallback(() => {
+    if (!canEdit()) return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
     setPending(EMPTY_PENDING);
     persist(score, captureState, "lyrics", rhythmState);
     return true;
-  }, [captureState, confirmDiscardPending, pending, persist, rhythmState, score]);
+  }, [canEdit, captureState, confirmDiscardPending, pending, persist, rhythmState, score]);
 
   const commitLyricAndContinue = useCallback((text: string, eventId: string | null) => {
+    if (!canEdit()) return false;
     if (editorPass !== "lyrics" || validationActive) return false;
     const resolution = resolveStaffBuilderLyricTarget(score, captureState.cursor.measureIndex, captureState.cursor.offsetTicks, eventId);
     if (resolution.ambiguous) {
@@ -340,9 +386,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     setCaptureStatus(nextScore === score ? "Advanced without changing a lyric cue." : "Lyric cue saved.");
     persist(nextScore, { ...captureState, cursor: moved.cursor }, "lyrics", rhythmState);
     return true;
-  }, [captureState, editorPass, history, persist, rhythmState, score, validationActive]);
+  }, [canEdit, captureState, editorPass, history, persist, rhythmState, score, validationActive]);
 
   const captureRestAsNote = useCallback((selection: StaffBuilderEventSelection) => {
+    if (!canEdit()) return false;
     const event = score.measures[selection.measureIndex]?.events.find(({ id }) => id === selection.eventId);
     if (!event || event.kind !== "rest") return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
@@ -355,9 +402,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     rhythm.setSelection(selection);
     persist(score, nextCaptureState, "capture", selectionToState(selection));
     return true;
-  }, [captureState, confirmDiscardPending, pending, persist, rhythm, score, selectionToState]);
+  }, [canEdit, captureState, confirmDiscardPending, pending, persist, rhythm, score, selectionToState]);
 
   const undo = useCallback(() => {
+    if (!canEdit()) return false;
     const restored = history.undo(score);
     if (!restored) return false;
     const selection = reconcileStaffBuilderEventSelection(restored, rhythm.selection);
@@ -365,9 +413,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     persist(restored, captureState, editorPass, selectionToState(selection));
     reconcileIssueAfterMutation(activeIssue, restored);
     return true;
-  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm, score, selectionToState]);
+  }, [canEdit, activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm, score, selectionToState]);
 
   const redo = useCallback(() => {
+    if (!canEdit()) return false;
     const restored = history.redo(score);
     if (!restored) return false;
     const selection = reconcileStaffBuilderEventSelection(restored, rhythm.selection);
@@ -375,9 +424,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     persist(restored, captureState, editorPass, selectionToState(selection));
     reconcileIssueAfterMutation(activeIssue, restored);
     return true;
-  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm, score, selectionToState]);
+  }, [canEdit, activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythm, score, selectionToState]);
 
   const activateValidation = useCallback(() => {
+    if (!canEdit()) return false;
     if (hasPending(pending) && !confirmDiscardPending()) return false;
     setPending(EMPTY_PENDING);
     if (issues.length === 0) {
@@ -391,9 +441,10 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     setValidationStatus(null);
     selectIssue(issues[0] ?? null);
     return true;
-  }, [captureState, confirmDiscardPending, editorPass, issues, onValidatedSave, pending, rhythmState, score, selectIssue]);
+  }, [canEdit, captureState, confirmDiscardPending, editorPass, issues, onValidatedSave, pending, rhythmState, score, selectIssue]);
 
   const applyIssueCorrection = useCallback((correction: StaffBuilderIssue["corrections"][number]) => {
+    if (!canEdit()) return false;
     let result;
     if (correction.kind === "set-duration") {
       const measureIndex = score.measures.findIndex((measure) => measure.events.some(({ id }) => id === correction.eventId));
@@ -427,15 +478,16 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     if (!result.ok) { setValidationStatus(`Correction could not be applied (${result.error}).`); return false; }
     setValidationStatus(correction.kind === "fill-gap-with-rests" ? "Added rest for the selected empty beats." : null);
     return applyHistoryMutation(result.score);
-  }, [activeIssue?.target.measureIndex, applyHistoryMutation, captureState, persist, rhythm, score, selectionToState]);
+  }, [canEdit, activeIssue?.target.measureIndex, applyHistoryMutation, captureState, persist, rhythm, score, selectionToState]);
 
   const fillAllGaps = useCallback(() => {
+    if (!canEdit()) return false;
     const gaps = issues.flatMap((currentIssue) => currentIssue.code !== "gap" ? [] : currentIssue.corrections.flatMap((correction) => correction.kind === "fill-gap-with-rests" ? [{ measureIndex: currentIssue.target.measureIndex, staff: correction.staff, startTick: correction.startTick, endTick: correction.endTick }] : []));
     const result = fillAllStaffBuilderGapsWithRests(score, gaps);
     if (!result.ok) { setValidationStatus("Empty beats could not be filled because the score changed. No rests were added."); return false; }
     setValidationStatus("Filled all empty beats with rests.");
     return applyHistoryMutation(result.score);
-  }, [applyHistoryMutation, issues, score]);
+  }, [canEdit, applyHistoryMutation, issues, score]);
 
   const setMeasureClef = useCallback((measureIndex: number, staff: StaffBuilderStaff, clef: StaffBuilderClef | null) => {
     return applyHistoryMutation(setStaffBuilderMeasureClef(score, measureIndex, staff, clef));
@@ -445,6 +497,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     return applyHistoryMutation(next);
   }, [applyHistoryMutation, score]);
   const setMeasureTime = useCallback((measureIndex: number, timeSignature: StaffBuilderTimeSignature | null) => {
+    if (!canEdit()) return false;
     const next = measureIndex === 0 && timeSignature !== null ? setStaffBuilderInitialTime(score, timeSignature) : setStaffBuilderMeasureTimeSignature(score, measureIndex, timeSignature);
     if (next === score) return false;
     const capacity = resolveStaffBuilderMeasureContext(next, captureState.cursor.measureIndex).capacityTicks;
@@ -453,7 +506,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     persist(next, nextCapture, editorPass, rhythmState);
     reconcileIssueAfterMutation(activeIssue, next);
     return true;
-  }, [activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythmState, score]);
+  }, [canEdit, activeIssue, captureState, editorPass, history, persist, reconcileIssueAfterMutation, rhythmState, score]);
   const setTempo = useCallback((tempoBpm: number) => {
     if (!Number.isInteger(tempoBpm) || tempoBpm < 40 || tempoBpm > 240) return false;
     return applyHistoryMutation(tempoBpm === score.tempoBpm ? score : updateStaffBuilderTempo(score, tempoBpm));
@@ -461,6 +514,8 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
 
   return {
     score,
+    editingLocked,
+    toggleEditingLock,
     editorPass,
     captureState,
     positionLabel: formatStaffBuilderCapturePosition(
@@ -476,8 +531,8 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     switchToCapture,
     switchToLyrics,
     commitLyricAndContinue,
-    canUndo: history.canUndo,
-    canRedo: history.canRedo,
+    canUndo: !editingLocked && history.canUndo,
+    canRedo: !editingLocked && history.canRedo,
     undo,
     redo,
     hasPending: hasPending(pending),
@@ -492,7 +547,7 @@ export function useStaffBuilderEditor({ score: initialScore, initialCaptureState
     lockAndContinue,
     addRestAndContinue,
     captureRestAsNote,
-    clearCurrentEntry: () => setPending(EMPTY_PENDING),
+    clearCurrentEntry: () => { if (canEdit()) setPending(EMPTY_PENDING); },
     goToMeasure,
     insertMeasureBefore: (measureIndex: number) => insertMeasure(measureIndex),
     insertMeasureAfter: (measureIndex: number) => insertMeasure(measureIndex + 1),

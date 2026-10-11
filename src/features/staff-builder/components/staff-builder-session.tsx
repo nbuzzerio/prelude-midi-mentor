@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { PiecePracticeSession } from "@/features/piece-practice/components/piece-practice-session";
 import { projectStaffBuilderPieceForPractice } from "@/features/piece-practice/piece-practice-projection";
 import type { PiecePracticePiece } from "@/features/piece-practice/piece-practice-types";
@@ -9,10 +9,13 @@ import { StaffBuilderLibrary } from "./staff-builder-library";
 import { StaffBuilderPieceSetup } from "./staff-builder-piece-setup";
 import { StaffBuilderWorkspacePlaceholder } from "./staff-builder-workspace-placeholder";
 import { StaffBuilderPrintFlow } from "./staff-builder-print-flow";
+import { ALL_STAFF_BUILDER_ANNOTATION_LAYERS, type StaffBuilderAnnotationLayer } from "../staff-builder-annotation-layers";
 import { useStaffBuilderLibrary } from "../hooks/use-staff-builder-library";
 import type { StaffBuilderScore } from "../staff-builder-types";
-import { readStaffBuilderSustainPedalLocksInput, writeStaffBuilderValue, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
+import { readStaffBuilderLibrary, readStaffBuilderSustainPedalLocksInput, writeStaffBuilderValue, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
 import { downloadStaffBuilderPiece, readStaffBuilderPieceFile } from "../persistence/staff-builder-piece-file-browser";
+
+const StaffBuilderStudyView = lazy(() => import("./staff-builder-study-view").then((module) => ({ default: module.StaffBuilderStudyView })));
 
 const unavailableStorage: StaffBuilderStorage = {
   getItem: () => { throw new Error("unavailable"); },
@@ -37,6 +40,9 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
   const [practiceLaunchError, setPracticeLaunchError] = useState<string | null>(null);
   const [pieceFileStatus, setPieceFileStatus] = useState<Readonly<{ kind: "error" | "success"; message: string }> | null>(null);
   const [printPiece, setPrintPiece] = useState<StaffBuilderScore | null>(null);
+  const [studyPiece, setStudyPiece] = useState<StaffBuilderScore | null>(null);
+  const [studyLayers, setStudyLayers] = useState<ReadonlySet<StaffBuilderAnnotationLayer>>(() => new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS));
+  const studyOpenerRef = useRef<HTMLButtonElement | null>(null);
   const introductionOpenerRef = useRef<HTMLButtonElement>(null);
   const refreshRuns = () => { void piecePracticeRunStore.list().then((runs) => { setAvailableRuns(runs); setRunStorageError(false); }).catch(() => setRunStorageError(true)); };
   useEffect(() => { refreshRuns(); }, []);
@@ -67,8 +73,19 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
     setOpenedRun(null);
     setPracticePiece(projection.piece);
   };
+  const openSavedStudyView = (pieceId: string, opener: HTMLButtonElement) => {
+    const result = readStaffBuilderLibrary(storage);
+    const piece = result.ok ? result.value.pieces.find(({ id }) => id === pieceId) : null;
+    if (!piece || state.activeScore) {
+      setPieceFileStatus({ kind: "error", message: !result.ok ? result.message : state.activeScore ? "Return to the Piece Library before studying a saved piece." : "That saved piece is no longer available. It may have been deleted." });
+      return;
+    }
+    studyOpenerRef.current = opener;
+    setStudyLayers(new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS));
+    setStudyPiece(piece);
+  };
   return (
-    <div className="staff-builder-shell">
+    <><div className="staff-builder-shell" hidden={studyPiece !== null} style={studyPiece ? { display: "none" } : undefined}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div><h1 className="text-2xl font-bold">Staff Builder</h1><p className="text-zinc-300">Build a simplified, local practice reference.</p></div>
         <button className="staff-builder-secondary-button" onClick={state.reopenIntroduction} ref={introductionOpenerRef} type="button">About Staff Builder</button>
@@ -154,11 +171,11 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
                     : `Imported "${imported.score.title}" in memory, but it could not be saved in this browser.`,
                 });
               });
-            }} onOpen={state.openPiece} onPractice={launchPiecePractice} onPrint={setPrintPiece} onRename={state.renamePiece} pieces={state.library.pieces} practiceMetadataByPieceId={state.library.practiceMetadataByPieceId} />
+            }} onOpen={state.openPiece} onStudy={openSavedStudyView} onPractice={launchPiecePractice} onPrint={setPrintPiece} onRename={state.renamePiece} pieces={state.library.pieces} practiceMetadataByPieceId={state.library.practiceMetadataByPieceId} />
             <StaffBuilderPieceSetup onCreate={state.createPiece} />
           </div>}
       {state.introductionOpen && <StaffBuilderIntroduction onClose={state.closeIntroduction} returnFocusRef={introductionOpenerRef} />}
       {printPiece && <StaffBuilderPrintFlow onClose={() => setPrintPiece(null)} score={printPiece} />}
-    </div>
+    </div>{studyPiece && <Suspense fallback={<p role="status">Opening Study View...</p>}><StaffBuilderStudyView score={studyPiece} visibleAnnotationLayers={studyLayers} onLayerVisibilityChange={(layer, visible) => setStudyLayers((current) => { const next = new Set(current); if (visible) next.add(layer); else next.delete(layer); return next; })} onShowAllAnnotationLayers={() => setStudyLayers(new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS))} onHideAllAnnotationLayers={() => setStudyLayers(new Set())} onExit={() => { setStudyPiece(null); requestAnimationFrame(() => studyOpenerRef.current?.focus({ preventScroll: true })); }} /></Suspense>}</>
   );
 }

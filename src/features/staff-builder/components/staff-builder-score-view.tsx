@@ -90,6 +90,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const [durationOverlay, setDurationOverlay] = useState<Readonly<{ anchor: StaffBuilderDisplayedAnchor; bounds: StaffBuilderOverlayBounds }> | null>(null);
   const [settingOverlay, setSettingOverlay] = useState<Readonly<{ anchor: StaffBuilderDisplayedAnchor; bounds: StaffBuilderOverlayBounds }> | null>(null);
   const [hoveredNotationControl, setHoveredNotationControl] = useState<StaffBuilderNotationControlName | null>(null);
+  if (durationEventId && !onAssignDuration) setDurationEventId(null);
+  if (settingWheel && !(settingWheel.kind === "key" ? onKeyChange : onTimeChange)) setSettingWheel(null);
   const [presentationScale, setPresentationScale] = useState(1);
   const projection = projectStaffBuilderMeasure(score, measureIndex);
   const cursorOffsetTicks = cursor?.offsetTicks;
@@ -414,8 +416,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           : onConvertToRest?.(selectedEvent.rhythm.status === "final" ? selectedEvent.rhythm.duration : "quarter");
         if (changed) closeDuration();
       }} />}
-      {settingOverlay && settingWheel?.kind === "key" && <StaffBuilderKeyWheel anchor={settingOverlay.anchor} bounds={settingOverlay.bounds} currentKey={projection.keySignatureId} key={`key-${measureIndex}`} openedByPointer={settingWheel.openedByPointer} onChoose={(key) => { onKeyChange?.(measureIndex, key); closeSettingWheel(); }} onClose={closeSettingWheel} />}
-      {settingOverlay && settingWheel?.kind === "time" && <StaffBuilderTimeWheel anchor={settingOverlay.anchor} bounds={settingOverlay.bounds} currentTime={projection.timeSignature} key={`time-${measureIndex}`} openedByPointer={settingWheel.openedByPointer} onChoose={(time) => { onTimeChange?.(measureIndex, time); closeSettingWheel(); }} onClose={closeSettingWheel} />}
+      {settingOverlay && onKeyChange && settingWheel?.kind === "key" && <StaffBuilderKeyWheel anchor={settingOverlay.anchor} bounds={settingOverlay.bounds} currentKey={projection.keySignatureId} key={`key-${measureIndex}`} openedByPointer={settingWheel.openedByPointer} onChoose={(key) => { onKeyChange?.(measureIndex, key); closeSettingWheel(); }} onClose={closeSettingWheel} />}
+      {settingOverlay && onTimeChange && settingWheel?.kind === "time" && <StaffBuilderTimeWheel anchor={settingOverlay.anchor} bounds={settingOverlay.bounds} currentTime={projection.timeSignature} key={`time-${measureIndex}`} openedByPointer={settingWheel.openedByPointer} onChoose={(time) => { onTimeChange?.(measureIndex, time); closeSettingWheel(); }} onClose={closeSettingWheel} />}
       <div aria-label={semanticDescription} className="sr-only" id="staff-builder-score-semantics" />
     </section>
   );

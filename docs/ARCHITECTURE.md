@@ -2,7 +2,19 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
-## Improv playing-first workspace (committed 2.9.13; room audio pending 2.9.14)
+## Staff Builder quality-of-life (pending 2.9.15)
+
+Baseline: clean committed 2.9.14 at `8af1fde64f12b90110ebfc3fa25bff50e730d0ba`. This patch changes Staff Builder viewing and editing controls; score V4, library V4, draft V3, music theory, Piece Practice grading and other input owners retain their contracts.
+
+The library's **Study View** action passes a saved ID to `StaffBuilderSession`, which reads a fresh parsed snapshot through `readStaffBuilderLibrary`. Missing/deleted, corrupt, unsupported or unavailable storage produces an error without opening an editor. The existing full-sheet `StaffBuilderStudyView` receives that snapshot unchanged, including title, context changes, measures, ties and annotations; annotation visibility and print options remain presentation state. Viewing never invokes `openPiece`, draft creation, validated Save, practice projection or practice-recency writes. The library remains mounted but hidden while studying, preserving sort, recovery-draft ownership and opener focus. Exit/Escape returns to that action. Active-editor library access still requires the existing Return to Piece Library confirmation; no route bypass was added. An unresolved newer recovery draft is preserved while another saved piece is studied.
+
+`useStaffBuilderEditor` owns the transient **Lock Editing / Unlock Editing** state. It defaults unlocked on each editor mount (including another piece, mode re-entry or return from Practice), persists through editor Study View, and is absent from score/draft schemas. A mutable command-access fence changes synchronously before React's visual toggle updates, and layout-effect cleanup rejects callbacks retained after real unmount. The same `canEdit` guard protects pending physical/virtual pitches, capture commits/rests/advancement, pass and capture-position changes, measure insertion/deletion, rhythm edits, annotation/lyric edits, ties, key/time/clef/tempo changes, corrections and history commands. The rhythm hook checks it before mutation dispatch or deletion-selection changes. Final persistence also refuses score replacement while locked. Queued pending-pitch updates recheck the fence.
+
+Toggling does not persist, clear pending pitches, replace the score or consume history. Native disabled fieldsets/buttons and omitted notation mutation callbacks supplement the command fence; active notation menus close when their editing callbacks disappear. MIDI registration/connection and existing piano feedback stay available; note-off and pedal edges still flow through the provider, while locked pedal commits cannot change the score. No new MIDI owner, collector or feedback engine is introduced. Viewing selection and existing-measure navigation remain in memory while locked without autosaving; pending pitches disable measure navigation so they cannot move to another onset. Capture-position advancement, pass switches, validation/Save and Undo/Redo require unlock. Reading, scrolling, annotation-layer visibility, Study View, existing print/copy, playback and guarded departure remain available. Unlock resumes the retained draft, pending capture and history.
+
+Both Study View entry points use local React lazy/Suspense loading of the same existing component. Initial eager implementation exceeded the existing 2 MiB PWA per-file cap; the isolated Study View chunk restores precache generation without changing the cap or rendering engine. Production validation checks that this chunk remains precached. Browser-native zoom and scrolling retain their existing behavior; no new zoom control is introduced.
+
+## Improv playing-first workspace (committed 2.9.13; room audio committed 2.9.14)
 
 `App.tsx` adds Improv beside Free Play and a feature-owned departure callback. The workspace loads lazily through a local Suspense boundary: initial eager integration exceeded Workbox's existing 2 MiB per-file precache limit; feature code splitting preserves that limit and the offline cache rather than increasing it. The retained Practice Session builder's actual active-run state excludes the entire active Improv component, so exclusion mounts no consumer or library. Existing modes, microphone/audio guards and databases retain their contracts. `AppMidiConsumer.onOwnershipChange` is an optional lifecycle notification from the existing single provider: replacement and current-token cleanup report loss; stale cleanup cannot displace the new owner. Reentrant registration checks fence initialization. This adds no MIDI access owner or normalized-input changes.
 
@@ -130,7 +142,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides nine top-level modes/tools: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current package/application version is 2.9.3, not a release/tag assertion. Together they support:
+The current application provides ten top-level modes/tools: Flashcards, Sequences, Free Play, Improv, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current pending package/application version is 2.9.15, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals

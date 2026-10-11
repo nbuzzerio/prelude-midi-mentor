@@ -883,3 +883,8 @@ button {
   .improv-live .music-staff-freeplay svg { max-height: 175px !important; transform: scale(1.8) !important; transform-origin: left center; }
 }
 @supports selector(body:has(*)) { body:has(.improv-workspace) { min-width: 0; } }
+
+.staff-builder-editing-controls { min-width: 0; margin: 0; padding: 0; border: 0; }
+.staff-builder-editing-controls:disabled :is(button, input, select, textarea) { opacity: .55; cursor: not-allowed; }
+.staff-builder-editing-lock[aria-pressed="true"] { border-style: double; border-width: 3px; }
+.staff-builder-editing-lock-status { font-size: .875rem; }

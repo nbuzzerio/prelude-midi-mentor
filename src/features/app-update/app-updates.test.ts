@@ -1,3 +1,4 @@
+import { version } from "../../../package.json";
 import { describe, expect, it } from "vitest";
 import { APP_UPDATES, assertAppUpdateCatalog, parseAppUpdateAcknowledgment, unseenAppUpdates, type AppUpdate } from "./app-updates";
 
@@ -6,7 +7,7 @@ const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `upd
 describe("curated product updates", () => {
   it("validates the published catalog and limits the first record to the new update feature", () => {
     expect(() => assertAppUpdateCatalog(APP_UPDATES)).not.toThrow();
-    expect(APP_UPDATES).toHaveLength(10);
+    expect(APP_UPDATES).toHaveLength(11);
     expect(APP_UPDATES[0]).toMatchObject({ sequence: 1, version: "2.8.8" });
     expect(APP_UPDATES[0]?.changes.join(" ")).not.toMatch(/tuner|tie|since your last update/i);
     expect(APP_UPDATES[1]).toMatchObject({ sequence: 2, version: "2.9.0", date: "2026-10-06", title: "Practice with violin and ocarina" });
@@ -27,6 +28,8 @@ describe("curated product updates", () => {
     expect(APP_UPDATES[8]).toMatchObject({ sequence: 9, version: "2.9.13" });
     expect(APP_UPDATES[8].changes.join(" ")).toContain("Room audio is still deferred");
     expect(APP_UPDATES[9]).toMatchObject({ sequence: 10, version: "2.9.14" });
+    expect(APP_UPDATES[10]).toMatchObject({ sequence: 11, version, date: "2026-10-11" });
+    expect(APP_UPDATES[10].changes.join(" ")).toMatch(/Study View.*Lock Editing/);
     expect(APP_UPDATES[9].changes.join(" ")).toContain("not permanently stored or included in MIDI/JSON backups");
   });
   it("collects multiple missed known updates newest first without changing the catalog", () => {

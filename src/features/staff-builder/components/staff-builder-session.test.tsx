@@ -1,3 +1,5 @@
+import { StrictMode } from "react";
+import * as printFlow from "./staff-builder-print-flow";
 import { createStaffBuilderLlmSpecification } from "../staff-builder-llm-specification";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -250,7 +252,7 @@ describe("Staff Builder session", () => {
     const launcher = screen.getByRole("button", { name: "Study View" });
     launcher.focus();
     fireEvent.click(launcher);
-    expect(screen.getByRole("heading", { name: "Study Shell", level: 1 })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Study Shell", level: 1 })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Next Position" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add Annotation" })).toBeNull();
     act(() => midiBoundary.onNote?.(67));
@@ -1177,4 +1179,142 @@ it.each([false, true])("keeps editor and storage unchanged throughout guide prev
   const { parseStaffBuilderPieceFileText } = await import("../persistence/staff-builder-piece-file");
   expect(parseStaffBuilderPieceFileText(writeText.mock.calls.at(-1)![0])).toEqual({ ok: true, score: JSON.parse(snapshot.get(STAFF_BUILDER_STORAGE_KEYS.draft)!).score });
   expect(storage.values).toEqual(snapshot);
+});
+
+
+describe("Staff Builder library Study View and editing lock", () => {
+  it("opens the selected saved snapshot directly without editor, practice, or storage writes and restores focus and library sorting", async () => {
+    const storage = new MemoryStorage();
+    const first = savedValidScore("Other Score");
+    const source = savedTwoMeasureScore("Direct Study");
+    const second = source.measures[1];
+    const saved: StaffBuilderScore = { ...source, measures: [source.measures[0], { ...second, keySignatureChange: "g-major", timeSignatureChange: "3/4", events: second.events.map((event) => event.kind === "notes" ? { ...event, pitches: [{ ...event.pitches[0], midiNumber: 60, letter: "C" }] } : event) }], ties: [{ id: "study-tie", fromEventId: "treble", fromPitchId: "tp", toEventId: "treble-2", toPitchId: "tp-2" }], annotations: [{ id: "note", kind: "study-note", anchor: { kind: "measure", measureId: "m2" }, text: "Keep the phrase connected" }] };
+    seedLibrary(storage, [first, saved]);
+    const renderPrint = vi.spyOn(printFlow, "StaffBuilderPrintFlow");
+    const write = vi.spyOn(storage, "setItem");
+    const remove = vi.spyOn(storage, "removeItem");
+    render(<StrictMode><StaffBuilderSession storage={storage} /></StrictMode>);
+    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "alphabetical" } });
+    const opener = screen.getByRole("button", { name: "Study View Direct Study" });
+    const before = [...storage.values];
+    fireEvent.click(opener);
+    expect(await screen.findByRole("heading", { name: "Direct Study", level: 1 })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
+    expect(renderPrint.mock.lastCall?.[0].score).toEqual(saved);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(midiBoundary.registrations).toBe(0);
+    expect(practiceBoundary.piece).toBeNull();
+    expect(screen.queryByRole("button", { name: "Lock Editing" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Print / Save PDF" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hide All" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+    expect((screen.getByLabelText("Sort") as HTMLSelectElement).value).toBe("alphabetical");
+    expect([...storage.values]).toEqual(before);
+    expect(write).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Open Other Score" }));
+    expect(screen.getByRole("button", { name: "Lock Editing" })).toBeTruthy();
+  });
+
+  it.each(["deleted", "corrupt", "unsupported", "unavailable"])("reports a %s saved piece at click time without opening an editor or writing storage", (kind) => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, [savedValidScore("Vanished")]);
+    render(<StaffBuilderSession storage={storage} />);
+    if (kind === "deleted") storage.values.delete(STAFF_BUILDER_STORAGE_KEYS.library);
+    else if (kind === "corrupt") storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, "{broken");
+    else if (kind === "unsupported") storage.values.set(STAFF_BUILDER_STORAGE_KEYS.library, JSON.stringify({ schemaVersion: 999, pieces: [] }));
+    else vi.spyOn(storage, "getItem").mockImplementation(() => { throw Error("Unavailable"); });
+    const write = vi.spyOn(storage, "setItem");
+    fireEvent.click(screen.getByRole("button", { name: "Study View Vanished" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/no longer available|could not be read|unsupported|unavailable/i);
+    expect(screen.queryByRole("button", { name: "Exit Study View" })).toBeNull();
+    expect(midiBoundary.registrations).toBe(0);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("preserves a newer unsaved recovery draft while viewing another saved piece", async () => {
+    const storage = new MemoryStorage();
+    const saved = savedValidScore("Draft Owner");
+    const other = savedValidScore("Read Only");
+    seedLibrary(storage, [saved, other]);
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.draft, JSON.stringify({ schemaVersion: 3, savedPieceId: saved.id, updatedAt: "2026-10-11T00:00:00.000Z", score: { ...saved, tempoBpm: 112, updatedAt: "2026-10-11T00:00:00.000Z" }, editorPass: "capture" }));
+    const before = [...storage.values];
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Study View Read Only" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Exit Study View" }));
+    expect(screen.getByText("A newer Staff Builder draft is available.")).toBeTruthy();
+    expect([...storage.values]).toEqual(before);
+    fireEvent.click(screen.getByRole("button", { name: "Restore Draft" }));
+    expect((screen.getByRole("spinbutton", { name: "Tempo" }) as HTMLInputElement).value).toBe("112");
+  });
+
+  it("blocks MIDI, rolled chords, virtual keys, keyboard commits, pointer editing and Undo while preserving pending edits and Study View", async () => {
+    const storage = new MemoryStorage();
+    const saved = savedTwoMeasureScore("Locked Study");
+    seedLibrary(storage, [saved]);
+    storage.values.set(STAFF_BUILDER_STORAGE_KEYS.sustainPedalLocksInput, "true");
+    render(<StrictMode><StaffBuilderSession storage={storage} /></StrictMode>);
+    fireEvent.click(screen.getByRole("button", { name: "Open Locked Study" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Tempo" }), { target: { value: "108" } });
+    fireEvent.keyDown(screen.getByRole("spinbutton", { name: "Tempo" }), { key: "Enter" });
+    act(() => midiBoundary.onNote?.(64));
+    const before = [...storage.values];
+    const staleNote = midiBoundary.onNote;
+    const stalePedal = midiBoundary.onSustain;
+    const lock = screen.getByRole("button", { name: "Lock Editing" });
+    lock.focus();
+    fireEvent.click(lock);
+    expect(screen.getByRole("button", { name: "Unlock Editing" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText(/Editing Locked/)).toBeTruthy();
+    act(() => { for (const note of [60, 67, 72]) { staleNote?.(note); midiBoundary.onNote?.(note); } stalePedal?.(true); midiBoundary.onSustain?.(false); });
+    fireEvent.keyDown(screen.getByRole("spinbutton", { name: "Tempo" }), { key: "Enter" });
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Undo last score edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Insert Measure After Measure 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Annotation" }));
+    const virtualKey = screen.getByRole("button", { name: "C, MIDI 60" });
+    Object.defineProperty(virtualKey, "hasPointerCapture", { value: () => false });
+    expect(virtualKey.matches(":disabled")).toBe(true);
+    fireEvent.pointerDown(virtualKey, { pointerId: 1, pointerType: "touch", button: 0 });
+    fireEvent.pointerUp(virtualKey, { pointerId: 1, pointerType: "touch", button: 0 });
+    fireEvent.click(virtualKey);
+    expect(screen.getByRole("spinbutton", { name: "Tempo" }).matches(":disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Lock pitches and continue" }).matches(":disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Next Measure" }).matches(":disabled")).toBe(true);
+    expect(screen.queryByRole("button", { name: /Change key signature/ })).toBeNull();
+    expect(screen.getByText(/pending treble MIDI pitches 64;/)).toBeTruthy();
+    expect([...storage.values]).toEqual(before);
+    fireEvent.click(screen.getByRole("button", { name: "Study View" }));
+    act(() => staleNote?.(79));
+    fireEvent.click(screen.getByRole("button", { name: "Exit Study View" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Unlock Editing" })).toBeTruthy());
+    expect([...storage.values]).toEqual(before);
+    expect(screen.getByText(/pending treble MIDI pitches 64;/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Unlock Editing" }));
+    act(() => midiBoundary.onNote?.(67));
+    expect(screen.getByText(/pending treble MIDI pitches 64, 67;/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Undo last score edit" }).matches(":disabled")).toBe(false);
+  });
+
+  it("retains the library-return confirmation while locked and opens another piece unlocked", () => {
+    const storage = new MemoryStorage();
+    seedLibrary(storage, [savedValidScore("First Locked"), savedValidScore("Second Unlocked")]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open First Locked" }));
+    act(() => midiBoundary.onNote?.(64));
+    fireEvent.click(screen.getByRole("button", { name: "Lock Editing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Piece Library" }));
+    expect(confirm).toHaveBeenCalledWith("Return to Piece Library?");
+    expect(screen.getByRole("button", { name: "Unlock Editing" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Study View Second Unlocked" })).toBeNull();
+    expect(screen.getByText(/pending treble MIDI pitches 64;/)).toBeTruthy();
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Piece Library" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Second Unlocked" }));
+    expect(screen.getByRole("button", { name: "Lock Editing" })).toBeTruthy();
+    act(() => midiBoundary.onNote?.(67));
+    expect(screen.getByText(/pending treble MIDI pitches 67;/)).toBeTruthy();
+  });
 });
