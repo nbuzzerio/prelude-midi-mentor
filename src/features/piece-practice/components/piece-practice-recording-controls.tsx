@@ -1,5 +1,8 @@
-import type { RecordingSnapshot } from "../piece-practice-recording";
+import { useState } from "react";
+import { recordingExtension, type RecordingSnapshot } from "../piece-practice-recording";
 import type { CaptureStatus } from "@/lib/audio/monophonic/microphone-capture";
+import { DownloadDialog } from "@/components/download-dialog";
+import type { DownloadSnapshot } from "@/lib/files/browser-download";
 
 function duration(ms: number) {
   const seconds = Math.floor(ms / 1000);
@@ -21,11 +24,14 @@ export function PiecePracticeRecordingNotice({ recording }: Readonly<{ recording
   </div>;
 }
 
-export function PiecePracticeRecordingControls({ recording, listening, keyboard }: Readonly<{
+export function PiecePracticeRecordingControls({ recording, listening, keyboard, pieceTitle = "performance_audio" }: Readonly<{
   recording: RecordingSnapshot & { setEnabled: (enabled: boolean) => void };
   listening: boolean;
   keyboard?: Readonly<{ status: CaptureStatus; resume: () => void; canRecord: boolean }>;
+  pieceTitle?: string;
 }>) {
+  const [download, setDownload] = useState<DownloadSnapshot | null>(null);
+  const [message, setMessage] = useState("");
   const unsaved = recording.segments.length > 0 || ["starting", "recording", "finalizing"].includes(recording.phase);
   return <section aria-label="Performance audio recording" className="grid min-w-0 gap-2 rounded-lg border border-amber-400/50 bg-zinc-900 p-3">
     <label className="flex min-h-11 items-center gap-3 font-semibold"><input checked={recording.enabled} disabled={Boolean(keyboard && !keyboard.canRecord && !recording.enabled)} onChange={(event) => recording.setEnabled(event.target.checked)} type="checkbox" />Record performance audio</label>
@@ -52,9 +58,18 @@ export function PiecePracticeRecordingControls({ recording, listening, keyboard 
           <p className="text-sm text-zinc-300">Room microphone audio · Capture {segment.captureGeneration} · {segment.analysisSessionId ? `Analysis ${segment.analysisSessionId} · ` : ""}Approximately {duration(segment.startedAtMs)}–{duration(segment.endedAtMs)} from {segment.analysisSessionId ? "analysis start" : "this run's recording timeline start"}</p>
           {listening ? <p>{keyboard ? "Turn recording off" : "Stop Listening"} to play back without feeding playback into the microphone.</p>
             : <audio className="w-full min-w-0 max-w-full" data-piece-practice-recording aria-label={`Play recording segment ${segment.sequence}`} controls preload="none" src={segment.url} />}
-          <a className="min-h-11 justify-self-start rounded border border-sky-400 px-3 py-2 font-semibold" download={segment.filename} href={segment.url}>Download segment {segment.sequence}</a>
+          <button className="min-h-11 justify-self-start rounded border border-sky-400 px-3 py-2 font-semibold" type="button" onClick={() => {
+            const extension = recordingExtension(segment.mimeType);
+            if (extension !== "webm" && extension !== "m4a" && extension !== "ogg") { setMessage("Unknown recording container. Temporary audio is retained."); return; }
+            setDownload(Object.freeze({ blob: segment.blob, name: pieceTitle, fallback: "performance_audio", extension,
+              format: "Performance microphone audio", detail: `Segment ${segment.sequence}. Original room microphone recording.` }));
+          }}>Download segment {segment.sequence}</button>
         </div>)}
       </div>
     </details>
+    {message && <p role="status">{message}</p>}
+    {download && <DownloadDialog snapshot={download} onCancel={() => setDownload(null)} onRequested={filename => {
+      setDownload(null); setMessage(`Download requested: ${filename}. Verify the file before leaving or discarding temporary audio.`);
+    }} />}
   </section>;
 }

@@ -1,7 +1,14 @@
+import { useState } from "react";
+import { DownloadDialog } from "@/components/download-dialog";
+import type { DownloadSnapshot } from "@/lib/files/browser-download";
+
 export function AcousticAnalysisExportControls({ control, capturing }: {
-  control: { enabled: boolean; notice: string | null; changeEnabled: (enabled: boolean) => void; export: () => void };
+  control: { enabled: boolean; notice: string | null; changeEnabled: (enabled: boolean) => void;
+    prepareExport: () => DownloadSnapshot; export: (snapshot?: DownloadSnapshot, filename?: string) => void };
   capturing: boolean;
 }) {
+  const [snapshot, setSnapshot] = useState<DownloadSnapshot | null>(null);
+  const [error, setError] = useState("");
   return <section aria-label="Acoustic analysis data" className="grid gap-2 rounded border border-zinc-600 p-3">
     <p className="text-sm text-zinc-300">Analysis and calibration are temporary. Export before leaving, reloading, restarting, or opening another practice run. Only the On/Off preference is remembered.</p>
     {control.notice && <p role="status">{control.notice}</p>}
@@ -12,8 +19,14 @@ export function AcousticAnalysisExportControls({ control, capturing }: {
         onChange={(event) => control.changeEnabled(event.target.value === "on")}><option value="on">On</option><option value="off">Off</option></select>
     </label>
     <p>This JSON contains local scalar pitch data only. Optional performance recordings are separate and are not included in the export.</p>
-    <button type="button" className="min-h-11 justify-self-start rounded border border-sky-400 px-3 disabled:opacity-50" disabled={capturing} onClick={control.export}>Export Acoustic Analysis</button>
+    <button type="button" className="min-h-11 justify-self-start rounded border border-sky-400 px-3 disabled:opacity-50" disabled={capturing} onClick={() => {
+      try { setSnapshot(control.prepareExport()); setError(""); }
+      catch { setError("Prelude could not prepare this export. Practice and collected evidence are unchanged."); }
+    }}>Export Acoustic Analysis</button>
     {capturing && <p>Stop Listening to export the collected evidence.</p>}
     </div></details>
+    {error && <p role="alert">{error}</p>}
+    {snapshot && <DownloadDialog snapshot={snapshot} onCancel={() => setSnapshot(null)}
+      deliver={(_blob, filename) => control.export(snapshot, filename)} onRequested={() => setSnapshot(null)} />}
   </section>;
 }

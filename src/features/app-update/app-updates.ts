@@ -149,6 +149,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Paused MIDI remains original continuity evidence in JSON backups. Resume waits for local control acknowledgment; temporary room audio pauses with the take where supported.",
     "Room audio remains temporary until downloaded. Its browser timing is approximate, and an independent microphone failure leaves healthy MIDI capture available.",
   ],
+}, {
+  id: "2026-10-11-download-filenames",
+  sequence: 14,
+  title: "Choose your download filenames",
+  date: "2026-10-11",
+  version: "2.9.19",
+  changes: [
+    "Score, MIDI, JSON and microphone downloads now let you edit the name and choose a number from 001 to 999. Every download starts at 001; 000 is reserved and no counter is remembered.",
+    "Filename numbers never change Improv take identities. Original file contents and native audio formats remain unchanged; your browser handles the download location and duplicate names.",
+    "Print / Save as PDF stays in the browser's print dialog. Temporary audio remains in this page until you explicitly discard it; verify downloaded files first.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

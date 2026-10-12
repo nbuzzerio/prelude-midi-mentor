@@ -11,6 +11,7 @@ import { FakeImprovIndexedDb } from "../persistence/improv-indexeddb-fake";
 import type { ImprovArchiveLibrary } from "../improv-library";
 import { performanceFixture } from "../improv-test-fixture";
 import { encodeImprovBackup } from "../improv-backup";
+import { improvMidiBlob } from "../improv-midi-export";
 type UseMidiOptions = Parameters<typeof useMidi>[0];
 
 const midi = vi.hoisted(() => ({ options: null as UseMidiOptions | null, owners: 0, connect: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock("../improv-piano-voices", () => ({ createImprovPianoVoices: () => ({
 
 let fake: FakeImprovIndexedDb; let library: IndexedDbImprovLibrary; let sequence: number;
 let guard: ImprovDepartureGuard | null;
-const createUrl = vi.fn(() => "blob:improv-test"); const revokeUrl = vi.fn();
+const createUrl = vi.fn((blob: Blob) => { expect(blob).toBeInstanceOf(Blob); return "blob:improv-test"; }); const revokeUrl = vi.fn();
 const setGuard = (value: ImprovDepartureGuard | null) => { guard = value; };
 beforeEach(() => {
   fake = new FakeImprovIndexedDb(); library = new IndexedDbImprovLibrary({ factory: fake.factory }); sequence = 0; guard = null;
@@ -204,6 +205,12 @@ describe("playing-first Improv workspace", () => {
     const history = await library.exportCollection((await library.listCollections())[0].collectionId);
     expect(encodeImprovBackup(history)).not.toMatch(/room sound|blob:improv|audio\/webm/);
     fireEvent.click(screen.getByRole("button", { name: "Download room audio" })); expect(unload()).toBe(true);
+    const retained = screen.getByLabelText("Preview room audio").getAttribute("src");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText("Preview room audio").getAttribute("src")).toBe(retained); expect(unload()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Download room audio" }));
+    expect(screen.getByLabelText("Filename preview").textContent).toBe("disney_book_001.webm");
+    fireEvent.click(screen.getByRole("button", { name: "Download" })); expect(unload()).toBe(true);
     vi.spyOn(window, "confirm").mockReturnValue(true); fireEvent.click(screen.getByRole("button", { name: "Discard temporary audio" }));
     await waitFor(() => expect(unload()).toBe(false));
     await waitFor(() => expect((screen.getByRole("button", { name: "Start Take" }) as HTMLButtonElement).disabled).toBe(false)); await start(); await stop();
@@ -399,9 +406,24 @@ describe("playing-first Improv workspace", () => {
   });
   it("requests MIDI/JSON downloads and cleans temporary URLs without claiming completed downloads", async () => {
     mount(); await setup(); await start(); send(); await stop(); fireEvent.click(screen.getByRole("button", { name: "Download MIDI" }));
-    await screen.findByText(/MIDI download requested/); expect(createUrl).toHaveBeenCalledOnce();
+    const before = JSON.stringify(await records());
+    const collection = (await library.listCollections())[0];
+    const original = (await records())[0];
+    const expectedMidi = improvMidiBlob(await library.loadTake(original.takeId)).blob;
+    expect(createUrl).not.toHaveBeenCalled(); expect(screen.getByLabelText("Filename preview").textContent).toBe("disney_book_001.mid");
+    fireEvent.change(screen.getByLabelText("Number"), { target: { value: "8" } });
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    await screen.findByText(/Download requested: .*generated cleanup/); expect(createUrl).toHaveBeenCalledOnce();
+    expect(await (createUrl.mock.calls[0][0] as Blob).arrayBuffer()).toEqual(await expectedMidi.arrayBuffer());
+    expect(JSON.stringify(await records())).toBe(before);
     fireEvent.click(screen.getByText("JSON backup and restore")); fireEvent.click(screen.getByRole("button", { name: "Download JSON backup" }));
-    await screen.findByText(/JSON download requested/); expect(createUrl).toHaveBeenCalledTimes(2);
+    await screen.findByRole("dialog", { name: "Download file" });
+    const expectedJson = encodeImprovBackup(await library.exportCollection(collection.collectionId));
+    expect(screen.getByLabelText("Filename preview").textContent).toBe("disney_book_001.json");
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    await screen.findByText(/Download requested for committed/); expect(createUrl).toHaveBeenCalledTimes(2);
+    expect(await (createUrl.mock.calls[1][0] as Blob).text()).toBe(expectedJson);
+    expect(JSON.stringify(await records())).toBe(before);
     await waitFor(() => expect(revokeUrl).toHaveBeenCalledTimes(2), { timeout: 2000 });
     expect(document.querySelector('a[download]')).toBeNull();
   });

@@ -1,5 +1,6 @@
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { parseStaffBuilderScore } from "./staff-builder-schema";
+import { downloadFilename } from "@/lib/files/download-filename";
 
 export const STAFF_BUILDER_PIECE_FILE_EXTENSION = ".prelude.json";
 
@@ -27,21 +28,8 @@ export function serializeStaffBuilderPiece(score: StaffBuilderScore): string {
   return `${JSON.stringify(parsed.value, null, 2)}\n`;
 }
 
-function slug(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/\p{M}+/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80)
-    .replace(/-+$/g, "");
-}
-
 export function getStaffBuilderPieceFilename(score: Pick<StaffBuilderScore, "id" | "title">): string {
-  const titleSlug = slug(score.title);
-  const fallbackId = slug(score.id).slice(0, 12) || "backup";
-  return `${titleSlug || `staff-builder-piece-${fallbackId}`}${STAFF_BUILDER_PIECE_FILE_EXTENSION}`;
+  return downloadFilename(score.title, "prelude.json", "staff_builder_piece");
 }
 
 export function parseStaffBuilderPieceFileText(text: string): StaffBuilderPieceFileParseResult {

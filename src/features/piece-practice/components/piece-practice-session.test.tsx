@@ -332,7 +332,7 @@ describe("PiecePracticeSession", () => {
     expect(microphone.sessions).toHaveLength(0);
     expect(screen.queryByLabelText("Ocarina fingering guide")).toBeNull();
   });
-  it("preserves ocarina grading, completion, reports, recording and analysis while expected/live fingerings update independently", () => {
+  it("preserves ocarina grading, completion, reports, recording and analysis while expected/live fingerings update independently", async () => {
     vi.useFakeTimers(); localStorage.clear();
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
     const { NativeRecorder, revoke } = installRecordingHarness();
@@ -397,15 +397,15 @@ describe("PiecePracticeSession", () => {
       expect(screen.getByText("Finalizing recording")).toBeTruthy();
       act(() => NativeRecorder.instances[0].finish());
       expect(stopTrack).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole("link", { name: /Download/ }).getAttribute("download")).toMatch(/^prelude-ocarina-.*\.webm$/);
+      expect(screen.getByRole("button", { name: /Download segment/ })).toBeTruthy();
       expect(container.querySelector("audio")?.getAttribute("src")).toMatch(/^blob:/);
       const analysis = screen.getByText(/Acoustic Analysis \/ Export/).closest("details")!;
-      fireEvent.click(analysis.querySelector("summary")!); fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" }));
-      const bundle = JSON.parse(download.mock.calls[0][0]);
+      fireEvent.click(analysis.querySelector("summary")!); fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" })); fireEvent.click(screen.getByRole("button", { name: "Download" }));
+      const bundle = JSON.parse(await (download.mock.calls[0][0] as Blob).text());
       expect(bundle.schemaVersion).toBe(1); expect(bundle.policies.calibration.version).toBe(3);
       expect(bundle.attempts.filter((attempt: { evidence: { accepted: boolean } }) => attempt.evidence.accepted)).toHaveLength(2);
       expect(bundle.derivedSummaries.every((summary: { actualPhysicalLocation: string }) => summary.actualPhysicalLocation === "unknown")).toBe(true);
-      expect(download.mock.calls[0][0]).not.toMatch(/coveredHoles|standard-12-hole-alto-c-provisional|ocarinaFingering/);
+      expect(await (download.mock.calls[0][0] as Blob).text()).not.toMatch(/coveredHoles|standard-12-hole-alto-c-provisional|ocarinaFingering/);
       fireEvent.click(screen.getByRole("button", { name: "Start Listening" }));
       fireEvent.click(screen.getByRole("button", { name: "Skip Target" }));
       expect(screen.getByRole("heading", { name: "Piece complete" })).toBeTruthy();
@@ -416,7 +416,7 @@ describe("PiecePracticeSession", () => {
       unmount(); expect(revoke).toHaveBeenCalledTimes(1);
     } finally { download.mockRestore(); cleanup(); vi.useRealTimers(); }
   });
-  it("updates violin expected and live markers independently while preserving grading, acknowledgment, recording and analysis", () => {
+  it("updates violin expected and live markers independently while preserving grading, acknowledgment, recording and analysis", async () => {
     vi.useFakeTimers(); localStorage.clear();
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
     const { NativeRecorder, revoke } = installRecordingHarness();
@@ -488,9 +488,9 @@ describe("PiecePracticeSession", () => {
       act(() => NativeRecorder.instances[0].finish());
       expect(stopTrack).toHaveBeenCalledTimes(1);
       expect(screen.getByText("Performance Recordings (1)")).toBeTruthy();
-      expect(screen.getByRole("link", { name: /Download/ }).getAttribute("download")).toMatch(/^prelude-violin-.*\.webm$/);
-      fireEvent.click(analysis.querySelector("summary")!); fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" }));
-      const bundle = JSON.parse(download.mock.calls[0][0]);
+      expect(screen.getByRole("button", { name: /Download segment/ })).toBeTruthy();
+      fireEvent.click(analysis.querySelector("summary")!); fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" })); fireEvent.click(screen.getByRole("button", { name: "Download" }));
+      const bundle = JSON.parse(await (download.mock.calls[0][0] as Blob).text());
       expect(bundle.schemaVersion).toBe(1); expect(bundle.policies.calibration.version).toBe(3);
       expect(bundle.attempts.some((attempt: { evidence: { accepted: boolean } }) => attempt.evidence.accepted)).toBe(true);
       unmount(); expect(revoke).toHaveBeenCalledTimes(1);
@@ -595,7 +595,7 @@ describe("PiecePracticeSession", () => {
     expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("");
   });
 
-  it("collects and exports while analysis is collapsed and clears microphone acknowledgment on Stop", () => {
+  it("collects and exports while analysis is collapsed and clears microphone acknowledgment on Stop", async () => {
     vi.useFakeTimers();
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
     localStorage.clear();
@@ -626,8 +626,8 @@ describe("PiecePracticeSession", () => {
       fireEvent.click(screen.getByRole("button", { name: "Stop Listening" }));
       expect(screen.getByLabelText("Accepted pitch/attack").textContent).toBe("");
       fireEvent.click(analysis.querySelector("summary")!);
-      fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" }));
-      const bundle = JSON.parse(download.mock.calls[0][0]);
+      fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" })); fireEvent.click(screen.getByRole("button", { name: "Download" }));
+      const bundle = JSON.parse(await (download.mock.calls[0][0] as Blob).text());
       expect(bundle.trace.length).toBeGreaterThan(0);
       expect(bundle.attempts).toHaveLength(1);
       expect(bundle.attempts[0].evidence.accepted).toBe(true);

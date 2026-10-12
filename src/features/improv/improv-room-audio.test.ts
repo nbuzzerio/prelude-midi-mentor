@@ -175,9 +175,9 @@ describe("temporary Improv room audio", () => {
     Recorder.mime = mime; const f = fixture(); const r = await f.start(); f.controller.stop(); r.data(); r.ended();
     vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:download"), revokeObjectURL: vi.fn() });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-      expect(this.download).toBe(`prelude-Book-take-1.${mime.startsWith("audio/mp4") ? "m4a" : mime.startsWith("audio/ogg") ? "ogg" : "webm"}`);
+      expect(this.download).toBe(`book_001.${mime.startsWith("audio/mp4") ? "m4a" : mime.startsWith("audio/ogg") ? "ogg" : "webm"}`);
     });
-    f.controller.download("Book", 1); expect(click).toHaveBeenCalledOnce(); expect(f.controller.needsGuard()).toBe(true);
+    f.controller.download("Book"); expect(click).toHaveBeenCalledOnce(); expect(f.controller.needsGuard()).toBe(true);
     expect(URL.revokeObjectURL).not.toHaveBeenCalled(); vi.advanceTimersByTime(1000); expect(URL.revokeObjectURL).toHaveBeenCalledOnce();
     f.controller.discard(); expect(f.revoke).toHaveBeenCalledExactlyOnceWith("blob:preview");
   });

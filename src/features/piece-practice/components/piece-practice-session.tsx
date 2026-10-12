@@ -531,8 +531,8 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
       <PiecePracticeResults displayScore={displayScore} piece={piece} rangeText={rangeText} state={sessionState} title={piece.title} />
-      {input.kind === "microphone" && <><PiecePracticeRecordingControls listening={false} recording={input.controller.recording} /><AcousticAnalysisExportControls control={input.controller.analysis} capturing={false} /></>}
-      {input.kind === "keyboard" && <PiecePracticeRecordingControls listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
+      {input.kind === "microphone" && <><PiecePracticeRecordingControls pieceTitle={piece.title} listening={false} recording={input.controller.recording} /><AcousticAnalysisExportControls control={input.controller.analysis} capturing={false} /></>}
+      {input.kind === "keyboard" && <PiecePracticeRecordingControls pieceTitle={piece.title} listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
       {targetedPracticeMeasureIndex === null
         ? <PiecePracticeTargetedPractice disabled={exitAwaitingSave} focusMeasureIndex={targetedPracticeReturnMeasure} latestResults={targetedPractice.latestResults} unsavedMeasureIndices={targetedPractice.unsavedMeasureIndices} onPractice={(measureIndex) => targetedPractice.onPractice(measureIndex, input.controller.resetInput)} score={displayScore} state={sessionState} />
         : <div className="grid gap-3"><p>Focused practice for Targeted Practice: Measure {targetedPracticeMeasureIndex + 1}. Return to the original run to review another passage.</p>{targetedPracticeComparison && <PiecePracticeTargetedPracticeComparisonView comparison={targetedPracticeComparison} focusedResultUnsaved={completionSaveState !== "saved"} />}{returnToTargetedPractice}</div>}
@@ -562,10 +562,10 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
     <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{statusText}</div>
     {acknowledgment}
     <PiecePracticeRecordingNotice recording={input.kind === "keyboard" ? input.audio.recording : input.controller.recording} />
-    {input.kind === "microphone" && input.controller.phase === "preflight" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} />}
+    {input.kind === "microphone" && input.controller.phase === "preflight" && <PiecePracticeAcousticControls pieceTitle={piece.title} input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} />}
     <div aria-label="Active practice workspace" className={`${isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}${instrumentContext ? " piece-practice-instrument-stage" : ""}`}>
       <div className="grid min-w-0 content-start gap-2">
-      {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} presentation="playing" />}
+      {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls pieceTitle={piece.title} input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} presentation="playing" />}
       <section aria-labelledby="piece-practice-current-target" className="grid min-h-0 gap-3 rounded-lg bg-zinc-900 p-3">
         {input.kind === "keyboard" && measureProgress}
         <div><h2 className="font-bold" id="piece-practice-current-target">{target ? "Current target" : "Current measure"}</h2>{target ? input.kind === "keyboard" && <p className="min-h-16 break-words text-4xl font-bold sm:text-5xl">Expected: {expectedNames.join(", ")}</p> : <p>No notes to play in this measure.</p>}</div>
@@ -593,7 +593,7 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
         <PianoKeyboard activeMidiNumbers={activeNotes} failedMidiNumbers={failedNotes} lastAnswer={lastAnswer} onNoteToggle={input.controller.onVirtualNoteToggle} targetMidiNumbers={new Set(target?.expectedMidiNumbers ?? [])} />
       </div>}
     </div>
-    {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls input={input.controller} available={microphoneAvailable} target={target} presentation="secondary" />}
-    {input.kind === "keyboard" && <PiecePracticeRecordingControls listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
+    {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls pieceTitle={piece.title} input={input.controller} available={microphoneAvailable} target={target} presentation="secondary" />}
+    {input.kind === "keyboard" && <PiecePracticeRecordingControls pieceTitle={piece.title} listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
   </section>;
 }

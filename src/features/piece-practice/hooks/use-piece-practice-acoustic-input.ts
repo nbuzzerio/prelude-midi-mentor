@@ -13,6 +13,7 @@ import { createCalibrationContinuity } from "@/features/instrument-learning/cali
 import { createAcousticAnalysisCollector } from "@/features/acoustic-analysis/acoustic-analysis-collector";
 import { downloadAcousticAnalysis, readAnalysisPreference, saveAnalysisPreference } from "@/features/acoustic-analysis/acoustic-analysis-browser";
 import { serializeAcousticAnalysis } from "@/features/acoustic-analysis/acoustic-analysis-export";
+import type { DownloadSnapshot } from "@/lib/files/browser-download";
 import { equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 import { formatPiecePracticeWrittenPitch } from "../piece-practice-evidence";
 import { createPiecePracticeRecording, type RecordingSnapshot } from "../piece-practice-recording";
@@ -324,16 +325,27 @@ export function usePiecePracticeAcousticInput(options: Options) {
     analysisGuard(() => collector.setEnabled(value, latest.current.now()));
     syncAnalysis(latest.current.sessionState);
   }, [analysisGuard, collector, syncAnalysis]);
-  const exportAnalysis = useCallback(() => {
-    try {
-      const snapshot = collector.snapshot();
-      downloadAcousticAnalysis(serializeAcousticAnalysis(snapshot, collector.originMs), snapshot.session.startedAt);
-      analysisNoticeRef.current = "Acoustic analysis exported. This file contains local scalar evidence, not audio.";
-    } catch { analysisNoticeRef.current = "Acoustic analysis could not be exported. Practice and collected evidence are unchanged."; }
-    setAnalysisNotice(analysisNoticeRef.current);
+  const prepareAnalysisExport = useCallback((): DownloadSnapshot => {
+    const snapshot = collector.snapshot();
+    return Object.freeze({ blob: new Blob([serializeAcousticAnalysis(snapshot, collector.originMs)], { type: "application/json" }),
+      name: latest.current.piece.title, fallback: "acoustic_analysis", extension: "json", format: "Acoustic Analysis JSON",
+      detail: "Local scalar pitch evidence; microphone recordings are separate." });
   }, [collector]);
+  const exportAnalysis = useCallback((prepared?: DownloadSnapshot, filename?: string) => {
+    try {
+      const snapshot = prepared ?? prepareAnalysisExport();
+      downloadAcousticAnalysis(snapshot.blob, snapshot.name, filename);
+      analysisNoticeRef.current = "Download requested. This file contains local scalar evidence, not audio.";
+    } catch {
+      analysisNoticeRef.current = "Acoustic analysis could not be exported. Practice and collected evidence are unchanged.";
+      setAnalysisNotice(analysisNoticeRef.current);
+      if (prepared) throw new Error("Download request failed");
+      return;
+    }
+    setAnalysisNotice(analysisNoticeRef.current);
+  }, [prepareAnalysisExport]);
   return { status, reading, needsQuiet, lastAttempt, start, stop, resetInput, skipCurrentTarget,
     phase, calibration, calibrationHz, calibrationFeedback, calibrationAccepted, calibrationAction, enterPractice, skipCalibrationAndStartPractice,
     recording: { ...recordingSnapshot, setEnabled: setRecordingEnabled, hasUnsavedAudio: hasUnsavedRecording },
-    analysis: { enabled: analysisEnabled, notice: analysisNotice, changeEnabled: changeAnalysisEnabled, export: exportAnalysis } };
+    analysis: { enabled: analysisEnabled, notice: analysisNotice, changeEnabled: changeAnalysisEnabled, prepareExport: prepareAnalysisExport, export: exportAnalysis } };
 }

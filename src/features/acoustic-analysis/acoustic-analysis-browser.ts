@@ -1,4 +1,5 @@
 import { acousticAnalysisFilename } from "./acoustic-analysis-export";
+import { requestBrowserDownload } from "@/lib/files/browser-download";
 
 const PREFERENCE_KEY = "prelude-acoustic-analysis-enabled-v1";
 export function readAnalysisPreference(): boolean {
@@ -7,10 +8,6 @@ export function readAnalysisPreference(): boolean {
 export function saveAnalysisPreference(enabled: boolean): boolean {
   try { window.localStorage.setItem(PREFERENCE_KEY, enabled ? "on" : "off"); return true; } catch { return false; }
 }
-export function downloadAcousticAnalysis(json: string, startedAt: string): void {
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob), anchor = document.createElement("a");
-  anchor.download = acousticAnalysisFilename(startedAt); anchor.href = url; anchor.hidden = true;
-  document.body.append(anchor);
-  try { anchor.click(); } finally { anchor.remove(); URL.revokeObjectURL(url); }
+export function downloadAcousticAnalysis(json: string | Blob, title: string, filename = acousticAnalysisFilename(title)): void {
+  requestBrowserDownload(typeof json === "string" ? new Blob([json], { type: "application/json" }) : json, filename);
 }

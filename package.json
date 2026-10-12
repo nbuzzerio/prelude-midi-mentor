@@ -1,6 +1,6 @@
 {
   "name": "prelude-midi-mentor",
-  "version": "2.9.18",
+  "version": "2.9.19",
   "private": true,
   "engines": {
     "node": ">=22.12.0"

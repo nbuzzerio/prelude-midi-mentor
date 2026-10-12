@@ -186,11 +186,15 @@ export function createImprovRoomAudio(options: Readonly<{
       if (state.timing.takeId && observation && state.timing.midiTerminal === null) publish({ timing: { ...state.timing, midiTerminal: observation } });
       stop();
     },
-    download(title: string, number: number | null) {
+    download(title: string) {
       if (!state.segment) throw new Error("Room audio is not available yet.");
-      const extension = recordingExtension(state.segment.mimeType); if (!extension) throw new Error("Unknown recording container.");
-      downloadImprovBlob(state.segment.blob, improvFilename(title, `${number === null ? "take-number-pending" : `take-${number}`}.${extension}`));
+      const extension = recordingExtension(state.segment.mimeType);
+      if (extension !== "webm" && extension !== "m4a" && extension !== "ogg") throw new Error("Unknown recording container.");
+      downloadImprovBlob(state.segment.blob, improvFilename(title, extension));
       publish({ downloadRequested: true, message: "Audio download requested. Verify the file before explicitly discarding temporary audio." });
+    },
+    acknowledgeDownloadRequest(segment: RecordingSegment) {
+      if (!disposed && state.segment === segment) publish({ downloadRequested: true, message: "Download requested. Verify the file before explicitly discarding temporary audio." });
     },
     dispose() { if (disposed) return; discard(); disposed = true; },
   });

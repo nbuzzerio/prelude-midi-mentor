@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
 import type { RecordingSegment, RecordingSnapshot } from "../piece-practice-recording";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); if (vi.isFakeTimers()) vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
 const segment: RecordingSegment = {
   ownerInstanceId: "owner", runId: "run", analysisSessionId: "analysis", sequence: 1, captureGeneration: 2, source: "room-microphone",
   startedAt: "2026-10-09T14:30:00.000Z", startedAtMs: 1000, endedAtMs: 5000, durationMs: 4000,
@@ -16,6 +16,27 @@ const recording = (changes: Partial<RecordingSnapshot> = {}) => ({
 });
 
 describe("performance recording controls", () => {
+  it.each([["audio/webm;codecs=opus", "webm"], ["audio/mp4", "m4a"], ["audio/ogg;codecs=opus", "ogg"]])("delivers unchanged %s audio with manual naming independent of Segment 8", async (mimeType, extension) => {
+    vi.useFakeTimers();
+    const blob = new Blob([new Uint8Array([0, 255, 1, 2])], { type: mimeType });
+    const captured = { ...segment, sequence: 8, mimeType, blob };
+    const control = recording({ phase: "stopped", segments: [captured] });
+    const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:download");
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function(this: HTMLAnchorElement) { expect(this.download).toBe(`étude_023.${extension}`); });
+    render(<PiecePracticeRecordingControls pieceTitle="Étude" listening={false} recording={control} />);
+    fireEvent.click(screen.getByText("Performance Recordings (1)"));
+    fireEvent.click(screen.getByRole("button", { name: "Download segment 8" }));
+    expect(screen.getByLabelText("Filename preview").textContent).toBe(`étude_001.${extension}`);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" })); expect(create).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Download segment 8" }));
+    fireEvent.change(screen.getByLabelText("Number"), { target: { value: "23" } });
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(create).toHaveBeenCalledExactlyOnceWith(blob); expect(control.segments[0]).toBe(captured);
+    expect(screen.getByLabelText("Play recording segment 8").getAttribute("src")).toBe(segment.url);
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([0, 255, 1, 2]));
+    expect(revoke).not.toHaveBeenCalled(); vi.advanceTimersByTime(1000); expect(revoke).toHaveBeenCalledExactlyOnceWith("blob:download");
+  });
   it.each(["starting", "recording", "finalizing", "limited", "unsupported", "error", "armed", "stopped"] as const)("keeps a compact %s notice separate from recording controls and numeric announcements", (phase) => {
     const view = render(<PiecePracticeRecordingNotice recording={recording({ phase, segments: phase === "stopped" ? [segment] : [] })} />);
     const notice = screen.getByLabelText("Performance audio notice");
@@ -52,9 +73,12 @@ describe("performance recording controls", () => {
     view.rerender(<PiecePracticeRecordingControls listening={false} recording={control} />);
     fireEvent.click(screen.getByText("Performance Recordings (1)"));
     expect(screen.getByLabelText("Play recording segment 1")).toBeTruthy();
-    const download = screen.getByRole("link", { name: "Download segment 1" }) as HTMLAnchorElement;
-    expect(download.download).toBe(segment.filename);
-    expect(download.href).toBe(segment.url);
+    const download = screen.getByRole("button", { name: "Download segment 1" });
+    fireEvent.click(download);
+    expect(screen.getByLabelText("Filename preview").textContent).toBe("performance_audio_001.webm");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText("Play recording segment 1").getAttribute("src")).toBe(segment.url);
+    expect(control.segments[0]).toBe(segment);
   });
 
   it("labels piano room audio and headphones limits without invented acoustic analysis", () => {

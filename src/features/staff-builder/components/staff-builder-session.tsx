@@ -13,7 +13,9 @@ import { ALL_STAFF_BUILDER_ANNOTATION_LAYERS, type StaffBuilderAnnotationLayer }
 import { useStaffBuilderLibrary } from "../hooks/use-staff-builder-library";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { readStaffBuilderLibrary, readStaffBuilderSustainPedalLocksInput, writeStaffBuilderValue, type StaffBuilderStorage } from "../persistence/staff-builder-storage";
-import { downloadStaffBuilderPiece, readStaffBuilderPieceFile } from "../persistence/staff-builder-piece-file-browser";
+import { createStaffBuilderPieceDownload, readStaffBuilderPieceFile } from "../persistence/staff-builder-piece-file-browser";
+import { DownloadDialog } from "@/components/download-dialog";
+import type { DownloadSnapshot } from "@/lib/files/browser-download";
 
 const StaffBuilderStudyView = lazy(() => import("./staff-builder-study-view").then((module) => ({ default: module.StaffBuilderStudyView })));
 
@@ -40,6 +42,7 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
   const [practiceLaunchError, setPracticeLaunchError] = useState<string | null>(null);
   const [pieceFileStatus, setPieceFileStatus] = useState<Readonly<{ kind: "error" | "success"; message: string }> | null>(null);
   const [printPiece, setPrintPiece] = useState<StaffBuilderScore | null>(null);
+  const [download, setDownload] = useState<DownloadSnapshot | null>(null);
   const [studyPiece, setStudyPiece] = useState<StaffBuilderScore | null>(null);
   const [studyLayers, setStudyLayers] = useState<ReadonlySet<StaffBuilderAnnotationLayer>>(() => new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS));
   const studyOpenerRef = useRef<HTMLButtonElement | null>(null);
@@ -152,8 +155,7 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
         : <div className="staff-builder-columns">
             <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onDownload={(score) => {
               try {
-                downloadStaffBuilderPiece(score);
-                setPieceFileStatus({ kind: "success", message: `Downloaded "${score.title}".` });
+                setDownload(createStaffBuilderPieceDownload(score));
               } catch {
                 setPieceFileStatus({ kind: "error", message: "Prelude could not download that piece. Try again." });
               }
@@ -176,6 +178,9 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
           </div>}
       {state.introductionOpen && <StaffBuilderIntroduction onClose={state.closeIntroduction} returnFocusRef={introductionOpenerRef} />}
       {printPiece && <StaffBuilderPrintFlow onClose={() => setPrintPiece(null)} score={printPiece} />}
+      {download && <DownloadDialog snapshot={download} onCancel={() => setDownload(null)} onRequested={filename => {
+        setDownload(null); setPieceFileStatus({ kind: "success", message: `Download requested: ${filename}.` });
+      }} />}
     </div>{studyPiece && <Suspense fallback={<p role="status">Opening Study View...</p>}><StaffBuilderStudyView score={studyPiece} visibleAnnotationLayers={studyLayers} onLayerVisibilityChange={(layer, visible) => setStudyLayers((current) => { const next = new Set(current); if (visible) next.add(layer); else next.delete(layer); return next; })} onShowAllAnnotationLayers={() => setStudyLayers(new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS))} onHideAllAnnotationLayers={() => setStudyLayers(new Set())} onExit={() => { setStudyPiece(null); requestAnimationFrame(() => studyOpenerRef.current?.focus({ preventScroll: true })); }} /></Suspense>}</>
   );
 }

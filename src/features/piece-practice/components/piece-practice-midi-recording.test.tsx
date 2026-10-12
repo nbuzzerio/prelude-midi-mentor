@@ -194,9 +194,11 @@ describe("piano recording through real physical MIDI and Piece Practice owners",
       expect(screen.getByText("Finalizing recording")).toBeTruthy();
       act(() => recording.finish());
       fireEvent.click(screen.getByText("Performance Recordings (1)"));
-      const download = screen.getByRole("link", { name: "Download segment 1" }) as HTMLAnchorElement;
-      expect(download.download).toMatch(/^prelude-piano-.*segment-001\.webm$/);
-      expect(download.href).toBe("blob:piano-1");
+      const download = screen.getByRole("button", { name: "Download segment 1" });
+      fireEvent.click(download);
+      expect(screen.getByLabelText("Filename preview").textContent).toMatch(/_001\.webm$/);
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(env.revokeURL).not.toHaveBeenCalled();
       expect(screen.getByLabelText("Play recording segment 1")).toBeTruthy();
       expect(screen.queryByText(/Analysis null/)).toBeNull();
       s.unmount(); expect(env.revokeURL).toHaveBeenCalledWith("blob:piano-1");

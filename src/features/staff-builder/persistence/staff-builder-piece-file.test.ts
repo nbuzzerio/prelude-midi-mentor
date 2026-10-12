@@ -71,16 +71,16 @@ describe("Staff Builder piece files", () => {
   });
 
   it.each([
-    ["Hallelujah", "hallelujah.prelude.json"],
-    ["  Café & Prelude!  ", "cafe-prelude.prelude.json"],
-    ["🎹", "staff-builder-piece-piece-id.prelude.json"],
+    ["Hallelujah", "hallelujah_001.prelude.json"],
+    ["  Café & Prelude!  ", "café_prelude_001.prelude.json"],
+    ["🎹", "staff_builder_piece_001.prelude.json"],
   ])("creates a safe filename for %s", (title, expected) => {
     expect(getStaffBuilderPieceFilename({ id: "piece-id", title })).toBe(expected);
   });
 
   it("caps long filename slugs", () => {
     const filename = getStaffBuilderPieceFilename({ id: "id", title: "A".repeat(120) });
-    expect(filename).toHaveLength(80 + ".prelude.json".length);
+    expect(filename).toHaveLength(120 + "_001.prelude.json".length);
   });
 
   it("rejects malformed JSON, malformed score data, and unsupported versions with learner-facing results", () => {

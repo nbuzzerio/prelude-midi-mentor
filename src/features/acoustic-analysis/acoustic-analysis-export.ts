@@ -1,4 +1,5 @@
 import { version } from "../../../package.json";
+import { downloadFilename } from "@/lib/files/download-filename";
 import { MONOPHONIC_CONFIG } from "@/lib/audio/monophonic/pitch-analysis-types";
 import { CALIBRATION_POLICY, LEGACY_BEGINNER_CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY, type CalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
 import { ANALYSIS_POLICY, type AnalysisData } from "./acoustic-analysis-types";
@@ -92,6 +93,6 @@ export function serializeAcousticAnalysis(data: AnalysisData, originMs: number):
   if (!isAcousticAnalysisBundle(bundle)) throw new Error("Analysis data could not be validated. Practice is unaffected.");
   return JSON.stringify(bundle, null, 2);
 }
-export function acousticAnalysisFilename(startedAt: string) {
-  return `prelude-acoustic-analysis-${startedAt.replace(/[^0-9TZ-]/g, "-")}.json`;
+export function acousticAnalysisFilename(title: string) {
+  return downloadFilename(title, "json", "acoustic_analysis");
 }

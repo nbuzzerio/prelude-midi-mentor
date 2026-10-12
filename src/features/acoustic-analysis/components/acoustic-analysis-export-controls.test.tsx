@@ -5,7 +5,8 @@ import { AcousticAnalysisExportControls } from "./acoustic-analysis-export-contr
 afterEach(cleanup);
 
 it("collapses display independently of collection preference, keeping loss/error notices visible", () => {
-  const control = { enabled: true, notice: "Collected evidence can still be exported.", changeEnabled: vi.fn(), export: vi.fn() };
+  const snapshot = { blob: new Blob(["{}"]), name: "Study", fallback: "acoustic_analysis", extension: "json" as const, format: "Acoustic Analysis JSON" };
+  const control = { enabled: true, notice: "Collected evidence can still be exported.", changeEnabled: vi.fn(), prepareExport: vi.fn(() => snapshot), export: vi.fn() };
   const view = render(<AcousticAnalysisExportControls control={control} capturing />);
   const summary = screen.getByText(/Acoustic Analysis \/ Export/);
   const details = summary.closest("details")!;
@@ -20,7 +21,10 @@ it("collapses display independently of collection preference, keeping loss/error
   view.rerender(<AcousticAnalysisExportControls control={control} capturing={false} />);
   fireEvent.click(summary);
   fireEvent.click(screen.getByRole("button", { name: "Export Acoustic Analysis" }));
-  expect(control.export).toHaveBeenCalledOnce();
+  expect(control.prepareExport).toHaveBeenCalledOnce(); expect(control.export).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Number"), { target: { value: "007" } });
+  fireEvent.click(screen.getByRole("button", { name: "Download" }));
+  expect(control.export).toHaveBeenCalledExactlyOnceWith(snapshot, "study_007.json");
   fireEvent.change(screen.getByLabelText("Analysis data"), { target: { value: "off" } });
   expect(control.changeEnabled).toHaveBeenCalledExactlyOnceWith(false);
 });

@@ -211,14 +211,14 @@ describe("beginner pluck preparation through the React display", () => {
     expect(s.result.current.state.completedTargetCount).toBe(0);
   });
 
-  it("exports an unaccepted pluck as skipped evidence and continues collecting unchanged practice evidence", () => {
+  it("exports an unaccepted pluck as skipped evidence and continues collecting unchanged practice evidence", async () => {
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
     const s = setup(score, true); act(() => s.result.current.input.start());
     pluck(s, 55, 22);
     act(() => s.result.current.input.skipCalibrationAndStartPractice());
     s.quiet(); s.tone();
     act(() => { s.result.current.input.stop(); s.result.current.input.analysis.export(); });
-    const bundle = JSON.parse(download.mock.calls[0][0]);
+    const bundle = JSON.parse(await (download.mock.calls[0][0] as Blob).text());
     const calibration = bundle.calibrations.at(-1);
     expect(calibration.policyVersion).toBe(3);
     expect(calibration.attempts).toHaveLength(4);
@@ -602,25 +602,36 @@ describe("acoustic run ownership", () => {
     expect(s.result.current.state.completedTargetCount).toBe(1);
     act(() => vi.advanceTimersByTime(100)); expect(s.result.current.input.analysis.notice).toContain("collection-error");
   });
-  it("exports through completion and keeps grading active when analysis is off", () => {
+  it("exports through completion and keeps grading active when analysis is off", async () => {
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
     const s = setup(); act(() => { s.result.current.input.analysis.changeEnabled(false); s.result.current.input.start(); });
     for (let i = 0; i < 3; i++) { s.quiet(); s.tone(); }
     expect(s.result.current.state.status).toBe("piece-complete");
     act(() => s.result.current.input.analysis.export());
-    expect(download).toHaveBeenCalledOnce(); const bundle = JSON.parse(download.mock.calls[0][0]);
+    expect(download).toHaveBeenCalledOnce(); const bundle = JSON.parse(await (download.mock.calls[0][0] as Blob).text());
     expect(bundle.trace).toEqual([]); expect(bundle.attempts).toEqual([]);
     expect(analysisBrowser.readAnalysisPreference()).toBe(false);
   });
-  it("resumes linked attempt collection on the same target after toggling Off then On", () => {
+  it("delivers an immutable prepared acoustic export even after later evidence arrives", async () => {
+    const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
+    const s = setup(); act(() => s.result.current.input.start()); s.quiet(); s.tone(35);
+    const prepared = s.result.current.input.analysis.prepareExport();
+    const bytes = await prepared.blob.text();
+    s.quiet(); s.tone();
+    act(() => s.result.current.input.analysis.export(prepared, "manual_007.json"));
+    expect(download).toHaveBeenCalledExactlyOnceWith(prepared.blob, prepared.name, "manual_007.json");
+    expect(await (download.mock.calls[0][0] as Blob).text()).toBe(bytes);
+    expect(Object.isFrozen(prepared)).toBe(true);
+  });
+  it("resumes linked attempt collection on the same target after toggling Off then On", async () => {
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});
     const s = setup(); act(() => s.result.current.input.start()); s.quiet(); s.tone(35);
     act(() => s.result.current.input.analysis.changeEnabled(false)); s.tone(35);
     act(() => s.result.current.input.analysis.changeEnabled(true)); s.quiet(); s.tone();
     act(() => { s.result.current.input.stop(); s.result.current.input.analysis.export(); });
-    const bundle = JSON.parse(download.mock.calls[0][0]); expect(bundle.attempts).toHaveLength(2);
+    const bundle = JSON.parse(await (download.mock.calls[0][0] as Blob).text()); expect(bundle.attempts).toHaveLength(2);
     expect(bundle.attempts[1].evidence.accepted).toBe(true); expect(bundle.coverage.gaps.some((gap: { reason: string }) => gap.reason === "collection-disabled")).toBe(true);
-    act(() => vi.advanceTimersByTime(100)); expect(s.result.current.input.analysis.notice).toContain("exported");
+    act(() => vi.advanceTimersByTime(100)); expect(s.result.current.input.analysis.notice).toContain("Download requested");
   });
   it("keeps calibration tones out of evidence/time and requires fresh quiet before the first target", () => {
     const s = setup(score, true); act(() => s.result.current.input.start());

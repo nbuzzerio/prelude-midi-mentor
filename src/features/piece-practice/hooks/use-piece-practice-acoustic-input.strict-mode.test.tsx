@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
@@ -154,7 +154,11 @@ describe("recording with actual acoustic capture under React effect replay", () 
     const segment = s.current().input.recording.segments[0];
     expect(segment).toMatchObject({ runId: "run-one", sequence: 1, mimeType: recorder.mimeType });
     expect(segment.blob.size).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Download segment 1", hidden: true }).getAttribute("href")).toBe(segment.url);
+    fireEvent.click(screen.getByText("Performance Recordings (1)"));
+    fireEvent.click(screen.getByRole("button", { name: "Download segment 1" }));
+    expect(screen.getByLabelText("Filename preview").textContent).toBe("performance_audio_001.webm");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(s.current().input.recording.segments[0]).toBe(segment);
     expect(segment.filename).toMatch(/\.webm$/);
     expect(env.revokeURL).not.toHaveBeenCalled();
     s.unmount();
@@ -165,6 +169,9 @@ describe("recording with actual acoustic capture under React effect replay", () 
       expect(removed.mock.calls.filter(([event]) => event === name)).toEqual(added.mock.calls.filter(([event]) => event === name));
     }
     expect(windowRemoved.mock.calls.filter(([name]) => name === "pagehide")).toEqual(windowAdded.mock.calls.filter(([name]) => name === "pagehide"));
+    // Opening/selecting a filename queues jsdom's zero-delay selection events.
+    // Drain those tasks while retaining the check for leaked capture intervals.
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     expect(vi.getTimerCount()).toBe(0);
   });
 

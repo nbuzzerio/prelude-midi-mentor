@@ -91,13 +91,15 @@ describe("canonical analysis JSON", () => {
     expect(parsed.trace[0].observation.frequencyHz).toBeNull(); expect(parsed.coverage.reason).toBe("owner-test");
   });
   it("generates a safe JSON filename and explicitly downloads only a JSON blob", () => {
-    expect(acousticAnalysisFilename("2026-10-07T12:00:00.000Z")).toBe("prelude-acoustic-analysis-2026-10-07T12-00-00-000Z.json");
+    vi.useFakeTimers();
+    expect(acousticAnalysisFilename("Étude")).toBe("étude_001.json");
     const create = vi.fn((blob: Blob) => { expect(blob.type).toBe("application/json"); return "blob:analysis"; }), revoke = vi.fn();
     vi.stubGlobal("URL", { createObjectURL: create, revokeObjectURL: revoke });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     downloadAcousticAnalysis("{}", "2026-10-07"); expect(click).toHaveBeenCalledOnce();
-    expect(create.mock.calls[0][0]).toBeInstanceOf(Blob); expect(revoke).toHaveBeenCalledWith("blob:analysis");
-    vi.unstubAllGlobals();
+    expect(create.mock.calls[0][0]).toBeInstanceOf(Blob); expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000); expect(revoke).toHaveBeenCalledWith("blob:analysis");
+    vi.useRealTimers(); vi.unstubAllGlobals();
   });
 });
 describe("separate local preference", () => {

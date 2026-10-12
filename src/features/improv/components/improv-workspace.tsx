@@ -7,7 +7,9 @@ import { useImprovLibrary, improvErrorMessage } from "../hooks/use-improv-librar
 import { useImprovReplay } from "../hooks/use-improv-replay";
 import { improvMidiBlob } from "../improv-midi-export";
 import { IMPROV_BACKUP_MAX_BYTES, improvBackupBlob, restoreImprovBackup } from "../improv-backup";
-import { downloadImprovBlob, improvFilename } from "../improv-file-browser";
+import { DownloadDialog } from "@/components/download-dialog";
+import type { DownloadSnapshot } from "@/lib/files/browser-download";
+import { recordingExtension } from "@/features/piece-practice/piece-practice-recording";
 import { ImprovLiveStaff } from "./improv-live-staff";
 import { ImprovLibraryView, IMPROV_BUTTON, IMPROV_SELECT } from "./improv-library-view";
 import { ImprovTakeReview } from "./improv-take-review";
@@ -48,6 +50,8 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
   const [activity, setActivity] = useState<ImprovCollection["activity"]>("first-take-sight-reading");
   const [title, setTitle] = useState(""); const [context, setContext] = useState<FreeplayNotationContext>({ type: "no-key" });
   const [take, setTake] = useState<ImprovLoadedTake | null>(null); const [message, setMessage] = useState(""); const [error, setError] = useState("");
+  const [download, setDownload] = useState<Readonly<{ snapshot: DownloadSnapshot; requested: () => void }> | null>(null);
+  const preparingBackup = useRef(false);
   const [leave, setLeave] = useState<(() => void) | null>(null); const [leavingSave, setLeavingSave] = useState(false);
   const reviewGeneration = useRef(0); const mounted = useRef(false);
   const save = capture.display.save; const unsafe = capture.session.needsGuard(); const recording = save.captureStatus === "recording";
@@ -96,10 +100,16 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
     finally { if (mounted.current) setRoomRequested(false); }
   };
   const backup = async () => {
-    if (!selected) return;
-    try { const evidence = await library.exportCollection(selected.collectionId); downloadImprovBlob(improvBackupBlob(evidence), improvFilename(selected.title, "collection.json"));
-      setMessage("JSON download requested for committed collection history. Pending in-memory events are not included."); }
-    catch (failure) { setError(improvErrorMessage(failure)); }
+    if (!selected || preparingBackup.current || download) return;
+    const collection = selected; preparingBackup.current = true;
+    try {
+      const evidence = await library.exportCollection(collection.collectionId);
+      if (mounted.current) setDownload({ snapshot: Object.freeze({ blob: improvBackupBlob(evidence), name: collection.title,
+        fallback: "improv_collection", extension: "json", format: "Improv collection JSON",
+        detail: "Committed collection history. Pending in-memory events are not included." }),
+        requested: () => setMessage("Download requested for committed collection history. Pending in-memory events are not included.") });
+    } catch (failure) { if (mounted.current) setError(improvErrorMessage(failure)); }
+    finally { preparingBackup.current = false; }
   };
   const restore = async (file: File) => {
     if (file.size > IMPROV_BACKUP_MAX_BYTES) { setError("This backup exceeds the 64 MiB limit. Nothing was imported."); return; }
@@ -111,9 +121,21 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
   };
   const downloadMidi = () => {
     if (!take) return;
-    try { const { blob, report } = improvMidiBlob(take); downloadImprovBlob(blob, improvFilename(selected?.title ?? "take", `take-${take.record.number}.mid`));
-      setMessage(`MIDI download requested: ${report.omitted.length} messages omitted; ${report.generated.length} generated cleanup messages. This projection is not the full raw evidence.`); }
+    try { const { blob, report } = improvMidiBlob(take);
+      setDownload({ snapshot: Object.freeze({ blob, name: selected?.title ?? "improv", fallback: "improv", extension: "mid", format: "MIDI file",
+        detail: `Take ${take.record.number}. This MIDI projection is not the full raw evidence.` }),
+        requested: () => setMessage(`Download requested: ${report.omitted.length} messages omitted; ${report.generated.length} generated cleanup messages. This projection is not the full raw evidence.`) }); }
     catch (failure) { setError(improvErrorMessage(failure)); }
+  };
+  const downloadRoomAudio = () => {
+    const segment = audio.controller.snapshot().segment;
+    if (!segment) return;
+    const extension = recordingExtension(segment.mimeType);
+    if (extension !== "webm" && extension !== "m4a" && extension !== "ogg") { setError("Unknown recording container. Temporary audio is retained."); return; }
+    const number = capture.session.state().number;
+    setDownload({ snapshot: Object.freeze({ blob: segment.blob, name: selected?.title ?? "improv", fallback: "improv_audio",
+      extension, format: "Room microphone audio", detail: number === null ? "Take number pending. Original microphone recording." : `Take ${number}. Original microphone recording.` }),
+      requested: () => { audio.controller.acknowledgeDownloadRequest(segment); setMessage("Download requested. Verify the recording before explicitly discarding temporary audio."); } });
   };
   const deleteTake = (item: ImprovStoredTake) => {
     if (!window.confirm(`Delete Take ${item.number} from "${selected?.title}"? Its MIDI evidence will be removed. Numbers and the original-first identity are not reused.`)) return;
@@ -179,7 +201,7 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
     </div>}
     {audio.state.phase !== "disabled" && audio.state.phase !== "discarded" && <p role={audio.state.phase === "failed" ? "alert" : "status"} className="mt-2 text-sm text-zinc-300">{audio.state.message}</p>}
     {audioProtected && <p className="mt-2 text-sm text-amber-200">Review/download or explicitly discard temporary audio before starting another take, changing collections or deleting takes.</p>}
-    <ImprovRoomAudioControls state={audio.state} onDownload={() => { try { audio.controller.download(selected?.title ?? "improv", capture.session.state().number); } catch (failure) { setError(improvErrorMessage(failure)); } }}
+    <ImprovRoomAudioControls state={audio.state} onDownload={downloadRoomAudio}
       onDiscard={() => { if (window.confirm("Discard this temporary room recording? MIDI remains in the local library.")) audio.controller.discard(); }} />
     {(error || catalog.error) && <p role="alert" className="my-3 rounded-lg bg-red-950 p-3 text-red-100">{error || catalog.error}</p>}
     {message && <p role="status" className="my-3 text-sm text-zinc-300">{message}</p>}
@@ -201,6 +223,7 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
       </details>
     </div>
     {leave && <DepartureDialog saving={leavingSave} audioPending={audio.controller.needsGuard()} onStay={() => setLeave(null)} onSave={() => void saveAndLeave()} onLeave={() => { replay.stop(); audio.controller.discard(); leave(); }} />}
+    {download && <DownloadDialog snapshot={download.snapshot} onCancel={() => setDownload(null)} onRequested={() => { download.requested(); setDownload(null); }} />}
   </section>;
 }
 

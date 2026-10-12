@@ -40,9 +40,10 @@ export function PiecePracticeAcousticSetup({ configuration, preset, onPreset, on
   </div>;
 }
 
-export function PiecePracticeAcousticControls({ input, available, target, measureProgress, presentation = "all" }: Readonly<{
+export function PiecePracticeAcousticControls({ input, available, target, measureProgress, presentation = "all", pieceTitle }: Readonly<{
   input: ReturnType<typeof usePiecePracticeAcousticInput>; available: boolean; target?: PiecePracticeTarget | null; measureProgress?: ReactNode;
   presentation?: "all" | "playing" | "secondary";
+  pieceTitle?: string;
 }>) {
   const playing = presentation !== "secondary", secondary = presentation !== "playing";
   const active = ["requesting", "starting", "listening"].includes(input.status.state);
@@ -77,7 +78,7 @@ export function PiecePracticeAcousticControls({ input, available, target, measur
     {playing && input.phase === "practice" && <p className="min-h-6 break-words text-sm font-semibold">{!available ? "End the active Practice Session before listening." : input.status.state !== "listening" ? input.status.message : input.needsQuiet ? "Leave a brief quiet gap, then re-articulate." : lastAttempt && !lastAttempt.accepted && lastAttempt.targetId === target?.id ? "Outside tolerance — re-articulate to try again." : heard ? `Listening · ${heard}` : reading.pitch ? "Uncertain — waiting for a reliable pitch." : "Listening — play one note."}</p>}
     {secondary && <><p className="text-sm font-semibold">Microphone practice — Provisional</p>
     <p role="status">{!available ? "End the active Practice Session before listening." : input.status.message}</p>
-    <PiecePracticeRecordingControls listening={active} recording={input.recording} />
+    <PiecePracticeRecordingControls pieceTitle={pieceTitle} listening={active} recording={input.recording} />
     {input.phase === "preflight" && <ViolinPreflight calibration={input.calibration} frequencyHz={input.calibrationHz} feedback={input.calibrationFeedback} accepted={input.calibrationAccepted}
       listening={input.status.state === "listening"} onAction={input.calibrationAction} onEnterPractice={input.enterPractice} onSkipCalibration={input.skipCalibrationAndStartPractice} />}
     <details><summary className="min-h-11 cursor-pointer py-2 font-semibold">Practice Details{lastAttempt ? " · Last graded attempt" : ""}</summary>

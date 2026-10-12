@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { version } from "../../../package.json";
 import { APP_UPDATES, assertAppUpdateCatalog, parseAppUpdateAcknowledgment, unseenAppUpdates, type AppUpdate } from "./app-updates";
 
 const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `update-${sequence}`, sequence, title: `Update ${sequence}`, date: "2026-10-05", changes: ["A product change"] }));
@@ -6,7 +7,7 @@ const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `upd
 describe("curated product updates", () => {
   it("validates the published catalog and limits the first record to the new update feature", () => {
     expect(() => assertAppUpdateCatalog(APP_UPDATES)).not.toThrow();
-    expect(APP_UPDATES).toHaveLength(13);
+    expect(APP_UPDATES).toHaveLength(14);
     expect(APP_UPDATES[0]).toMatchObject({ sequence: 1, version: "2.8.8" });
     expect(APP_UPDATES[0]?.changes.join(" ")).not.toMatch(/tuner|tie|since your last update/i);
     expect(APP_UPDATES[1]).toMatchObject({ sequence: 2, version: "2.9.0", date: "2026-10-06", title: "Practice with violin and ocarina" });
@@ -30,6 +31,9 @@ describe("curated product updates", () => {
     expect(APP_UPDATES[10]).toMatchObject({ sequence: 11, version: "2.9.15", date: "2026-10-11" });
     expect(APP_UPDATES[11]).toMatchObject({ sequence: 12, version: "2.9.16", date: "2026-10-11" });
     expect(APP_UPDATES[12]).toMatchObject({ sequence: 13, version: "2.9.17", date: "2026-10-11" });
+    expect(APP_UPDATES[13]).toMatchObject({ sequence: 14, version, date: "2026-10-11" });
+    expect(APP_UPDATES[13].changes.join(" ")).toContain("000 is reserved");
+    expect(APP_UPDATES[13].changes.join(" ")).toContain("Print / Save as PDF");
     expect(APP_UPDATES[12].changes.join(" ")).toMatch(/Pause.*Resume.*same take/);
     expect(APP_UPDATES[12].changes.join(" ")).toContain("independent microphone failure");
     expect(APP_UPDATES[11].changes.join(" ")).toContain("not automatically transcribed or rhythmically validated sheet music");

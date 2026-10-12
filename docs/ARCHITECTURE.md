@@ -2,7 +2,15 @@
 
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
-## Production notation vendor boundary (pending 2.9.18)
+## App-controlled download naming (pending 2.9.19)
+
+Verified clean committed baseline **2.9.18**, HEAD `20f9e0f543fa72a23000274ff06b63d63612b6a5`. `lib/files/download-filename.ts` is the sole sanitization/numbering policy: NFC Unicode letters/numbers/marks remain recognizable, unsafe separators become underscores, control/format characters are removed, stems are bounded to 120 UTF-8 bytes and empty names use feature-specific fallbacks. Manual numbers 1-999 format to three digits; 000 is reserved. Every new dialog starts at 001 without a counter or remembered number. Extensions are fixed by the existing format: Staff Builder `.prelude.json`, MIDI `.mid`, collection/scalar JSON `.json`, native microphone `.webm`/`.m4a`/`.ogg`. Filename numbers never become take numbers or segment identities.
+
+`DownloadDialog` edits only name/number against one captured immutable Blob and fixed format/description. Staff Builder serializes its saved canonical snapshot before opening; Improv prepares committed collection JSON or the existing MIDI projection once; audio keeps the original finalized Blob; Acoustic Analysis prepares its existing scalar serialization before opening. Later source activity or parent rerenders cannot replace the open dialog's evidence. Feature callbacks update download-request notices only. Cancellation/unmount releases the dialog reference without discarding recordings, changing drafts or resaving evidence. Focus returns to the opener, Tab/Shift+Tab stay within the modal, Escape cancels, and the dialog reflows at 320px. Feature ownership, recording/timing/JSON schemas and report contents remain unchanged.
+
+`lib/files/browser-download.ts` owns the ordinary anchor delivery and temporary URL cleanup. Anchors are removed immediately; successful requests retain their URL for one second so the browser can consume it, including after feature/dialog unmount; failed initiation revokes immediately. Audio preview URLs remain recorder-owned until explicit discard or departure. Requests are reported as **Download requested**, never proof of a safely saved file. No file paths, folder handles, filesystem permissions or Chrome settings are used. Browser collision behavior remains browser-controlled; native Print / Save as PDF and clipboard operations bypass this naming dialog. Preferred folders are deferred to a separate 2.9.20 approval.
+
+## Production notation vendor boundary (committed 2.9.18)
 
 Verified baseline: clean committed **2.9.17**, HEAD `604b67213533bedea5d3bffa09630fc72fdcfa99`. Vite 8.1.4 / Rolldown 1.1.5 uses `build.rolldownOptions.output.codeSplitting.groups` to place only the VexFlow package into one statically imported `vexflow` vendor chunk. The module filter normalizes Windows separators and matches the package directory inside both ordinary and pnpm paths. Existing static notation imports and all six embedded fonts remain; Free Play notation is available on startup. React/React DOM stay together in the main runtime. No application ownership, MIDI/audio lifecycle, score semantics or routing changes are involved.
 
@@ -196,7 +204,7 @@ Melody calls `useMobilePlay` once inside the mounted `MelodySession`. Entering o
 
 Prelude is a browser-based musicianship application for learning piano through standard notation and real-time input.
 
-The current application provides ten top-level modes/tools: Flashcards, Sequences, Free Play, Improv, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current pending package/application version is 2.9.18, not a release/tag assertion. Together they support:
+The current application provides ten top-level modes/tools: Flashcards, Sequences, Free Play, Improv, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Piece Practice launches from Staff Builder; Targeted Practice sits inside its completed results. Current pending package/application version is 2.9.19, not a release/tag assertion. Together they support:
 
 - Treble, bass, and mixed clefs
 - Natural notes and accidentals

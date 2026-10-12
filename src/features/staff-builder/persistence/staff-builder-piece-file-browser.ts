@@ -1,4 +1,5 @@
 import type { StaffBuilderScore } from "../staff-builder-types";
+import { requestBrowserDownload, type DownloadSnapshot } from "@/lib/files/browser-download";
 import {
   getStaffBuilderPieceFilename,
   parseStaffBuilderPieceFileText,
@@ -18,17 +19,10 @@ export async function readStaffBuilderPieceFile(file: Pick<File, "text">): Promi
 }
 
 export function downloadStaffBuilderPiece(score: StaffBuilderScore): void {
-  const blob = new Blob([serializeStaffBuilderPiece(score)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.download = getStaffBuilderPieceFilename(score);
-  anchor.href = url;
-  anchor.hidden = true;
-  document.body.append(anchor);
-  try {
-    anchor.click();
-  } finally {
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  }
+  requestBrowserDownload(createStaffBuilderPieceDownload(score).blob, getStaffBuilderPieceFilename(score));
+}
+
+export function createStaffBuilderPieceDownload(score: StaffBuilderScore): DownloadSnapshot {
+  return Object.freeze({ blob: new Blob([serializeStaffBuilderPiece(score)], { type: "application/json" }),
+    name: score.title, fallback: "staff_builder_piece", extension: "prelude.json", format: "Staff Builder score JSON" });
 }

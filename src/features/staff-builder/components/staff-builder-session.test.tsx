@@ -27,7 +27,8 @@ vi.mock("@/features/piece-practice/persistence/piece-practice-runs", async (impo
     async discard(runId: string) { runBoundary.discarded.push(runId); runBoundary.records = runBoundary.records.filter((value) => typeof value !== "object" || value === null || !("runId" in value) || value.runId !== runId); },
   } };
 });
-vi.mock("../persistence/staff-builder-piece-file-browser", () => ({
+vi.mock("../persistence/staff-builder-piece-file-browser", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../persistence/staff-builder-piece-file-browser")>(),
   downloadStaffBuilderPiece: fileBoundary.download,
   readStaffBuilderPieceFile: fileBoundary.read,
 }));
@@ -332,9 +333,15 @@ describe("Staff Builder session", () => {
     fileBoundary.read.mockResolvedValue({ ok: true, score: imported });
 
     render(<StaffBuilderSession storage={storage} />);
+    const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:download");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     fireEvent.click(screen.getByRole("button", { name: "Download Practice Study" }));
-    expect(fileBoundary.download).toHaveBeenCalledWith(saved);
-    expect(screen.getByRole("status").textContent).toBe('Downloaded "Practice Study".');
+    expect(create).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Filename preview").textContent).toBe("practice_study_001.prelude.json");
+    fireEvent.change(screen.getByLabelText("Number"), { target: { value: "007" } });
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(create).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status").textContent).toBe('Download requested: practice_study_007.prelude.json.');
 
     const input = screen.getByLabelText("Choose Prelude piece file") as HTMLInputElement;
     const file = new File(["{}"], "imported-sketch.prelude.json", { type: "application/json" });
