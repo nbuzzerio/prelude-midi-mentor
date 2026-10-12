@@ -1,4 +1,6 @@
 import { StrictMode } from "react";
+import { exportPreferences } from "@/lib/files/export-preferences";
+import { serializeStaffBuilderPiece } from "../persistence/staff-builder-piece-file";
 import * as printFlow from "./staff-builder-print-flow";
 import { createStaffBuilderLlmSpecification } from "../staff-builder-llm-specification";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -357,6 +359,18 @@ describe("Staff Builder session", () => {
     const persisted = JSON.parse(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library) ?? "null");
     expect(persisted.pieces).toEqual([saved, imported]);
     expect(storage.values.has(STAFF_BUILDER_STORAGE_KEYS.draft)).toBe(false);
+  });
+
+  it("saves the captured score JSON through native Save As without changing its library", async () => {
+    const storage=new MemoryStorage(),saved=savedValidScore();seedLibrary(storage,[saved]);const before=storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library);
+    const directory={kind:"directory" as const,name:"Music",queryPermission:async()=>"granted" as const,requestPermission:async()=>"granted" as const};
+    const write=vi.fn().mockResolvedValue(undefined);vi.stubGlobal("isSecureContext",true);vi.stubGlobal("showDirectoryPicker",vi.fn().mockResolvedValue(directory));
+    vi.stubGlobal("showSaveFilePicker",vi.fn().mockResolvedValue({name:"practice_study_001.prelude.json",createWritable:async()=>({write,close:async()=>{},abort:async()=>{}})}));
+    try { await exportPreferences.choose();render(<StaffBuilderSession storage={storage} />);
+      fireEvent.click(screen.getByRole("button",{name:"Download Practice Study"}));fireEvent.click(await screen.findByRole("button",{name:"Save As…"}));
+      await screen.findByText("Saved: practice_study_001.prelude.json.");
+      expect(await (write.mock.calls[0][0] as Blob).text()).toBe(serializeStaffBuilderPiece(saved));expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(before);
+    } finally { cleanup();await act(async()=>{await exportPreferences.forget();});vi.unstubAllGlobals(); }
   });
 
   it("announces an import failure without changing the library", async () => {

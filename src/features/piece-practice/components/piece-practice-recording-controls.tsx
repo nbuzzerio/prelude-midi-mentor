@@ -70,6 +70,6 @@ export function PiecePracticeRecordingControls({ recording, listening, keyboard,
     {message && <p role="status">{message}</p>}
     {download && <DownloadDialog snapshot={download} onCancel={() => setDownload(null)} onRequested={filename => {
       setDownload(null); setMessage(`Download requested: ${filename}. Verify the file before leaving or discarding temporary audio.`);
-    }} />}
+    }} onSaved={filename => { setDownload(null); setMessage(`Saved: ${filename}. Temporary audio remains available until you leave or discard it.`); }} />}
   </section>;
 }

@@ -7,7 +7,7 @@ const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `upd
 describe("curated product updates", () => {
   it("validates the published catalog and limits the first record to the new update feature", () => {
     expect(() => assertAppUpdateCatalog(APP_UPDATES)).not.toThrow();
-    expect(APP_UPDATES).toHaveLength(14);
+    expect(APP_UPDATES).toHaveLength(15);
     expect(APP_UPDATES[0]).toMatchObject({ sequence: 1, version: "2.8.8" });
     expect(APP_UPDATES[0]?.changes.join(" ")).not.toMatch(/tuner|tie|since your last update/i);
     expect(APP_UPDATES[1]).toMatchObject({ sequence: 2, version: "2.9.0", date: "2026-10-06", title: "Practice with violin and ocarina" });
@@ -31,7 +31,10 @@ describe("curated product updates", () => {
     expect(APP_UPDATES[10]).toMatchObject({ sequence: 11, version: "2.9.15", date: "2026-10-11" });
     expect(APP_UPDATES[11]).toMatchObject({ sequence: 12, version: "2.9.16", date: "2026-10-11" });
     expect(APP_UPDATES[12]).toMatchObject({ sequence: 13, version: "2.9.17", date: "2026-10-11" });
-    expect(APP_UPDATES[13]).toMatchObject({ sequence: 14, version, date: "2026-10-11" });
+    expect(APP_UPDATES[13]).toMatchObject({ sequence: 14, version: "2.9.19", date: "2026-10-11" });
+    expect(APP_UPDATES[14]).toMatchObject({ sequence: 15, version, date: "2026-10-12" });
+    expect(APP_UPDATES[14].changes.join(" ")).toContain("may erase its contents before Prelude writes");
+    expect(APP_UPDATES[14].changes.join(" ")).toContain("no automatic destination or suffix counter");
     expect(APP_UPDATES[13].changes.join(" ")).toContain("000 is reserved");
     expect(APP_UPDATES[13].changes.join(" ")).toContain("Print / Save as PDF");
     expect(APP_UPDATES[12].changes.join(" ")).toMatch(/Pause.*Resume.*same take/);

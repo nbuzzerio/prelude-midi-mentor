@@ -180,7 +180,7 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
       {printPiece && <StaffBuilderPrintFlow onClose={() => setPrintPiece(null)} score={printPiece} />}
       {download && <DownloadDialog snapshot={download} onCancel={() => setDownload(null)} onRequested={filename => {
         setDownload(null); setPieceFileStatus({ kind: "success", message: `Download requested: ${filename}.` });
-      }} />}
+      }} onSaved={filename => { setDownload(null); setPieceFileStatus({ kind: "success", message: `Saved: ${filename}.` }); }} />}
     </div>{studyPiece && <Suspense fallback={<p role="status">Opening Study View...</p>}><StaffBuilderStudyView score={studyPiece} visibleAnnotationLayers={studyLayers} onLayerVisibilityChange={(layer, visible) => setStudyLayers((current) => { const next = new Set(current); if (visible) next.add(layer); else next.delete(layer); return next; })} onShowAllAnnotationLayers={() => setStudyLayers(new Set(ALL_STAFF_BUILDER_ANNOTATION_LAYERS))} onHideAllAnnotationLayers={() => setStudyLayers(new Set())} onExit={() => { setStudyPiece(null); requestAnimationFrame(() => studyOpenerRef.current?.focus({ preventScroll: true })); }} /></Suspense>}</>
   );
 }

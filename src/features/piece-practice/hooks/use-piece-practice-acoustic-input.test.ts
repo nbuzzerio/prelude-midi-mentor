@@ -622,6 +622,9 @@ describe("acoustic run ownership", () => {
     expect(download).toHaveBeenCalledExactlyOnceWith(prepared.blob, prepared.name, "manual_007.json");
     expect(await (download.mock.calls[0][0] as Blob).text()).toBe(bytes);
     expect(Object.isFrozen(prepared)).toBe(true);
+    act(() => s.result.current.input.analysis.export(prepared, "manual_007.json", "saved"));
+    expect(download).toHaveBeenCalledOnce(); expect(s.result.current.input.analysis.notice).toContain("Saved: manual_007.json");
+    expect(await prepared.blob.text()).toBe(bytes);
   });
   it("resumes linked attempt collection on the same target after toggling Off then On", async () => {
     const download = vi.spyOn(analysisBrowser, "downloadAcousticAnalysis").mockImplementation(() => {});

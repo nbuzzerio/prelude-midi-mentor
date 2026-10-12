@@ -160,6 +160,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Filename numbers never change Improv take identities. Original file contents and native audio formats remain unchanged; your browser handles the download location and duplicate names.",
     "Print / Save as PDF stays in the browser's print dialog. Temporary audio remains in this page until you explicitly discard it; verify downloaded files first.",
   ],
+}, {
+  id: "2026-10-12-preferred-export-folder",
+  sequence: 15,
+  title: "Choose where Save As starts",
+  date: "2026-10-12",
+  version: "2.9.20",
+  changes: [
+    "Settings → Exports can remember a preferred starting folder for optional native Save As in supported secure browsers. The preference is local to this browser/device and may need renewed access.",
+    "Save As uses your filename preview and reports Saved only after writing closes successfully. Download Normally remains an explicit browser-download request; no automatic destination or suffix counter is added.",
+    "Confirming replacement of an existing file may erase its contents before Prelude writes, even if saving later fails. Original exports and temporary recordings remain available for retry; aborting does not guarantee restoration.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

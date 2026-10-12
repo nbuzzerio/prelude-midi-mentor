@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { exportPreferences } from "@/lib/files/export-preferences";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
 import type { RecordingSegment, RecordingSnapshot } from "../piece-practice-recording";
@@ -16,6 +17,19 @@ const recording = (changes: Partial<RecordingSnapshot> = {}) => ({
 });
 
 describe("performance recording controls", () => {
+  it("native saving retains the exact temporary segment and preview while reporting Saved", async () => {
+    const directory={kind:"directory" as const,name:"Music",queryPermission:vi.fn().mockResolvedValue("granted"),requestPermission:vi.fn().mockResolvedValue("granted")};
+    const writable={write:vi.fn().mockResolvedValue(undefined),close:vi.fn().mockResolvedValue(undefined),abort:vi.fn().mockResolvedValue(undefined)};
+    vi.stubGlobal("isSecureContext",true);vi.stubGlobal("showDirectoryPicker",vi.fn().mockResolvedValue(directory));
+    vi.stubGlobal("showSaveFilePicker",vi.fn().mockResolvedValue({name:"performance_audio_001.webm",createWritable:async()=>writable}));
+    try {
+      await exportPreferences.choose();const control=recording({phase:"stopped",segments:[segment]});
+      render(<PiecePracticeRecordingControls listening={false} recording={control} />);fireEvent.click(screen.getByText("Performance Recordings (1)"));
+      fireEvent.click(screen.getByRole("button",{name:"Download segment 1"}));fireEvent.click(await screen.findByRole("button",{name:"Save As…"}));
+      await screen.findByText(/Saved: performance_audio_001.webm/);expect(writable.write).toHaveBeenCalledExactlyOnceWith(segment.blob);
+      expect(control.segments[0]).toBe(segment);expect(screen.getByLabelText("Play recording segment 1").getAttribute("src")).toBe(segment.url);
+    } finally { cleanup();await act(async()=>{await exportPreferences.forget();});vi.unstubAllGlobals(); }
+  });
   it.each([["audio/webm;codecs=opus", "webm"], ["audio/mp4", "m4a"], ["audio/ogg;codecs=opus", "ogg"]])("delivers unchanged %s audio with manual naming independent of Segment 8", async (mimeType, extension) => {
     vi.useFakeTimers();
     const blob = new Blob([new Uint8Array([0, 255, 1, 2])], { type: mimeType });

@@ -12,6 +12,7 @@ import type { ImprovArchiveLibrary } from "../improv-library";
 import { performanceFixture } from "../improv-test-fixture";
 import { encodeImprovBackup } from "../improv-backup";
 import { improvMidiBlob } from "../improv-midi-export";
+import { exportPreferences } from "@/lib/files/export-preferences";
 type UseMidiOptions = Parameters<typeof useMidi>[0];
 
 const midi = vi.hoisted(() => ({ options: null as UseMidiOptions | null, owners: 0, connect: vi.fn(),
@@ -223,6 +224,18 @@ describe("playing-first Improv workspace", () => {
     expect((screen.getByRole("button", { name: "Start Take" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Use MIDI only / Cancel audio" })); await start(); await stop(); expect((await records())[0].number).toBe(1);
   });
+  it("native room-audio saving retains the recording, preview and departure safeguard", async () => {
+    roomBrowser();mount({strict:true});await setup();await prepareRoom();await start();send();await stop();
+    const preview=await screen.findByLabelText("Preview room audio"),url=preview.getAttribute("src"),urlCount=createUrl.mock.calls.length;
+    const write=vi.fn().mockResolvedValue(undefined),directory={kind:"directory" as const,name:"Music",queryPermission:async()=>"granted" as const,requestPermission:async()=>"granted" as const};
+    vi.stubGlobal("isSecureContext",true);vi.stubGlobal("showDirectoryPicker",vi.fn().mockResolvedValue(directory));
+    vi.stubGlobal("showSaveFilePicker",vi.fn().mockResolvedValue({name:"disney_book_001.webm",createWritable:async()=>({write,close:async()=>{},abort:async()=>{}})}));
+    try { await act(async()=>{await exportPreferences.choose();});fireEvent.click(screen.getByRole("button",{name:"Download room audio"}));
+      fireEvent.click(await screen.findByRole("button",{name:"Save As…"}));await screen.findAllByText(/Saved\. Temporary audio remains/);
+      expect((await (write.mock.calls[0][0] as Blob).text())).toContain("room sound");expect(preview.getAttribute("src")).toBe(url);
+      expect(createUrl).toHaveBeenCalledTimes(urlCount);expect(unload()).toBe(true);expect((screen.getByRole("button",{name:"Start Take"}) as HTMLButtonElement).disabled).toBe(true);
+    } finally { cleanup();await act(async()=>{await exportPreferences.forget();}); }
+  });
   it("cancels pending permission on selected device loss without allocating Take 1", async () => {
     let resolve!: (stream: MediaStream) => void; const room = roomBrowser(vi.fn(() => new Promise<MediaStream>(r => { resolve = r; })));
     mount(); await setup(); fireEvent.click(screen.getByLabelText("Record room audio with this take")); fireEvent.click(screen.getByRole("button", { name: "Prepare room microphone" }));
@@ -426,6 +439,24 @@ describe("playing-first Improv workspace", () => {
     expect(JSON.stringify(await records())).toBe(before);
     await waitFor(() => expect(revokeUrl).toHaveBeenCalledTimes(2), { timeout: 2000 });
     expect(document.querySelector('a[download]')).toBeNull();
+  });
+  it("native MIDI and backup saves preserve bytes and original Take 1 identity without anchor fallback", async () => {
+    mount();await setup();await start();send();await stop();
+    const before=JSON.stringify(await records()),collection=(await library.listCollections())[0],original=(await records())[0];
+    const expectedMidi=improvMidiBlob(await library.loadTake(original.takeId)).blob;
+    const expectedJson=encodeImprovBackup(await library.exportCollection(collection.collectionId));
+    const directory={kind:"directory" as const,name:"Music",queryPermission:async()=>"granted" as const,requestPermission:async()=>"granted" as const};
+    const write=vi.fn().mockResolvedValue(undefined);let filename="disney_book_001.mid";
+    vi.stubGlobal("isSecureContext",true);vi.stubGlobal("showDirectoryPicker",vi.fn().mockResolvedValue(directory));
+    vi.stubGlobal("showSaveFilePicker",vi.fn().mockImplementation(async()=>({name:filename,createWritable:async()=>({write,close:async()=>{},abort:async()=>{}})})));
+    try { await act(async()=>{await exportPreferences.choose();});fireEvent.click(screen.getByRole("button",{name:"Download MIDI"}));
+      fireEvent.click(await screen.findByRole("button",{name:"Save As…"}));await screen.findByText(/Saved: .*generated cleanup/);
+      expect(await (write.mock.calls[0][0] as Blob).arrayBuffer()).toEqual(await expectedMidi.arrayBuffer());
+      filename="disney_book_001.json";fireEvent.click(screen.getByText("JSON backup and restore"));fireEvent.click(screen.getByRole("button",{name:"Download JSON backup"}));
+      await screen.findByRole("dialog",{name:"Download file"});fireEvent.click(await screen.findByRole("button",{name:"Save As…"}));
+      await screen.findByText(/Saved for committed collection/);expect(await (write.mock.calls[1][0] as Blob).text()).toBe(expectedJson);
+      expect(JSON.stringify(await records())).toBe(before);expect((await library.listCollections())[0].firstTakeId).toBe(original.takeId);expect(createUrl).not.toHaveBeenCalled();
+    } finally { cleanup();await act(async()=>{await exportPreferences.forget();}); }
   });
   it("restores a JSON history into a new collection without replacing Take 1", async () => {
     const f = await performanceFixture([{}]); mount(); await setup(); await start(); await stop(); const before = (await library.listCollections())[0];

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { DownloadDialog } from "@/components/download-dialog";
 import type { DownloadSnapshot } from "@/lib/files/browser-download";
+import type { ExportDestination } from "@/lib/files/native-save";
 
 export function AcousticAnalysisExportControls({ control, capturing }: {
   control: { enabled: boolean; notice: string | null; changeEnabled: (enabled: boolean) => void;
-    prepareExport: () => DownloadSnapshot; export: (snapshot?: DownloadSnapshot, filename?: string) => void };
+    prepareExport: () => DownloadSnapshot; export: (snapshot?: DownloadSnapshot, filename?: string, destination?: ExportDestination) => void };
   capturing: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<DownloadSnapshot | null>(null);
@@ -27,6 +28,7 @@ export function AcousticAnalysisExportControls({ control, capturing }: {
     </div></details>
     {error && <p role="alert">{error}</p>}
     {snapshot && <DownloadDialog snapshot={snapshot} onCancel={() => setSnapshot(null)}
-      deliver={(_blob, filename) => control.export(snapshot, filename)} onRequested={() => setSnapshot(null)} />}
+      deliver={(_blob, filename) => control.export(snapshot, filename)} onRequested={() => setSnapshot(null)}
+      onSaved={filename => { control.export(snapshot, filename, "saved"); setSnapshot(null); }} />}
   </section>;
 }

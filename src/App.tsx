@@ -15,6 +15,7 @@ import type { ImprovDepartureGuard } from "./features/improv/components/improv-w
 import { version } from "../package.json";
 import type { PwaUpdateController } from "./lib/pwa/register-service-worker";
 import { AppUpdateNotices } from "./features/app-update/components/app-update-notices";
+import { ExportSettingsDialog } from "./components/export-settings-dialog";
 
 type PracticeSection = "flashcards" | "sequence" | "freeplay" | "ear-training" | "staff-builder" | "melody" | "practice-session" | "midi-diagnostic" | "tuner" | "improv";
 const ImprovWorkspace = lazy(() => import("./features/improv/components/improv-workspace"));
@@ -23,6 +24,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
   const [practiceSection, setPracticeSection] =
     useState<PracticeSection>("freeplay");
   const [practiceRunActive, setPracticeRunActive] = useState(false);
+  const [exportsOpen, setExportsOpen] = useState(false);
   const audioDepartureGuard = useRef<(() => boolean) | null>(null);
   const registerAudioDepartureGuard = useCallback((guard: (() => boolean) | null) => { audioDepartureGuard.current = guard; }, []);
   const improvDepartureGuard = useRef<ImprovDepartureGuard | null>(null);
@@ -225,6 +227,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
           <span className="hidden sm:inline">MIDI Diagnostic</span>
         </button>
 
+        <button type="button" className="prelude-mode-button shrink-0 rounded border border-transparent bg-zinc-800 px-3 py-2 text-zinc-300 hover:bg-zinc-700" aria-haspopup="dialog" onClick={() => setExportsOpen(true)}>Settings</button>
         <span
           aria-label={`Prelude v${version}`}
           className="shrink-0 self-center px-1 text-xs text-zinc-500"
@@ -239,6 +242,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
       </div>
       {content}
       <AppUpdateNotices controller={pwaUpdate} />
+      {exportsOpen && <ExportSettingsDialog onClose={() => setExportsOpen(false)} />}
     </main></MidiProvider>
   );
 }

@@ -89,6 +89,26 @@ vi.mock("./components/midi/midi-diagnostic", () => ({
 }));
 
 describe("App focus mode", () => {
+  it("opens Exports settings without remounting the feature or retained builder, preserving recording guard ownership", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Settings → Exports" }), { key: "f" });
+    expect(screen.getByRole("navigation", { name: "Prelude modes" }).hidden).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Close Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Practice Sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unsaved builder control" }));
+    fireEvent.click(screen.getByRole("button", { name: "Staff Builder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Register recording guard" }));
+    const host=screen.getByText("Staff Builder Study View").closest("div");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(await screen.findByRole("dialog", { name: "Settings → Exports" })).toBeTruthy();
+    expect(screen.getByText("Staff Builder Study View").closest("div")).toBe(host);
+    fireEvent.click(screen.getByRole("button", { name: "Close Settings" }));
+    expect(screen.getByText("Unsaved edit retained")).toBeTruthy();
+    audioDeparture.guard.mockClear(); fireEvent.click(screen.getByRole("button", { name: "Free Play" }));
+    expect(audioDeparture.guard).toHaveBeenCalledOnce(); expect(screen.getByText("Staff Builder Study View")).toBeTruthy();
+    audioDeparture.guard.mockClear();
+  });
   it("excludes Improv while the retained hosted Practice Session is active", async () => {
     // Await the actual lazy module; cold feature compilation is not an exclusion timeout.
     await import("./features/improv/components/improv-workspace");
@@ -215,7 +235,7 @@ describe("App focus mode", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
     expect(within(navigation).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
-      "Free Play", "Improv", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody", "Chromatic Tuner", "MIDI Diagnostic",
+      "Free Play", "Improv", "Staff Builder", "Practice Sessions", "Flashcards", "Sequences", "Ear Training", "Melody", "Chromatic Tuner", "MIDI Diagnostic", "Settings",
     ]);
     expect(within(screen.getByRole("button", { name: "Staff Builder" })).getByText("Staff")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: "Ear Training" })).getByText("Ear")).toBeTruthy();

@@ -193,8 +193,8 @@ export function createImprovRoomAudio(options: Readonly<{
       downloadImprovBlob(state.segment.blob, improvFilename(title, extension));
       publish({ downloadRequested: true, message: "Audio download requested. Verify the file before explicitly discarding temporary audio." });
     },
-    acknowledgeDownloadRequest(segment: RecordingSegment) {
-      if (!disposed && state.segment === segment) publish({ downloadRequested: true, message: "Download requested. Verify the file before explicitly discarding temporary audio." });
+    acknowledgeDownloadRequest(segment: RecordingSegment, destination: "download-requested" | "saved" = "download-requested") {
+      if (!disposed && state.segment === segment) publish({ downloadRequested: true, message: destination === "saved" ? "Saved. Temporary audio remains until you explicitly discard it." : "Download requested. Verify the file before explicitly discarding temporary audio." });
     },
     dispose() { if (disposed) return; discard(); disposed = true; },
   });

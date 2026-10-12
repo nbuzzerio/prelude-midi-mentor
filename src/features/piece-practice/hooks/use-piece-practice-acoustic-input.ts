@@ -14,6 +14,7 @@ import { createAcousticAnalysisCollector } from "@/features/acoustic-analysis/ac
 import { downloadAcousticAnalysis, readAnalysisPreference, saveAnalysisPreference } from "@/features/acoustic-analysis/acoustic-analysis-browser";
 import { serializeAcousticAnalysis } from "@/features/acoustic-analysis/acoustic-analysis-export";
 import type { DownloadSnapshot } from "@/lib/files/browser-download";
+import type { ExportDestination } from "@/lib/files/native-save";
 import { equalTemperedFrequency } from "@/lib/audio/monophonic/pitch-math";
 import { formatPiecePracticeWrittenPitch } from "../piece-practice-evidence";
 import { createPiecePracticeRecording, type RecordingSnapshot } from "../piece-practice-recording";
@@ -331,11 +332,11 @@ export function usePiecePracticeAcousticInput(options: Options) {
       name: latest.current.piece.title, fallback: "acoustic_analysis", extension: "json", format: "Acoustic Analysis JSON",
       detail: "Local scalar pitch evidence; microphone recordings are separate." });
   }, [collector]);
-  const exportAnalysis = useCallback((prepared?: DownloadSnapshot, filename?: string) => {
+  const exportAnalysis = useCallback((prepared?: DownloadSnapshot, filename?: string, destination: ExportDestination = "download-requested") => {
     try {
       const snapshot = prepared ?? prepareAnalysisExport();
-      downloadAcousticAnalysis(snapshot.blob, snapshot.name, filename);
-      analysisNoticeRef.current = "Download requested. This file contains local scalar evidence, not audio.";
+      if (destination === "download-requested") downloadAcousticAnalysis(snapshot.blob, snapshot.name, filename);
+      analysisNoticeRef.current = destination === "saved" ? `Saved: ${filename}. This file contains local scalar evidence, not audio.` : "Download requested. This file contains local scalar evidence, not audio.";
     } catch {
       analysisNoticeRef.current = "Acoustic analysis could not be exported. Practice and collected evidence are unchanged.";
       setAnalysisNotice(analysisNoticeRef.current);
