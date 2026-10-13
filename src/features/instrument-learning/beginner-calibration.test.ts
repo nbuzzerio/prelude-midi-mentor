@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CALIBRATION_POLICY, VIOLIN_REFERENCES, type CalibrationSample } from "./calibration-types";
+import { ADJUSTABLE_CALIBRATION_POLICY, CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY, VIOLIN_REFERENCES, emptyCalibrationMeasurement, type CalibrationSample, type CalibrationPolicy } from "./calibration-types";
+import { createCalibrationSession, assessCalibration, advanceCalibration, changeCalibrationTolerance } from "./calibration-session";
 import { createCalibrationStability } from "./pitch-stability";
 
-function stream() {
-  const collector = createCalibrationStability(VIOLIN_REFERENCES[0]);
+function stream(policy: CalibrationPolicy = CALIBRATION_POLICY, tolerance?: number) {
+  const collector = createCalibrationStability(VIOLIN_REFERENCES[0], policy, tolerance);
   let at = 0, sequence = 0;
   const frame = (cents: number | null, step = 33, level = cents === null ? -80 : -20) => {
     at += step;
@@ -82,5 +83,53 @@ describe("beginner short-note calibration", () => {
     expect(s.collector.progress(s.now()).sampleCount).toBe(0);
     s.frame(0); s.frame(0); s.frame(0);
     expect(s.collector.progress(s.now()).sampleCount).toBe(1);
+  });
+});
+
+describe("v4 readiness with unchanged beginner evidence gates", () => {
+  it.each([1, 10, 30])("accepts both exact ±%s boundaries and rejects just-outside medians", tolerance => {
+    for (const sign of [-1, 1]) for (const outside of [0, 0.001]) {
+      const s = stream(ADJUSTABLE_CALIBRATION_POLICY, tolerance); let result;
+      for (let i = 0; i < 6; i++) result = s.frame(sign * (tolerance + outside));
+      expect(result?.status).toBe("valid"); expect(result?.stable).toBe(true);
+      expect(result?.tuning === "within-band").toBe(outside === 0);
+    }
+  });
+  it("preserves fixed v3 and precise v1 thresholds without allowing overrides", () => {
+    expect(CALIBRATION_POLICY).toMatchObject({ version: 3, greenCents: 10, yellowCents: 25 });
+    expect(PRECISE_CALIBRATION_POLICY).toMatchObject({ version: 1, greenCents: 5, minimumSamples: 20, windowMs: 800 });
+    for (const policy of [CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY]) expect(() => stream(policy, 30)).toThrow(/Only calibration policy v4/);
+    expect(() => stream(ADJUSTABLE_CALIBRATION_POLICY, 31)).toThrow(/Invalid/);
+  });
+  it.each([1, 5, 10, 30])("changes only tuning classification at tolerance %s", tolerance => {
+    const fixed = stream(), adjustable = stream(ADJUSTABLE_CALIBRATION_POLICY, tolerance);
+    for (const cents of [2, -2, 3, 4, 3, 2, null, 1200, 2]) {
+      const { tuning: before, ...oldMeasurement } = fixed.frame(cents);
+      const { tuning: after, ...newMeasurement } = adjustable.frame(cents);
+      expect(newMeasurement).toEqual(oldMeasurement);
+      if (!oldMeasurement.stable) expect(after).toBe(before);
+    }
+  });
+  it.each([1, 30])("retains sample, coverage, spread, compatibility and freshness blockers at %s", tolerance => {
+    const insufficient = stream(ADJUSTABLE_CALIBRATION_POLICY, tolerance);
+    for (let i = 0; i < 5; i++) expect(insufficient.frame(0).status).toBe("insufficient");
+    expect(insufficient.collector.progress(insufficient.now()).blocker).toBe("samples");
+    expect(insufficient.frame(0)).toMatchObject({ status: "valid", sampleCount: 4, coverageMs: 99 });
+    const alternating = stream(ADJUSTABLE_CALIBRATION_POLICY, tolerance);
+    for (let i = 0; i < 30; i++) expect(alternating.frame(i % 2 ? -18 : 18).status).not.toBe("valid");
+    expect(alternating.collector.progress(alternating.now()).blocker).toBe("spread");
+    expect(alternating.collector.progress(alternating.now() + 4000).sampleCount).toBe(0);
+  });
+  it("starts a fresh revision and retains completed and unfinished historical attempts with their tolerances", () => {
+    const measurement = { ...emptyCalibrationMeasurement(), status: "valid" as const, stable: true, tuning: "within-band" as const, cents: 8 };
+    const completed = advanceCalibration(assessCalibration(createCalibrationSession("v4", null, 10), measurement), "automatic");
+    const before = structuredClone(completed);
+    const next = changeCalibrationTolerance(completed, 5);
+    expect(completed).toEqual(before); expect(next.referenceIndex).toBe(1); expect(next.revision).toBe(3);
+    expect(next.acceptanceToleranceCents).toBe(5); expect(next.measurement).toEqual(emptyCalibrationMeasurement());
+    expect(next.attempts[0]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 10, disposition: "completed", measurement: { cents: 8 } });
+    expect(next.attempts[1]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 10, choice: "retry", disposition: null });
+    expect(changeCalibrationTolerance(next, 5)).toBe(next); expect(changeCalibrationTolerance(next, 31)).toBe(next);
+    expect(changeCalibrationTolerance(createCalibrationSession("fixed"), 5).policyVersion).toBe(3);
   });
 });

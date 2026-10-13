@@ -12,6 +12,7 @@ import { usePiecePracticeAcousticInput } from "./use-piece-practice-acoustic-inp
 import * as analysisCollector from "@/features/acoustic-analysis/acoustic-analysis-collector";
 import * as analysisBrowser from "@/features/acoustic-analysis/acoustic-analysis-browser";
 import { ViolinPreflight } from "@/features/instrument-learning/components/violin-preflight";
+import { saveCalibrationTolerance, VIOLIN_CALIBRATION_TOLERANCE_KEY } from "@/features/instrument-learning/calibration-preferences";
 
 const mock = vi.hoisted(() => ({ sessions: [] as { options: CaptureOptions; generation: number; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] }));
 vi.mock("@/lib/audio/monophonic/microphone-capture", () => ({ createMicrophoneCapture: (options: CaptureOptions) => {
@@ -36,10 +37,10 @@ const score: StaffBuilderScore = {
     { id: "b", kind: "rest", staff: "bass", startTick: 0, rhythm: { status: "final", duration: "whole" } },
   ] }],
 };
-function setup(source = score, preflight = false, pitchToleranceCents = 25) {
+function setup(source = score, preflight = false, pitchToleranceCents = 25, instrument: "violin" | "ocarina" = "violin") {
   const projection = projectStaffBuilderPieceForPractice(source); if (!projection.ok) throw Error();
   const piece = projection.piece;
-  const created = createPiecePracticeSession(piece, { startMeasureIndex: 0, startedAtMs: 0, inputConfiguration: { mode: "microphone", instrument: "violin", pitchToleranceCents } });
+  const created = createPiecePracticeSession(piece, { startMeasureIndex: 0, startedAtMs: 0, inputConfiguration: { mode: "microphone", instrument, pitchToleranceCents } });
   if (!created.ok) throw Error();
   let at = 0;
   const tracker = createPitchStabilizer();
@@ -69,6 +70,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 function presentation(s: ReturnType<typeof setup>) {
   const preflight = () => { const input = s.result.current.input; return createElement(ViolinPreflight, {
     calibration: input.calibration, frequencyHz: input.calibrationHz, feedback: input.calibrationFeedback, accepted: input.calibrationAccepted,
+    onToleranceChange: input.setCalibrationTolerance, toleranceLocked: input.calibrationToleranceDisabled, preferenceNotice: input.calibrationPreferenceNotice,
     listening: input.status.state === "listening", onAction: input.calibrationAction, onEnterPractice: input.enterPractice, onSkipCalibration: input.skipCalibrationAndStartPractice }); };
   const ui = render(preflight());
   return { ...ui, refresh: () => ui.rerender(preflight()) };
@@ -82,6 +84,85 @@ function pluck(s: ReturnType<typeof setup>, semitone: number, cents = 0) {
     act(() => vi.advanceTimersByTime(step));
   }
 }
+
+describe("violin calibration tolerance ownership", () => {
+  it("records the current effective context when scalar analysis is enabled after a stopped adjustment", async () => {
+    analysisBrowser.saveAnalysisPreference(false);
+    const s = setup(score, true); act(() => s.result.current.input.setCalibrationTolerance(5));
+    const disabled = JSON.parse(await s.result.current.input.analysis.prepareExport().blob.text()); expect(disabled.calibrations).toHaveLength(0);
+    act(() => s.result.current.input.analysis.changeEnabled(true));
+    const enabled = JSON.parse(await s.result.current.input.analysis.prepareExport().blob.text());
+    expect(enabled.calibrations[0]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 5 });
+    expect(enabled.calibrations[0].attempts[0]).toMatchObject({ acceptanceToleranceCents: 10, choice: "retry" });
+    expect(s.session.start).not.toHaveBeenCalled();
+  });
+  it("loads the preference and changes a stopped revision without reallocating or starting capture", async () => {
+    saveCalibrationTolerance(5);
+    const s = setup(score, true), id = s.result.current.input.calibration.id;
+    expect(s.result.current.input.calibration).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 5, revision: 1 });
+    const streamCount = mock.sessions.length;
+    act(() => s.result.current.input.setCalibrationTolerance(30));
+    expect(s.result.current.input.calibration).toMatchObject({ id, acceptanceToleranceCents: 30, revision: 2, referenceIndex: 0 });
+    expect(s.result.current.input.calibration.attempts[0]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 5, choice: "retry" });
+    expect(mock.sessions).toHaveLength(streamCount); expect(s.session.start).not.toHaveBeenCalled(); expect(s.session.stop).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(VIOLIN_CALIBRATION_TOLERANCE_KEY)!)).toEqual({ version: 1, toleranceCents: 30 });
+    const bundle = JSON.parse(await s.result.current.input.analysis.prepareExport().blob.text());
+    expect(bundle.calibrations[0]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 30 });
+    s.unmount(); const reopened = setup(score, true); expect(reopened.result.current.input.calibration.acceptanceToleranceCents).toBe(30);
+  });
+  it("refuses direct and UI edits while listening or displaying an accepted transition", () => {
+    const s = setup(score, true); act(() => s.result.current.input.start());
+    const original = s.result.current.input.calibration;
+    act(() => s.result.current.input.setCalibrationTolerance(30)); expect(s.result.current.input.calibration).toBe(original);
+    const ui = presentation(s); expect((ui.getByRole("slider") as HTMLInputElement).disabled).toBe(true);
+    pluck(s, 55, 5.5); expect(s.result.current.input.calibrationAccepted).not.toBeNull();
+    act(() => s.result.current.input.stop());
+    const accepted = s.result.current.input.calibration; act(() => s.result.current.input.setCalibrationTolerance(1));
+    expect(s.result.current.input.calibration).toBe(accepted); expect(s.result.current.input.calibrationToleranceDisabled).toBe(true);
+    expect(s.session.start).toHaveBeenCalledOnce();
+  });
+  it("retains prior evidence and requires fresh samples after a stopped tolerance change", async () => {
+    const s = setup(score, true); act(() => s.result.current.input.start()); pluck(s, 55, 18);
+    expect(s.result.current.input.calibration.measurement.status).toBe("valid"); act(() => s.result.current.input.stop());
+    const before = JSON.parse(await s.result.current.input.analysis.prepareExport().blob.text());
+    act(() => s.result.current.input.setCalibrationTolerance(5));
+    const changed = s.result.current.input.calibration;
+    expect(changed).toMatchObject({ revision: 2, phase: "collecting", acceptanceToleranceCents: 5, measurement: { status: "insufficient", sampleCount: 0 } });
+    expect(changed.attempts[0]).toMatchObject({ acceptanceToleranceCents: 10, choice: "retry" });
+    expect(changed.attempts[0].measurement.cents).toBeCloseTo(18);
+    const after = JSON.parse(await s.result.current.input.analysis.prepareExport().blob.text()); expect(after.trace).toEqual(before.trace);
+    expect(s.session.start).toHaveBeenCalledOnce(); act(() => s.result.current.input.start());
+    for (let i = 0; i < 5; i++) s.frame(equalTemperedFrequency(55) * 2 ** (5 / 1200));
+    expect(s.result.current.input.calibrationAccepted).toBeNull(); s.frame(equalTemperedFrequency(55) * 2 ** (5 / 1200));
+    expect(s.result.current.input.calibration.attempts.at(-1)).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 5, disposition: "completed" });
+    expect(s.result.current.state.inputConfiguration).toMatchObject({ pitchToleranceCents: 25 }); expect(s.result.current.state.completedTargetCount).toBe(0);
+  });
+  it("keeps completed attempts at their original tolerance while a later string can accept 28 cents within 30", () => {
+    const s = setup(score, true); act(() => s.result.current.input.start()); pluck(s, 55, 5.5); s.frame(null); s.elapse(1200);
+    const first = structuredClone(s.result.current.input.calibration.attempts[0]); act(() => s.result.current.input.stop());
+    act(() => s.result.current.input.setCalibrationTolerance(30)); expect(s.result.current.input.calibration.attempts[0]).toEqual(first);
+    act(() => s.result.current.input.start()); pluck(s, 62, 28);
+    expect(s.result.current.input.calibrationAccepted).not.toBeNull(); expect(s.result.current.input.calibration.attempts.at(-1)).toMatchObject({ acceptanceToleranceCents: 30, disposition: "completed" });
+    expect(s.result.current.input.calibration.attempts.at(-1)?.measurement.cents).toBeCloseTo(28);
+    const ui = presentation(s); expect(ui.getByText("Estimated deviation band").nextElementSibling?.textContent).toContain("RED · Significantly off");
+    expect(first).toMatchObject({ acceptanceToleranceCents: 10 });
+  });
+  it("keeps calibration usable when preference reads and writes are blocked", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw Error("blocked"); });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw Error("blocked"); });
+    const s = setup(score, true); expect(s.result.current.input.calibration.acceptanceToleranceCents).toBe(10);
+    act(() => s.result.current.input.setCalibrationTolerance(5)); expect(s.result.current.input.calibration.acceptanceToleranceCents).toBe(5);
+    expect(s.result.current.input.calibrationPreferenceNotice).toContain("could not remember"); expect(s.session.start).not.toHaveBeenCalled();
+  });
+  it("ignores the violin preference and setter for ocarina practice", () => {
+    saveCalibrationTolerance(1); const s = setup(score, true, 25, "ocarina");
+    expect(s.result.current.input.phase).toBe("practice"); const original = s.result.current.input.calibration;
+    act(() => s.result.current.input.setCalibrationTolerance(30)); expect(s.result.current.input.calibration).toBe(original);
+    expect(s.result.current.input.calibration.acceptanceToleranceCents).toBeUndefined();
+    act(() => s.result.current.input.start()); s.quiet(); s.tone(24);
+    expect(s.result.current.state.acousticEvidence?.[0]).toMatchObject({ accepted: true, pitchToleranceCents: 25 });
+  });
+});
 
 describe("beginner pluck preparation through the React display", () => {
   it("automatically accepts the observed +5.50-cent G3 from sufficient short-pluck evidence", () => {
@@ -111,7 +192,7 @@ describe("beginner pluck preparation through the React display", () => {
     const s = setup(score, true); act(() => s.result.current.input.start());
     const ui = presentation(s);
     s.frame(equalTemperedFrequency(55) * 2 ** (5.5 / 1200)); s.elapse(220); ui.refresh();
-    expect(ui.getByText("Estimated deviation band").nextElementSibling?.textContent).toContain("Ready for practice");
+    expect(ui.getByText("Estimated deviation band").nextElementSibling?.textContent).toContain("Within recommended band");
     expect(ui.getByText("Reading status").nextElementSibling?.textContent).toContain("Last heard");
     act(() => s.result.current.input.calibrationAction("automatic"));
     expect(s.result.current.input.calibration.attempts).toHaveLength(0);
@@ -220,7 +301,8 @@ describe("beginner pluck preparation through the React display", () => {
     act(() => { s.result.current.input.stop(); s.result.current.input.analysis.export(); });
     const bundle = JSON.parse(await (download.mock.calls[0][0] as Blob).text());
     const calibration = bundle.calibrations.at(-1);
-    expect(calibration.policyVersion).toBe(3);
+    expect(calibration.policyVersion).toBe(4);
+    expect(calibration.acceptanceToleranceCents).toBe(10);
     expect(calibration.attempts).toHaveLength(4);
     expect(calibration.attempts[0]).toMatchObject({ disposition: "skipped", measurement: { tuning: "near-target", status: "valid" } });
     expect(calibration.attempts.slice(1).every((a: { disposition: string; measurement: { medianHz: number | null } }) => a.disposition === "skipped" && a.measurement.medianHz === null)).toBe(true);

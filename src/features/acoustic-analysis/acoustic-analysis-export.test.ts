@@ -3,7 +3,7 @@ import { createAcousticAnalysisCollector } from "./acoustic-analysis-collector";
 import { createAcousticAnalysisBundle, isAcousticAnalysisBundle, serializeAcousticAnalysis, acousticAnalysisFilename } from "./acoustic-analysis-export";
 import { readAnalysisPreference, saveAnalysisPreference, downloadAcousticAnalysis } from "./acoustic-analysis-browser";
 import { version } from "../../../package.json";
-import { createCalibrationSession, assessCalibration, advanceCalibration } from "@/features/instrument-learning/calibration-session";
+import { createCalibrationSession, assessCalibration, advanceCalibration, changeCalibrationTolerance } from "@/features/instrument-learning/calibration-session";
 import { createCalibrationStability } from "@/features/instrument-learning/pitch-stability";
 import { VIOLIN_REFERENCES, emptyCalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
 import type { PitchObservationEnvelope } from "@/lib/audio/monophonic/pitch-analysis-types";
@@ -19,6 +19,36 @@ function collector() {
 }
 afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
 describe("canonical analysis JSON", () => {
+  it.each([[1, 4], [2, -18.64], [3, 8]] as const)("preserves historical policy v%s without adding acceptance overrides", (policyVersion, cents) => {
+    const c = collector();
+    const historical = advanceCalibration(assessCalibration({ ...createCalibrationSession("historical"), policyVersion }, {
+      ...emptyCalibrationMeasurement(), status: "valid", tuning: "within-band", stable: true, cents, medianHz: VIOLIN_REFERENCES[0].frequencyHz * 2 ** (cents / 1200),
+    }), "automatic");
+    const before = structuredClone(historical); c.calibration(historical, 100); const bundle = createAcousticAnalysisBundle(c.snapshot(), 0);
+    expect(isAcousticAnalysisBundle(bundle)).toBe(true); expect(bundle.schemaVersion).toBe(1); expect(historical).toEqual(before);
+    expect(bundle.calibrations[0]).toMatchObject({ policyVersion, attempts: [{ disposition: "completed", measurement: { cents, tuning: "within-band" } }] });
+    expect(bundle.calibrations[0]).not.toHaveProperty("acceptanceToleranceCents"); expect(bundle.calibrations[0].attempts[0]).not.toHaveProperty("acceptanceToleranceCents");
+    expect(bundle.policies).not.toHaveProperty("adjustableBeginnerCalibration");
+  });
+  it("exports v4 effective session/attempt tolerances additively in scalar schema 1", () => {
+    const c = collector();
+    const completed = advanceCalibration(assessCalibration(createCalibrationSession("adjustable", null, 10), {
+      ...emptyCalibrationMeasurement(), status: "valid", stable: true, tuning: "within-band", cents: 8, medianHz: 196,
+    }), "automatic");
+    const next = changeCalibrationTolerance(completed, 5); c.calibration(next, 100);
+    const bundle = JSON.parse(serializeAcousticAnalysis(c.snapshot(), 0));
+    expect(isAcousticAnalysisBundle(bundle)).toBe(true); expect(bundle.schemaVersion).toBe(1);
+    expect(bundle.calibrations[0]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 5 });
+    expect(bundle.calibrations[0].attempts[0]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 10, measurement: { cents: 8 } });
+    expect(bundle.calibrations[0].attempts[1]).toMatchObject({ policyVersion: 4, acceptanceToleranceCents: 10, choice: "retry" });
+    expect(bundle.policies.adjustableBeginnerCalibration).toMatchObject({ version: 4, defaultToleranceCents: 10, minimumToleranceCents: 1, maximumToleranceCents: 30, minimumSamples: 4, windowMs: 90 });
+    expect(bundle.policies.calibration).toMatchObject({ version: 3, greenCents: 10 }); expect(bundle.session.pitchToleranceCents).toBe(25);
+    expect(JSON.stringify(bundle)).not.toMatch(/PCM|waveform|MediaStream|rawAudio/);
+    for (const invalid of [0, 31, 1.5, "5", undefined]) {
+      const broken = structuredClone(bundle); broken.calibrations[0].acceptanceToleranceCents = invalid; expect(isAcousticAnalysisBundle(broken)).toBe(false);
+      const brokenAttempt = structuredClone(bundle); brokenAttempt.calibrations[0].attempts[0].acceptanceToleranceCents = invalid; expect(isAcousticAnalysisBundle(brokenAttempt)).toBe(false);
+    }
+  });
   it("round trips deterministically with units, reference, provenance and honest uncertainty", () => {
     const c = collector(); c.observe(source(0), "o"); const snapshot = c.snapshot();
     const json = serializeAcousticAnalysis(snapshot, 0), parsed = JSON.parse(json);

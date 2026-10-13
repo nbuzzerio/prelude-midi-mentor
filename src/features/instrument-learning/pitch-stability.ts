@@ -1,6 +1,6 @@
 import { MONOPHONIC_CONFIG, type PitchObservation } from "@/lib/audio/monophonic/pitch-analysis-types";
 import { centsBetween } from "@/lib/audio/monophonic/pitch-math";
-import { CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY as P, type CalibrationPolicy, emptyCalibrationMeasurement, type CalibrationMeasurement, type CalibrationSample, type ViolinReference } from "./calibration-types";
+import { ADJUSTABLE_CALIBRATION_POLICY, validCalibrationTolerance, CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY as P, type CalibrationPolicy, emptyCalibrationMeasurement, type CalibrationMeasurement, type CalibrationSample, type ViolinReference } from "./calibration-types";
 import { calibrationAmbiguity } from "./instrument-interpretation";
 
 /** Calibration-specific interruption bounds; tuning bands and statistics are unchanged. */
@@ -113,10 +113,13 @@ export function createPreciseCalibrationStability(reference: ViolinReference) {
 }
 
 /** Default preparation collector. Evidence may span compatible short acoustic candidates. */
-export function createCalibrationStability(reference: ViolinReference, policy: CalibrationPolicy = CALIBRATION_POLICY) {
-  return policy.version === 1 ? createPreciseCalibrationStability(reference) : createBeginnerCalibrationStability(reference);
+export function createCalibrationStability(reference: ViolinReference, policy: CalibrationPolicy = CALIBRATION_POLICY, acceptanceToleranceCents?: number) {
+  if (policy.version !== 4 && acceptanceToleranceCents !== undefined) throw new Error("Only calibration policy v4 allows an acceptance override.");
+  const tolerance = acceptanceToleranceCents ?? ADJUSTABLE_CALIBRATION_POLICY.defaultToleranceCents;
+  if (policy.version === 4 && !validCalibrationTolerance(tolerance)) throw new Error("Invalid calibration tolerance.");
+  return policy.version === 1 ? createPreciseCalibrationStability(reference) : createBeginnerCalibrationStability(reference, policy.version === 4 ? tolerance : CALIBRATION_POLICY.greenCents);
 }
-function createBeginnerCalibrationStability(reference: ViolinReference) {
+function createBeginnerCalibrationStability(reference: ViolinReference, acceptanceToleranceCents: number) {
   const p = CALIBRATION_POLICY;
   type Entry = { sample: CalibrationSample; ring: number; cents: number };
   let entries: Entry[] = [], displaced: Entry[] = [], agreement: Entry[] = [];
@@ -181,7 +184,7 @@ function createBeginnerCalibrationStability(reference: ViolinReference) {
       && p90 - p10 <= p.spreadCents + 1e-9 && mad <= p.madCents + 1e-9
       && agreement.filter((e) => Math.abs(e.cents - representative) <= p.compatibilityCents).length / agreement.length >= p.agreementFraction;
     measured = { status: stable ? "valid" : "insufficient", ambiguity: null, stable,
-      tuning: !stable ? "unknown" : Math.abs(representative) <= p.greenCents + 1e-9 ? "within-band"
+      tuning: !stable ? "unknown" : Math.abs(representative) <= acceptanceToleranceCents + 1e-9 ? "within-band"
         : Math.abs(representative) <= p.yellowCents + 1e-9 ? "near-target" : "needs-adjustment",
       sampleCount: inliers.length, startMs: inliers[0].sample.envelope.observedAtMs, endMs: at,
       medianHz: reference.frequencyHz * 2 ** (representative / 1200), cents: representative,

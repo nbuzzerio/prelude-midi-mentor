@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FreeplayNotationContext } from "@/features/freeplay/freeplay-notation";
 import { IMPROV_WINDOW_MS, timelinePitch, timelineWindow, type ImprovTimeline } from "../improv-timeline";
+import type { ImprovReplayTransport } from "../improv-replay";
 
 const LEFT = 52;
 const EMPTY = { notes: [], atMs: 0, leftMs: 0, rightMs: IMPROV_WINDOW_MS, recording: false, paused: false,
@@ -11,8 +12,9 @@ const browserTimelineClock = {
 };
 
 /** React updates bounded note slices at 10 Hz. RAF only moves existing SVG geometry. */
-export function ImprovPerformanceStaff({ source, context, positionMs, clock = browserTimelineClock }: Readonly<{
+export function ImprovPerformanceStaff({ source, context, positionMs, replay, onWindowChange, clock = browserTimelineClock }: Readonly<{
   source: () => ImprovTimeline | null; context: FreeplayNotationContext; positionMs?: number;
+  replay?: ImprovReplayTransport | null; onWindowChange?: (leftMs: number) => void;
   clock?: typeof browserTimelineClock;
 }>) {
   const description = useId(); const svg = useRef<SVGSVGElement>(null);
@@ -20,7 +22,7 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
   const [width, setWidth] = useState(960);
   const windowMs = width < 500 ? 6000 : IMPROV_WINDOW_MS;
   const scale = (width - LEFT - 12) / windowMs;
-  const [snapshot, setSnapshot] = useState(() => { const model = source(); return { model, view: model?.view(clock.now(), positionMs, windowMs) ?? EMPTY }; });
+  const [snapshot, setSnapshot] = useState(() => { const model = source(); return { model, view: model?.view(clock.now(), replay ? timelineWindow(replay.positionMs(), windowMs).leftMs : positionMs, windowMs) ?? EMPTY }; });
   const view = snapshot.view;
   useEffect(() => {
     const element = svg.current;
@@ -35,7 +37,10 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
     let active = true;
     const sync = () => {
       if (!active) return;
-      const model = source(); const next = model?.view(clock.now(), positionMs, windowMs) ?? EMPTY;
+      const model = source();
+      const left = replay ? timelineWindow(replay.positionMs(), windowMs).leftMs : positionMs;
+      const next = model?.view(clock.now(), left, windowMs) ?? EMPTY;
+      if (replay) onWindowChange?.(next.leftMs);
       setSnapshot(previous => previous.model === model && previous.view.atMs === next.atMs && previous.view.leftMs === next.leftMs
         && previous.view.rightMs === next.rightMs && previous.view.version === next.version && previous.view.recording === next.recording
         && previous.view.paused === next.paused && previous.view.knownEnd === next.knownEnd
@@ -43,28 +48,30 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
     };
     sync(); const timer = setInterval(sync, 100);
     return () => { active = false; clearInterval(timer); };
-  }, [source, positionMs, clock, windowMs]);
+  }, [source, positionMs, replay, onWindowChange, clock, windowMs]);
   useEffect(() => {
     let frame = 0; let active = true;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const animate = () => {
       if (!active) return;
-      const model = source(); const now = model?.elapsed(clock.now()) ?? 0;
+      const model = source(); const now = replay?.positionMs() ?? model?.elapsed(clock.now()) ?? 0;
       group.current?.setAttribute("visibility", model === snapshot.model ? "visible" : "hidden");
-      const left = positionMs ?? timelineWindow(now, windowMs).leftMs;
+      const left = replay ? timelineWindow(now, windowMs).leftMs : positionMs ?? timelineWindow(now, windowMs).leftMs;
       group.current?.setAttribute("transform", `translate(${-(left - view.leftMs) * scale} 0)`);
       const x = Math.max(LEFT, Math.min(width - 12, LEFT + (now - left) * scale));
       head.current?.setAttribute("x1", String(x)); head.current?.setAttribute("x2", String(x));
       head.current?.setAttribute("visibility", now >= left && now <= left + windowMs ? "visible" : "hidden");
       svg.current?.setAttribute("data-playhead-ms", String(now));
       svg.current?.setAttribute("data-window-start-ms", String(left));
-      group.current?.querySelectorAll<SVGLineElement>("[data-held-onset]").forEach(line => {
+      if (!replay) group.current?.querySelectorAll<SVGLineElement>("[data-held-onset]").forEach(line => {
         line.setAttribute("x2", String(Math.min(width - 12, LEFT + (now - view.leftMs) * scale)));
       });
-      if (positionMs === undefined && model && view.recording && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) frame = clock.request(animate);
+      if ((replay ? replay.active() : positionMs === undefined && model && view.recording) && !reducedMotion) frame = clock.request(animate);
     };
     animate();
-    return () => { active = false; clock.cancel(frame); };
-  }, [source, positionMs, view, snapshot.model, clock, windowMs, scale, width]);
+    const timer = replay && reducedMotion ? setInterval(animate, 100) : null;
+    return () => { active = false; clock.cancel(frame); if (timer !== null) clearInterval(timer); };
+  }, [source, positionMs, replay, view, snapshot.model, clock, windowMs, scale, width]);
   const notes = view.notes.map(note => ({ note, pitch: timelinePitch(note.pitch, context) }));
   const guides = Array.from({ length: 8 }, (_, i) => Math.floor(view.leftMs / 2000) * 2000 + i * 2000);
   return <div className="improv-performance min-w-0">
@@ -102,7 +109,7 @@ export function ImprovPerformanceStaff({ source, context, positionMs, clock = br
       </g>
     </svg>
     <p className="px-3 pb-1 text-xs text-zinc-400">{windowMs / 1000}-second window. Extreme notes use labeled octave displacement; names retain actual pitch. Dashed frozen trails have no recorded release.</p>
-    <p className="px-3 pb-2 text-xs text-zinc-400" aria-live="off">{source() ? view.paused ? "Paused performance · musical time frozen" : view.recording ? "Recording performance" : `Frozen performance · ${view.knownEnd ? "observed end" : "uncertain end / retained prefix"}` : "Ready · press Start Take to begin"}
+    <p className="px-3 pb-2 text-xs text-zinc-400" aria-live="off">{replay ? "Saved performance · replay position" : source() ? view.paused ? "Paused performance · musical time frozen" : view.recording ? "Recording performance" : `Frozen performance · ${view.knownEnd ? "observed end" : "uncertain end / retained prefix"}` : "Ready · press Start Take to begin"}
       {view.pedalActive ? " · CC64 pedal observed down" : ""}{view.issueCount ? " · approximate timing contains anomalies" : ""}
       {(view.crowded || view.omitted > 0) && " · display detail limited; accepted MIDI remains in the take"}</p>
   </div>;

@@ -4,7 +4,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ImprovPerformanceStaff } from "./improv-performance-staff";
 import { ImprovTakeReview } from "./improv-take-review";
-import { createImprovTimeline } from "../improv-timeline";
+import { createImprovTimeline, timelineFromTake } from "../improv-timeline";
+import type { ImprovReplayTransport } from "../improv-replay";
 import { createImprovTakeRecorder } from "../improv-take-recorder";
 import { fixtureContext, fixtureInput, fixtureObservation, performanceFixture } from "../improv-test-fixture";
 
@@ -108,6 +109,71 @@ describe("bounded rolling grand staff", () => {
 });
 
 describe("saved time-window review", () => {
+  it("moves archived replay geometry without per-frame queries or React commits and retains saved trail lengths", async () => {
+    const take = (await performanceFixture([{ receivedAtMs: 200 }, { receivedAtMs: 20_100, bytes: [0x80, 60, 0] }], { end: 60_100 })).loaded;
+    const model = timelineFromTake(take); const query = vi.spyOn(model, "view"); const f = fixture(); const commits = vi.fn();
+    let position = 0; let active = true;
+    const replay: ImprovReplayTransport = { takeId: take.record.takeId, positionMs: () => position, active: () => active };
+    const source = () => model;
+    const view = render(<Profiler id="review" onRender={commits}><ImprovPerformanceStaff source={source} context={context} replay={replay} clock={f.clock} /></Profiler>);
+    const initialQueries = query.mock.calls.length, initialCommits = commits.mock.calls.length;
+    const trail = staff().querySelector('[data-attack="1"] line')!; const length = trail.getAttribute("x2");
+    for (let i = 0; i < 60; i++) { position = i * 200; f.frame(90_000 + i); }
+    expect(query.mock.calls.length).toBe(initialQueries); expect(commits.mock.calls.length).toBe(initialCommits);
+    expect(staff().getAttribute("data-playhead-ms")).toBe("11800"); expect(staff().getAttribute("data-window-start-ms")).toBe("2200");
+    expect(screen.getByText(/Saved performance.*replay position/)).toBeTruthy();
+    expect(trail.getAttribute("x2")).toBe(length);
+    f.tick(99_000); expect(query.mock.calls.length).toBe(initialQueries + 1);
+    active = false; position = 12_345; f.frame(100_000);
+    expect(staff().getAttribute("data-playhead-ms")).toBe("12345"); expect(f.callbacks.size).toBe(0);
+    const frozen = staff().outerHTML; const stale = f.clock.request.mock.calls.at(-1)![0]; view.unmount(); stale(999_999);
+    expect(f.callbacks.size).toBe(0); expect(vi.getTimerCount()).toBe(0); expect(frozen).toContain('data-playhead-ms="12345"');
+  });
+  it("caps dense archived queries at 10 Hz and never displays over 512 notes", async () => {
+    const take = (await performanceFixture(Array.from({ length: 1200 }, (_, i) => ({ receivedAtMs: 100 + i * 100 })), { end: 150_100 })).loaded;
+    const model = timelineFromTake(take); const query = vi.spyOn(model, "view"); const f = fixture();
+    let position = 110_000;
+    const replay = { takeId: take.record.takeId, positionMs: () => position, active: () => true };
+    render(<ImprovPerformanceStaff source={() => model} context={context} replay={replay} clock={f.clock} />);
+    expect(staff().querySelectorAll('[data-attack]')).toHaveLength(512); expect(screen.getByText(/display detail limited/)).toBeTruthy();
+    const before = query.mock.calls.length;
+    for (let tick = 0; tick < 10; tick++) { for (let frame = 0; frame < 6; frame++) { position += 16; f.frame(position); } f.tick(position); }
+    expect(query.mock.calls.length - before).toBe(10); expect(staff().querySelectorAll('[data-attack]')).toHaveLength(512);
+  });
+  it("uses the 6-second narrow replay window and the same 80 percent threshold", () => {
+    vi.stubGlobal("ResizeObserver", class { constructor(callback: ResizeObserverCallback) { callback([{ contentRect: { width: 320 } } as ResizeObserverEntry], this as unknown as ResizeObserver); } observe() {} disconnect() {} });
+    const f = fixture(); f.model.finish(30_000, true); let position = 4000;
+    const replay = { takeId: "one", positionMs: () => position, active: () => true };
+    render(<ImprovPerformanceStaff source={f.source} context={context} clock={f.clock} replay={replay} />);
+    expect(screen.getByText(/6-second window/)).toBeTruthy(); f.frame(100_000);
+    expect(staff().getAttribute('data-window-start-ms')).toBe('0');
+    position = 5000; f.frame(100_001); expect(staff().getAttribute('data-window-start-ms')).toBe('200');
+    expect(Number(staff().querySelector('[aria-label="Blue elapsed-time playhead"]')!.getAttribute('x1'))).toBeCloseTo(256.8);
+  });
+  it("updates reduced-motion replay at ten Hz without RAF even before scrolling begins", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    const f = fixture(); f.model.finish(30_000, true); let position = 0;
+    const replay = { takeId: "one", positionMs: () => position, active: () => true };
+    render(<ImprovPerformanceStaff source={f.source} context={context} clock={f.clock} replay={replay} />);
+    position = 500; f.tick(99_000); expect(staff().getAttribute('data-playhead-ms')).toBe('500'); expect(f.callbacks.size).toBe(0);
+  });
+  it("disables manual navigation during replay, restores it after Stop and follows a fresh replay", async () => {
+    const take = (await performanceFixture([{}], { end: 30_100 })).loaded; let position = 15_000; let active = true;
+    const replay = { takeId: take.record.takeId, positionMs: () => position, active: () => active };
+    const props = { take, playing: true, disabled: false, error: '', onPlay: vi.fn(), onStop: vi.fn(), onMidi: vi.fn(), context };
+    const view = render(<StrictMode><ImprovTakeReview {...props} transport={replay} /></StrictMode>);
+    const slider = screen.getByRole('slider') as HTMLInputElement;
+    expect(slider.disabled).toBe(true); expect(slider.value).toBe('5400');
+    expect((screen.getByRole('button', { name: 'Earlier 10 seconds' }) as HTMLButtonElement).disabled).toBe(true);
+    active = false; view.rerender(<StrictMode><ImprovTakeReview {...props} playing={false} transport={replay} /></StrictMode>);
+    expect(slider.disabled).toBe(false); fireEvent.change(slider, { target: { value: '1000' } }); expect(slider.value).toBe('1000');
+    position = 0; active = true; const next = { ...replay };
+    view.rerender(<StrictMode><ImprovTakeReview {...props} transport={next} /></StrictMode>);
+    expect(slider.value).toBe('0'); expect(staff().getAttribute('data-playhead-ms')).toBe('0');
+    const other = structuredClone(take); Reflect.set(other.record, 'takeId', 'replacement');
+    view.rerender(<ImprovTakeReview {...props} take={other} playing={false} transport={next} />);
+    expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('0');
+  });
   it("reopens immutable history, navigates by labeled controls, and resets selection", async () => {
     vi.useRealTimers();
     const first = (await performanceFixture([{ receivedAtMs: 200, bytes: [0x90, 60, 90] }, { receivedAtMs: 300, bytes: [0x80, 60, 0] },

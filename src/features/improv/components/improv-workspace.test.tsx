@@ -486,17 +486,27 @@ describe("playing-first Improv workspace", () => {
     fireEvent.click(screen.getByText(/Take history and library/)); fireEvent.click(await screen.findByRole("button", { name: "Review Take 1" }));
     await screen.findByRole("button", { name: "Replay take" }); expect((await reopened.listCollections())[0].nextTakeNumber).toBe(2);
   });
-  it.each(["stop", "background", "departure", "unmount"])("cancels replay and releases voices on %s", async (action) => {
+  it.each(["stop", "background", "freeze", "visibility", "review", "collection", "departure", "unmount"])("cancels replay and releases voices on %s", async (action) => {
     const f = await performanceFixture([{}], { end: 30_000 }); const view = mount({ supplied: f.lib });
+    const evidence = encodeImprovBackup(await f.lib.exportCollection("book"));
     await waitFor(() => expect(screen.getByRole("option", { name: "Disney book" })).toBeTruthy());
     fireEvent.change(screen.getByLabelText("Piece"), { target: { value: "book" } }); fireEvent.click(screen.getByText(/Take history and library/));
     fireEvent.click(await screen.findByRole("button", { name: "Review Take 1" })); fireEvent.click(await screen.findByRole("button", { name: "Replay take" }));
     await waitFor(() => expect(sound.start).toHaveBeenCalledOnce()); expect(sound.start.mock.calls[0][0]).toMatchObject({ pitch: 60, velocity: 90 });
+    expect((screen.getByRole("slider", { name: "Review time position" }) as HTMLInputElement).disabled).toBe(true);
     if (action === "stop") fireEvent.click(screen.getByRole("button", { name: "Stop Playback" }));
     if (action === "background") act(() => window.dispatchEvent(new Event("pagehide")));
+    if (action === "freeze") act(() => document.dispatchEvent(new Event("freeze")));
+    if (action === "visibility") act(() => { Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
+    if (action === "review") fireEvent.click(screen.getByRole("button", { name: "Review Take 1" }));
+    if (action === "collection") fireEvent.change(screen.getByLabelText("Piece"), { target: { value: "" } });
     if (action === "departure") { const proceed = vi.fn(); act(() => guard?.(proceed)); expect(proceed).toHaveBeenCalledOnce(); }
     if (action === "unmount") view.unmount();
     await waitFor(() => expect(sound.dispose).toHaveBeenCalledOnce()); expect(sound.stop).toHaveBeenCalledOnce();
+    const reader = action === "unmount" ? new IndexedDbImprovLibrary({ factory: f.fake.factory }) : f.lib;
+    expect(encodeImprovBackup(await reader.exportCollection("book"))).toBe(evidence);
+    if (action === "unmount") reader.close();
+    if (["stop", "background", "freeze", "visibility"].includes(action)) expect((screen.getByRole("slider", { name: "Review time position" }) as HTMLInputElement).disabled).toBe(false);
   });
   it("presents an audio failure instead of pretending replay succeeded", async () => {
     const f = await performanceFixture([{}], { end: 30_000 }); mount({ supplied: f.lib });
@@ -505,6 +515,7 @@ describe("playing-first Improv workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Review Take 1" })); sound.fail = true;
     fireEvent.click(await screen.findByRole("button", { name: "Replay take" })); await screen.findByText(/Piano replay could not continue/);
     expect((screen.getByRole("button", { name: "Stop Playback" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("slider", { name: "Review time position" }) as HTMLInputElement).disabled).toBe(false);
   });
   it("refuses an oversized backup without reading it", async () => {
     mount(); await setup(); fireEvent.click(screen.getByText("JSON backup and restore")); const file = new File([], "huge.json");

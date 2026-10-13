@@ -3,8 +3,8 @@ import { CALIBRATION_POLICY, emptyCalibrationMeasurement, type CalibrationMeasur
 import { calibrationAmbiguity } from "./instrument-interpretation";
 import { CALIBRATION_CONTINUITY, createCalibrationStability, reliableCalibrationFrequency } from "./pitch-stability";
 
-export function createCalibrationContinuity(reference: ViolinReference, policy: CalibrationPolicy = CALIBRATION_POLICY) {
-  const tracker = createCalibrationStability(reference, policy);
+export function createCalibrationContinuity(reference: ViolinReference, policy: CalibrationPolicy = CALIBRATION_POLICY, acceptanceToleranceCents?: number) {
+  const tracker = createCalibrationStability(reference, policy, acceptanceToleranceCents);
   let lastHeardHz: number | null = null, lastHeardAt: number | null = null;
   let lastAssessment: CalibrationMeasurement | null = null;
   let liveHz: number | null = null, observedAt: number | null = null;
@@ -103,7 +103,7 @@ export function createCalibrationContinuity(reference: ViolinReference, policy: 
       samples: policy.version !== 1 ? "Pluck again to refine the pitch estimate" : "Too few usable pitch estimates", span: policy.version !== 1 ? "Let the string ring briefly, or pluck again" : "Insufficient qualifying time span",
       spread: policy.version !== 1 ? "Pitch estimates do not agree yet; pluck again" : `Pitch is fluctuating too much for calibration (spread exceeds ${policy.spreadCents} cents)`,
       drift: `Pitch is drifting over the window (drift exceeds ${policy.driftCents} cents)`,
-      "out-of-band": `Pitch is stable but outside the green tuning band. ${currentMeasurement.cents! < 0 ? "Raise" : "Lower"} its pitch slightly and pluck again.`,
+      "out-of-band": `Pitch is stable but outside ${policy.version === 4 ? `the selected ±${acceptanceToleranceCents ?? policy.defaultToleranceCents}-cent calibration tolerance` : "the green tuning band"}. ${currentMeasurement.cents! < 0 ? "Raise" : "Lower"} its pitch slightly and pluck again.`,
     };
     const blockerText = rejectedShortSound && rejectedShortSound !== "usable" ? explanations[rejectedShortSound] : progress?.blocker ? explanations[progress.blocker] : null;
     const reason = listening && audibleSince !== null && now - audibleSince >= (policy.version !== 1 ? 250 : 1500) ? blockerText : null;

@@ -1,14 +1,20 @@
+import { useId } from "react";
 import type { createCalibrationContinuity } from "../calibration-continuity";
 import { VIOLIN_REFERENCES, type CalibrationSession, type CalibrationMeasurement } from "../calibration-types";
 import { PitchReadout } from "./pitch-readout";
 
-export function ViolinPreflight({ calibration, frequencyHz, listening, feedback, accepted, onAction, onEnterPractice, onSkipCalibration }: {
+export function ViolinPreflight({ calibration, frequencyHz, listening, feedback, accepted, onAction, onEnterPractice, onSkipCalibration,
+  onToleranceChange, toleranceLocked = false, preferenceNotice }: {
   calibration: CalibrationSession; frequencyHz: number | null; listening: boolean;
   accepted?: { referenceIndex: number; measurement: CalibrationMeasurement } | null;
   feedback?: ReturnType<ReturnType<typeof createCalibrationContinuity>["feedback"]>;
   onAction: (choice: "automatic" | "continue" | "retry" | "skip") => void; onEnterPractice: () => void; onSkipCalibration?: () => void;
+  onToleranceChange?: (value: number) => void; toleranceLocked?: boolean; preferenceNotice?: string;
 }) {
+  const toleranceId = useId();
   const { phase } = calibration;
+  const tolerance = calibration.acceptanceToleranceCents ?? 10;
+  const disabled = listening || !!accepted || toleranceLocked || !onToleranceChange;
   const measurement = accepted?.measurement ?? feedback?.assessment ?? (calibration.measurement.status === "valid" ? calibration.measurement : null);
   const button = "min-h-11 rounded border border-zinc-500 px-3 py-2";
   if (phase === "summary" && !accepted) return <section aria-label="Violin preflight summary" className="grid gap-3 rounded border border-sky-400/40 p-4">
@@ -16,7 +22,7 @@ export function ViolinPreflight({ calibration, frequencyHz, listening, feedback,
     <ul>{calibration.attempts.filter(({ disposition }) => disposition !== null).map((attempt) => <li key={attempt.revision}>
       {attempt.reference.note}: {attempt.disposition === "skipped" ? "Skipped — tuning not verified"
         : attempt.disposition === "continued-with-warning" ? "Continued with warning - tuning not verified"
-        : attempt.measurement.tuning === "within-band" ? "Accepted within tuning band"
+        : attempt.measurement.tuning === "within-band" ? attempt.policyVersion === 4 ? `Accepted within ±${attempt.acceptanceToleranceCents} cents calibration tolerance` : "Accepted within tuning band"
           : `${attempt.measurement.cents!.toFixed(1)} cents — still needs tuning`}
     </li>)}</ul>
     <p>Tune strings outside the recommended band. Practice acceptance still uses concert pitch and your selected tolerance.</p>
@@ -40,7 +46,19 @@ export function ViolinPreflight({ calibration, frequencyHz, listening, feedback,
           : "Pluck the open string and let it ring. Bowing also works.";
   return <section aria-label="Violin preflight" className="grid gap-2 rounded border border-sky-400/40 p-4">
     <h2 className="min-h-8 text-xl font-semibold">Check open {reference.note}</h2>
+    {calibration.policyVersion === 4 && <div className="grid min-w-0 gap-1 rounded border border-zinc-600 p-2">
+      <label htmlFor={toleranceId} className="text-sm font-semibold">Calibration tolerance: <output className="tabular-nums">±{tolerance} cents</output></label>
+      <div className="flex min-w-0 items-center gap-2">
+        <button type="button" className={`${button} min-w-11 disabled:opacity-40`} aria-label="Decrease calibration tolerance by 1 cent" disabled={disabled || tolerance <= 1} onClick={() => onToleranceChange?.(tolerance - 1)}>−</button>
+        <input id={toleranceId} className="min-h-11 w-full min-w-0 accent-sky-400" type="range" min={1} max={30} step={1} value={tolerance}
+          aria-valuetext={`Plus or minus ${tolerance} ${tolerance === 1 ? "cent" : "cents"}`} aria-describedby={`${toleranceId}-help`} disabled={disabled} onChange={event => onToleranceChange?.(Number(event.target.value))} />
+        <button type="button" className={`${button} min-w-11 disabled:opacity-40`} aria-label="Increase calibration tolerance by 1 cent" disabled={disabled || tolerance >= 30} onClick={() => onToleranceChange?.(tolerance + 1)}>+</button>
+      </div>
+      <p id={`${toleranceId}-help`} className="text-xs text-zinc-300">{disabled ? accepted ? "Wait for the accepted transition to finish, then stop listening to adjust." : calibration.attempts.length >= 128 ? "Adjustment limit reached. Start a new practice run to change tolerance." : "Stop listening before adjusting calibration tolerance." : "Changes start a fresh calibration attempt. This controls readiness, not Piece Practice grading or microphone accuracy."}</p>
+      {preferenceNotice && <p role="status" className="text-xs text-amber-200">{preferenceNotice}</p>}
+    </div>}
     <PitchReadout reference={reference} frequencyHz={accepted?.measurement.medianHz ?? (feedback ? feedback.frequencyHz : frequencyHz)}
+      adjustableAcceptance={calibration.policyVersion === 4}
       readingStatus={accepted ? "Last stable assessment" : feedback?.status ?? (listening && frequencyHz !== null ? "Live" : "Last heard")} />
     <div className="grid h-20 content-center overflow-auto rounded border border-zinc-600 px-3"><p className="text-xs">Calibration</p><p className="text-lg font-semibold">{assessment}</p></div>
     <div className="grid h-28 content-center overflow-auto text-sm tabular-nums"><p className="text-xs text-zinc-400">Tuning preparation</p><p>{progressSummary}</p><p className="text-zinc-400">Calibration is optional. You can start practice whenever you are ready.</p></div>
@@ -56,6 +74,6 @@ export function ViolinPreflight({ calibration, frequencyHz, listening, feedback,
       <button className={button} type="button" disabled={!!accepted} onClick={() => onAction("skip")}>Skip String</button>
       <button className={button} type="button" disabled={!!accepted || phase !== "assessed"} onClick={() => onAction("continue")}>Continue</button>
     </div>
-    <p className="h-16 overflow-auto text-sm text-zinc-300">Measurements repeat automatically while listening. Practice timing and grading are paused. A4 = 440 Hz. Ideal within ±5 cents; ready within ±10 cents; adjust tuning through ±25 cents; significantly off beyond ±25 cents. Colors describe estimated deviation, not calibration certainty. Equal-tempered targets, separate from practice tolerance.</p>
+    <p className="h-16 overflow-auto text-sm text-zinc-300">Measurements repeat automatically while listening. Practice timing and grading are paused. A4 = 440 Hz. Ideal within ±5 cents; recommended band within ±10 cents; adjust tuning through ±25 cents; significantly off beyond ±25 cents. Colors describe estimated tuning quality, not calibration certainty.{calibration.policyVersion === 4 && ` Readiness uses your selected ±${tolerance} cents; a wide window may accept a pitch outside the recommended band. A ±1-cent setting does not establish one-cent microphone accuracy.`} Equal-tempered targets, separate from practice tolerance.</p>
   </section>;
 }

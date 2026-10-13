@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useBrowserPrint } from "@/hooks/use-browser-print";
+import { printFilenameTitle } from "@/lib/files/print-filename";
 import { PracticeDiagnosticChips, type PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 import { getPracticeExerciseConceptName, getPracticeExerciseConfigurationSummary, getPracticeExerciseTargetSummary } from "../practice-session-presenters";
 import type { PracticeSessionExerciseReport, PracticeSessionReport, PracticeSessionReportExerciseOutcome } from "../practice-session-report";
@@ -66,7 +67,7 @@ export function PracticeSessionPrintControls({ report }: Readonly<{ report: Prac
   const [printOptions, setPrintOptions] = useState<PracticeSessionPrintOptions | null>(null);
   const generateRef = useRef<HTMLButtonElement>(null);
   const close = () => { setDialogOpen(false); generateRef.current?.focus(); };
-  useBrowserPrint(printOptions !== null, () => { setPrintOptions(null); generateRef.current?.focus(); });
+  useBrowserPrint(printOptions !== null, () => { setPrintOptions(null); generateRef.current?.focus(); }, printFilenameTitle(report.presetName, "practice-session"));
   return <>
     <button className="min-h-11 rounded border border-sky-400/60 px-4 font-semibold" onClick={() => setDialogOpen(true)} ref={generateRef} type="button">Generate Report</button>
     {dialogOpen && <OptionsDialog onCancel={close} onGenerate={(options) => { setDialogOpen(false); setPrintOptions(options); }} />}

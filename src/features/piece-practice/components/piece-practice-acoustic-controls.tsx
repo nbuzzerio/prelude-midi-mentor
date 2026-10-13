@@ -80,6 +80,7 @@ export function PiecePracticeAcousticControls({ input, available, target, measur
     <p role="status">{!available ? "End the active Practice Session before listening." : input.status.message}</p>
     <PiecePracticeRecordingControls pieceTitle={pieceTitle} listening={active} recording={input.recording} />
     {input.phase === "preflight" && <ViolinPreflight calibration={input.calibration} frequencyHz={input.calibrationHz} feedback={input.calibrationFeedback} accepted={input.calibrationAccepted}
+      onToleranceChange={input.setCalibrationTolerance} toleranceLocked={input.calibrationToleranceDisabled} preferenceNotice={input.calibrationPreferenceNotice}
       listening={input.status.state === "listening"} onAction={input.calibrationAction} onEnterPractice={input.enterPractice} onSkipCalibration={input.skipCalibrationAndStartPractice} />}
     <details><summary className="min-h-11 cursor-pointer py-2 font-semibold">Practice Details{lastAttempt ? " · Last graded attempt" : ""}</summary>
     {lastAttempt && <div className="grid gap-1 text-zinc-300">

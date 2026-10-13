@@ -7,8 +7,9 @@ import { getCurrentPiecePracticeTarget, pausePiecePracticeClock, resetPiecePract
   skipCurrentPiecePracticeTarget, submitPiecePracticeAcousticAttack, type PiecePracticeSessionState } from "../piece-practice-session";
 import type { PiecePracticeAcousticEvidence } from "../piece-practice-evidence";
 import type { PiecePracticePiece } from "../piece-practice-types";
-import { createCalibrationSession, assessCalibration, advanceCalibration } from "@/features/instrument-learning/calibration-session";
-import { emptyCalibrationMeasurement, VIOLIN_REFERENCES, type CalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
+import { createCalibrationSession, assessCalibration, advanceCalibration, changeCalibrationTolerance } from "@/features/instrument-learning/calibration-session";
+import { ADJUSTABLE_CALIBRATION_POLICY, emptyCalibrationMeasurement, VIOLIN_REFERENCES, type CalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
+import { readCalibrationTolerance, saveCalibrationTolerance } from "@/features/instrument-learning/calibration-preferences";
 import { createCalibrationContinuity } from "@/features/instrument-learning/calibration-continuity";
 import { createAcousticAnalysisCollector } from "@/features/acoustic-analysis/acoustic-analysis-collector";
 import { downloadAcousticAnalysis, readAnalysisPreference, saveAnalysisPreference } from "@/features/acoustic-analysis/acoustic-analysis-browser";
@@ -38,9 +39,12 @@ export function usePiecePracticeAcousticInput(options: Options) {
   const [phase, setPhase] = useState<"preflight" | "practice">(() => options.sessionState.inputConfiguration?.mode === "microphone"
     && options.sessionState.inputConfiguration.instrument === "violin" && options.sessionState.status !== "piece-complete" ? "preflight" : "practice");
   const phaseRef = useRef(phase);
-  const [calibration, setCalibration] = useState(() => createCalibrationSession(crypto.randomUUID()));
+  const [tolerancePreference] = useState(() => options.sessionState.inputConfiguration?.mode === "microphone"
+    && options.sessionState.inputConfiguration.instrument === "violin" ? readCalibrationTolerance() : { value: undefined, message: "" });
+  const [calibrationPreferenceNotice, setCalibrationPreferenceNotice] = useState(tolerancePreference.message);
+  const [calibration, setCalibration] = useState(() => createCalibrationSession(crypto.randomUUID(), null, tolerancePreference.value));
   const calibrationRef = useRef(calibration);
-  const stability = useRef(createCalibrationContinuity(VIOLIN_REFERENCES[0]));
+  const stability = useRef(createCalibrationContinuity(VIOLIN_REFERENCES[0], calibration.policyVersion === 4 ? ADJUSTABLE_CALIBRATION_POLICY : undefined, calibration.acceptanceToleranceCents));
   const observationSequence = useRef(0);
   const [calibrationHz, setCalibrationHz] = useState<number | null>(null);
   const [calibrationFeedback, setCalibrationFeedback] = useState<ReturnType<ReturnType<typeof createCalibrationContinuity>["feedback"]>>({
@@ -61,7 +65,9 @@ export function usePiecePracticeAcousticInput(options: Options) {
       startedAt: new Date().toISOString(), instrument: config?.mode === "microphone" ? config.instrument : "violin",
       startMeasureIndex: options.sessionState.startMeasureIndex, endMeasureIndex: options.sessionState.endMeasureIndex,
       focus: options.sessionState.assessmentFocus, pitchToleranceCents: config?.mode === "microphone" ? config.pitchToleranceCents : 25 }, options.now());
-    result.setEnabled(analysisEnabled, options.now()); return result;
+    result.setEnabled(analysisEnabled, options.now());
+    if (phase === "preflight" && calibration.policyVersion === 4) result.calibration(calibration, options.now());
+    return result;
   });
   const [recordingSnapshot, setRecordingSnapshot] = useState<RecordingSnapshot>({
     enabled: false, phase: "off", message: "Performance recording off.", elapsedMs: 0,
@@ -132,9 +138,25 @@ export function usePiecePracticeAcousticInput(options: Options) {
     }
     calibrationRef.current = next; setCalibration(next); setCalibrationHz(null);
     analysisGuard(() => { collector.event(`calibration-${choice}`, latest.current.now()); collector.calibration(next, latest.current.now()); });
-    stability.current = createCalibrationContinuity(VIOLIN_REFERENCES[Math.min(next.referenceIndex, 3)]);
+    stability.current = createCalibrationContinuity(VIOLIN_REFERENCES[Math.min(next.referenceIndex, 3)], next.policyVersion === 4 ? ADJUSTABLE_CALIBRATION_POLICY : undefined, next.acceptanceToleranceCents);
     cutoff.current = latest.current.now();
     setCalibrationFeedback(stability.current.feedback(cutoff.current, listening.current));
+    syncAnalysis(latest.current.sessionState);
+  }, [analysisGuard, collector, syncAnalysis]);
+
+  const setCalibrationTolerance = useCallback((value: number) => {
+    if (!captureRef.current || capturing.current || acceptedRef.current || phaseRef.current !== "preflight") return;
+    const current = calibrationRef.current;
+    const assessment = stability.current.feedback(latest.current.now(), false).assessment;
+    const previous = current.measurement.status === "valid" || !assessment ? current : { ...current, measurement: assessment };
+    const next = changeCalibrationTolerance(previous, value);
+    if (next === previous) return;
+    calibrationRef.current = next; setCalibration(next);
+    stability.current = createCalibrationContinuity(VIOLIN_REFERENCES[next.referenceIndex], ADJUSTABLE_CALIBRATION_POLICY, next.acceptanceToleranceCents);
+    cutoff.current = latest.current.now(); setCalibrationHz(null);
+    setCalibrationFeedback(stability.current.feedback(cutoff.current, false));
+    setCalibrationPreferenceNotice(saveCalibrationTolerance(value) ? "" : "Calibration tolerance applies to this run; browser storage could not remember it.");
+    analysisGuard(() => { collector.event("calibration-tolerance-change", cutoff.current); collector.calibration(next, cutoff.current); });
     syncAnalysis(latest.current.sessionState);
   }, [analysisGuard, collector, syncAnalysis]);
 
@@ -323,7 +345,10 @@ export function usePiecePracticeAcousticInput(options: Options) {
   const changeAnalysisEnabled = useCallback((value: boolean) => {
     setAnalysisEnabled(value);
     if (!saveAnalysisPreference(value)) analysisNoticeRef.current = "Analysis preference could not be saved; it applies in this tab.";
-    analysisGuard(() => collector.setEnabled(value, latest.current.now()));
+    analysisGuard(() => {
+      collector.setEnabled(value, latest.current.now());
+      if (value && phaseRef.current === "preflight" && calibrationRef.current.policyVersion === 4) collector.calibration(calibrationRef.current, latest.current.now());
+    });
     syncAnalysis(latest.current.sessionState);
   }, [analysisGuard, collector, syncAnalysis]);
   const prepareAnalysisExport = useCallback((): DownloadSnapshot => {
@@ -347,6 +372,8 @@ export function usePiecePracticeAcousticInput(options: Options) {
   }, [prepareAnalysisExport]);
   return { status, reading, needsQuiet, lastAttempt, start, stop, resetInput, skipCurrentTarget,
     phase, calibration, calibrationHz, calibrationFeedback, calibrationAccepted, calibrationAction, enterPractice, skipCalibrationAndStartPractice,
+    setCalibrationTolerance, calibrationPreferenceNotice,
+    calibrationToleranceDisabled: ["requesting", "starting", "listening"].includes(status.state) || !!calibrationAccepted || calibration.phase === "summary" || calibration.attempts.length >= 128,
     recording: { ...recordingSnapshot, setEnabled: setRecordingEnabled, hasUnsavedAudio: hasUnsavedRecording },
     analysis: { enabled: analysisEnabled, notice: analysisNotice, changeEnabled: changeAnalysisEnabled, prepareExport: prepareAnalysisExport, export: exportAnalysis } };
 }

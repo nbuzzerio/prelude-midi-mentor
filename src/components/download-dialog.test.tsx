@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DownloadDialog } from "./download-dialog";
 import type { DownloadSnapshot } from "@/lib/files/browser-download";
 import { ExportPreferences } from "@/lib/files/export-preferences";
+import { DownloadCounters } from "@/lib/files/download-counters";
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); vi.restoreAllMocks(); });
 const snapshot: DownloadSnapshot = Object.freeze({ name: "Bells of Notre Dame", blob: new Blob(["original evidence"], { type: "audio/midi" }),
   extension: "mid", fallback: "improv", format: "MIDI file", detail: "Take 8. Original-first identity is unchanged." });
 
@@ -57,8 +58,51 @@ describe("shared download dialog", () => {
     render(<DownloadDialog snapshot={snapshot} deliver={deliver} onCancel={vi.fn()} onRequested={requested} />);
     fireEvent.click(screen.getByRole("button", { name: "Download" }));
     expect(screen.getByRole("alert").textContent).toMatch(/original export is retained/); expect(requested).not.toHaveBeenCalled();
+    expect(new DownloadCounters().suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("001");
     fireEvent.click(screen.getByRole("button", { name: "Download" }));
     expect(deliver).toHaveBeenLastCalledWith(snapshot.blob, "bells_of_notre_dame_001.mid"); expect(requested).toHaveBeenCalledOnce();
+    expect(new DownloadCounters().suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("002");
+  });
+  it("reopens at the next number and recalculates Name until Number is explicitly edited", () => {
+    const counters = new DownloadCounters(), deliver = vi.fn();
+    let view = render(<DownloadDialog snapshot={snapshot} counters={counters} deliver={deliver} onCancel={vi.fn()} onRequested={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Download" })); view.unmount();
+    view = render(<DownloadDialog snapshot={snapshot} counters={new DownloadCounters()} deliver={deliver} onCancel={vi.fn()} onRequested={vi.fn()} />);
+    expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("002");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Hallelujah" } });
+    expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("001");
+    fireEvent.change(screen.getByLabelText("Number"), { target: { value: "8" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: snapshot.name } });
+    expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("8");
+    fireEvent.click(screen.getByRole("button", { name: "Download" })); view.unmount();
+    expect(counters.suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("009");
+  });
+  it("requires deliberate number entry after exhaustion, with the Blob available for reuse", () => {
+    const counters = new DownloadCounters(), deliver = vi.fn(); counters.acknowledge(snapshot.name, snapshot.extension, snapshot.fallback, "999");
+    render(<DownloadDialog snapshot={snapshot} counters={counters} deliver={deliver} onCancel={vi.fn()} onRequested={vi.fn()} />);
+    expect(screen.getByText(/sequence reached 999/)).toBeTruthy(); expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("");
+    expect((screen.getByRole("button", { name: "Download" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New title" } });
+    expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("001");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: snapshot.name } });
+    fireEvent.change(screen.getByLabelText("Number"), { target: { value: "001" } }); fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(deliver).toHaveBeenCalledExactlyOnceWith(snapshot.blob, "bells_of_notre_dame_001.mid"); expect(counters.suggest(snapshot.name, snapshot.extension, snapshot.fallback).exhausted).toBe(true);
+  });
+  it("refreshes automatic suggestions from another tab while preserving deliberate overrides", () => {
+    const counters = new DownloadCounters(); render(<DownloadDialog snapshot={snapshot} counters={counters} deliver={vi.fn()} onCancel={vi.fn()} onRequested={vi.fn()} />);
+    counters.acknowledge(snapshot.name, snapshot.extension, snapshot.fallback, "007");
+    act(() => window.dispatchEvent(new StorageEvent("storage", { key: counters.key(snapshot.name, snapshot.extension, snapshot.fallback) })));
+    expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("008");
+    fireEvent.change(screen.getByLabelText("Number"), { target: { value: "003" } }); counters.acknowledge(snapshot.name, snapshot.extension, snapshot.fallback, "009");
+    act(() => window.dispatchEvent(new StorageEvent("storage", { key: null })));
+    expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("003");
+  });
+  it("retains export ability and a readable warning when localStorage is blocked", () => {
+    const counters = new DownloadCounters(() => { throw new Error("blocked"); }), deliver = vi.fn();
+    const view = render(<DownloadDialog snapshot={snapshot} counters={counters} deliver={deliver} onCancel={vi.fn()} onRequested={vi.fn()} />);
+    expect(screen.getByText(/tab only/)).toBeTruthy(); fireEvent.click(screen.getByRole("button", { name: "Download" })); view.unmount();
+    render(<DownloadDialog snapshot={snapshot} counters={counters} deliver={deliver} onCancel={vi.fn()} onRequested={vi.fn()} />);
+    expect((screen.getByLabelText("Number") as HTMLInputElement).value).toBe("002");
   });
 });
 
@@ -72,6 +116,47 @@ function nativeFixture(permission: PermissionState = "granted") {
   return { directory, preferences, writable, handle, picker, choose };
 }
 describe("shared native destinations", () => {
+  it("acknowledges only after close, advances the submitted identity despite native renaming, and fences duplicates", async () => {
+    const f = nativeFixture(), counters = new DownloadCounters(), saved = vi.fn(); let close!: () => void;
+    f.writable.close.mockImplementation(() => new Promise<void>(resolve => { close = resolve; }));
+    render(<DownloadDialog snapshot={snapshot} counters={counters} preferences={f.preferences} onCancel={vi.fn()} onRequested={vi.fn()} onSaved={saved} />);
+    await act(async () => { await f.preferences.load(); });
+    const button = screen.getByRole("button", { name: "Save As…" }); fireEvent.click(button); fireEvent.click(button);
+    expect(f.picker).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(f.writable.close).toHaveBeenCalledOnce());
+    expect(counters.suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("001"); expect(saved).not.toHaveBeenCalled();
+    await act(async () => { close(); });
+    expect(saved).toHaveBeenCalledExactlyOnceWith("native_007.mid");
+    expect(counters.suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("002");
+    expect(counters.suggest("native", "mid", "x").number).toBe("001");
+    expect(f.writable.write).toHaveBeenCalledExactlyOnceWith(snapshot.blob);
+    expect(screen.getByText("Saved: native_007.mid.")).toBeTruthy();
+  });
+  it.each(["sync-picker", "cancel", "permission", "create", "extension", "write", "close"])("does not count native %s failure and retains explicit retry", async failure => {
+    const f = nativeFixture(), counters = new DownloadCounters(), normal = vi.fn();
+    if (failure === "sync-picker") f.picker.mockImplementationOnce(() => { throw new Error("blocked"); });
+    if (failure === "cancel" || failure === "permission") f.picker.mockRejectedValueOnce(new DOMException("blocked", failure === "cancel" ? "AbortError" : "NotAllowedError"));
+    if (failure === "create") f.handle.createWritable.mockRejectedValueOnce(new Error("blocked"));
+    if (failure === "extension") f.handle.name = "wrong.txt";
+    if (failure === "write") f.writable.write.mockRejectedValueOnce(new Error("write"));
+    if (failure === "close") f.writable.close.mockRejectedValueOnce(new Error("close"));
+    render(<DownloadDialog snapshot={snapshot} counters={counters} preferences={f.preferences} deliver={normal} onCancel={vi.fn()} onRequested={vi.fn()} onSaved={vi.fn()} />);
+    await act(async () => { await f.preferences.load(); }); fireEvent.click(screen.getByRole("button", { name: "Save As…" }));
+    await vi.waitFor(() => expect(document.querySelector("[data-save-outcome]")).toBeTruthy());
+    expect(counters.suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("001"); expect(normal).not.toHaveBeenCalled();
+    f.handle.name = "native_007.mid";
+    fireEvent.click(screen.getByRole("button", { name: "Save As…" }));
+    await vi.waitFor(() => expect(counters.suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("002"));
+    expect(f.writable.write).toHaveBeenLastCalledWith(snapshot.blob);
+  });
+  it("does not count a pending picker after Cancel/unmount", async () => {
+    const f = nativeFixture(), counters = new DownloadCounters(); let pick!: (handle: typeof f.handle) => void;
+    f.picker.mockImplementation(() => new Promise(resolve => { pick = resolve; }));
+    const view = render(<StrictMode><DownloadDialog snapshot={snapshot} counters={counters} preferences={f.preferences} onCancel={vi.fn()} onRequested={vi.fn()} /></StrictMode>);
+    await act(async () => { await f.preferences.load(); }); fireEvent.click(screen.getByRole("button", { name: "Save As…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" })); view.unmount(); await act(async () => { pick(f.handle); });
+    expect(counters.suggest(snapshot.name, snapshot.extension, snapshot.fallback).number).toBe("001"); expect(f.writable.write).not.toHaveBeenCalled();
+  });
   it("Enter from filename fields opens Save As synchronously with the edited preview and fences a second submission", async () => {
     const f = nativeFixture(), normal = vi.fn(), requested = vi.fn(), saved = vi.fn();
     const view = render(<DownloadDialog snapshot={snapshot} preferences={f.preferences} deliver={normal} onCancel={vi.fn()} onRequested={requested} onSaved={saved} />);

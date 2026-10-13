@@ -18,6 +18,20 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
+### Export numbers and suggested PDF names (pending 2.9.21 checkpoint 1)
+
+Downloads remember the next three-digit number locally for each sanitized name and exact format. Name and Number remain editable; lower manual numbers never lower the remembered sequence, 000 is reserved, and reaching 999 requires a new name or deliberate number reuse. Normal downloads advance after initiation; native Save As advances after successful stream closure. Storage failures retain a tab-local fallback. Prelude does not inspect existing disk files or guarantee unique suggestions across simultaneous tabs. Preferred-folder permissions, native replacement warnings and original MIDI/JSON/audio bytes are unchanged.
+
+Staff Builder library/Study View, Piece Practice and Practice Session printing suggest piece/report titles such as `bells_of_notre_dame_001` and `weekly_practice_report_001`. PDF suggestions always use 001 because Prelude cannot confirm saving; the browser controls the actual filename, extension and destination. The application title is restored after the print lifecycle. Calibration and replay changes are not included in this checkpoint.
+
+### Violin calibration tolerance (pending 2.9.21 checkpoint 2)
+
+The existing violin beginner preflight offers a locally remembered ±1–30-cent readiness slider, defaulting to ±10 cents, with one-cent adjustment buttons and numerical feedback. Stop listening before changing it; adjustment starts a fresh attempt while preserving prior results and their effective tolerance. The detector, evidence-stability gates, fixed tuning-quality colors and Piece Practice grading are unchanged. A ±1-cent selection does not establish one-cent microphone accuracy. Ocarina calibration is not included.
+
+### Improv replay playhead (pending 2.9.21 checkpoint 3)
+
+Saved-take replay moves the blue playhead through the existing performance staff and follows it in a bounded 12-second desktop or 6-second narrow review window. The cursor uses the MIDI replay scheduler's musical time, which already excludes intentional capture pauses. Play restarts at zero; Stop and failures retain the last valid position, and completion retains the projected duration. Manual review navigation returns when playback stops. Notes, key-down trails, original Take 1 and MIDI/JSON evidence remain unchanged. Sampled piano audio timing is approximate; the display does not infer a score or grade the performance.
+
 ### Ocarina fingering guide (pending 2.9.8)
 
 Ocarina microphone Piece Practice now shows a **Standard 12-hole Alto C — provisional profile** with FRONT finger/subhole and BACK thumb diagrams, expected-note instructions, and separate fresh live pitch-derived suggestions. Thirteen natural concert pitches from A4 through F6 are mapped; unsupported pitches retain their written targets and show unavailable fingering. Filled means cover; outlined means open, with accessible text equivalents. The manufacturer's chart and physical subhole layout remain unverified. Pitch cannot identify actual covered holes, and the guide changes no grading or recording. See [the complete provisional chart and limitations](./docs/OCARINA_FINGERING.md).
@@ -463,7 +477,7 @@ For a more detailed technical explanation, see
 
 ## Current Status
 
-Current package/application version is **2.9.3**, derived by the UI from `package.json`. No new release or tag is implied.
+Pending package/application version is **2.9.21**, derived by the UI from `package.json`; committed baseline is **2.9.20** at `1003fa1a`. This naming checkpoint remains uncommitted for owner review. No release or tag is implied.
 
 The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
 

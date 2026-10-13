@@ -15,7 +15,12 @@ export const LEGACY_BEGINNER_CALIBRATION_POLICY = Object.freeze({ version: 2, id
 /** Revised tuning tolerance only; v2 evidence requirements are preserved. */
 export const CALIBRATION_POLICY = Object.freeze({ ...LEGACY_BEGINNER_CALIBRATION_POLICY,
   version: 3, id: "violin-beginner-pluck-10c", idealCents: 5, greenCents: 10, yellowCents: 25 });
-export type CalibrationPolicy = typeof CALIBRATION_POLICY | typeof PRECISE_CALIBRATION_POLICY;
+/** v3 stays fixed. v4 changes only readiness acceptance; recommended tuning bands remain fixed. */
+export const ADJUSTABLE_CALIBRATION_POLICY = Object.freeze({ ...CALIBRATION_POLICY,
+  version: 4, id: "violin-beginner-pluck-adjustable", defaultToleranceCents: 10, minimumToleranceCents: 1, maximumToleranceCents: 30 });
+export const validCalibrationTolerance = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 30;
+export type CalibrationPolicy = typeof CALIBRATION_POLICY | typeof PRECISE_CALIBRATION_POLICY | typeof ADJUSTABLE_CALIBRATION_POLICY;
 export const VIOLIN_REFERENCES = Object.freeze([
   { stringId: "G", note: "G3", semitone: 55 }, { stringId: "D", note: "D4", semitone: 62 },
   { stringId: "A", note: "A4", semitone: 69 }, { stringId: "E", note: "E5", semitone: 76 },
@@ -40,11 +45,14 @@ export type CalibrationAttempt = Readonly<{
   revision: number; reference: ViolinReference; measurement: CalibrationMeasurement;
   disposition: "completed" | "skipped" | "continued-with-warning" | null;
   choice: "automatic" | "continue" | "skip" | "retry";
+  /** Present on v4 attempts, including retries; old attempts inherit their session's policy. */
+  policyVersion?: 4; acceptanceToleranceCents?: number;
 }>;
 export type CalibrationSession = Readonly<{
   id: string; revision: number; replacesCalibrationId: string | null;
   instrument: "violin"; profileId: "violin-standard-open-strings"; profileVersion: 1;
-  referenceA4Hz: 440; temperament: "12-tone-equal"; policyVersion: 1 | 2 | 3;
+  referenceA4Hz: 440; temperament: "12-tone-equal"; policyVersion: 1 | 2 | 3 | 4;
+  acceptanceToleranceCents?: number;
   referenceIndex: number; phase: "collecting" | "assessed" | "summary";
   measurement: CalibrationMeasurement; attempts: readonly CalibrationAttempt[];
 }>;

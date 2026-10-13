@@ -9,6 +9,7 @@ const score: StaffBuilderScore = {
 };
 
 beforeEach(() => {
+  document.title = "Prelude: MIDI Mentor";
   vi.useFakeTimers();
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ measureText: (text: string) => ({ width: text.length * 8 }) } as CanvasRenderingContext2D);
 });
@@ -27,8 +28,10 @@ describe("StaffBuilderPrintFlow", () => {
     expect([...document.querySelectorAll<HTMLElement>("[data-measure-number-lane=bottom]")].map(({ textContent }) => textContent)).toEqual(["Measure 2", "Measure 3", "Measure 6"]);
     act(() => vi.advanceTimersByTime(0));
     expect(print).toHaveBeenCalledOnce();
+    expect(document.title).toBe("persisted_print_001");
     act(() => window.dispatchEvent(new Event("afterprint")));
     expect(close).toHaveBeenCalledOnce();
+    expect(document.title).toBe("Prelude: MIDI Mentor");
   });
 
   it("falls back, cleans up on unmount, and supports a later flow instance", () => {
@@ -39,6 +42,7 @@ describe("StaffBuilderPrintFlow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
     act(() => vi.advanceTimersByTime(1_000));
     expect(firstClose).toHaveBeenCalledOnce();
+    expect(document.title).toBe("Prelude: MIDI Mentor");
     first.unmount();
     act(() => vi.runOnlyPendingTimers());
     const second = render(<StaffBuilderPrintFlow onClose={vi.fn()} score={score} />);
@@ -46,5 +50,6 @@ describe("StaffBuilderPrintFlow", () => {
     act(() => vi.advanceTimersByTime(0));
     expect(print).toHaveBeenCalledTimes(2);
     second.unmount();
+    expect(document.title).toBe("Prelude: MIDI Mentor");
   });
 });

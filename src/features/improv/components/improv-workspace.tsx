@@ -207,7 +207,7 @@ function ActiveImprovWorkspace({ onGuardChange, library: suppliedLibrary }: Impr
     {(error || catalog.error) && <p role="alert" className="my-3 rounded-lg bg-red-950 p-3 text-red-100">{error || catalog.error}</p>}
     {message && <p role="status" className="my-3 text-sm text-zinc-300">{message}</p>}
     <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
-      <ImprovTakeReview take={take} context={context} playing={replay.playing} disabled={recording || busy || audio.controller.needsGuard()} error={replay.error} onPlay={() => { if (take && !audio.controller.needsGuard()) replay.play(take); }} onStop={replay.stop} onMidi={downloadMidi} />
+      <ImprovTakeReview take={take} context={context} playing={replay.playing} transport={replay.transport} disabled={recording || busy || audio.controller.needsGuard()} error={replay.error} onPlay={() => { if (take && !audio.controller.needsGuard()) replay.play(take); }} onStop={replay.stop} onMidi={downloadMidi} />
       <ImprovLibraryView collection={selected} takes={catalog.takes} disabled={busy || audioProtected || audio.state.phase === "ready"} onReview={(item) => void review(item.takeId)} onRefresh={() => void catalog.refresh()}
         onRecover={(item) => void catalog.act(async () => { await library.recoverTake(item.takeId); await review(item.takeId); })}
         onRename={(value) => { if (selected) void catalog.act(() => library.renameCollection(selected.collectionId, value.trim(), selected.revision)); }} onDeleteTake={deleteTake}

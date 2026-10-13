@@ -171,6 +171,19 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Save As uses your filename preview and reports Saved only after writing closes successfully. Download Normally remains an explicit browser-download request; no automatic destination or suffix counter is added.",
     "Confirming replacement of an existing file may erase its contents before Prelude writes, even if saving later fails. Original exports and temporary recordings remain available for retry; aborting does not guarantee restoration.",
   ],
+}, {
+  id: "2026-10-13-export-counters-print-names",
+  sequence: 16,
+  title: "Export, calibrate and follow Improv replay",
+  date: "2026-10-13",
+  version: "2.9.21",
+  changes: [
+    "Downloads suggest the next number locally for each sanitized name and format after successful Save As or a normal download request. You can still edit Name and Number; 000 is reserved and sequences stop at 999.",
+    "Staff Builder, Piece Practice and Practice Session printing now suggest piece or report names. PDF suggestions always use 001; your browser controls the actual PDF filename and saving.",
+    "File contents, take and segment identities, preferred-folder permissions and native replacement behavior remain unchanged. Prelude does not check existing files on disk or guarantee unique numbers across simultaneous tabs.",
+    "Violin beginner calibration now remembers a selected acceptance tolerance from ±1 to ±30 cents, with the existing ±10-cent default. Stop listening to adjust it; previous attempts and fixed tuning-quality guidance keep their meaning. Piece Practice grading and ocarina behavior are unchanged.",
+    "Saved Improv takes now show a moving replay playhead with a following review window. It uses the replay's musical time, excluding capture pauses, with the existing Play and Stop controls. Notes and saved evidence are unchanged; sampled audio timing remains approximate.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

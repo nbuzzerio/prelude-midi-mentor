@@ -83,12 +83,12 @@ function browserAudio() {
   return { now: () => Date.now() - origin, signal, streams, contexts, recorders, getUserMedia, createURL, revokeURL };
 }
 
-function mountRun(env: ReturnType<typeof browserAudio>, strict: boolean) {
+function mountRun(env: ReturnType<typeof browserAudio>, strict: boolean, instrument: "violin" | "ocarina" = "ocarina") {
   const projected = projectStaffBuilderPieceForPractice(score);
   if (!projected.ok) throw Error("Invalid fixture");
   const piece = projected.piece;
   const created = createPiecePracticeSession(piece, { startMeasureIndex: 0, startedAtMs: 0,
-    inputConfiguration: { mode: "microphone", instrument: "ocarina", pitchToleranceCents: 25 } });
+    inputConfiguration: { mode: "microphone", instrument, pitchToleranceCents: 25 } });
   if (!created.ok) throw Error("Invalid session");
   const initialState = created.state;
   let current!: { input: ReturnType<typeof usePiecePracticeAcousticInput>; state: PiecePracticeSessionState };
@@ -108,6 +108,19 @@ beforeEach(() => { vi.useFakeTimers(); localStorage.clear(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("recording with actual acoustic capture under React effect replay", () => {
+  it("changes stopped violin tolerance under Strict Mode without extra streams, and fences departed setters", async () => {
+    const env = browserAudio(), s = mountRun(env, true, "violin");
+    expect(env.getUserMedia).not.toHaveBeenCalled(); act(() => s.current().input.setCalibrationTolerance(5));
+    expect(s.current().input.calibration.acceptanceToleranceCents).toBe(5); expect(env.getUserMedia).not.toHaveBeenCalled();
+    await act(async () => { s.current().input.start(); }); expect(env.getUserMedia).toHaveBeenCalledOnce();
+    act(() => s.current().input.setCalibrationTolerance(30)); expect(s.current().input.calibration.acceptanceToleranceCents).toBe(5);
+    await act(async () => { s.current().input.stop(); }); act(() => s.current().input.setCalibrationTolerance(30));
+    expect(s.current().input.calibration.acceptanceToleranceCents).toBe(30); expect(env.getUserMedia).toHaveBeenCalledOnce();
+    expect(env.streams[0].track.stop).toHaveBeenCalledOnce();
+    const departed = s.current().input.setCalibrationTolerance, before = localStorage.getItem("prelude-violin-calibration-tolerance-v1");
+    s.unmount(); act(() => departed(1)); expect(localStorage.getItem("prelude-violin-calibration-tolerance-v1")).toBe(before);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); }); expect(env.getUserMedia).toHaveBeenCalledOnce();
+  });
   it.each([true, false])("records, grades once and finalizes normally with Strict Mode=%s", async (strict) => {
     const env = browserAudio();
     const added = vi.spyOn(document, "addEventListener");

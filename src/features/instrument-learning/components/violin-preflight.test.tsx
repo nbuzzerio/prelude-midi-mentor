@@ -1,10 +1,45 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createCalibrationSession, assessCalibration } from "../calibration-session";
+import { createCalibrationSession, assessCalibration, changeCalibrationTolerance } from "../calibration-session";
 import { emptyCalibrationMeasurement, CALIBRATION_POLICY, VIOLIN_REFERENCES } from "../calibration-types";
 import { ViolinPreflight } from "./violin-preflight";
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
+describe("adjustable calibration presentation", () => {
+  it("shows a labelled native 1–30 step-1 slider with numerical and accessible value feedback", () => {
+    function Fixture() {
+      const [calibration, setCalibration] = useState(() => createCalibrationSession("v4", null, 10));
+      return <ViolinPreflight calibration={calibration} frequencyHz={null} listening={false} onAction={vi.fn()} onEnterPractice={vi.fn()}
+        onToleranceChange={value => setCalibration(current => changeCalibrationTolerance(current, value))} />;
+    }
+    render(<Fixture />);
+    const slider = screen.getByRole("slider", { name: "Calibration tolerance: ±10 cents" }) as HTMLInputElement;
+    expect([slider.type, slider.min, slider.max, slider.step]).toEqual(["range", "1", "30", "1"]);
+    expect(slider.getAttribute("aria-valuetext")).toBe("Plus or minus 10 cents");
+    fireEvent.click(screen.getByRole("button", { name: "Decrease calibration tolerance by 1 cent" })); expect(slider.value).toBe("9");
+    fireEvent.click(screen.getByRole("button", { name: "Increase calibration tolerance by 1 cent" })); expect(slider.value).toBe("10");
+    fireEvent.change(slider, { target: { value: "1" } }); expect(slider.getAttribute("aria-valuetext")).toBe("Plus or minus 1 cent");
+    expect((screen.getByRole("button", { name: "Decrease calibration tolerance by 1 cent" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(slider, { target: { value: "30" } }); expect((screen.getByRole("button", { name: "Increase calibration tolerance by 1 cent" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+  it.each(["listening", "accepted", "starting"])("disables tolerance changes during %s", mode => {
+    const measurement = { ...emptyCalibrationMeasurement(), status: "valid" as const, stable: true, tuning: "within-band" as const, medianHz: 196, cents: 0 };
+    render(<ViolinPreflight calibration={createCalibrationSession("v4", null, 10)} frequencyHz={196} listening={mode === "listening"}
+      accepted={mode === "accepted" ? { referenceIndex: 0, measurement } : null} toleranceLocked={mode === "starting"} onToleranceChange={vi.fn()} onAction={vi.fn()} onEnterPractice={vi.fn()} />);
+    expect((screen.getByRole("slider") as HTMLInputElement).disabled).toBe(true);
+    for (const name of ["Decrease calibration tolerance by 1 cent", "Increase calibration tolerance by 1 cent"]) expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/stop listening/i)).toBeTruthy();
+  });
+  it("keeps fixed tuning quality separate from a wide acceptance window and measured signed cents", () => {
+    render(<ViolinPreflight calibration={createCalibrationSession("v4", null, 30)} frequencyHz={VIOLIN_REFERENCES[0].frequencyHz * 2 ** (28 / 1200)} listening={false}
+      onToleranceChange={vi.fn()} onAction={vi.fn()} onEnterPractice={vi.fn()} />);
+    expect(screen.getByText("Concert-pitch deviation").nextElementSibling?.textContent).toContain("+28.0 cents");
+    expect(screen.getByText("Estimated deviation band").nextElementSibling?.textContent).toContain("RED · Significantly off");
+    expect(screen.getByRole("slider").getAttribute("aria-valuetext")).toBe("Plus or minus 30 cents");
+    expect(screen.getByText(/does not establish one-cent microphone accuracy/)).toBeTruthy();
+  });
+});
 describe("violin preflight presentation", () => {
   it.each([
     [-5, "Excellent / centered"], [5, "Excellent / centered"], [5.01, "Ready for practice"],

@@ -3,7 +3,7 @@ import { getFullNoteName } from "@/lib/music/note-utils";
 import { CALIBRATION_POLICY, type ViolinReference } from "../calibration-types";
 
 /** Continuous visual feedback deliberately has no live announcement region. */
-export function PitchReadout({ reference, frequencyHz, readingStatus = "Live" }: { reference: ViolinReference; frequencyHz: number | null; readingStatus?: "Live" | "Last heard" | "Uncertain" | "Last stable assessment" }) {
+export function PitchReadout({ reference, frequencyHz, readingStatus = "Live", adjustableAcceptance = false }: { reference: ViolinReference; frequencyHz: number | null; readingStatus?: "Live" | "Last heard" | "Uncertain" | "Last stable assessment"; adjustableAcceptance?: boolean }) {
   const pitch = frequencyHz === null ? null : describeFrequency(frequencyHz);
   const cents = pitch ? centsBetween(pitch.frequencyHz, reference.frequencyHz) : null;
   const direction = cents === null ? null : Math.abs(cents) < 0.05 ? "CENTERED" : cents < 0 ? "FLAT" : "SHARP";
@@ -19,7 +19,7 @@ export function PitchReadout({ reference, frequencyHz, readingStatus = "Live" }:
     <div className={row}><dt>Detected frequency</dt><dd className="text-xl">{pitch ? `${pitch.frequencyHz.toFixed(2)} Hz · ${direction}` : "—"}</dd></div>
     <div className={row}><dt>Expected frequency</dt><dd>{reference.frequencyHz.toFixed(3)} Hz</dd></div>
     <div className={`${row} rounded border px-2 ${deviationColor}`}><dt>Concert-pitch deviation</dt><dd className="text-xl">{cents === null ? "—" : `${cents >= 0 ? "+" : ""}${cents.toFixed(1)} cents · ${direction}`}</dd></div>
-    <div className={row}><dt>Estimated deviation band</dt><dd>{band ? `${band} · ${Math.abs(cents!) <= CALIBRATION_POLICY.idealCents + 1e-9 ? "Excellent / centered" : band === "GREEN" ? "Ready for practice" : band === "YELLOW" ? "Adjust tuning" : "Significantly off"}` : "No pitch estimate"}</dd></div>
+    <div className={row}><dt>Estimated deviation band</dt><dd>{band ? `${band} · ${Math.abs(cents!) <= CALIBRATION_POLICY.idealCents + 1e-9 ? "Excellent / centered" : band === "GREEN" ? adjustableAcceptance ? "Within recommended band" : "Ready for practice" : band === "YELLOW" ? "Adjust tuning" : "Significantly off"}` : "No pitch estimate"}</dd></div>
     <div className={row.replace("h-16", "h-28")}><dt>Reading status</dt><dd>{pitch ? readingStatus === "Live" ? "Live estimate · Not yet verified"
       : readingStatus === "Last stable assessment" ? "Confirmed baseline"
         : readingStatus === "Uncertain" ? "Last heard · Uncertain · Estimate not verified" : "Last heard · Estimate not verified" : "Waiting for usable pitch"}</dd></div>

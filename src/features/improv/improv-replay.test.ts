@@ -26,6 +26,38 @@ function sound(started: () => Promise<boolean> = () => Promise.resolve(true)) {
 function setup(started?: () => Promise<boolean>) { const c = clock(); const s = sound(started); return { ...c, ...s, engine: createImprovReplay(s.adapter, c.scheduler) }; }
 
 describe("explicit MIDI piano replay", () => {
+  it("reads the scheduler anchor through leading/trailing silence, freezes Stop and restarts at zero", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 1200 }, { receivedAtMs: 1300, bytes: [0x80, 60, 0] }], { end: 5100 });
+    const before = structuredClone(loaded); const s = setup(); s.setNow(20_000);
+    const first = s.engine.play(loaded);
+    expect(first.transport.positionMs()).toBe(0); expect(first.transport.active()).toBe(true);
+    s.advance(20_500); expect(first.transport.positionMs()).toBe(500); expect(s.attack).not.toHaveBeenCalled();
+    s.advance(21_100); expect(s.attack).toHaveBeenCalledOnce(); expect(first.transport.positionMs()).toBe(1100);
+    s.advance(22_345); first.stop(); expect(first.transport.positionMs()).toBe(2345); expect(first.transport.active()).toBe(false);
+    s.advance(25_000); expect(first.transport.positionMs()).toBe(2345);
+    const next = s.engine.play(loaded); expect(next.transport.positionMs()).toBe(0); expect(first.transport.positionMs()).toBe(2345);
+    s.advance(30_000); await expect(next.completion).resolves.toBe("completed");
+    expect(next.transport.positionMs()).toBe(next.timing.durationMs); expect(next.transport.positionMs()).toBe(5000);
+    s.advance(40_000); expect(next.transport.positionMs()).toBe(5000); expect(loaded).toEqual(before);
+  });
+  it("holds the last valid position on clock regression, unavailable reads and transport failure", async () => {
+    const { loaded } = await performanceFixture([{}], { end: 5100 }); const s = setup(); const run = s.engine.play(loaded);
+    s.setNow(2000); expect(run.transport.positionMs()).toBe(2000);
+    s.setNow(1500); expect(run.transport.positionMs()).toBe(2000);
+    s.setNow(NaN); expect(run.transport.positionMs()).toBe(2000);
+    [...s.tasks][0].callback(); await expect(run.completion).resolves.toBe("failed");
+    s.setNow(4000); expect(run.transport.positionMs()).toBe(2000); expect(run.transport.active()).toBe(false);
+  });
+  it("reuses capture-pause compression once for the clock, events and terminal position", async () => {
+    const f = await pausePerformanceFixture([{ atMs: 200 }, ...pauseSteps(500, 10_500),
+      { atMs: 10_600, bytes: [0x90, 64, 90] }, { atMs: 10_700, bytes: [0x80, 64, 0] }], 11_100);
+    const before = structuredClone(f.loaded); const s = setup(); const run = s.engine.play(f.loaded);
+    expect(run.timing.durationMs).toBe(1000);
+    s.advance(500); expect(run.transport.positionMs()).toBe(500);
+    expect(s.attack.mock.calls.map(([note]) => note.pitch)).toEqual([60, 64]);
+    s.advance(1000); await expect(run.completion).resolves.toBe("completed");
+    expect(run.transport.positionMs()).toBe(1000); expect(f.loaded).toEqual(before);
+  });
   it.each(["completed", "cancelled"] as const)("labels generated %s replay cleanup separately from raw releases", async result => {
     const f = await pausePerformanceFixture([{ atMs: 200 }], 500); const before = structuredClone(f.loaded);
     const s = setup(); const run = s.engine.play(f.loaded); s.advance(100);

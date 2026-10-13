@@ -9,6 +9,8 @@ export type ImprovReplaySound = Readonly<{
 }>;
 export type ImprovReplayScheduler = Readonly<{ now: () => number; after: (delayMs: number, callback: () => void) => () => void }>;
 export type ImprovReplayResult = "completed" | "cancelled" | "failed";
+/** Read-only musical position; shares the event scheduler's origin and compressed projection. */
+export type ImprovReplayTransport = Readonly<{ takeId: string; positionMs: () => number; active: () => boolean }>;
 
 /** No input owner or automatic playback. The caller owns navigation/background Stop and disposal. */
 export const IMPROV_REPLAY_MAX_VOICES = 512;
@@ -47,11 +49,24 @@ export function createImprovReplay(sound: ImprovReplaySound, scheduler: ImprovRe
     const voices = new Set<ImprovReplayVoice>(); const held = new Map<string, ImprovReplayVoice[]>();
     const sustained = new Map<number, Set<ImprovReplayVoice>>(); const pedal = new Set<number>();
     let settled = false; let cancelTimer: (() => void) | null = null; let index = 0;
+    let position = 0;
+    const positionMs = () => {
+      if (!settled) {
+        try {
+          const now = scheduler.now();
+          if (Number.isFinite(now) && now >= startedAtMs) position = Math.max(position, Math.min(timing.durationMs, now - startedAtMs));
+        } catch { /* A read cannot reschedule or fail playback; retain the last valid position. */ }
+      }
+      return position;
+    };
+    const transport: ImprovReplayTransport = Object.freeze({ takeId: take.record.takeId, positionMs, active: () => !settled });
     let resolve!: (value: ImprovReplayResult) => void;
     const completion = new Promise<ImprovReplayResult>((done) => { resolve = done; });
     const release = (voice: ImprovReplayVoice) => { voices.delete(voice); voice.release(); };
     const finish = (result: ImprovReplayResult) => {
       if (settled) return;
+      positionMs();
+      if (result === "completed") position = timing.durationMs;
       settled = true; cancelTimer?.(); cancelTimer = null;
       if (take.record.schemaVersion === 2 && (voices.size || pedal.size)) generated.push({
         kind: result === "completed" ? "terminal-cleanup" : "replay-stop-cleanup",
@@ -110,7 +125,7 @@ export function createImprovReplay(sound: ImprovReplaySound, scheduler: ImprovRe
       } catch { finish("failed"); }
     };
     pump();
-    return Object.freeze({ stop: cancel, completion, timing, startedAtMs,
+    return Object.freeze({ stop: cancel, completion, timing, startedAtMs, transport,
       generated: () => Object.freeze(generated.map(item => Object.freeze({ ...item }))),
       ignored: () => Object.freeze(ignored.map((item) => Object.freeze({ ...item })).sort((a, b) => a.sequence - b.sequence)) });
   };

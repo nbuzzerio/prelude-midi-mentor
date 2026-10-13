@@ -1446,7 +1446,10 @@ describe("PiecePracticeSession", () => {
     expect(legacy.status).toBe("active");
   });
 
-  it("reopens completed results and printable report from the stored score alone", () => {
+  it("reopens completed results and printable report from the stored score alone", async () => {
+    document.title = "Prelude: MIDI Mentor";
+    const print = vi.fn(() => expect(document.title).toBe("six_eight_practice_study_001"));
+    vi.stubGlobal("print", print);
     const source = realisticPolyphonicScore();
     const projected = projectStaffBuilderPieceForPractice(source);
     if (!projected.ok) throw new Error("Expected valid score.");
@@ -1471,6 +1474,9 @@ describe("PiecePracticeSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" }));
     expect(screen.getByRole("region", { name: "Six-Eight Practice Study practice report" })).toBeTruthy();
+    await waitFor(() => expect(print).toHaveBeenCalledOnce());
+    act(() => window.dispatchEvent(new Event("afterprint")));
+    expect(document.title).toBe("Prelude: MIDI Mentor");
   });
   it("starts in strict Both Staves mode without staff ghosting", () => {
     start();

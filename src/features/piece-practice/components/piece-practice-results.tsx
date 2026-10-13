@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBrowserPrint } from "@/hooks/use-browser-print";
+import { printFilenameTitle } from "@/lib/files/print-filename";
 import { PracticeDiagnosticChips } from "@/components/practice-diagnostic-chips";
 import { StaffBuilderPrintScore } from "@/features/staff-builder/components/staff-builder-print-score";
 import { StaffBuilderScoreView, type StaffBuilderDiagnosticHighlight } from "@/features/staff-builder/components/staff-builder-score-view";
@@ -177,7 +178,7 @@ export function PiecePracticeResults({ displayScore, piece, rangeText, state, ti
   const reportButton = useRef<HTMLButtonElement>(null);
   const results = useMemo(() => getPiecePracticeMeasureResults(state), [state]);
   const visible = problemsOnly ? results.filter(({ isProblem }) => isProblem) : results;
-  useBrowserPrint(reportOptions !== null, () => { setReportOptions(null); reportButton.current?.focus(); });
+  useBrowserPrint(reportOptions !== null, () => { setReportOptions(null); reportButton.current?.focus(); }, printFilenameTitle(title, "piece"));
   return <section aria-label="Piece Practice results" className="grid gap-3">
     <div className="flex flex-wrap gap-3"><button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" onClick={() => setReportDialog(true)} ref={reportButton} type="button">Generate Report</button><button className="justify-self-start rounded-lg border border-sky-400/60 px-4 py-2 font-semibold" disabled={copyStatus === "copying"} onClick={() => void copyReport()} type="button">Copy Report</button></div>
     {state.inputConfiguration?.mode !== "microphone" && <><label className="flex min-h-11 items-center gap-2"><input checked={showMidiDetails} onChange={(event) => setShowMidiDetails(event.target.checked)} type="checkbox" />Show MIDI details</label>

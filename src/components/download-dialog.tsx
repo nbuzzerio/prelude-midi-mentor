@@ -4,19 +4,23 @@ import { downloadFilename, formatDownloadNumber, sanitizeDownloadName } from "@/
 import { exportNativeApi, finishNativeSave, nativeSaveOptions, pickerFailure, NATIVE_OVERWRITE_WARNING, type NativeSaveResult } from "@/lib/files/native-save";
 import { useExportPreferences } from "@/hooks/use-export-preferences";
 import type { ExportPreferences } from "@/lib/files/export-preferences";
+import { downloadCounters, type DownloadCounters } from "@/lib/files/download-counters";
 
-export function DownloadDialog({ snapshot, onCancel, onRequested, onSaved, preferences, deliver = requestBrowserDownload }: Readonly<{
+export function DownloadDialog({ snapshot, onCancel, onRequested, onSaved, preferences, counters = downloadCounters, deliver = requestBrowserDownload }: Readonly<{
   snapshot: DownloadSnapshot;
   onCancel: () => void;
   onRequested: (filename: string) => void;
   onSaved?: (filename: string) => void;
   preferences?: ExportPreferences;
+  counters?: DownloadCounters;
   deliver?: (blob: Blob, filename: string) => void;
 }>) {
-  const [source] = useState(() => Object.freeze({ ...snapshot, deliver, onRequested, onSaved, onCancel, preferences }));
+  const [source] = useState(() => Object.freeze({ ...snapshot, deliver, onRequested, onSaved, onCancel, preferences, counters }));
   const { state: preference, store } = useExportPreferences(source.preferences);
   const [name, setName] = useState(() => sanitizeDownloadName(source.name, source.fallback));
-  const [number, setNumber] = useState("001");
+  const [suggestion, setSuggestion] = useState(() => source.counters.suggest(source.name, source.extension, source.fallback));
+  const [number, setNumber] = useState(suggestion.number);
+  const numberEdited = useRef(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [delivered, setDelivered] = useState(false);
@@ -31,6 +35,23 @@ export function DownloadDialog({ snapshot, onCancel, onRequested, onSaved, prefe
   const configured = Boolean(api && preference.loaded && preference.directory);
   const canUseFolder = configured && preference.permission === "granted";
   const cancel = () => { operation.current?.abort(); source.onCancel(); };
+  useLayoutEffect(() => {
+    const refresh = (event: StorageEvent) => {
+      if (requested.current || event.key !== null && event.key !== source.counters.key(name, source.extension, source.fallback)) return;
+      const next = source.counters.suggest(name, source.extension, source.fallback);
+      setSuggestion(next);
+      if (!numberEdited.current) setNumber(next.number);
+    };
+    window.addEventListener("storage", refresh);
+    return () => window.removeEventListener("storage", refresh);
+  }, [name, source]);
+  const editName = (value: string) => {
+    setName(value);
+    const next = source.counters.suggest(value, source.extension, source.fallback);
+    setSuggestion(next);
+    if (!numberEdited.current) setNumber(next.number);
+  };
+  const acknowledge = () => setSuggestion(source.counters.acknowledge(name, source.extension, source.fallback, number));
   useLayoutEffect(() => {
     mounted.current = true; generation.current++;
     const previous = document.activeElement as HTMLElement | null;
@@ -54,7 +75,7 @@ export function DownloadDialog({ snapshot, onCancel, onRequested, onSaved, prefe
     void finishNativeSave(picker, source, controller.signal).then(result => {
       if (!mounted.current || epoch !== generation.current || controller.signal.aborted) return;
       setBusy(false); operation.current = null; setOutcome(result);
-      if (result.kind === "saved") { setDelivered(true); source.onSaved?.(result.filename); }
+      if (result.kind === "saved") { acknowledge(); setDelivered(true); source.onSaved?.(result.filename); }
       else requested.current = false;
     });
   };
@@ -63,6 +84,7 @@ export function DownloadDialog({ snapshot, onCancel, onRequested, onSaved, prefe
     requested.current = true;
     try { source.deliver(source.blob, filename); }
     catch { requested.current = false; setError("Prelude could not request this download. Your original export is retained; try again or cancel."); return; }
+    acknowledge();
     setDelivered(true);
     source.onRequested(filename);
   };
@@ -98,12 +120,14 @@ export function DownloadDialog({ snapshot, onCancel, onRequested, onSaved, prefe
     }}>
       <h2 id={`${id}-title`} className="text-xl font-bold">Download file</h2>
       {source.detail && <p className="break-words text-sm text-zinc-300">{source.detail}</p>}
-      <label className="grid min-w-0 gap-1">Name<input ref={nameInput} disabled={busy} className={control} maxLength={256} value={name} onChange={event => setName(event.target.value)} /></label>
-      <label className="grid min-w-0 gap-1">Number<input disabled={busy} className={control} type="text" inputMode="numeric" maxLength={3} value={number} aria-invalid={!valid} aria-describedby={!valid ? `${id}-number-error` : undefined} onChange={event => setNumber(event.target.value)} /></label>
+      <label className="grid min-w-0 gap-1">Name<input ref={nameInput} disabled={busy || delivered} className={control} maxLength={256} value={name} onChange={event => editName(event.target.value)} /></label>
+      <label className="grid min-w-0 gap-1">Number<input disabled={busy || delivered} className={control} type="text" inputMode="numeric" maxLength={3} value={number} aria-invalid={!valid} aria-describedby={!valid ? `${id}-number-error` : undefined} onChange={event => { numberEdited.current = true; setNumber(event.target.value); }} /></label>
       {!valid && <p id={`${id}-number-error`} className="text-amber-200">Choose a whole number from 001 to 999. 000 is reserved.</p>}
+      {suggestion.exhausted && <p role="status" className="text-amber-200">This filename sequence reached 999. Change Name or deliberately enter an earlier Number; names may repeat.</p>}
+      {suggestion.message && <p role="status" className="text-amber-200">{suggestion.message}</p>}
       <label className="grid min-w-0 gap-1">Format<input className={`${control} text-zinc-300`} readOnly value={`${source.format} (.${source.extension})`} /></label>
       <div className="min-w-0"><p className="font-semibold">Filename preview</p><output aria-label="Filename preview" className="block break-all">{filename}</output></div>
-      <p id={`${id}-help`} className="text-sm text-zinc-300">Number names only this download; it does not change take or segment numbering. Your browser chooses the location and handles duplicate names. Verify the file before discarding temporary evidence.</p>
+      <p id={`${id}-help`} className="text-sm text-zinc-300">The next number is remembered locally after saving or requesting a download. It does not change take or segment numbering. Prelude does not check files on disk; simultaneous tabs may suggest the same number. Your browser handles duplicate names. Verify the file before discarding temporary evidence.</p>
       {configured && <>
         <p className="break-all text-sm">Preferred starting folder: {preference.directory!.name}. Access: {preference.permission}.</p>
         <p className="text-sm text-amber-200">{NATIVE_OVERWRITE_WARNING} Prelude keeps your original export for retry; aborting cannot guarantee restoration.</p>

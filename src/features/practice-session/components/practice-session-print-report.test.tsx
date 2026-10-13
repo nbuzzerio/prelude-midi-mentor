@@ -29,7 +29,7 @@ function exercise(prescription: PracticeExerciseEntry, index: number, outcome: P
 const report: PracticeSessionReport = { runId: "run", presetId: "preset", presetName: "Daily Practice", totalActiveDurationMs: 2500, enteredExerciseCount: 2, targetReachedCount: 1, skippedCount: 1, endedBeforeTargetCount: 0, neverEnteredCount: 1, bonusExerciseCount: 1,
   exercises: [exercise(firstEntry, 0, "completed"), exercise(entry(6, "second"), 1, "skipped"), exercise(entry(7, "third"), 2, "never-entered")] };
 
-beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("print", vi.fn()); });
+beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("print", vi.fn()); document.title = "Prelude: MIDI Mentor"; });
 afterEach(() => { cleanup(); vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("Practice Session printable report", () => {
@@ -89,8 +89,11 @@ describe("Practice Session printable report", () => {
     const view = render(<PracticeSessionPrintControls report={report} />);
     const start = () => { fireEvent.click(screen.getByRole("button", { name: "Generate Report" })); fireEvent.click(screen.getByRole("button", { name: "Generate printable report" })); };
     start(); expect(document.querySelector(".practice-session-print-document")).toBeTruthy(); expect(window.print).not.toHaveBeenCalled(); act(() => vi.advanceTimersByTime(0)); expect(window.print).toHaveBeenCalledTimes(1);
+    expect(document.title).toBe("daily_practice_report_001");
     act(() => window.dispatchEvent(new Event("afterprint"))); expect(document.querySelector(".practice-session-print-document")).toBeNull(); expect(document.activeElement).toBe(screen.getByRole("button", { name: "Generate Report" }));
+    expect(document.title).toBe("Prelude: MIDI Mentor");
     start(); act(() => vi.advanceTimersByTime(1_000)); expect(window.print).toHaveBeenCalledTimes(2); expect(document.querySelector(".practice-session-print-document")).toBeNull();
+    expect(document.title).toBe("Prelude: MIDI Mentor");
     start(); view.unmount(); act(() => vi.runOnlyPendingTimers()); expect(window.print).toHaveBeenCalledTimes(2);
   });
 });

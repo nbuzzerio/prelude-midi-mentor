@@ -1,7 +1,7 @@
 import { version } from "../../../package.json";
 import { downloadFilename } from "@/lib/files/download-filename";
 import { MONOPHONIC_CONFIG } from "@/lib/audio/monophonic/pitch-analysis-types";
-import { CALIBRATION_POLICY, LEGACY_BEGINNER_CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY, type CalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
+import { ADJUSTABLE_CALIBRATION_POLICY, validCalibrationTolerance, CALIBRATION_POLICY, LEGACY_BEGINNER_CALIBRATION_POLICY, PRECISE_CALIBRATION_POLICY, type CalibrationMeasurement } from "@/features/instrument-learning/calibration-types";
 import { ANALYSIS_POLICY, type AnalysisData } from "./acoustic-analysis-types";
 import { summarizeAcousticAnalysis } from "./acoustic-analysis-summary";
 
@@ -17,7 +17,7 @@ export const ANALYSIS_DEFINITIONS = Object.freeze({
   attribution: "targetVisitId identifies the displayed target context, not proof that continued sound was intended for it. Continued sound after acceptance is unassignable without new attack evidence.",
   calibration: "Beginner short-note candidates: 50 ms attack guard, 4 agreeing raw observations and 90 ms sampled ringing, optionally combined across compatible candidates within 3 seconds. Median and spread are estimates, not confidence. Quiet gaps do not count as ringing coverage. Baselines never change concert targets or grading.",
   provenance: { observation: "measured-estimate: monophonic MPM/NSDF", trackedPitch: "derived: pitch stabilizer",
-    target: "authored: Piece Practice source projection", calibration: "derived: calibration policy v3 (beginner pluck, 10-cent acceptance); historical attempts retain their own policyVersion; prompted string is assumed, actual physical string unknown",
+    target: "authored: Piece Practice source projection", calibration: "derived: v4 beginner pluck uses recorded acceptanceToleranceCents for readiness only; fixed v3 (10-cent), v2 (20-cent) and precise v1 (5-cent) policies retain their meanings. Historical attempts are not reclassified; prompted string is assumed, actual physical string unknown",
     choice: "user-selected, except explicitly automatic green advance", supportedKinds: ["measured-estimate", "derived", "authored", "recommended", "inferred", "user-selected"] },
   states: { listening: "No retained pitch", acquiring: "Candidate being acquired", stable: "Fresh tracked pitch, not necessarily stable tuning", uncertain: "Retained pitch is not reliable" },
   reasons: { usable: "Analyzer gates passed", quiet: "Below level gate", clipped: "Excess clipped samples", invalid: "Invalid input samples",
@@ -41,15 +41,18 @@ export function createAcousticAnalysisBundle(data: AnalysisData, originMs: numbe
   const calibrations = data.calibrations.map((c) => ({ id: c.id, revision: c.revision, replacesCalibrationId: c.replacesCalibrationId,
     instrument: c.instrument, profileId: c.profileId, profileVersion: c.profileVersion, referenceA4Hz: c.referenceA4Hz,
     temperament: c.temperament, policyVersion: c.policyVersion, phase: c.phase, referenceIndex: c.referenceIndex,
+    ...(c.policyVersion === 4 ? { acceptanceToleranceCents: c.acceptanceToleranceCents } : {}),
     measurement: measurement(c.measurement, originMs), attempts: c.attempts.map((a) => ({ revision: a.revision,
       reference: { stringId: a.reference.stringId, note: a.reference.note, semitone: a.reference.semitone, frequencyHz: a.reference.frequencyHz },
-      disposition: a.disposition, choice: a.choice, measurement: measurement(a.measurement, originMs) })) }));
+      disposition: a.disposition, choice: a.choice, measurement: measurement(a.measurement, originMs),
+      ...(a.policyVersion === 4 ? { policyVersion: a.policyVersion, acceptanceToleranceCents: a.acceptanceToleranceCents } : {}) })) }));
   return { format: "prelude-acoustic-analysis" as const, schemaVersion: 1 as const, appVersion: version,
     definitions: ANALYSIS_DEFINITIONS, session: { id: data.session.id, runId: data.session.runId, startedAt: data.session.startedAt,
       instrument: data.session.instrument, startMeasureIndex: data.session.startMeasureIndex, endMeasureIndex: data.session.endMeasureIndex,
       focus: data.session.focus, pitchToleranceCents: data.session.pitchToleranceCents, practiceSemantics: "blocking-pitch-attack", transient: true },
     analyzer: { algorithm: "MPM/NSDF", algorithmVersion: 1, source: "src/lib/audio/monophonic", configuration: MONOPHONIC_CONFIG, nominalCadenceHz: 30, effectiveSampleRateHz: null },
-    policies: { calibration: CALIBRATION_POLICY, preciseCalibration: PRECISE_CALIBRATION_POLICY, legacyBeginnerCalibration: LEGACY_BEGINNER_CALIBRATION_POLICY, collection: ANALYSIS_POLICY },
+    policies: { calibration: CALIBRATION_POLICY, preciseCalibration: PRECISE_CALIBRATION_POLICY, legacyBeginnerCalibration: LEGACY_BEGINNER_CALIBRATION_POLICY, collection: ANALYSIS_POLICY,
+      ...(data.calibrations.some(c => c.policyVersion === 4) ? { adjustableBeginnerCalibration: ADJUSTABLE_CALIBRATION_POLICY } : {}) },
     captureSegments: data.captureSegments, lifecycleEvents: data.lifecycleEvents, calibrations, targets: data.targets,
     targetVisits: data.targetVisits, locationAssumptions: [], attacks: data.attacks, attempts: data.attempts,
     trace: data.trace, highResolutionWindows: data.highResolutionWindows,
@@ -82,7 +85,9 @@ function validateBundle(value: unknown): value is AcousticAnalysisBundle {
   if (new Set(data.targetVisits.map((v) => v.id)).size !== data.targetVisits.length
     || new Set(data.captureSegments.map((s) => s.id)).size !== data.captureSegments.length
     || data.targets.some((t) => typeof t.id !== "string" || typeof t.spelling !== "string" || !(t.expectedHz > 0))
-    || data.calibrations.some((c) => typeof c.id !== "string" || !Number.isInteger(c.revision) || c.revision < 1 || !Array.isArray(c.attempts))) return false;
+    || data.calibrations.some((c) => typeof c.id !== "string" || !Number.isInteger(c.revision) || c.revision < 1 || !Array.isArray(c.attempts)
+      || c.policyVersion === 4 && (!validCalibrationTolerance(c.acceptanceToleranceCents) || !object(data.policies.adjustableBeginnerCalibration)
+        || data.policies.adjustableBeginnerCalibration.version !== 4 || c.attempts.some(a => a.policyVersion !== 4 || !validCalibrationTolerance(a.acceptanceToleranceCents))))) return false;
   return [...data.trace.map((bin) => bin.observation), ...data.highResolutionWindows.flatMap((window) => window.observations)].every((row) =>
     row && row.atMs >= 0 && segments.has(row.captureSegmentId) && row.context
     && (row.context.targetVisitId === null || visits.has(row.context.targetVisitId))

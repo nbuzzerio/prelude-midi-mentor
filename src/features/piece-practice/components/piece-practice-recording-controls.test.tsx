@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
 import type { RecordingSegment, RecordingSnapshot } from "../piece-practice-recording";
 
-afterEach(() => { cleanup(); if (vi.isFakeTimers()) vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); if (vi.isFakeTimers()) vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); localStorage.clear(); });
 const segment: RecordingSegment = {
   ownerInstanceId: "owner", runId: "run", analysisSessionId: "analysis", sequence: 1, captureGeneration: 2, source: "room-microphone",
   startedAt: "2026-10-09T14:30:00.000Z", startedAtMs: 1000, endedAtMs: 5000, durationMs: 4000,

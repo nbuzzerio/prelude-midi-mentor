@@ -27,6 +27,7 @@ describe("acoustic setup and feedback", () => {
   it("distinguishes accepted sharp feedback from in-tune and announces only discrete evidence", () => {
     const expected = { sourceEventId: "e", sourcePitchId: "p", midiNumber: 66, letter: "F" as const, accidental: "sharp" as const, octave: 4, staff: "treble" as const };
     const input: ReturnType<typeof usePiecePracticeAcousticInput> = {
+      setCalibrationTolerance: vi.fn(), calibrationPreferenceNotice: "", calibrationToleranceDisabled: true,
       calibrationAccepted: null,
       calibrationFeedback: { frequencyHz: null, status: "Last heard", assessment: null, activity: "Listening - Sound detected - Measuring pitch", failureReason: null, liveFrequencyHz: null, lastHeardHz: null, progress: null, confirming: false, lastHeardAt: null, ambiguity: null },
       phase: "practice", calibration: createCalibrationSession("test"), calibrationHz: null, calibrationAction: vi.fn(), enterPractice: vi.fn(), skipCalibrationAndStartPractice: vi.fn(),
