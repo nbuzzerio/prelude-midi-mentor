@@ -19,9 +19,10 @@ type RuntimeProps = Readonly<{
   dispatch: Dispatch<PracticeSessionRunEvent>;
   createExerciseToken: () => string;
   now: () => number;
+  allowSkip?: boolean;
 }>;
 
-export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now }: RuntimeProps) {
+export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true }: RuntimeProps) {
   const melodyRef = useRef<MelodySessionHandle>(null);
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const exerciseContextRef = useRef<HTMLHeadingElement>(null);
@@ -133,7 +134,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
         <button aria-pressed={isFocusMode} className="min-h-11 rounded border border-sky-400/50 px-3 font-semibold text-sky-100" onClick={() => setIsFocusMode((current) => !current)} type="button">{isFocusMode ? "Exit Focus" : "Focus"}</button>
         <button aria-pressed={showVirtualKeyboard} className="min-h-11 rounded border border-zinc-600 px-3" onClick={() => setShowVirtualKeyboard((current) => !current)} type="button">{showVirtualKeyboard ? "Hide Keyboard" : "Show Keyboard"}</button>
         {!mobilePlay.isMobilePlayMode && <button className="practice-mobile-play-entry min-h-11 rounded border border-sky-400/50 px-3 font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>}
-        {run.completionPresentation === "practicing" && <button className="min-h-11 rounded bg-zinc-800 px-3" onClick={() => advance("SKIP")} type="button">Skip for Today</button>}
+        {allowSkip && run.completionPresentation === "practicing" && <button className="min-h-11 rounded bg-zinc-800 px-3" onClick={() => advance("SKIP")} type="button">Skip for Today</button>}
         <button className="min-h-11 rounded border border-zinc-600 px-3" onClick={() => dispatch({ type: "END", ...scope, endedAt: now() })} type="button">End Session</button>
         {mobilePlay.isMobilePlayMode && <button className="min-h-11 rounded border border-sky-400/60 px-3 font-semibold text-sky-100" onClick={exitMobilePlay} type="button">Exit Mobile Play</button>}
       </div>

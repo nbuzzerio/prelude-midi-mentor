@@ -551,3 +551,11 @@ Every new feature should strengthen the student's understanding of music.
 ## License
 
 This project is available under the [MIT License](./LICENSE).
+
+## Weekly Program foundation (pending owner review)
+
+Practice Sessions now offers a separate schema-2 **Import Weekly Program**, definition preview, explicit save and **View saved programs** interface for a flexible Sunday–Saturday exercise pool. **Weekly Program AI Guide** copies the strict current contract and a tested example. Existing **Import Weekly Plan** (schema 1), daily presets, their original AI guide and execution remain unchanged. Definitions are browser-local immutable IndexedDB revisions; no weekly execution, attempts, comparisons or Guided Improvisation are implemented. See [the schema and persistence contract](docs/WEEKLY_PROGRAM_V2.md). Pending version remains 2.9.21 for separate owner reconciliation; the staged QOL release/What's New entry is preserved.
+
+## Weekly Program execution (Checkpoint 2, pending owner review)
+
+Open a saved program with Practice current revision, choose any ordered pool subset, optionally use today's suggested rotation, and edit before Start. Start, early Stop, separate selection Skip and explicit Repeat use the existing hosted native engines. Keep Playing remains Bonus within the same attempt. Basic browser-local history survives reload, distinguishes completion/incomplete work/skips and shows weekly goals with neutral missing days. Imports/definitions, v1 presets and native detailed reports/printing remain intact. See [the updated weekly contract](docs/WEEKLY_PROGRAM_V2.md). No comparison dashboard, Guided Improvisation, legacy conversion or release/version bump is included.

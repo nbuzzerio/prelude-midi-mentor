@@ -9,6 +9,7 @@ import { PracticeSessionRuntime, PracticeSessionSummary } from "./practice-sessi
 import PracticeSessionPresetEditor from "./practice-session-preset-editor";
 import WeeklyPracticeImportDialog from "./weekly-practice-import-dialog";
 import WeeklyPracticeGuideDialog from "./weekly-practice-guide-dialog";
+import PracticeProgramLibrary from "./practice-program-library";
 
 const unavailableStorage: PracticeSessionStorage = { getItem: () => { throw new Error(); }, setItem: () => { throw new Error(); } };
 const browserStorage = () => { try { return window.localStorage; } catch { return unavailableStorage; } };
@@ -31,8 +32,10 @@ export default function PracticeSessionBuilder({ active = true, onActiveRunChang
   const guideButtonRef = useRef<HTMLButtonElement>(null);
   const [run, dispatchRun] = useReducer(practiceSessionRunReducer, null);
   const runActive = run?.status === "active";
+  const [weeklyBusy, setWeeklyBusy] = useState(false);
+  const [weeklyInputActive, setWeeklyInputActive] = useState(false);
   // A hidden active host still owns its engine. Report only this fact; do not alter the run.
-  useLayoutEffect(() => { onActiveRunChange?.(runActive); }, [onActiveRunChange, runActive]);
+  useLayoutEffect(() => { onActiveRunChange?.(runActive || weeklyInputActive); }, [onActiveRunChange, runActive, weeklyInputActive]);
   const dirty = savedLibrary === null ? replacementAuthorized : JSON.stringify(workingLibrary) !== JSON.stringify(savedLibrary);
   const retry = () => {
     const result = loadPracticeSessionLibrary(storage);
@@ -55,6 +58,7 @@ export default function PracticeSessionBuilder({ active = true, onActiveRunChang
     if (result.ok) { setWorkingLibrary(result.value); setSelectedPresetId(preset.value.id); setSelectedExerciseId(null); setStatus("Created a new preset. Save when you are ready."); }
   };
   const startPractice = (preset: PracticeSessionPreset) => {
+    if (weeklyBusy) return;
     const cleanBeforeStart = savedLibrary !== null && JSON.stringify(workingLibrary) === JSON.stringify(savedLibrary);
     const updated = setLastUsedPracticeSessionPreset(workingLibrary, preset.id);
     if (!updated.ok) return;
@@ -76,6 +80,7 @@ export default function PracticeSessionBuilder({ active = true, onActiveRunChang
   if (run?.status === "active") return <><PracticeSessionRuntime createExerciseToken={createExerciseToken} dispatch={dispatchRun} now={now} run={run} />{active && status && <p aria-live="polite" className="mx-auto mt-4 w-full max-w-7xl text-sm text-zinc-300" role="status">{status}</p>}</>;
   if (run?.status === "summary") return <PracticeSessionSummary onBack={() => dispatchRun({ type: "CLEAR_RUN" })} run={run} />;
   return <section aria-labelledby="practice-sessions-title" className="mx-auto w-full max-w-7xl text-white">
+    <div inert={weeklyBusy || undefined} hidden={weeklyBusy}>
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
       <div className="mr-auto"><h1 className="text-2xl font-bold" id="practice-sessions-title">Practice Sessions</h1><p className="mt-1 text-sm text-zinc-400">Build and save practice-session presets.</p></div>
       {!loadBlock && <><span className={dirty ? "text-amber-300" : "text-emerald-300"}>{dirty ? "Unsaved changes" : "Saved"}</span><button className="min-h-11 rounded bg-sky-500 px-4 font-semibold disabled:opacity-40" disabled={!dirty} onClick={save} type="button">Save</button><button className="min-h-11 rounded bg-zinc-800 px-4" onClick={createPreset} type="button">New Preset</button><div className="flex items-center gap-1"><button className="min-h-11 rounded border border-zinc-600 px-4" onClick={() => setImportOpen(true)} ref={importButtonRef} type="button">Import Weekly Plan</button><button aria-label="How to generate a Weekly Practice plan with AI" className="min-h-11 min-w-11 rounded border border-zinc-600 px-3 text-lg font-semibold" onClick={() => setGuideOpen(true)} ref={guideButtonRef} title="How to generate a Weekly Practice plan with AI" type="button">?</button></div></>}
@@ -84,5 +89,7 @@ export default function PracticeSessionBuilder({ active = true, onActiveRunChang
     {active && status && <p aria-live="polite" className="mt-4 text-sm text-zinc-300" role="status">{status}</p>}
     {importOpen && <WeeklyPracticeImportDialog createId={createId} library={workingLibrary} onCancel={closeImport} onImport={(library, firstPresetId, title) => { setWorkingLibrary(library); if (firstPresetId) setSelectedPresetId(firstPresetId); setSelectedExerciseId(null); setStatus(`Imported “${title}”. Changes are not saved yet.`); closeImport(); }} />}
     {guideOpen && <WeeklyPracticeGuideDialog onClose={closeGuide} />}
+    </div>
+    <PracticeProgramLibrary active={active} onBusyChange={setWeeklyBusy} onInputChange={setWeeklyInputActive} />
   </section>;
 }

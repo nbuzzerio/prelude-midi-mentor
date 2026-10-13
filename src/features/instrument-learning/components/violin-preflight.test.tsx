@@ -140,3 +140,77 @@ describe("violin preflight presentation", () => {
     expect(screen.getByText(/Last stable assessment/)).toBeTruthy();
   });
 });
+
+
+describe("violin ambient-noise advisory", () => {
+  const title = "Background noise can affect calibration";
+  const message = "Steady humming or droning sounds from air conditioners, fans, and appliances can interfere with pitch stability measurements—even when the displayed note looks in tune. If calibration stays Uncertain, try reducing background noise and playing again.";
+
+  it.each(VIOLIN_REFERENCES.map((reference, referenceIndex) => [reference.note, referenceIndex] as const))("places a static informational notice immediately after the open %s heading", (note, referenceIndex) => {
+    render(<ViolinPreflight calibration={{ ...createCalibrationSession("advisory", null, 10), referenceIndex }} frequencyHz={null}
+      listening={false} onToleranceChange={vi.fn()} onAction={vi.fn()} onEnterPractice={vi.fn()} />);
+    const heading = screen.getByRole("heading", { name: "Check open " + note, level: 2 });
+    const notice = screen.getByRole("complementary", { name: title });
+    expect(heading.nextElementSibling).toBe(notice);
+    expect(screen.getByRole("heading", { name: title, level: 3 }).parentElement).toBe(notice);
+    expect(screen.getByText(message).parentElement).toBe(notice);
+    expect(notice.closest('[aria-live], [role="status"], [role="alert"]')).toBeNull();
+    expect(notice.querySelector('[aria-live], [role="status"], [role="alert"]')).toBeNull();
+  });
+
+  it("keeps the same notice through listening, in-tune Uncertain feedback and acceptance", () => {
+    const calibration = createCalibrationSession("advisory", null, 10);
+    const action = vi.fn();
+    const measurement = { ...emptyCalibrationMeasurement(), status: "valid" as const, stable: true, tuning: "within-band" as const,
+      medianHz: VIOLIN_REFERENCES[0].frequencyHz, cents: 0, p10Cents: 0, p90Cents: 0 };
+    const props = { calibration, frequencyHz: measurement.medianHz, onAction: action, onEnterPractice: vi.fn(), onToleranceChange: vi.fn() };
+    const view = render(<ViolinPreflight {...props} listening={false} />);
+    const notice = screen.getByRole("complementary", { name: title });
+    view.rerender(<ViolinPreflight {...props} listening />);
+    expect(screen.getByRole("complementary", { name: title })).toBe(notice);
+    view.rerender(<ViolinPreflight {...props} listening feedback={{ frequencyHz: measurement.medianHz, assessment: measurement,
+      status: "Uncertain", activity: "Listening - Sound detected - Measuring pitch", failureReason: null, liveFrequencyHz: null,
+      lastHeardHz: null, progress: null, confirming: false, lastHeardAt: 1000, ambiguity: null }} />);
+    expect(screen.getByText("Uncertain")).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: title })).toBe(notice);
+    view.rerender(<ViolinPreflight {...props} listening accepted={{ referenceIndex: 0, measurement }} />);
+    expect(screen.getByText("Accepted")).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: title })).toBe(notice);
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it("preserves tolerance, Continue, string skip and optional full-calibration skip behavior", () => {
+    const action = vi.fn(), skip = vi.fn(), toleranceChange = vi.fn();
+    const calibration = createCalibrationSession("advisory", null, 10);
+    const props = { calibration, frequencyHz: null, listening: false, onAction: action, onEnterPractice: vi.fn(), onToleranceChange: toleranceChange, onSkipCalibration: skip };
+    const view = render(<ViolinPreflight {...props} />);
+    const slider = screen.getByRole("slider") as HTMLInputElement;
+    const continueButton = screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
+    const stringSkip = screen.getByRole("button", { name: "Skip String" }) as HTMLButtonElement;
+    const fullSkip = screen.getByRole("button", { name: "Skip Calibration and Start Practice" }) as HTMLButtonElement;
+    expect([slider.value, slider.min, slider.max, slider.step, slider.disabled]).toEqual(["10", "1", "30", "1", false]);
+    expect(continueButton.disabled).toBe(true);
+    fireEvent.click(stringSkip); expect(action.mock.calls).toEqual([["skip"]]);
+    fireEvent.click(fullSkip); expect(skip).toHaveBeenCalledOnce();
+    fireEvent.change(slider, { target: { value: "11" } }); expect(toleranceChange).toHaveBeenCalledWith(11);
+    const measurement = { ...emptyCalibrationMeasurement(), status: "valid" as const, stable: true, tuning: "near-target" as const,
+      medianHz: 197, cents: 8.8, p10Cents: 8, p90Cents: 9 };
+    view.rerender(<ViolinPreflight {...props} calibration={assessCalibration(calibration, measurement)} listening />);
+    expect(slider.disabled).toBe(true); expect(continueButton.disabled).toBe(false);
+    fireEvent.click(continueButton); expect(action).toHaveBeenLastCalledWith("continue");
+    view.rerender(<ViolinPreflight {...props} accepted={{ referenceIndex: 0, measurement }} />);
+    expect(slider.disabled).toBe(true); expect(stringSkip.disabled).toBe(true); expect(continueButton.disabled).toBe(true);
+    expect(fullSkip.disabled).toBe(false);
+    expect(screen.getByText("Tuning preparation")).toBeTruthy();
+    expect(screen.getByText("Accepted confirmation")).toBeTruthy();
+  });
+
+  it("keeps the completed summary and entry flow separate from open-string advice", () => {
+    const enter = vi.fn();
+    render(<ViolinPreflight calibration={{ ...createCalibrationSession("advisory", null, 10), phase: "summary" }} frequencyHz={null}
+      listening={false} onAction={vi.fn()} onEnterPractice={enter} />);
+    expect(screen.queryByRole("complementary", { name: title })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Violin preflight summary" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Enter Piece Practice" })); expect(enter).toHaveBeenCalledOnce();
+  });
+});

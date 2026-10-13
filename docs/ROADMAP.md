@@ -218,3 +218,18 @@ Bounded scalar JSON export is now implemented; broader adaptive coaching, analyt
 Implemented for owner review: saved-piece entries open the existing full-sheet Study View directly from a parsed saved snapshot without editor/draft/save/practice side effects. Session-only Lock Editing fences score and pending-pitch mutations, including physical MIDI, virtual keys, pedal commit, notation/rhythm/context/measure/annotation/tie commands and Undo/Redo. It preserves pending edits/history, starts each newly opened editor unlocked, and leaves other modes and MIDI connection available. Existing library-return confirmation and draft recovery remain authoritative.
 
 Scope ends at these two improvements. Improv rolling notation, Pause/Resume, Returning to an Old Piece and musical analysis remain separate work. No schema, grading, recorder, microphone or tuner change. Physical MIDI timing/pedal QA and assistive-technology/browser-zoom validation remain pending; local automated and simulated browser evidence is recorded in TESTING.md.
+
+## Practice Sessions 2.0 checkpoints (foundation pending review)
+
+1. **Weekly program foundation implemented for review:** independent schema-2 reusable pool, strict import, tested AI/example contract, explicit browser-local definition save, immutable revisions and saved-definition preview. The existing schema-1 daily prescription system stays intact. Working package remains 2.9.21; release version reconciliation is separate from this checkpoint.
+2. **Next dependent checkpoint:** flexible daily pool selection and repeated execution, preserving stable exercise identity separately from attempt identity. Rotations remain recommendations; missed days impose no mandatory work.
+3. **Then:** persisted attempts with exact program revisions/native snapshots, coverage separately from genuine engine measurements and meaningful comparisons across comparable attempts. Weekly history/grades are not implemented today.
+4. **Later:** independently approved, ungraded Guided Improvisation reusing existing capture/replay safeguards. It is not a prerequisite for weekly practice.
+
+Explicit “Import as separate program”, deletion/pruning and program-definition export/backup remain owner decisions for a later checkpoint. The foundation rejects conflicts rather than cloning or clearing data implicitly. [The schema-2 contract](WEEKLY_PROGRAM_V2.md) documents limits and compatibility.
+
+## Practice Sessions 2.0 — Checkpoint 2 pending review
+
+Flexible daily subset selection/order/editing, advisory rotations, native execution, fresh repeats, deliberate selection skips and basic durable attempt history are implemented for owner review. The definition foundation remains separate and intact; v1 imports and daily presets do not migrate. Current/week-date selection shows durable attempts, completed/incomplete work, skips and optional frequency/coverage goals. Missing days remain neutral.
+
+Checkpoint 3 can add defensible comparisons using exact revision/configuration/policy snapshots and native prescribed-boundary summaries. It must distinguish MIDI/virtual/simulation and unknown provenance, and keep coverage separate from quality. Stored summaries are not full performance journals and cannot support invented retroactive metrics. Guided Improvisation remains later and independent. Definition cloning, deletion/pruning/history export/backup and retention management remain owner decisions; no silent deletion or cloud sync exists. Version remains working 2.9.21 pending separate owner reconciliation; staged What's New is unchanged.

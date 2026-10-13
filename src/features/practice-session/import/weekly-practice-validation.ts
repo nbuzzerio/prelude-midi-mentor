@@ -114,6 +114,11 @@ function validateExercise(c: Collector, value: unknown, path: string, context: C
   if (typed === "reading-flow") { enumField(c, value.key, C.melodyKeys, `${path}.key`, withLabel); enumField(c, value.tempoBpm, C.melodyTempos, `${path}.tempoBpm`, withLabel); enumField(c, value.measureCount, C.melodyMeasureCounts, `${path}.measureCount`, withLabel); enumField(c, value.durationMinutes, C.melodyDurations, `${path}.durationMinutes`, withLabel); }
 }
 
+/** Shared reduced-exercise validation; legacy curriculum validation remains unchanged. */
+export function validateWeeklyPracticeExercise(value: unknown, path = "exercise"): readonly WeeklyPracticeValidationIssue[] {
+  const collector = new Collector(); validateExercise(collector, value, path, {}); return collector.issues;
+}
+
 export function validateWeeklyPracticeCurriculum(value: unknown, createId: WeeklyPracticeIdFactory = () => crypto.randomUUID()): WeeklyPracticeValidationResult {
   const c = new Collector();
   if (!isRecord(value)) return { ok: false, issues: [{ severity: "error", code: "invalid-type", path: "curriculum", message: "Expected a curriculum object." }] };

@@ -46,6 +46,10 @@ export function ViolinPreflight({ calibration, frequencyHz, listening, feedback,
           : "Pluck the open string and let it ring. Bowing also works.";
   return <section aria-label="Violin preflight" className="grid gap-2 rounded border border-sky-400/40 p-4">
     <h2 className="min-h-8 text-xl font-semibold">Check open {reference.note}</h2>
+    <aside aria-labelledby={`${toleranceId}-noise-advisory`} className="min-w-0 rounded border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-zinc-200">
+      <h3 id={`${toleranceId}-noise-advisory`} className="font-semibold text-sky-200">Background noise can affect calibration</h3>
+      <p className="mt-1">Steady humming or droning sounds from air conditioners, fans, and appliances can interfere with pitch stability measurements—even when the displayed note looks in tune. If calibration stays Uncertain, try reducing background noise and playing again.</p>
+    </aside>
     {calibration.policyVersion === 4 && <div className="grid min-w-0 gap-1 rounded border border-zinc-600 p-2">
       <label htmlFor={toleranceId} className="text-sm font-semibold">Calibration tolerance: <output className="tabular-nums">±{tolerance} cents</output></label>
       <div className="flex min-w-0 items-center gap-2">
