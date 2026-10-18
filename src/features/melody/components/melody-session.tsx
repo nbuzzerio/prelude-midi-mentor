@@ -1,7 +1,7 @@
 import { DEFAULT_MELODY_CONFIG, melodyConfigToSettings, parseMelodyConfig, type MelodyConfig } from "../melody-config";
 import { requireConfig } from "@/lib/config-validation";
 import { MelodySettingsControls, MelodyPracticeOptions } from "./melody-settings-controls";
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { StaffBuilderScoreView } from "@/features/staff-builder/components/staff-builder-score-view";
@@ -70,6 +70,7 @@ export type MelodySessionHandle = Readonly<{
 export default function MelodySession({
   initialConfig = DEFAULT_MELODY_CONFIG, onPracticeTargetReached, onPracticeResultChange, ref,
   practiceSessionMode = false,
+  hostedStart = false,
   hostedPracticePresentation,
   seedFactory = defaultSeedFactory, createAudioContext = createMelodyBrowserAudioContext, nowMs = defaultNowMs,
 }: Readonly<{
@@ -78,6 +79,8 @@ export default function MelodySession({
   onPracticeTargetReached?: () => void;
   onPracticeResultChange?: (result: MelodyPracticeResultV1) => void;
   practiceSessionMode?: boolean;
+  /** Opt-in start of this acknowledged hosted attempt; standalone stays manual. */
+  hostedStart?: boolean;
   hostedPracticePresentation?: HostedPracticePresentation;
   ref?: Ref<MelodySessionHandle>;
   seedFactory?: () => MelodySeed;
@@ -527,6 +530,18 @@ export default function MelodySession({
     resetReviewPresentation();
     void beginAttempt(exerciseToPerform, { kind: "diagnostic" });
   };
+  const hostedStartConsumed = useRef(false);
+  const startHostedSession = useEffectEvent(() => startContinuousSession());
+  useEffect(() => {
+    if (!practiceSessionMode || !hostedStart) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || hostedStartConsumed.current) return;
+      hostedStartConsumed.current = true;
+      startHostedSession();
+    });
+    return () => { cancelled = true; };
+  }, [practiceSessionMode, hostedStart]);
 
   useImperativeHandle(ref, () => ({
     continuePractice: () => {
@@ -612,6 +627,7 @@ export default function MelodySession({
       <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll" data-measure-count={exercise.measures.length} data-preparatory-measure-count="1" ref={scoreRegionRef} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `minmax(8rem, 0.5fr) repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{score.measures.map((measure, displayIndex) => <StaffBuilderScoreView key={measure.id} measureIndex={displayIndex} playbackPosition={displayMeasureIndex === displayIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} showPreparatoryLeadIn /></div></div>
       {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => continuousPractice ? startContinuousSession() : void start()} type="button">{continuousPractice ? "Start Session" : "Start Exercise"}</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
+      {hostedStart && presentation === "starting" && <div className="space-y-2"><p className="text-sm text-amber-200">If your browser needs another tap to enable audio, continue here. Your saved attempt remains the same.</p><button className="min-h-11 rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => { void audioContextRef.current?.resume().catch(() => setAudioError("Audio is still unavailable. End this exercise and try again when audio is available.")); }} type="button">Enable audio and continue</button></div>}
       {presentation === "count-in" && <p className="text-xl"><strong>Lead-in</strong> · Preparatory rests</p>}
       {presentation === "performing" && <p className="text-xl"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}

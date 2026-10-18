@@ -80,6 +80,7 @@ export default function PracticeSessionBuilder({ active = true, onActiveRunChang
   if (run?.status === "active") return <><PracticeSessionRuntime createExerciseToken={createExerciseToken} dispatch={dispatchRun} now={now} run={run} />{active && status && <p aria-live="polite" className="mx-auto mt-4 w-full max-w-7xl text-sm text-zinc-300" role="status">{status}</p>}</>;
   if (run?.status === "summary") return <PracticeSessionSummary onBack={() => dispatchRun({ type: "CLEAR_RUN" })} run={run} />;
   return <section aria-labelledby="practice-sessions-title" className="mx-auto w-full max-w-7xl text-white">
+    <PracticeProgramLibrary active={active} onBusyChange={setWeeklyBusy} onInputChange={setWeeklyInputActive}>
     <div inert={weeklyBusy || undefined} hidden={weeklyBusy}>
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
       <div className="mr-auto"><h1 className="text-2xl font-bold" id="practice-sessions-title">Practice Sessions</h1><p className="mt-1 text-sm text-zinc-400">Build and save practice-session presets.</p></div>
@@ -90,6 +91,6 @@ export default function PracticeSessionBuilder({ active = true, onActiveRunChang
     {importOpen && <WeeklyPracticeImportDialog createId={createId} library={workingLibrary} onCancel={closeImport} onImport={(library, firstPresetId, title) => { setWorkingLibrary(library); if (firstPresetId) setSelectedPresetId(firstPresetId); setSelectedExerciseId(null); setStatus(`Imported “${title}”. Changes are not saved yet.`); closeImport(); }} />}
     {guideOpen && <WeeklyPracticeGuideDialog onClose={closeGuide} />}
     </div>
-    <PracticeProgramLibrary active={active} onBusyChange={setWeeklyBusy} onInputChange={setWeeklyInputActive} />
+    </PracticeProgramLibrary>
   </section>;
 }

@@ -1,5 +1,5 @@
 import type { EarTrainingConfig } from "../ear-training-config";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef } from "react";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
 import MidiStatus from "@/components/midi/midi-status";
@@ -15,12 +15,14 @@ import EarTrainingControls from "./ear-training-controls";
 import EarTrainingStatsView from "./ear-training-stats";
 import type { EarTrainingPracticeResultV1 } from "../ear-training-practice-result";
 
-export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, onPracticeResultChange, practiceSessionMode = false, hostedPracticePresentation }: Readonly<{
+export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, onPracticeResultChange, practiceSessionMode = false, hostedPracticePresentation, hostedStart = false }: Readonly<{
   initialConfig?: EarTrainingConfig;
   onPracticeUnitCompleted?: () => void;
   onPracticeResultChange?: (result: EarTrainingPracticeResultV1) => void;
   practiceSessionMode?: boolean;
   hostedPracticePresentation?: HostedPracticePresentation;
+  /** Opt-in first prompt after the host has durably acknowledged Start. */
+  hostedStart?: boolean;
 }> = {}) {
   const settings = useEarTrainingSettings(initialConfig);
   const targetOptions = useMemo(() => ({ enabledDirections: settings.enabledDirections, enabledIntervals: settings.enabledIntervals }), [settings.enabledDirections, settings.enabledIntervals]);
@@ -65,6 +67,19 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
     if (!canReplay || feedback === "correct" || promptState === "playing") return;
     void playPrompt(getCurrentTarget());
   }, [canReplay, feedback, getCurrentTarget, playPrompt, promptState]);
+  const hostedStartConsumed = useRef(false);
+  const startHostedPrompt = useEffectEvent(() => playCurrentPrompt());
+  useEffect(() => {
+    if (!practiceSessionMode || !hostedStart) return;
+    let cancelled = false;
+    // Defer past Strict Mode's discarded setup, retaining the native player owner.
+    queueMicrotask(() => {
+      if (cancelled || hostedStartConsumed.current) return;
+      hostedStartConsumed.current = true;
+      startHostedPrompt();
+    });
+    return () => { cancelled = true; };
+  }, [practiceSessionMode, hostedStart]);
   const midi = useAppMidiInput({
     onSustainPedalChanged: (isDown) => {
       if (isDown) playCurrentPrompt();
@@ -93,6 +108,7 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
     {isMobilePlayActive && !isHostedPresentation ? <button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100" onClick={mobilePlay.exitMobilePlay} type="button">Exit Mobile Play</button> : null}
 
     <main className="ear-training-stage min-h-0">
+      {hostedStart && promptState === "failed" && <p className="mb-3 text-sm text-amber-200" role="status">Your browser may need another tap to enable audio. Use Replay Prompt to hear this interval; your saved attempt remains the same.</p>}
       <EarTrainingCard answerIntervals={settings.enabledIntervals} canReplay={canReplay} feedback={feedback} onAnswer={answer} onPlayPrompt={playCurrentPrompt} promptState={promptState} target={target} wrongAnswers={wrongAnswers} />
     </main>
 

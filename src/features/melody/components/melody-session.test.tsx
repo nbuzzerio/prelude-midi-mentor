@@ -65,6 +65,34 @@ describe("MelodySession", () => {
   const frame = () => act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
   const startTimed = () => act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
 
+  it("starts one acknowledged hosted morning session under Strict Mode without another Start action", async () => {
+    const audio = fakeAudio(), createAudioContext = vi.fn(() => audio.context);
+    const view = render(<StrictMode><MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart seedFactory={() => "morning"} /></StrictMode>);
+    await screen.findByText("Lead-in"); expect(createAudioContext).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Start Session" })).toBeNull();
+    view.unmount(); expect(audio.close).toHaveBeenCalledTimes(1);
+    expect(audio.nodes.every(node => node.stop.mock.calls.length > 0)).toBe(true);
+  });
+  it("offers an explicit audio continuation using the same pending context and attempt", async () => {
+    const audio = fakeAudio(), resume: (() => void)[] = [];
+    audio.context.state = "suspended";
+    audio.context.resume.mockImplementation(() => new Promise<undefined>(resolve => { resume.push(() => resolve(undefined)); }));
+    const createAudioContext = vi.fn(() => audio.context);
+    render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart seedFactory={() => "blocked-audio"} />);
+    await screen.findByRole("button", { name: "Enable audio and continue" });
+    fireEvent.click(screen.getByRole("button", { name: "Enable audio and continue" }));
+    await act(async () => { audio.context.state = "running"; resume.forEach(resolve => resolve()); });
+    await screen.findByText("Lead-in"); expect(createAudioContext).toHaveBeenCalledTimes(1);
+    expect(audio.context.resume).toHaveBeenCalledTimes(2);
+  });
+  it("never auto-starts standalone Melody and cancels a discarded hosted setup", async () => {
+    const audio = fakeAudio(), createAudioContext = vi.fn(() => audio.context);
+    const view = render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} hostedStart />);
+    await act(async () => { await Promise.resolve(); }); expect(createAudioContext).not.toHaveBeenCalled(); view.unmount();
+    const hosted = render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart />); hosted.unmount();
+    await act(async () => { await Promise.resolve(); }); expect(createAudioContext).not.toHaveBeenCalled();
+  });
+
   it("suppresses setup controls but preserves the hosted Start action", () => {
     const view = render(<MelodySession initialConfig={timedConfig} seedFactory={() => "hosted"} />);
     expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();

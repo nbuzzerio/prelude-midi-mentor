@@ -20,9 +20,11 @@ type RuntimeProps = Readonly<{
   createExerciseToken: () => string;
   now: () => number;
   allowSkip?: boolean;
+  /** Explicit morning-launch request for this acknowledged attempt only. */
+  hostedStart?: boolean;
 }>;
 
-export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true }: RuntimeProps) {
+export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true, hostedStart = false }: RuntimeProps) {
   const melodyRef = useRef<MelodySessionHandle>(null);
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const exerciseContextRef = useRef<HTMLHeadingElement>(null);
@@ -115,10 +117,10 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
       engine = <SequenceSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} isFocusMode={false} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={unitCompleted} onScaleRepertoireCompleted={entry.target.kind === "complete-scale-repertoire" ? targetReached : undefined} onToggleFocusMode={() => undefined} practiceSessionMode />;
       break;
     case "ear-training":
-      engine = <EarTrainingSession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={unitCompleted} practiceSessionMode />;
+      engine = <EarTrainingSession hostedStart={hostedStart} hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={unitCompleted} practiceSessionMode />;
       break;
     case "melody":
-      engine = <MelodySession hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeTargetReached={targetReached} practiceSessionMode ref={melodyRef} />;
+      engine = <MelodySession hostedStart={hostedStart} hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeTargetReached={targetReached} practiceSessionMode ref={melodyRef} />;
       break;
   }
 

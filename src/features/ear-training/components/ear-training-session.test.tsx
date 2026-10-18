@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
-import { useCallback, useState } from "react";
+import { StrictMode, useCallback, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import EarTrainingSession from "./ear-training-session";
 
@@ -71,6 +71,19 @@ function getStat(label: string): string | null {
 }
 
 describe("EarTrainingSession", () => {
+  it("plays one hosted morning prompt after Strict Mode settles, and cancels on unmount", async () => {
+    const view = render(<StrictMode><EarTrainingSession practiceSessionMode hostedStart /></StrictMode>);
+    await act(async () => { await Promise.resolve(); });
+    expect(mocks.playPrompt).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole("button", { name: "Major third" }) as HTMLButtonElement).disabled).toBe(false);
+    view.unmount(); expect(mocks.cancelPrompt).toHaveBeenCalled();
+  });
+  it("does not auto-play standalone sessions or a cancelled hosted setup", async () => {
+    const standalone = render(<EarTrainingSession hostedStart />);
+    await act(async () => { await Promise.resolve(); }); expect(mocks.playPrompt).not.toHaveBeenCalled(); standalone.unmount();
+    const hosted = render(<EarTrainingSession practiceSessionMode hostedStart />); hosted.unmount();
+    await act(async () => { await Promise.resolve(); }); expect(mocks.playPrompt).not.toHaveBeenCalled();
+  });
   it("starts with a stable unplayed target and replays the same target", () => {
     render(<EarTrainingSession />);
     expect((screen.getByRole("button", { name: "Major third" }) as HTMLButtonElement).disabled).toBe(true);
