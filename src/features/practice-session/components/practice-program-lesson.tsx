@@ -4,7 +4,8 @@ import type { PracticeProgramExecutor, ProgramExecutionState } from "../practice
 import type { PracticeProgramRevision } from "../practice-program-types";
 import { PROGRAM_ATTEMPT_LIMITS } from "../practice-program-attempt";
 import { getPracticeLessonCue } from "../practice-lesson-cues";
-import { PracticeSessionRuntime, PracticeSessionSummary } from "./practice-session-runtime";
+import { PracticeSessionRuntime } from "./practice-session-runtime";
+import PracticeLessonSummary, { LessonExerciseFeedback, LessonNativeDetails } from "./practice-lesson-summary";
 import { useLessonPacing } from "./use-lesson-pacing";
 
 const button = "min-h-11 rounded border border-zinc-600 px-3 py-2 disabled:opacity-40";
@@ -45,7 +46,8 @@ export default function PracticeProgramLesson({ executor, state, active, program
   const midi = useContext(AppMidiContext);
   const result = <>
     <p role="status">{!evidencePending && state.durable?.closed ? `Saved attempt: ${state.durable.outcome}.` : "Attempt ended. Results are awaiting durable save."}</p>
-    {run?.status === "summary" && <details><summary className="min-h-11 cursor-pointer py-3">Detailed native report and printing</summary><div inert={evidencePending || undefined}><PracticeSessionSummary onBack={returnToEntry} run={run} /></div></details>}
+    {!finished && state.durable?.closed && !evidencePending && <LessonExerciseFeedback attempt={state.durable} />}
+    {!finished && run?.status === "summary" && <LessonNativeDetails pending={evidencePending} run={run} />}
   </>;
   return <section aria-label="Today's active piano lesson" className="space-y-3 break-words">
     <header className="flex flex-wrap items-center justify-between gap-2">
@@ -59,10 +61,11 @@ export default function PracticeProgramLesson({ executor, state, active, program
     {finished ? <>
       <h3 className="text-lg font-semibold">{evidencePending ? "Finishing lesson" : "Lesson finished"}</h3>
       <p role="status">{evidencePending ? "Results are awaiting durable save. Keep this tab open and retry saving if needed." : "Unperformed exercises remain unperformed."}</p>
+      <PracticeLessonSummary exercises={program.nativeExercises} pending={evidencePending} state={state} />
       {run?.status === "summary" && result}
       <button className={primary} disabled={evidencePending} onClick={returnToEntry} type="button">Return</button>
     </> : <>
-      {active && !finishRequested && run?.status === "active" && <PracticeSessionRuntime allowSkip={false} hostedStart createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={run.runId} now={executor.now} onPracticeActivityChange={activityChanged} run={run} lesson={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(exercise), nextTitle, disabled, canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, onNext: next, onRepeat: repeat, onFinish: finish }} />}
+      {active && !finishRequested && run?.status === "active" && <PracticeSessionRuntime allowSkip={false} hostedStart createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={run.runId} now={executor.now} onPracticeActivityChange={activityChanged} run={run} lesson={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(exercise), nextTitle, disabled, evidence: state.durable, canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, onNext: next, onRepeat: repeat, onFinish: finish }} />}
       {run?.status === "summary" && <>
         <h3 className="font-semibold">Exercise {state.index + 1} of {state.queue.length} · {exercise?.label}</h3>
         {result}

@@ -19,6 +19,40 @@ function fixture() {
   return { fake, store, executor, event, time: (ms: number) => { clock += ms; wall += ms; } };
 }
 describe("weekly execution adapter", () => {
+  it("retains only this selection's acknowledgements across Next/Repeat/Skip and resets for a second lesson", async () => {
+    const { executor, event, store } = fixture();
+    // A prior manual session on this same program/date must not enter a lesson.
+    executor.select(["exercise-0"]); await executor.start(); executor.stop(); await settle();
+    const manual = executor.getSnapshot().record!; expect(executor.returnToPool()).toBe(true);
+    executor.select(["exercise-0", "exercise-1", "exercise-2"]); await executor.start();
+    const first = executor.getSnapshot().record!; executor.handle(event("UNIT_COMPLETED")); await settle();
+    await executor.advanceLesson("repeat"); await settle();
+    const repeated = executor.getSnapshot().record!; expect(repeated.attemptId).not.toBe(first.attemptId);
+    executor.stop(); await settle(); await executor.advanceLesson("skip");
+    const saved = executor.getSnapshot().acknowledged;
+    expect(saved).toHaveLength(3); expect(saved.some(entry => entry.record.recordId === manual.recordId)).toBe(false);
+    expect(saved.map(entry => entry.record.kind)).toEqual(["attempt", "attempt", "skip"]);
+    expect(saved[0]?.report?.runId).toBe(first.attemptId); expect(saved[1]?.report?.runId).toBe(repeated.attemptId);
+    expect(saved[2]?.report).toBeNull();
+    expect(executor.returnToPool()).toBe(true); executor.select(["exercise-0"]); await executor.start();
+    expect(executor.getSnapshot().acknowledged).toHaveLength(1);
+    expect(executor.getSnapshot().acknowledged[0]?.record.recordId).not.toBe(first.attemptId);
+    expect(await store.list(manual.programId)).toHaveLength(5);
+  });
+  it("does not publish pending/failed terminal or skip writes as acknowledged, and Retry upserts once", async () => {
+    const { executor, event, fake } = fixture(); executor.select(["exercise-0", "exercise-1"]); await executor.start();
+    executor.handle(event("UNIT_COMPLETED")); await settle(); const hold = fake.holdNextCommit();
+    executor.stop(); await settle(); expect(executor.getSnapshot().acknowledged[0]?.record).toMatchObject({ closed: false });
+    expect(executor.getSnapshot().acknowledged[0]?.report).toBeNull();
+    fake.commitError = "QuotaExceededError"; hold.release(); await settle();
+    expect(executor.getSnapshot().acknowledged[0]?.record).toMatchObject({ closed: false });
+    await executor.retry(); expect(executor.getSnapshot().acknowledged).toHaveLength(1);
+    expect(executor.getSnapshot().acknowledged[0]?.record).toMatchObject({ closed: true, outcome: "completed" });
+    executor.next(); fake.commitError = "QuotaExceededError"; await executor.skip();
+    expect(executor.getSnapshot().acknowledged).toHaveLength(1);
+    await executor.retry(); expect(executor.getSnapshot().acknowledged).toHaveLength(2);
+    expect(executor.getSnapshot().acknowledged[1]?.record.kind).toBe("skip");
+  });
   it("does not start an empty queue and preserves order/independent occurrence IDs", async () => {
     const { executor } = fixture(); await executor.start(); expect(executor.getSnapshot().run).toBeNull();
     executor.select(["exercise-2", "exercise-0", "exercise-2"]); const queue = executor.getSnapshot().queue;

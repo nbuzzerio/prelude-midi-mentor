@@ -13,6 +13,8 @@ import {
 import type { PracticeSessionEngineResult } from "../practice-session-engine-result";
 import { PracticeSessionCompletedReport } from "./practice-session-report";
 import { PracticeSessionPrintControls } from "./practice-session-print-report";
+import type { ProgramAttempt } from "../practice-program-attempt";
+import { LessonExerciseFeedback, LessonNativeDetails } from "./practice-lesson-summary";
 
 type RuntimeProps = Readonly<{
   run: ActivePracticeSessionRun;
@@ -26,6 +28,7 @@ type RuntimeProps = Readonly<{
   lesson?: Readonly<{
     position: number; total: number; cue: string; nextTitle?: string; disabled: boolean; canRepeat: boolean;
     onNext: () => void; onRepeat: () => void; onFinish: () => void;
+    evidence?: ProgramAttempt | null;
   }>;
 }>;
 
@@ -39,7 +42,6 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
   const mobilePlay = useMobilePlay();
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [showVirtualKeyboard, setShowVirtualKeyboard] = useState(true);
-  const [showLessonDetails, setShowLessonDetails] = useState(false);
   const [bonusNotice, setBonusNotice] = useState<Readonly<{ token: string; message: string }> | null>(null);
   const entry = run.snapshot.exercises[run.activeExerciseIndex]!;
   const record = run.records[run.records.length - 1]!;
@@ -158,18 +160,19 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
       </div>
       {lesson && (targetComplete || run.completionPresentation === "bonus") && <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
         <p role="status">{targetComplete ? "Target complete. Take a moment before continuing." : "Target complete · Bonus practice"}</p>
+        {targetComplete && lesson.evidence?.attemptId === run.runId && lesson.evidence.outcome === "completed" && <LessonExerciseFeedback attempt={lesson.evidence} />}
         {lesson.nextTitle && <p className="text-sm">Next: {lesson.nextTitle}</p>}
         <div className="flex flex-wrap gap-2">
           <button className="min-h-11 rounded bg-sky-500 px-4 font-semibold disabled:opacity-40" disabled={lesson.disabled} onClick={lesson.nextTitle ? lesson.onNext : lesson.onFinish} ref={completionPrimaryActionRef} type="button">{lesson.nextTitle ? "Next Exercise" : "Finish Lesson"}</button>
           {targetComplete && <button className="min-h-11 rounded border border-zinc-600 px-3 disabled:opacity-40" disabled={lesson.disabled} onClick={keepPlaying} type="button">Keep Playing</button>}
           <button className="min-h-11 rounded border border-zinc-600 px-3 disabled:opacity-40" disabled={lesson.disabled || !lesson.canRepeat} onClick={lesson.onRepeat} type="button">Repeat Exercise</button>
-          {targetComplete && <button aria-expanded={showLessonDetails} className="min-h-11 rounded border border-zinc-600 px-3" onClick={() => setShowLessonDetails(value => !value)} type="button">{showLessonDetails ? "Hide native details" : "Show native details"}</button>}
         </div>
+        {targetComplete && <LessonNativeDetails pending={lesson.disabled} run={run} />}
       </div>}
       {!lesson && run.completionPresentation === "bonus" && <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/10 pt-3"><span className="mr-auto">Target complete · Bonus practice</span><button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={() => advance("ADVANCE")} type="button">{finalExercise ? "Finish Session" : "Next Exercise"}</button></div>}
       {!completionPending && bonusNotice?.token === run.activeExerciseToken && <p className="mt-2 text-sm text-amber-200" role="status">{bonusNotice.message}</p>}
     </header>
-    <div hidden={!!lesson && targetComplete && !showLessonDetails} inert={!!lesson && targetComplete || undefined} className={`practice-session-engine min-h-0${lesson ? " [&>*>header>div:first-child:has(h1)]:hidden [&>*>header]:justify-end" : ""}${mobilePlay.isMobilePlayMode || isFocusMode ? " overflow-hidden" : ""}`} key={`${run.runId}:${run.activeExerciseToken}`}>{engine}</div>
+    <div hidden={!!lesson && targetComplete} inert={!!lesson && targetComplete || undefined} className={`practice-session-engine min-h-0${lesson ? " [&>*>header>div:first-child:has(h1)]:hidden [&>*>header]:justify-end" : ""}${mobilePlay.isMobilePlayMode || isFocusMode ? " overflow-hidden" : ""}`} key={`${run.runId}:${run.activeExerciseToken}`}>{engine}</div>
     </div>
     {completionPending && <div className="practice-session-completion-backdrop fixed inset-0 z-[70] grid place-items-center bg-black/65 p-4">
       <div aria-labelledby="practice-session-completion-title" aria-modal="true" className="w-full max-w-md rounded-xl border border-sky-300/50 bg-zinc-900 p-5 shadow-2xl" onKeyDown={containCompletionFocus} ref={completionDialogRef} role="dialog">

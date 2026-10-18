@@ -82,7 +82,7 @@ An explicitly requested save already in flight may finish after the dialog close
 
 Pure calendar helpers identify a local `YYYY-MM-DD`, weekday and preceding Sunday using calendar-date arithmetic, never a fixed elapsed-millisecond subtraction. The reserved attempt-start attribution value includes local date, Sunday week identity, UTC start instant, IANA timezone (or null if unavailable) and offset minutes east of UTC. Callers must capture these together at the future attempt start; travel, DST or later settings must not reattribute saved attempts. Execution captures this attribution once at Start, before the durable checkpoint; later midnight/travel/timezone changes do not move it.
 
-Flexible selection/repetition and durable attempts tied to exact revisions/native snapshots are now implemented. Defensible comparisons remain Checkpoint 3. Guided Improvisation is a separate later activity and is not required for ordinary weekly practice. Physical musical measurements remain owned by their existing engines.
+Flexible selection/repetition and durable attempts tied to exact revisions/native snapshots are now implemented. Historical comparisons remain deferred to a future owner-approved checkpoint. Daily Piano Lesson Checkpoint 3 supplies current-lesson teaching feedback only. Guided Improvisation is a separate later activity and is not required for ordinary weekly practice. Physical musical measurements remain owned by their existing engines.
 
 ## Daily execution and saved attempts
 
@@ -135,3 +135,22 @@ Reading Flow now shows one large active measure, using the native generated scor
 Staff lines are 18px apart normally and 22px when the virtual keyboard is hidden. Desktop uses the available width rather than splitting it among lead-in and exercise measures. Narrow screens retain legible notation in one horizontal canvas that follows playback; vertical scrolling can still be necessary for music and controls. Hosted Focus provides a sticky control strip including Stop Exercise, Finish Lesson and Exit Focus, with native MIDI/audio continuation controls still reachable. The host owns focus; the redundant hosted Flashcards Focus Staff action is omitted while standalone behavior remains intact.
 
 This is presentation only: program definitions/revisions, exact native snapshots, attempt and occurrence identity, persistence, interruption/recovery, lesson pacing, Next/Repeat/Bonus/Skip/Stop/Finish semantics and source provenance are unchanged. Manual V2, V1/schema-1 and standalone Melody reuse the same improved score window. Physical comfort at the piano remains an owner acceptance check; no new proficiency or historical comparison is inferred.
+
+## Teaching-oriented feedback — Daily Piano Lesson Checkpoint 3
+
+After reaching an exercise target, the lesson shows concise native measurements and a configuration-grounded teaching observation, with Next Exercise (or final Finish Lesson) as the primary action. Stop Exercise retains the truthful terminal outcome. Native detailed diagnostics and Generate Report printing are expandable at target completion and after closure. Keep Playing retains the same attempt and Bonus boundary; Repeat creates a distinct occurrence and attempt.
+
+| Engine | Concise measurements | Available live but omitted from saved scalar evidence |
+| --- | --- | --- |
+| Flashcards | First-try/completed targets, separate incorrect attempts, mean completed-target response, known answer sources | Individual targets, submitted pitches, target-specific response times and unresolved attempts |
+| Sequences | Completed sequences, completed sequences requiring retry, separate incorrect sequence attempts, mean completion, known answer sources | Failed steps, target snapshots, unresolved attempts, individual durations/repertoire identities |
+| Ear Training | First-guess/completed identifications, separate incorrect guesses, mean completed-identification response | Particular intervals/directions, wrong guesses per target and unresolved guesses; input provenance is unknown |
+| Reading Flow | Original diagnostic trial count, available native original Pitch/Timing/Movement averages | Attack/timing/movement detail, Repair retries and interval diagnostics; first-try correctness, response time and input provenance are unavailable |
+
+These are existing native measures. Reading Flow percentages use native partial-credit diagnostics rather than binary note accuracy. Missing measurements are omitted or described as unavailable; no zero is invented. Flashcards/Sequences sources distinguish MIDI, on-screen input and simulation where actually recorded. A connected MIDI device never establishes a particular result's source, and no source label certifies physical piano proficiency.
+
+Feedback uses the acknowledged prescribed `targetMetrics` where available, separately from final `metrics` that can include Bonus. Without a boundary, the aggregate is labelled all recorded work. Native details keep their existing phase interpretation. Count targets show unfinished prescribed units separately from completed-target first-try denominators. Timed completion is not proof of correct playing.
+
+Finish Lesson closes with actual selections in their performed/authored order; it distinguishes completed, stopped early, interrupted, deliberate skips and unperformed work. One supported observation and one short next-time suggestion reuse the frozen configuration cues. The executor retains acknowledged records and temporary native reports in memory for these exact occurrence identities only. Previous manual attempts and another lesson on the same date are excluded without querying history. Reload loses this closing conversation; existing acknowledged attempt history/recovery remains unchanged. There is no persistent lesson archive or lesson ID.
+
+Pending or failed terminal writes still display Finishing lesson, preserve Retry saving, and block Return. Pending explicit skips are not counted as acknowledged skips. Only acknowledged evidence may be described as saved. No historical improvement, specific difficult note/interval, fingering quality, mastery or universal proficiency score is inferred. Historical comparisons and richer diagnostic retention require a future checkpoint. No version/What's New or durable format changes are included.

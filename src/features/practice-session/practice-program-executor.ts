@@ -1,5 +1,5 @@
-import { practiceSessionRunReducer, getPracticeSessionExerciseActiveTime, type PracticeSessionRunState, type PracticeSessionRunEvent } from "./practice-session-runtime";
-import { createProgramRecordBase, programCalendarNow, summarizeProgramMetrics, PROGRAM_ATTEMPT_LIMITS as L, type ProgramAttempt, type ProgramOccurrence, type ProgramSkip } from "./practice-program-attempt";
+import { practiceSessionRunReducer, getPracticeSessionExerciseActiveTime, type PracticeSessionRunState, type PracticeSessionRunEvent, type CompletedPracticeSessionRun } from "./practice-session-runtime";
+import { createProgramRecordBase, programCalendarNow, summarizeProgramMetrics, PROGRAM_ATTEMPT_LIMITS as L, type ProgramAttempt, type ProgramOccurrence, type ProgramSkip, type ProgramHistoryRecord } from "./practice-program-attempt";
 import type { PracticeProgramRevision } from "./practice-program-types";
 import { IndexedDbPracticeAttempts } from "./persistence/practice-attempt-indexeddb";
 import { PracticeAttemptOwnership } from "./persistence/practice-attempt-ownership";
@@ -7,12 +7,14 @@ import { PracticeAttemptOwnership } from "./persistence/practice-attempt-ownersh
 export type ProgramExecutionState = Readonly<{
   queue: readonly ProgramOccurrence[]; index: number; run: PracticeSessionRunState | null;
   record: ProgramAttempt | null; durable: ProgramAttempt | null; saving: boolean; error: string; changed: number;
+  /** Current selection only; never read from history or persisted as a lesson. */
+  acknowledged: readonly Readonly<{ record: ProgramHistoryRecord; report: CompletedPracticeSessionRun | null }>[];
 }>;
 type Store = Pick<IndexedDbPracticeAttempts, "save" | "close">;
 type Options = Readonly<{ store?: Store; ownership?: PracticeAttemptOwnership; createId?: () => string; wallNow?: () => number; clockNow?: () => number }>;
 /** One native single-exercise run per actual attempt. No grading or engine ownership duplication. */
 export class PracticeProgramExecutor {
-  private state: ProgramExecutionState = { queue: [], index: 0, run: null, record: null, durable: null, saving: false, error: "", changed: 0 };
+  private state: ProgramExecutionState = { queue: [], index: 0, run: null, record: null, durable: null, saving: false, error: "", changed: 0, acknowledged: [] };
   private listeners = new Set<() => void>(); private release: (() => void) | null = null;
   private store: Store; private ownership: PracticeAttemptOwnership; private id: () => string;
   private wall: () => number; private clock: () => number; private ownerId: string;
@@ -29,6 +31,11 @@ export class PracticeProgramExecutor {
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private update(patch: Partial<ProgramExecutionState>) { this.state = { ...this.state, ...patch }; for (const listener of this.listeners) listener(); }
+  private acknowledge(record: ProgramHistoryRecord) {
+    const run = this.state.run;
+    const report = record.kind === "attempt" && record.closed && run?.status === "summary" && run.runId === record.attemptId ? run : null;
+    return [...this.state.acknowledged.filter(entry => entry.record.recordId !== record.recordId), { record, report }];
+  }
   private at() { this.lastClock = Math.max(this.lastClock, this.clock()); return this.lastClock; }
   now = () => this.at();
   private wallAt() { return Math.max(this.wall(), this.state.record ? Date.parse(this.state.record.updatedAt) : 0); }
@@ -36,7 +43,7 @@ export class PracticeProgramExecutor {
   select(exerciseIds: readonly string[]) {
     if (this.busy || this.state.run) return;
     if (exerciseIds.length > L.queue || exerciseIds.some(id => !this.program.program.exercises.some(exercise => exercise.id === id))) throw Error("Invalid or oversized exercise queue.");
-    this.update({ queue: exerciseIds.map(exerciseId => ({ exerciseId, occurrenceId: this.id() })), index: 0 });
+    this.update({ queue: exerciseIds.map(exerciseId => ({ exerciseId, occurrenceId: this.id() })), index: 0, acknowledged: [] });
   }
   private snapshot(closed: boolean, interrupted = false): ProgramAttempt {
     const original = this.state.record!; const run = this.state.run; const record = run?.records[0]; const at = this.at();
@@ -66,7 +73,7 @@ export class PracticeProgramExecutor {
       this.release ??= await this.ownership.acquire(record.attemptId);
       if (!this.release) throw Error("Another tab owns this attempt. No engine was started.");
       const durable = await this.store.save(record, null) as ProgramAttempt;
-      this.update({ durable, saving: false, error: "", changed: this.state.changed + 1 });
+      this.update({ durable, acknowledged: this.acknowledge(durable), saving: false, error: "", changed: this.state.changed + 1 });
       if (this.disposed || !this.foreground || foregroundEpoch !== this.foregroundEpoch) { this.update({ record: { ...record, outcome: "interrupted" } }); await this.persist(true, true); return; }
       const run = practiceSessionRunReducer(null, { type: "START_RUN", runId: record.attemptId, firstExerciseToken: record.attemptId, startedAt: this.at(), foreground: true,
         snapshot: { presetId: this.program.programId, presetName: this.program.program.title, exercises: [structuredClone(record.exercise)] } });
@@ -103,7 +110,7 @@ export class PracticeProgramExecutor {
         this.update({ saving: true });
         try {
           const durable = await this.store.save(pending, this.state.durable!.writeVersion) as ProgramAttempt;
-          this.update({ durable, saving: false, error: "", changed: this.state.changed + 1 });
+          this.update({ durable, acknowledged: this.acknowledge(durable), saving: false, error: "", changed: this.state.changed + 1 });
           if (durable.closed) { this.release?.(); this.release = null; this.requested = false; }
         } catch (error) {
           this.freeze(); this.requested = false;
@@ -151,10 +158,10 @@ export class PracticeProgramExecutor {
   }
   private async saveSkip() {
     this.update({ saving: true, error: "" });
-    try { await this.store.save(this.pendingSkip!, null); this.pendingSkip = null; this.update({ saving: false, index: this.state.index + 1, changed: this.state.changed + 1 }); }
+    try { const durable = await this.store.save(this.pendingSkip!, null); this.pendingSkip = null; this.update({ acknowledged: this.acknowledge(durable), saving: false, index: this.state.index + 1, changed: this.state.changed + 1 }); }
     catch (error) { this.update({ saving: false, error: error instanceof Error ? error.message : "Skip evidence is pending. Retry saving." }); }
   }
-  returnToPool() { if (this.busy) return false; this.update({ queue: [], index: 0, run: null, record: null, durable: null }); return true; }
+  returnToPool() { if (this.busy) return false; this.update({ queue: [], index: 0, run: null, record: null, durable: null, acknowledged: [] }); return true; }
   attach() {
     this.attached++; this.epoch++; this.disposed = false;
     const background = () => { if (document.visibilityState === "hidden") this.interrupt(); };

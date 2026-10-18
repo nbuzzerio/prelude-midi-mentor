@@ -1,5 +1,5 @@
 import { StrictMode, forwardRef, useEffect, useImperativeHandle } from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FakeImprovIndexedDb } from "../../improv/persistence/improv-indexeddb-fake";
 import { IndexedDbPracticeAttempts } from "../persistence/practice-attempt-indexeddb";
@@ -7,12 +7,14 @@ import { PracticeProgramExecutor } from "../practice-program-executor";
 import { testProgram, testOwnership } from "../practice-program-test-fixtures";
 import PracticeProgramPractice from "./practice-program-practice";
 import PracticeProgramLesson from "./practice-program-lesson";
+import { appendFlashcardCompletedTarget, createFlashcardPracticeResult } from "@/features/flashcards/flashcard-practice-result";
+import type { PracticeSessionEngineResult } from "../practice-session-engine-result";
 
-type Props = { hostedStart?: boolean; onPracticeUnitCompleted?: () => void; onPracticeTargetReached?: () => void; onScaleRepertoireCompleted?: () => void; onPracticeActivityChange?: (available: boolean) => void };
+type Props = { hostedStart?: boolean; onPracticeUnitCompleted?: () => void; onPracticeTargetReached?: () => void; onScaleRepertoireCompleted?: () => void; onPracticeActivityChange?: (available: boolean) => void; onPracticeResultChange?: (result: PracticeSessionEngineResult) => void };
 function Native(props: Props) {
   const { onPracticeActivityChange } = props;
   useEffect(() => { onPracticeActivityChange?.(true); return () => onPracticeActivityChange?.(false); }, [onPracticeActivityChange]);
-  return <div data-testid="native" data-start={String(props.hostedStart)}><button onClick={props.onPracticeUnitCompleted}>unit</button><button onClick={props.onPracticeTargetReached ?? props.onScaleRepertoireCompleted}>target</button></div>;
+  return <div data-testid="native" data-start={String(props.hostedStart)}><button onClick={props.onPracticeUnitCompleted}>unit</button><button onClick={props.onPracticeTargetReached ?? props.onScaleRepertoireCompleted}>target</button><button onClick={() => props.onPracticeResultChange?.(appendFlashcardCompletedTarget(createFlashcardPracticeResult(), { target: { id: "fixture", kind: "note", clef: "treble", name: { primary: "C" }, expectedPitches: [{ midiNumber: 60, name: "C", octave: 4 }] }, source: "simulation", submittedMidiNumbers: [60], responseDurationMs: 2100 }))}>native evidence</button></div>;
 }
 vi.mock("@/features/flashcards/components/flashcard-session", () => ({ default: Native }));
 vi.mock("@/features/sequences/components/sequence-session", () => ({ default: Native }));
@@ -33,6 +35,34 @@ function fixture(ids = ["exercise-0", "exercise-2", "exercise-8"], initiallyActi
 }
 const rows = () => new IndexedDbPracticeAttempts(fake.factory).list(testProgram().programId);
 async function complete() { fireEvent.click(screen.getByRole("button", { name: "unit" })); await waitFor(() => expect((screen.getByRole("button", { name: "Next Exercise" }) as HTMLButtonElement).disabled).toBe(false)); }
+
+it("presents acknowledged native feedback at target completion and retains it after moving on", async () => {
+  fixture(); await screen.findByTestId("native"); fireEvent.click(screen.getByRole("button", { name: "native evidence" })); await complete();
+  const feedback = screen.getByLabelText("Exercise teaching feedback");
+  expect(within(feedback).getByText("1 of 1 completed targets were correct on the first attempt.")).toBeTruthy();
+  expect(within(feedback).getByText("Average completed-target response: 2.1 seconds.")).toBeTruthy();
+  expect(within(feedback).getByText("Recorded answer sources: simulation.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Next Exercise" })); await screen.findByText(/Exercise 2 of 3/);
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); await screen.findByText("Lesson finished");
+  const summary = screen.getByLabelText("Lesson teaching summary");
+  expect(within(summary).getByText("1 completed · 1 stopped early · 1 unperformed")).toBeTruthy();
+  expect(within(summary).getByText("Note Recognition (prescribed target): 1 of 1 completed targets were correct on the first attempt.")).toBeTruthy();
+  fireEvent.click(screen.getByText("Exercise results and native reports"));
+  expect(within(summary).getByText("1 of 1 completed targets were correct on the first attempt.")).toBeTruthy();
+});
+
+it("retains failed skip evidence as pending until Retry acknowledges the explicit skip", async () => {
+  const f = fixture(); await screen.findByTestId("native"); await complete();
+  act(() => f.executor.stop()); await screen.findByText("Saved attempt: completed.");
+  fake.commitError = "QuotaExceededError"; fireEvent.click(screen.getByRole("button", { name: /^Skip Exercise:/ }));
+  await screen.findByRole("alert");
+  expect(f.executor.getSnapshot().acknowledged.some(entry => entry.record.kind === "skip")).toBe(false);
+  expect((screen.getByRole("button", { name: "Return" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Retry saving" }));
+  await waitFor(() => expect(screen.getByText(/Exercise 3 of 3/)).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); await screen.findByText("Lesson finished");
+  expect(screen.getByText("1 completed · 1 deliberately skipped · 1 unperformed")).toBeTruthy();
+});
 
 it("retains an inactive initial launch until activation and starts once under Strict Mode", async () => {
   const f = fixture(undefined, false); expect(await rows()).toEqual([]); expect(screen.queryByTestId("native")).toBeNull();
