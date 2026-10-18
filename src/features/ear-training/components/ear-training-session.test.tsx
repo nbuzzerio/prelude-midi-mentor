@@ -72,11 +72,14 @@ function getStat(label: string): string | null {
 
 describe("EarTrainingSession", () => {
   it("plays one hosted morning prompt after Strict Mode settles, and cancels on unmount", async () => {
-    const view = render(<StrictMode><EarTrainingSession practiceSessionMode hostedStart /></StrictMode>);
+    const activity = vi.fn();
+    const view = render(<StrictMode><EarTrainingSession practiceSessionMode hostedStart onPracticeActivityChange={activity} /></StrictMode>);
+    expect(activity).toHaveBeenLastCalledWith(false);
     await act(async () => { await Promise.resolve(); });
     expect(mocks.playPrompt).toHaveBeenCalledTimes(1);
+    expect(activity).toHaveBeenLastCalledWith(true);
     expect((screen.getByRole("button", { name: "Major third" }) as HTMLButtonElement).disabled).toBe(false);
-    view.unmount(); expect(mocks.cancelPrompt).toHaveBeenCalled();
+    view.unmount(); expect(mocks.cancelPrompt).toHaveBeenCalled(); expect(activity).toHaveBeenLastCalledWith(false);
   });
   it("does not auto-play standalone sessions or a cancelled hosted setup", async () => {
     const standalone = render(<EarTrainingSession hostedStart />);

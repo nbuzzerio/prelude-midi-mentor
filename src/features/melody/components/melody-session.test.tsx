@@ -74,16 +74,19 @@ describe("MelodySession", () => {
     expect(audio.nodes.every(node => node.stop.mock.calls.length > 0)).toBe(true);
   });
   it("offers an explicit audio continuation using the same pending context and attempt", async () => {
-    const audio = fakeAudio(), resume: (() => void)[] = [];
+    const audio = fakeAudio(), resume: (() => void)[] = [], activity = vi.fn();
     audio.context.state = "suspended";
     audio.context.resume.mockImplementation(() => new Promise<undefined>(resolve => { resume.push(() => resolve(undefined)); }));
     const createAudioContext = vi.fn(() => audio.context);
-    render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart seedFactory={() => "blocked-audio"} />);
+    const view = render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart onPracticeActivityChange={activity} seedFactory={() => "blocked-audio"} />);
     await screen.findByRole("button", { name: "Enable audio and continue" });
+    expect(activity).toHaveBeenLastCalledWith(false);
     fireEvent.click(screen.getByRole("button", { name: "Enable audio and continue" }));
     await act(async () => { audio.context.state = "running"; resume.forEach(resolve => resolve()); });
     await screen.findByText("Lead-in"); expect(createAudioContext).toHaveBeenCalledTimes(1);
+    expect(activity).toHaveBeenLastCalledWith(true);
     expect(audio.context.resume).toHaveBeenCalledTimes(2);
+    view.unmount(); expect(activity).toHaveBeenLastCalledWith(false);
   });
   it("never auto-starts standalone Melody and cancels a discarded hosted setup", async () => {
     const audio = fakeAudio(), createAudioContext = vi.fn(() => audio.context);

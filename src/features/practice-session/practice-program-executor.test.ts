@@ -88,4 +88,67 @@ describe("weekly execution adapter", () => {
     const rows = await new IndexedDbPracticeAttempts(fake.factory).list(testProgram().programId); expect(rows[0]).toMatchObject({ closed: true, outcome: "interrupted" }); expect(executor.getSnapshot().run).toBeNull();
     await expect(store.list(testProgram().programId)).rejects.toMatchObject({ reason: "closed" });
   });
+  it("acknowledges the terminal result before one Next starts the next authored selection", async () => {
+    const { executor, event, fake, store } = fixture(); executor.select(["exercise-0", "exercise-2", "exercise-1"]); await executor.start();
+    executor.handle(event("UNIT_COMPLETED")); await settle();
+    const first = executor.getSnapshot().record!, hold = fake.holdNextCommit();
+    const next = executor.advanceLesson("next"); await settle();
+    expect(executor.getSnapshot().run?.status).toBe("summary"); expect(executor.getSnapshot().index).toBe(0);
+    await executor.advanceLesson("next"); expect(executor.getSnapshot().queue).toHaveLength(3);
+    hold.release(); await next;
+    expect(executor.getSnapshot().record).toMatchObject({ exerciseId: "exercise-2", exercise: testProgram().nativeExercises[2] });
+    expect((await store.list(first.programId)).find(row => row.recordId === first.recordId)).toMatchObject({ closed: true, outcome: "completed" });
+    expect(await store.list(first.programId)).toHaveLength(2);
+  });
+  it("blocks Next on a failed terminal write, retrying evidence without automatic progression", async () => {
+    const { executor, fake, event } = fixture(); executor.select(["exercise-0", "exercise-1"]); await executor.start();
+    executor.handle(event("UNIT_COMPLETED")); await settle(); fake.commitError = "QuotaExceededError";
+    await executor.advanceLesson("next"); expect(executor.getSnapshot().error).toBeTruthy(); expect(executor.getSnapshot().index).toBe(0);
+    await executor.advanceLesson("next"); expect(executor.getSnapshot().index).toBe(0);
+    await executor.retry(); expect(executor.getSnapshot().durable?.closed).toBe(true); expect(executor.getSnapshot().index).toBe(0);
+    await executor.advanceLesson("next"); expect(executor.getSnapshot().record?.exerciseId).toBe("exercise-1");
+  });
+  it("keeps Bonus identity and guards rapid Repeat with distinct new occurrence/attempt IDs", async () => {
+    const { executor, event, store } = fixture(); executor.select(["exercise-0", "exercise-1"]); await executor.start();
+    const first = executor.getSnapshot().record!; executor.handle(event("UNIT_COMPLETED")); await settle();
+    executor.handle(event("KEEP_PLAYING")); executor.handle(event("UNIT_COMPLETED")); await settle();
+    await Promise.all([executor.advanceLesson("repeat"), executor.advanceLesson("repeat")]); await settle();
+    expect(executor.getSnapshot().queue).toHaveLength(3); const repeated = executor.getSnapshot().record!;
+    expect(repeated.occurrenceId).not.toBe(first.occurrenceId); expect(repeated.attemptId).not.toBe(first.attemptId);
+    expect(await store.list(first.programId)).toEqual(expect.arrayContaining([expect.objectContaining({ attemptId: first.attemptId, bonusUnits: 1 })]));
+  });
+  it("skips only a deliberately selected unstarted next exercise and leaves others unperformed", async () => {
+    const { executor, event, store } = fixture(); executor.select(["exercise-0", "exercise-1", "exercise-2", "exercise-3"]); await executor.start();
+    executor.handle(event("UNIT_COMPLETED")); await settle(); await executor.advanceLesson("skip");
+    expect(executor.getSnapshot().index).toBe(2); expect(executor.getSnapshot().run).toBeNull();
+    await executor.advanceLesson("next"); executor.stop(); await settle();
+    const rows = await store.list(testProgram().programId);
+    expect(rows).toHaveLength(3); expect(rows.filter(row => row.kind === "skip")).toEqual([expect.objectContaining({ exerciseId: "exercise-1" })]);
+    expect(rows.find(row => row.exerciseId === "exercise-2")).toMatchObject({ outcome: "stopped-early", closed: true });
+    expect(rows.some(row => row.exerciseId === "exercise-3")).toBe(false);
+  });
+  it("cancels a delayed transition after navigation even if foreground returns before acknowledgement", async () => {
+    const { executor, event, fake } = fixture(); executor.select(["exercise-0", "exercise-1"]); await executor.start();
+    executor.handle(event("UNIT_COMPLETED")); await settle(); const hold = fake.holdNextCommit(), pending = executor.advanceLesson("next"); await settle();
+    executor.setForeground(false); executor.setForeground(true); hold.release(); await pending;
+    expect(executor.getSnapshot().index).toBe(0); expect(executor.getSnapshot().durable?.closed).toBe(true);
+  });
+  it("honors the queue maximum for lesson Repeat and permits a single/empty queue", async () => {
+    const { executor, event } = fixture(); await executor.advanceLesson("next"); expect(executor.getSnapshot().record).toBeNull();
+    executor.select(Array(100).fill("exercise-0")); await executor.start(); executor.handle(event("UNIT_COMPLETED")); await settle();
+    await executor.advanceLesson("repeat"); expect(executor.getSnapshot().queue).toHaveLength(100); expect(executor.getSnapshot().index).toBe(0);
+  });
+  it.each(["start", "next"] as const)("fences browser background during delayed %s even when visibility returns before acknowledgement", async action => {
+    const { executor, event, fake } = fixture(); executor.select(["exercise-0", "exercise-1"]);
+    if (action === "next") { await executor.start(); executor.handle(event("UNIT_COMPLETED")); await settle(); }
+    const hold = fake.holdNextCommit(), pending = action === "start" ? executor.start() : executor.advanceLesson("next"); await settle();
+    const visibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    try {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }); document.dispatchEvent(new Event("visibilitychange"));
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" }); document.dispatchEvent(new Event("visibilitychange"));
+      hold.release(); await pending; await settle();
+      expect(executor.getSnapshot().index).toBe(0); expect(executor.getSnapshot().durable?.closed).toBe(true);
+      if (action === "start") { expect(executor.getSnapshot().run).toBeNull(); expect(executor.getSnapshot().durable?.outcome).toBe("interrupted"); }
+    } finally { if (visibility) Object.defineProperty(document, "visibilityState", visibility); else Reflect.deleteProperty(document, "visibilityState"); }
+  });
 });

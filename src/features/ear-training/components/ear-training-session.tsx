@@ -15,10 +15,11 @@ import EarTrainingControls from "./ear-training-controls";
 import EarTrainingStatsView from "./ear-training-stats";
 import type { EarTrainingPracticeResultV1 } from "../ear-training-practice-result";
 
-export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, onPracticeResultChange, practiceSessionMode = false, hostedPracticePresentation, hostedStart = false }: Readonly<{
+export default function EarTrainingSession({ initialConfig, onPracticeUnitCompleted, onPracticeResultChange, onPracticeActivityChange, practiceSessionMode = false, hostedPracticePresentation, hostedStart = false }: Readonly<{
   initialConfig?: EarTrainingConfig;
   onPracticeUnitCompleted?: () => void;
   onPracticeResultChange?: (result: EarTrainingPracticeResultV1) => void;
+  onPracticeActivityChange?: (available: boolean) => void;
   practiceSessionMode?: boolean;
   hostedPracticePresentation?: HostedPracticePresentation;
   /** Opt-in first prompt after the host has durably acknowledged Start. */
@@ -62,6 +63,12 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
     resetPrompt,
   });
   const previousSettingsRef = useRef(targetOptions);
+  useEffect(() => {
+    if (!practiceSessionMode) return;
+    // Conservatively begin pacing only once the native prompt has completed.
+    onPracticeActivityChange?.(promptState === "heard");
+    return () => onPracticeActivityChange?.(false);
+  }, [practiceSessionMode, promptState, onPracticeActivityChange]);
 
   const playCurrentPrompt = useCallback(() => {
     if (!canReplay || feedback === "correct" || promptState === "playing") return;

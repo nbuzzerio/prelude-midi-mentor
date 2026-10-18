@@ -19,6 +19,8 @@ export class PracticeProgramExecutor {
   private attached = 0; private epoch = 0; private disposed = false; private foreground = true;
   private writing: Promise<void> | null = null; private requested = false; private pendingSkip: ProgramSkip | null = null;
   private starting: Promise<void> | null = null;
+  private lessonTransition = false;
+  private foregroundEpoch = 0;
   private timer: ReturnType<typeof setInterval> | null = null; private lastClock = 0;
   constructor(public readonly program: PracticeProgramRevision, options: Options = {}) {
     this.store = options.store ?? new IndexedDbPracticeAttempts(); this.ownership = options.ownership ?? new PracticeAttemptOwnership();
@@ -59,13 +61,13 @@ export class PracticeProgramExecutor {
     this.starting = this.saveStart().finally(() => { this.starting = null; }); await this.starting;
   }
   private async saveStart() {
-    const record = this.state.record!;
+    const record = this.state.record!, foregroundEpoch = this.foregroundEpoch;
     try {
       this.release ??= await this.ownership.acquire(record.attemptId);
       if (!this.release) throw Error("Another tab owns this attempt. No engine was started.");
       const durable = await this.store.save(record, null) as ProgramAttempt;
       this.update({ durable, saving: false, error: "", changed: this.state.changed + 1 });
-      if (this.disposed || !this.foreground) { this.update({ record: { ...record, outcome: "interrupted" } }); await this.persist(true, true); return; }
+      if (this.disposed || !this.foreground || foregroundEpoch !== this.foregroundEpoch) { this.update({ record: { ...record, outcome: "interrupted" } }); await this.persist(true, true); return; }
       const run = practiceSessionRunReducer(null, { type: "START_RUN", runId: record.attemptId, firstExerciseToken: record.attemptId, startedAt: this.at(), foreground: true,
         snapshot: { presetId: this.program.programId, presetName: this.program.program.title, exercises: [structuredClone(record.exercise)] } });
       this.update({ run });
@@ -87,7 +89,7 @@ export class PracticeProgramExecutor {
     if (run?.status !== "active") return;
     this.update({ run: practiceSessionRunReducer(run, { type: "END", runId: run.runId, exerciseId: run.snapshot.exercises[0]!.id, exerciseToken: run.activeExerciseToken, endedAt: this.at() }) });
   }
-  interrupt = () => { if (this.state.run?.status === "active") { this.freeze(); void this.persist(true, true); } };
+  interrupt = () => { this.foregroundEpoch++; if (this.state.run?.status === "active") { this.freeze(); void this.persist(true, true); } };
   setForeground(value: boolean) { this.foreground = value; if (!value) this.interrupt(); }
   private persist(closed: boolean, interrupted = false): Promise<void> {
     if (!this.state.durable || this.state.durable.closed) return Promise.resolve();
@@ -119,6 +121,23 @@ export class PracticeProgramExecutor {
     await this.persist(this.state.record!.closed, this.state.record!.outcome === "interrupted");
   }
   next() { if (this.busy || this.state.run?.status !== "summary") return; this.update({ index: this.state.index + 1, run: null, record: null, durable: null }); }
+  /** Lesson convenience only: the existing terminal/start transactions still own all evidence. */
+  async advanceLesson(action: "next" | "repeat" | "skip") {
+    if (this.lessonTransition || this.disposed || !this.foreground || this.state.saving || this.state.error) return;
+    if (action === "repeat" && this.state.queue.length >= L.queue) return;
+    const origin = this.state.run?.runId, foregroundEpoch = this.foregroundEpoch;
+    if (this.state.run?.status === "active" && !this.state.run.records[0]!.targetAchieved) return;
+    this.lessonTransition = true;
+    try {
+      if (this.state.run?.status === "active") { this.freeze(); await this.persist(true); }
+      if (this.disposed || !this.foreground || foregroundEpoch !== this.foregroundEpoch || this.busy || this.state.run?.runId !== origin) return;
+      if (action === "repeat") { this.repeat(); return; }
+      if (this.state.run?.status === "summary") this.next();
+      if (action === "skip") await this.skip(); else await this.start();
+    } finally { this.lessonTransition = false; }
+  }
+  /** Graceful performed stop; never creates skip evidence for remaining selections. */
+  stop() { this.foregroundEpoch++; if (this.state.run?.status === "active") { this.freeze(); void this.persist(true); } }
   repeat() {
     if (this.busy || this.state.run?.status !== "summary" || this.state.queue.length >= L.queue) return;
     const queue = [...this.state.queue]; queue.splice(this.state.index + 1, 0, { exerciseId: this.state.record!.exerciseId, occurrenceId: this.id() });

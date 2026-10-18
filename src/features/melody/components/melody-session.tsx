@@ -68,7 +68,7 @@ export type MelodySessionHandle = Readonly<{
 }>;
 
 export default function MelodySession({
-  initialConfig = DEFAULT_MELODY_CONFIG, onPracticeTargetReached, onPracticeResultChange, ref,
+  initialConfig = DEFAULT_MELODY_CONFIG, onPracticeTargetReached, onPracticeResultChange, onPracticeActivityChange, ref,
   practiceSessionMode = false,
   hostedStart = false,
   hostedPracticePresentation,
@@ -78,6 +78,7 @@ export default function MelodySession({
   /** Timed practice only: delivered after final evidence and achievement commit. */
   onPracticeTargetReached?: () => void;
   onPracticeResultChange?: (result: MelodyPracticeResultV1) => void;
+  onPracticeActivityChange?: (available: boolean) => void;
   practiceSessionMode?: boolean;
   /** Opt-in start of this acknowledged hosted attempt; standalone stays manual. */
   hostedStart?: boolean;
@@ -91,6 +92,11 @@ export default function MelodySession({
   const [settings, setSettings] = useState<MelodySettings>(() => melodyConfigToSettings(mountConfig));
   const [exercise, setExercise] = useState<MelodyExercise>(() => generateMelodyExercise(settings, seedFactory()));
   const [presentation, setPresentation] = useState<MelodyPresentationState>("setup");
+  useEffect(() => {
+    if (!practiceSessionMode) return;
+    onPracticeActivityChange?.(presentation === "count-in" || presentation === "performing");
+    return () => onPracticeActivityChange?.(false);
+  }, [practiceSessionMode, presentation, onPracticeActivityChange]);
   const [result, setResult] = useState<MelodyAttemptResult | null>(null);
   const [statusMessage, setStatusMessage] = useState("Ready to start.");
   const [audioError, setAudioError] = useState<string | null>(null);

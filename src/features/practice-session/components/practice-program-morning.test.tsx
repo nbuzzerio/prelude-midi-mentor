@@ -91,7 +91,7 @@ describe("one-action morning launch through the existing V2 owner", () => {
     const f = await fixture(); render(f.tree()); await ready();
     const second = program(2, ["exercise-8", "exercise-0"]), store = f.createStore(); await store.save(second, 1, true);
     fireEvent.click(await ready()); await screen.findByTestId("native");
-    expect(screen.getByText(/Current revision 2/)).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Today's active piano lesson" }).textContent).toContain("Revision 2");
     await waitFor(() => expect(screen.getByTestId("native").getAttribute("data-hosted-start")).toBe("true"));
     const config = screen.getByTestId("native").getAttribute("data-config");
     await store.save(program(3), 2, true); store.close();
@@ -107,8 +107,8 @@ describe("one-action morning launch through the existing V2 owner", () => {
     const f = await fixture(); render(f.tree()); const legacy = screen.getByTestId("legacy");
     fireEvent.click(await ready()); await screen.findByTestId("native");
     expect(screen.getByTestId("legacy")).toBe(legacy); expect(legacy.closest("[hidden]")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "End Session" })); await screen.findByText(/Saved attempt: stopped-early/);
-    fireEvent.click(screen.getByRole("button", { name: "Return to exercise pool" })); fireEvent.click(screen.getByRole("button", { name: "Back to definitions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop Exercise" })); await screen.findByText(/Saved attempt: stopped-early/);
+    fireEvent.click(screen.getByRole("button", { name: "Return" }));
     await ready(); expect(screen.getByTestId("legacy")).toBe(legacy); expect(legacy.closest("[hidden]")).toBeNull();
   });
   it("uses manual selection for a missing rotation without inventing attempts", async () => {
@@ -133,13 +133,13 @@ describe("one-action morning launch through the existing V2 owner", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Use Flexible foundations for today's lesson" }));
     fireEvent.click(await ready()); await screen.findByTestId("native"); expect(await rows()).toHaveLength(1);
   });
-  it("does not replay the morning native activation when Repeat creates a fresh attempt", async () => {
+  it("scopes hosted activation to each fresh lesson Repeat attempt", async () => {
     const source = program(1, ["exercise-8"]), f = await fixture(source.programId, source); render(f.tree());
     fireEvent.click(await ready()); await screen.findByTestId("native");
     await waitFor(() => expect(screen.getByTestId("native").getAttribute("data-hosted-start")).toBe("true"));
-    fireEvent.click(screen.getByRole("button", { name: "End Session" })); await screen.findByText(/Saved attempt: stopped-early/);
-    fireEvent.click(screen.getByRole("button", { name: "Repeat exercise (new attempt)" })); await screen.findByTestId("native");
-    expect(screen.getByTestId("native").getAttribute("data-hosted-start")).toBe("false"); expect(await rows()).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Stop Exercise" })); await screen.findByText(/Saved attempt: stopped-early/);
+    fireEvent.click(screen.getByRole("button", { name: "Repeat Exercise" })); await screen.findByTestId("native");
+    expect(screen.getByTestId("native").getAttribute("data-hosted-start")).toBe("true"); expect(await rows()).toHaveLength(2);
   });
   it("reports unavailable definitions and allows an explicit retry", async () => {
     const f = await fixture(); const list = vi.spyOn(IndexedDbPracticePrograms.prototype, "list"); list.mockRejectedValueOnce(Error("Definitions unavailable"));
