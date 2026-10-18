@@ -27,6 +27,18 @@ button {
 .melody-count-guide { width: 100%; }
 .melody-count-guide span { white-space: nowrap; }
 .melody-score-scroll:focus-visible { outline: 3px solid rgb(125 211 252); outline-offset: -3px; }
+/* Reading Flow alone opts into a music-stand viewport. The editor/report defaults stay above. */
+.melody-active-score-region { overflow: visible; min-width: 0; }
+.melody-active-score { display: flex; flex-direction: column; min-width: 0; gap: 0.4rem; }
+.melody-active-measure-title { margin: 0; min-height: 1.5rem; font-size: 1rem; font-weight: 600; }
+.melody-active-score .staff-builder-score-view { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
+.melody-active-score .staff-builder-score-interaction-plane { min-width: 0; flex: 1; display: flex; }
+.melody-active-score .staff-builder-notation-scroll { display: flex; align-items: center; width: 100%; min-width: 0; min-height: 22rem; overflow-x: auto; overscroll-behavior-inline: contain; }
+.melody-active-score[data-expanded="true"] .staff-builder-notation-scroll { min-height: 27rem; }
+.melody-active-score .staff-builder-notation-presentation { min-width: 0; flex: 0 0 auto; }
+.melody-connection-controls { display: flex; justify-content: flex-end; }
+.melody-play-status { margin: 0; min-height: 1.5rem; }
+.melody-practice > p { margin: 0; font-size: 0.875rem; }
 .melody-keyboard { min-width: 0; padding-bottom: max(0rem, env(safe-area-inset-bottom)); }
 .melody-keyboard .piano-keyboard { touch-action: none; user-select: none; -webkit-user-select: none; }
 .melody-keyboard .piano-keyboard button { touch-action: none; }
@@ -778,6 +790,17 @@ button {
   min-height: 0;
   max-height: 15rem;
 }
+
+/* Melody's notation must retain its readable size; short Focus views scroll vertically once. */
+.practice-session-shell[data-engine="melody"]:is(.practice-session-focus,.practice-session-mobile-play) { display: flex; flex-direction: column; overflow-y: auto; }
+.practice-session-shell[data-engine="melody"] .practice-session-strip { flex: 0 0 auto; max-height: none !important; overflow-y: visible !important; }
+.practice-session-shell[data-engine="melody"]:is(.practice-session-focus,.practice-session-mobile-play) .practice-session-strip { position: sticky; top: 0; z-index: 30; }
+.practice-session-shell[data-engine="melody"]:is(.practice-session-focus,.practice-session-mobile-play) .practice-session-engine { flex: 1 0 auto; height: auto; overflow: visible; }
+.melody-mobile-play:is(.melody-session-setup,.melody-session-starting,.melody-session-count-in,.melody-session-performing) { overflow: visible; height: auto; min-height: 100%; }
+.melody-mobile-play .melody-practice { overflow: visible; flex: 1 0 auto; }
+.melody-mobile-play .melody-active-score-region { overflow: visible; flex: 1 0 auto; }
+.melody-mobile-play .melody-active-score { height: 100%; }
+.melody-mobile-play .melody-keyboard { flex: 0 0 auto; max-height: 12rem; }
 
 .practice-session-completion-backdrop {
   padding-top: max(1rem, env(safe-area-inset-top));

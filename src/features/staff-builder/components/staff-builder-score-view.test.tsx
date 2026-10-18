@@ -71,6 +71,24 @@ function priorityScore(): StaffBuilderScore {
 afterEach(() => { cleanup(); renderMeasure.mockClear(); vi.unstubAllGlobals(); });
 
 describe("StaffBuilderScoreView", () => {
+  it("opts into responsive reading geometry and follows playback without changing default editor layout", () => {
+    let resize = () => {}; let width = 1000;
+    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
+    vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() {} });
+    try {
+      const current = score(), view = render(<StaffBuilderScoreView score={current} measureIndex={0} readingFlow="normal" playbackPosition={{ offsetTicks: 480 }} />);
+      expect(renderMeasure.mock.lastCall?.[3]).toMatchObject({ readingFlowWidth: 555 });
+      expect(view.container.querySelector<HTMLElement>('.staff-builder-notation-canvas')?.style.transform).toBe("scale(1.8)");
+      width = 300; act(() => resize());
+      expect(renderMeasure.mock.lastCall?.[3]).toMatchObject({ readingFlowWidth: 440 });
+      expect(view.container.querySelector('.staff-builder-notation-scroll')!.scrollLeft).toBeGreaterThan(0);
+      view.rerender(<StaffBuilderScoreView score={current} measureIndex={1} readingFlow="expanded" />);
+      expect(view.container.querySelector<HTMLElement>('.staff-builder-notation-canvas')?.style.transform).toBe("scale(2.2)");
+      expect(view.container.querySelector('.staff-builder-notation-scroll')!.scrollLeft).toBe(0);
+      view.rerender(<StaffBuilderScoreView score={current} measureIndex={1} />);
+      expect(renderMeasure.mock.lastCall?.[3]).toMatchObject({ readingFlowWidth: undefined });
+    } finally { clientWidth.mockRestore(); }
+  });
   it("shows aggregated measure and event indicators only for visible annotation layers", async () => {
     const current = { ...score(), annotations: [
       { id: "m-note-1", kind: "study-note" as const, anchor: { kind: "measure" as const, measureId: "m1" }, text: "First" },

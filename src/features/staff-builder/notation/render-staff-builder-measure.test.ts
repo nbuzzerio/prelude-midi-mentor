@@ -3,6 +3,9 @@ import { Accidental, Beam, Dot, Formatter, Stave, StaveConnector, StaveNote, Sta
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { renderStaffBuilderMeasure } from "./render-staff-builder-measure";
 import { projectStaffBuilderPendingPreview } from "./staff-builder-notation";
+import { generateMelodyExercise } from "@/features/melody/melody-generator";
+import { DEFAULT_MELODY_SETTINGS } from "@/features/melody/melody-types";
+import { projectMelodyExerciseToPracticeDisplayScore } from "@/features/melody/melody-display-score";
 
 function score(): StaffBuilderScore {
   return {
@@ -61,6 +64,31 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it.each(["treble", "bass"] as const)("fits unchanged %s Reading Flow events and signatures at the minimum internal width", staff => {
+    for (const keyId of ["c-major", "g-major", "f-major", "a-minor", "d-minor"] as const) {
+      const exercise = generateMelodyExercise({ ...DEFAULT_MELODY_SETTINGS, staff, keyId, measureCount: 2 }, `reading-${staff}-${keyId}`);
+      const current = projectMelodyExerciseToPracticeDisplayScore(exercise), before = structuredClone(current);
+      for (let index = 0; index < current.measures.length; index++) {
+        const container = document.createElement("div"), result = renderStaffBuilderMeasure(container, current, index, { visibleStaff: staff, readingFlowWidth: 440 });
+        expect(result.width).toBe(440); expect(result.height).toBeLessThan(220);
+        expect([...result.anchors.authoritativeEvents.keys()]).toEqual(current.measures[index]!.events.map(event => event.id));
+        for (const anchor of result.anchors.events.values()) {
+          const bounds = anchor.highlightBounds ?? anchor;
+          expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(result.width);
+          expect(bounds.y).toBeGreaterThanOrEqual(0); expect(bounds.y + bounds.height).toBeLessThanOrEqual(result.height);
+        }
+      }
+      expect(current).toEqual(before);
+      expect(renderStaffBuilderMeasure(document.createElement("div"), current, 1, { visibleStaff: staff }).coordinateSpace).toEqual({ width: 760, height: 300 });
+    }
+  });
+  it.each(["treble", "bass"] as const)("reserves extreme %s ledger lines and stems in the opt-in layout", staff => {
+    const current: StaffBuilderScore = { ...score(), ties: [], initialKeySignatureId: "c-major", measures: [{ id: "ledger", events: [{ id: "extreme", kind: "notes", staff, startTick: 0, rhythm: { status: "final", duration: "quarter" }, pitches: [{ id: "p", letter: "C", accidental: "sharp", octave: staff === "treble" ? 7 : 1, midiNumber: staff === "treble" ? 97 : 25 }] }] }] };
+    const result = renderStaffBuilderMeasure(document.createElement("div"), current, 0, { visibleStaff: staff, readingFlowWidth: 600 });
+    const bounds = result.anchors.events.get("extreme")!.highlightBounds!;
+    expect(bounds.y).toBeGreaterThanOrEqual(0); expect(bounds.y + bounds.height).toBeLessThanOrEqual(result.height);
+    expect(result.height).toBeGreaterThan(180);
+  });
   it.each([
     ["B", 5, 83, "treble"], ["C", 6, 84, "treble"], ["D", 6, 86, "treble"],
     ["G", 6, 91, "treble"], ["A", 6, 93, "treble"], ["B", 6, 95, "treble"],

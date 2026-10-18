@@ -30,6 +30,13 @@ const noteConfig: FlashcardConfig = { ...DEFAULT_FLASHCARD_CONFIG, mode: "mixed"
 const triadConfig: FlashcardConfig = { ...DEFAULT_FLASHCARD_CONFIG, mode: "treble", enabledExerciseTypes: ["triads"], enabledTriadQualities: ["major", "minor"] };
 
 describe("Flashcard engine contract", () => {
+  it("delegates Focus Staff only in hosted presentation, preserving standalone intent", () => {
+    const view = render(<FlashcardSession {...focusProps} initialConfig={noteConfig} />);
+    expect(observed.card.mock.lastCall?.[0].showFocusControl).toBe(true);
+    const first = target();
+    view.rerender(<FlashcardSession {...focusProps} initialConfig={noteConfig} hostedPracticePresentation={{ isFocusMode: false, isMobilePlayMode: false, showVirtualKeyboard: true }} />);
+    expect(observed.card.mock.lastCall?.[0].showFocusControl).toBe(false); expect(target()).toBe(first);
+  });
   it.each([noteConfig, triadConfig])("presents only the configured first target and treats props as mount-time", (config) => {
     const view = render(<FlashcardSession {...focusProps} initialConfig={config} />);
     const first = target();

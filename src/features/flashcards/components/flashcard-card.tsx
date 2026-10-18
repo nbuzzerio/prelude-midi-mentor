@@ -8,6 +8,7 @@ type FlashcardCardProps = Readonly<{
   feedback: FeedbackState;
   isFocusMode: boolean;
   isMobilePlayMode?: boolean;
+  showFocusControl?: boolean;
   practiceTarget: PracticeTarget;
   showTargetName: boolean;
   onCorrect: () => void;
@@ -27,6 +28,7 @@ export default function FlashcardCard({
   feedback,
   isFocusMode,
   isMobilePlayMode = false,
+  showFocusControl = true,
   practiceTarget,
   showTargetName,
   onCorrect,
@@ -48,10 +50,10 @@ export default function FlashcardCard({
       </div>
 
       <div className="flashcard-task-actions flex flex-wrap justify-end gap-2" hidden={isMobilePlayMode}>
-        <FocusStaffControl
+        {showFocusControl && <FocusStaffControl
           isFocusMode={isFocusMode}
           onToggle={onToggleFocusMode}
-        />
+        />}
 
         {!isFocusMode && onEnterMobilePlay ? (
           <button

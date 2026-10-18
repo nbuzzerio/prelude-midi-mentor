@@ -77,7 +77,7 @@ export default function PracticeProgramLesson({ executor, state, active, program
       </>}
       {nextTitle && <p className="text-sm text-zinc-300">Next: {nextTitle}</p>}
       {nextTitle && (run?.status === "summary" || run?.completionPresentation === "target-complete" || !run && !state.record) && <button className={button} disabled={disabled || state.saving || !!state.error} onClick={skip} type="button">Skip Exercise: {nextTitle}</button>}
-      <div className="flex flex-wrap gap-2">{!(run?.status === "active" && run.completionPresentation !== "practicing" && !nextTitle) && <button className={button} disabled={finishRequested || !!state.error || !active} onClick={finish} type="button">Finish Lesson</button>}<button className={button} disabled={evidencePending} onClick={returnToEntry} type="button">Return</button></div>
+      <div className="flex flex-wrap gap-2">{!(run?.status === "active" && (exercise?.engine === "melody" || run.completionPresentation !== "practicing" && !nextTitle)) && <button className={button} disabled={finishRequested || !!state.error || !active} onClick={finish} type="button">Finish Lesson</button>}<button className={button} disabled={evidencePending} onClick={returnToEntry} type="button">Return</button></div>
       <p className="text-xs text-zinc-400">Finish Lesson stops current work and leaves the rest unperformed. Return is available after pending results are saved.</p>
     </>}
   </section>;

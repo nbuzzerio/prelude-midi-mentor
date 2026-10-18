@@ -655,6 +655,7 @@ export default function FlashcardSession({
           onCorrect={handleSimulateCorrect}
           onIncorrect={handleSimulateIncorrect}
           onToggleFocusMode={handleToggleFocusMode}
+          showFocusControl={!isHostedPresentation}
         />
 
         <div className="mobile-play-keyboard-region" hidden={!showVirtualKeyboard}>

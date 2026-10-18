@@ -32,6 +32,15 @@ function Harness({ exercises }: Readonly<{ exercises: readonly PracticeExerciseE
 }
 
 describe("Practice Session runtime", () => {
+  it("keeps lesson Finish and host Focus reachable for Reading Flow without remounting its engine", () => {
+    const entry = PRACTICE_SESSION_BUILDER_OPTIONS.map(option => option.createEntry("reading")).find(exercise => exercise.engine === "melody")!;
+    const onFinish = vi.fn(), run = initial([entry]);
+    render(<PracticeSessionRuntime createExerciseToken={() => "unused"} dispatch={vi.fn()} now={() => 2} run={run} lesson={{ position: 1, total: 1, cue: "Keep the pulse", disabled: false, canRepeat: true, onNext: vi.fn(), onRepeat: vi.fn(), onFinish }} />);
+    const native = screen.getByTestId("melody"); fireEvent.click(screen.getByRole("button", { name: "Focus" }));
+    expect(screen.getByTestId("melody")).toBe(native); expect(native.closest('[data-engine="melody"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); expect(onFinish).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Exit Focus" })); expect(screen.getByTestId("melody")).toBe(native);
+  });
   it("keeps Focus and keyboard intent independent without remounting, and carries both through Next and Skip", () => {
     render(<Harness exercises={[readyEntry(0, "e1"), readyEntry(6, "e2"), readyEntry(0, "e3")]} />);
     const first = screen.getByTestId("flashcards");

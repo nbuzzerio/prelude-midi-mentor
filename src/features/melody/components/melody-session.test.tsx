@@ -137,7 +137,7 @@ describe("MelodySession", () => {
       expect((screen.getByRole("combobox", { name }) as HTMLSelectElement).value).toBe(value);
     }
     expect((screen.getByRole("checkbox", { name: "Continuous Practice" }) as HTMLInputElement).checked).toBe(true);
-    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(1);
     expect(screen.getByText("Keyboard 48-60")).toBeTruthy();
     const score = screen.getByText("Score measure 1");
     view.rerender(<MelodySession initialConfig={{ ...config }} seedFactory={seedFactory} />);
@@ -400,7 +400,8 @@ describe("MelodySession", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Staff" }), { target: { value: "bass" } });
     expect(screen.getByText("Keyboard 48-60")).toBeTruthy();
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "2" } });
-    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(1);
+    expect(screen.getByText("Measure 1 of 2")).toBeTruthy();
   });
 
   it("keeps Continuous Practice optional with a five-minute default", () => {
@@ -419,7 +420,7 @@ describe("MelodySession", () => {
     expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
   });
 
-  it("shows target notes during the lead-in, ignores prep input, and accepts the first target downbeat", async () => {
+  it("shows only preparatory notation during lead-in, ignores prep input, and accepts the first target downbeat", async () => {
     const audio = fakeAudio();
     const target = generateMelodyExercise(DEFAULT_MELODY_SETTINGS, "lead-in-boundary");
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "lead-in-boundary"} />);
@@ -427,7 +428,7 @@ describe("MelodySession", () => {
 
     expect(screen.getByText("Lead-in")).toBeTruthy();
     expect(screen.getByText("Preparatory rest region")).toBeTruthy();
-    expect(screen.getByText("Score measure 1")).toBeTruthy();
+    expect(screen.queryByText("Score measure 1")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Melody Results" })).toBeNull();
     act(() => midi.options?.onNotePlayed?.(target.expectedAttacks[0]!.midiNumber));
     expect(screen.queryByText(/Input:/)).toBeNull();
@@ -435,6 +436,7 @@ describe("MelodySession", () => {
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     expect(screen.getByText("Play")).toBeTruthy();
+    expect(screen.getByText("Score measure 1")).toBeTruthy();
     act(() => midi.options?.onNotePlayed?.(target.expectedAttacks[0]!.midiNumber));
     audio.setNow(10);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -584,7 +586,7 @@ describe("MelodySession", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
     await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
-    expect(screen.getByText("Score measure 1")).not.toBe(firstScore);
+    expect(screen.getByText("Preparatory rest region")).not.toBe(firstScore);
     expect(seedFactory).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("button", { name: /Start (Session|Exercise)/ })).toBeNull();
     expect(createAudioContext).toHaveBeenCalledTimes(1);
@@ -748,15 +750,15 @@ describe("MelodySession", () => {
     expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
   });
 
-  it("keeps one responsive keyboard and one shared score/count scroll track for both measures", () => {
+  it("keeps one keyboard and one active score/count view for the complete two-measure phrase", () => {
     const { container } = render(<MelodySession seedFactory={() => "seed"} />);
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "2" } });
     expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
-    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(1);
     const scroll = container.querySelector(".melody-score-scroll");
-    expect(scroll?.getAttribute("data-measure-count")).toBe("2");
+    expect(screen.getByText("Measure 1 of 2")).toBeTruthy();
     expect(screen.getByLabelText("Melody exercise score and preparatory lead-in").tabIndex).toBe(0);
-    expect(scroll?.querySelectorAll(".melody-score-track")).toHaveLength(1);
+    expect(scroll?.querySelectorAll(".melody-score-track")).toHaveLength(0);
     expect(scroll?.querySelectorAll('[aria-label="Preparatory lead-in and count guide"]')).toHaveLength(1);
   });
 
@@ -914,6 +916,25 @@ describe("MelodySession", () => {
     fireEvent(window, new Event("resize"));
     expect(createAudioContext).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Lead-in")).toBeTruthy();
+  });
+  it("follows both authored measures without regenerating, restarting audio or publishing premature results", async () => {
+    const audio = fakeAudio(), seedFactory = vi.fn(() => "two-measure-follow"), createAudioContext = vi.fn(() => audio.context), results = vi.fn();
+    const config = { ...timedConfig, measureCount: 2 as const };
+    const exercise = generateMelodyExercise(melodyConfigToSettings(config), "two-measure-follow");
+    const view = render(<MelodySession initialConfig={config} createAudioContext={createAudioContext} seedFactory={seedFactory} onPracticeResultChange={results} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    expect(view.container.querySelector('[data-active-display-measure="0"]')).not.toBeNull();
+    results.mockClear(); audio.setNow(2.1); frame();
+    expect(view.container.querySelector('[data-active-display-measure="1"]')).not.toBeNull();
+    act(() => midi.options?.onNotePlayed?.(exercise.expectedAttacks[0]!.midiNumber));
+    const sourceBefore = screen.getByText(/Input: MIDI/); fireEvent(window, new Event("resize"));
+    audio.setNow(6.4); frame();
+    expect(view.container.querySelector('[data-active-display-measure="2"]')).not.toBeNull();
+    expect(screen.getByText(/Input: MIDI/)).toBe(sourceBefore); expect(results).not.toHaveBeenCalled();
+    expect(seedFactory).toHaveBeenCalledTimes(1); expect(createAudioContext).toHaveBeenCalledTimes(1);
+    audio.setNow(10.8); frame();
+    expect(screen.getByText("Melody results")).toBeTruthy(); expect(results).toHaveBeenCalled();
+    expect(view.container.querySelector('.melody-active-score')).toBeNull();
   });
 
   it.each(["count-in", "performing"] as const)("aborts without scoring when hidden during %s", async (phase) => {

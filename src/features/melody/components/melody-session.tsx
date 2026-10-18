@@ -4,7 +4,7 @@ import { MelodySettingsControls, MelodyPracticeOptions } from "./melody-settings
 import { useCallback, useEffect, useEffectEvent, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
-import { StaffBuilderScoreView } from "@/features/staff-builder/components/staff-builder-score-view";
+import { MelodyActiveScore } from "./melody-active-score";
 import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-builder-time";
 import { useAppMidiInput } from "@/hooks/use-app-midi-input";
 import { useMobilePlay } from "@/hooks/use-mobile-play";
@@ -34,7 +34,7 @@ import { evaluateMelodyAttempt, type MelodyAttemptResult } from "../melody-scori
 import { getMelodyPerformancePhase } from "../melody-timing";
 import { createMelodyPracticeResult, type MelodyPracticeResultV1 } from "../melody-practice-result";
 import type { MelodyExercise, MelodySeed, MelodySettings } from "../melody-types";
-import { MelodyCountGuide } from "./melody-count-guide";
+
 import { MelodyResults } from "./melody-results";
 import {
   MelodyTimedSessionReview,
@@ -621,21 +621,22 @@ export default function MelodySession({
       : activeTick - targetMeasureIndex * MELODY_PHASE_ONE_METER.capacityTicks;
   const range = settings.staff === "treble" ? { min: 60, max: 72 } : { min: 48, max: 60 };
 
-  return <section className={isMobilePlayMode || isHostedFocus ? isHostedPresentation ? `melody-session melody-session-${presentation} melody-mobile-play grid h-full min-h-0 w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} melody-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} mx-auto max-w-6xl space-y-5 text-zinc-100`} data-testid="melody-session">
+  return <section className={isMobilePlayMode || isHostedFocus ? isHostedPresentation ? `melody-session melody-session-${presentation} melody-mobile-play grid h-full min-h-0 w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} melody-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100` : `melody-session melody-session-${presentation} mx-auto ${presentation === "results" || presentation === "review" ? "max-w-6xl space-y-5" : "w-full space-y-3"} text-zinc-100`} data-testid="melody-session">
     <header className="melody-header flex flex-wrap items-center justify-between gap-3" hidden={isMobilePlayMode || isHostedFocus}><div><h1 className="text-2xl font-semibold">Melody</h1><p>Read ahead, keep the pulse, and play through mistakes.</p></div><div className="flex items-center gap-2">{!isHostedPresentation && <button className="practice-mobile-play-entry rounded-lg border border-sky-400/50 bg-zinc-950/90 px-3 py-2 text-sm font-semibold text-sky-100 shadow-sm hover:bg-sky-400/15" onClick={enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>}<MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div></header>
     {isMobilePlayMode ? <><p className="melody-mobile-play-context">Melody · {settings.tempoBpm} BPM · {settings.measureCount} {settings.measureCount === 1 ? "measure" : "measures"}</p>{!isHostedPresentation && <button className="mobile-play-exit rounded-lg border border-sky-400/60 bg-zinc-950/95 px-3 py-2 text-sm font-semibold text-sky-100 shadow-lg" onClick={handleExitMobilePlay} type="button">Exit Mobile Play</button>}</> : null}
     <p aria-live="polite" className="sr-only">{statusMessage}</p>
     {presentation === "setup" && !practiceSessionMode && <MelodySettingsControls settings={settings} onChange={changeSetting}>
       <MelodyPracticeOptions continuousPractice={continuousPractice} continuousDurationMinutes={continuousDurationMinutes} onContinuousPracticeChange={setContinuousPractice} onDurationChange={setContinuousDurationMinutes} />
     </MelodySettingsControls>}
-    {presentation !== "results" && presentation !== "review" && <div className="melody-practice">
+    {presentation !== "results" && presentation !== "review" && <div className="melody-practice" data-keyboard-visible={showVirtualKeyboard}>
+      {(isHostedFocus || isMobilePlayMode) && <div className="melody-connection-controls"><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div>}
       {continuousSessionActive && continuousDeadlineMs !== null && presentation !== "setup" && <p>Time remaining: {formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))} · Trials completed: {continuousHistory.length}</p>}
-      <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll" data-measure-count={exercise.measures.length} data-preparatory-measure-count="1" ref={scoreRegionRef} tabIndex={0}><div className="melody-score-track"><div className="melody-score-measures grid gap-3" style={{ gridTemplateColumns: `minmax(8rem, 0.5fr) repeat(${exercise.measures.length}, minmax(0, 1fr))` }}>{score.measures.map((measure, displayIndex) => <StaffBuilderScoreView key={measure.id} measureIndex={displayIndex} playbackPosition={displayMeasureIndex === displayIndex && measureTick !== undefined ? { offsetTicks: measureTick } : undefined} score={score} visibleStaff={settings.staff} />)}</div><MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={settings.measureCount} showPreparatoryLeadIn /></div></div>
+      <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll melody-active-score-region" ref={scoreRegionRef} tabIndex={0}><MelodyActiveScore activeTick={activeTick} displayMeasureIndex={displayMeasureIndex} expanded={!showVirtualKeyboard} measureCount={exercise.measures.length as 1 | 2} measureTick={measureTick} score={score} staff={settings.staff} /></div>
       {presentation === "setup" && <button className="rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => continuousPractice ? startContinuousSession() : void start()} type="button">{continuousPractice ? "Start Session" : "Start Exercise"}</button>}
       {presentation === "starting" && <p>Starting audio…</p>}
       {hostedStart && presentation === "starting" && <div className="space-y-2"><p className="text-sm text-amber-200">If your browser needs another tap to enable audio, continue here. Your saved attempt remains the same.</p><button className="min-h-11 rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => { void audioContextRef.current?.resume().catch(() => setAudioError("Audio is still unavailable. End this exercise and try again when audio is available.")); }} type="button">Enable audio and continue</button></div>}
-      {presentation === "count-in" && <p className="text-xl"><strong>Lead-in</strong> · Preparatory rests</p>}
-      {presentation === "performing" && <p className="text-xl"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
+      {presentation === "count-in" && <p className="sr-only"><strong>Lead-in</strong> · Preparatory rests</p>}
+      {presentation === "performing" && <p className="melody-play-status text-sm"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}
       <div className="melody-keyboard" hidden={!showVirtualKeyboard}><PianoKeyboard activeMidiNumbers={activeVirtual} failedMidiNumbers={EMPTY} lastAnswer={null} maxMidi={range.max} minMidi={range.min} onNotePress={(note) => { setActiveVirtual((current) => new Set(current).add(note)); record(note, "virtual"); }} onNoteRelease={(note) => setActiveVirtual((current) => { const next = new Set(current); next.delete(note); return next; })} onNoteToggle={(note) => record(note, "virtual")} targetMidiNumbers={EMPTY} visualMode="freeplay" /></div></div>}

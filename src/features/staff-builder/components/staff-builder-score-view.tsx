@@ -17,6 +17,7 @@ import { STAFF_BUILDER_KEY_WHEEL_SIZE } from "./staff-builder-key-wheel-options"
 import { resolveStaffBuilderExpandedNotationControl, resolveStaffBuilderOriginalNotationControl, type StaffBuilderNotationControlName } from "./staff-builder-notation-control-geometry";
 import { resolveStaffBuilderPlaybackGeometry } from "./staff-builder-playback-geometry";
 import { StaffBuilderTimeWheel, STAFF_BUILDER_TIME_WHEEL_SIZE } from "./staff-builder-time-wheel";
+import { getStaffBuilderReadingLayout, getStaffBuilderReadingScrollLeft } from "../notation/staff-builder-reading-layout";
 
 type CursorGeometry = Readonly<{ x: number; y: number; width: number; height: number }>;
 export type StaffBuilderEventHighlight = Readonly<{ eventId: string; status: "current" | "correct" | "incorrect" | "complete" | "missed" | "wrong-pitch" }>;
@@ -47,7 +48,7 @@ function eventAccessibleName(event: StaffBuilderEvent, measureIndex: number): st
     : `${durationName(event)} note ${pitches[0] ?? "without pitch"}, ${location}`;
 }
 
-export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, diagnosticHighlights = EMPTY_DIAGNOSTIC_HIGHLIGHTS, issue, inputMode = "grand", visibleStaff = "grand", ghostedStaff, visibleAnnotationLayers = ALL_STAFF_BUILDER_ANNOTATION_LAYERS, onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender }: Readonly<{
+export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPreview, playbackPosition, selectedEventId, eventHighlights = EMPTY_EVENT_HIGHLIGHTS, diagnosticHighlights = EMPTY_DIAGNOSTIC_HIGHLIGHTS, issue, inputMode = "grand", visibleStaff = "grand", ghostedStaff, visibleAnnotationLayers = ALL_STAFF_BUILDER_ANNOTATION_LAYERS, onInputModeChange, onKeyChange, onTimeChange, onEventSelect, onPositionSelect, onAssignDuration, onDeleteEvent, onConvertToRest, onCaptureRestAsNote, onRender, readingFlow }: Readonly<{
   score: StaffBuilderScore;
   measureIndex: number;
   cursor?: Readonly<{ offsetTicks: number; stepDuration: StaffBuilderStepDuration }>;
@@ -72,6 +73,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   onConvertToRest?: (duration: StaffBuilderDuration) => boolean;
   onCaptureRestAsNote?: (selection: StaffBuilderEventSelection) => boolean;
   onRender?: (result: StaffBuilderMeasureRenderResult) => void;
+  /** Explicit opt-in; editor and Piece Practice retain their existing layout. */
+  readingFlow?: "normal" | "expanded";
 }>) {
   const notationRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -84,6 +87,9 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const [diagnosticGeometries, setDiagnosticGeometries] = useState<readonly Readonly<{ highlight: StaffBuilderDiagnosticHighlight; geometry: CursorGeometry }>[]>([]);
   const [issueGeometry, setIssueGeometry] = useState<CursorGeometry | null>(null);
   const [renderResult, setRenderResult] = useState<StaffBuilderMeasureRenderResult | null>(null);
+  const [readingWidth, setReadingWidth] = useState(760);
+  const readingLayout = getStaffBuilderReadingLayout(readingWidth, readingFlow === "expanded");
+  const readingFlowWidth = readingFlow ? readingLayout.width : undefined;
   const [durationEventId, setDurationEventId] = useState<string | null>(null);
   const [durationOpenedByPointer, setDurationOpenedByPointer] = useState(false);
   const [settingWheel, setSettingWheel] = useState<Readonly<{ kind: "key" | "time"; openedByPointer: boolean }> | null>(null);
@@ -92,7 +98,8 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   const [hoveredNotationControl, setHoveredNotationControl] = useState<StaffBuilderNotationControlName | null>(null);
   if (durationEventId && !onAssignDuration) setDurationEventId(null);
   if (settingWheel && !(settingWheel.kind === "key" ? onKeyChange : onTimeChange)) setSettingWheel(null);
-  const [presentationScale, setPresentationScale] = useState(1);
+  const [fittedScale, setPresentationScale] = useState(1);
+  const presentationScale = readingFlow ? readingLayout.scale : fittedScale;
   const projection = projectStaffBuilderMeasure(score, measureIndex);
   const cursorOffsetTicks = cursor?.offsetTicks;
   const cursorStepDuration = cursor?.stepDuration;
@@ -128,6 +135,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       layoutDurationTicksByEventId: previewLayoutDurationTicksByEventId,
       visibleStaff,
       ghostedStaff,
+      readingFlowWidth,
     });
     setRenderResult(result);
     if (cursorOffsetTicks !== undefined && cursorStepDuration !== undefined) {
@@ -158,7 +166,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
       setIssueGeometry({ x: issuePosition.x, y: issuePosition.y, width: Math.max(issuePosition.width, end - issuePosition.x), height: issuePosition.height });
     } else setIssueGeometry(null);
     onRender?.(result);
-  }, [cursorOffsetTicks, cursorStepDuration, diagnosticHighlights, eventHighlights, ghostedStaff, issue, measureIndex, notationScore, onRender, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId, visibleStaff]);
+  }, [cursorOffsetTicks, cursorStepDuration, diagnosticHighlights, eventHighlights, ghostedStaff, issue, measureIndex, notationScore, onRender, previewEventIds, previewLayoutDurationTicksByEventId, projection.capacityTicks, selectedEventId, visibleStaff, readingFlowWidth]);
 
   const authoritativeTargets = [...(renderResult?.anchors.authoritativeEvents.values() ?? [])]
     .map((anchor, order) => ({ anchor, order, event: score.measures[measureIndex]?.events.find(({ id }) => id === anchor.eventId) }))
@@ -187,12 +195,22 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll || typeof ResizeObserver === "undefined") return;
-    const update = () => setPresentationScale(getStaffBuilderPresentationScale(scroll.clientWidth, renderResult?.coordinateSpace.width ?? 760));
+    const update = () => {
+      if (readingFlow) setReadingWidth(scroll.clientWidth);
+      else setPresentationScale(getStaffBuilderPresentationScale(scroll.clientWidth, renderResult?.coordinateSpace.width ?? 760));
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(scroll);
     return () => observer.disconnect();
-  }, [renderResult?.coordinateSpace.width]);
+  }, [renderResult?.coordinateSpace.width, readingFlow, readingLayout.scale]);
+
+  const playbackCenter = playbackGeometry ? (playbackGeometry.x + playbackGeometry.width / 2) * presentationScale : 0;
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (!readingFlow || !scroll) return;
+    scroll.scrollLeft = getStaffBuilderReadingScrollLeft(playbackCenter, scroll.clientWidth, (renderResult?.coordinateSpace.width ?? 760) * presentationScale);
+  }, [readingFlow, readingWidth, measureIndex, playbackCenter, presentationScale, renderResult?.coordinateSpace.width]);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -372,7 +390,7 @@ export function StaffBuilderScoreView({ score, measureIndex, cursor, pendingPrev
           : hoveredNotationControl === "timeSignature" ? "Change time signature" : undefined;
 
   return (
-    <section aria-describedby="staff-builder-score-semantics" aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view">
+    <section aria-describedby="staff-builder-score-semantics" aria-labelledby="staff-builder-score-view-title" className="staff-builder-score-view" data-reading-flow={readingFlow}>
       <h3 className="sr-only" id="staff-builder-score-view-title">Measure {projection.measureNumber} of {score.measures.length}</h3>
       {measureAnnotationGroups.length > 0 && <div aria-label={`Measure ${projection.measureNumber} annotations`} className="staff-builder-measure-annotation-indicators">{measureAnnotationGroups.map(({ layer, items, label }) => <span aria-label={`${label}, ${items.length} ${items.length === 1 ? "annotation" : "annotations"}`} data-annotation-layer={layer} key={layer}>{label} ×{items.length}</span>)}</div>}
       <div className="staff-builder-score-interaction-plane">

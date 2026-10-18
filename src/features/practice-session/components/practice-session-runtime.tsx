@@ -138,7 +138,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
       break;
   }
 
-  return <section aria-label="Active Practice Session" style={lesson && targetComplete ? { minHeight: 0 } : undefined} className={mobilePlay.isMobilePlayMode ? `practice-session-shell practice-session-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950 text-white${isFocusMode ? " practice-session-focus" : ""}` : isFocusMode ? "practice-session-shell practice-session-focus fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950 text-white" : "practice-session-shell mx-auto grid w-full max-w-7xl text-white"}>
+  return <section data-engine={entry.engine} aria-label="Active Practice Session" style={lesson && targetComplete ? { minHeight: 0 } : undefined} className={mobilePlay.isMobilePlayMode ? `practice-session-shell practice-session-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950 text-white${isFocusMode ? " practice-session-focus" : ""}` : isFocusMode ? "practice-session-shell practice-session-focus fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950 text-white" : "practice-session-shell mx-auto grid w-full max-w-7xl text-white"}>
     <div aria-hidden={completionPending || undefined} className="contents" inert={completionPending || undefined}>
     <header style={lesson && !isFocusMode && !mobilePlay.isMobilePlayMode ? { maxHeight: "none", overflowY: "visible" } : undefined} className={`practice-session-strip border border-sky-400/30 bg-zinc-900 ${mobilePlay.isMobilePlayMode || isFocusMode ? "p-2" : "rounded-xl p-3"}`}>
       <div className="flex flex-wrap items-center gap-3">
@@ -153,6 +153,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
         {!mobilePlay.isMobilePlayMode && <button className="practice-mobile-play-entry min-h-11 rounded border border-sky-400/50 px-3 font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>}
         {allowSkip && run.completionPresentation === "practicing" && <button className="min-h-11 rounded bg-zinc-800 px-3" onClick={() => advance("SKIP")} type="button">Skip for Today</button>}
         <button className="min-h-11 rounded border border-zinc-600 px-3" onClick={() => dispatch({ type: "END", ...scope, endedAt: now() })} type="button">{lesson ? "Stop Exercise" : "End Session"}</button>
+        {lesson && entry.engine === "melody" && (!targetComplete || lesson.nextTitle) && <button className="min-h-11 rounded border border-zinc-600 px-3" disabled={lesson.disabled} onClick={lesson.onFinish} type="button">Finish Lesson</button>}
         {mobilePlay.isMobilePlayMode && <button className="min-h-11 rounded border border-sky-400/60 px-3 font-semibold text-sky-100" onClick={exitMobilePlay} type="button">Exit Mobile Play</button>}
       </div>
       {lesson && (targetComplete || run.completionPresentation === "bonus") && <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
@@ -168,7 +169,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
       {!lesson && run.completionPresentation === "bonus" && <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/10 pt-3"><span className="mr-auto">Target complete · Bonus practice</span><button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={() => advance("ADVANCE")} type="button">{finalExercise ? "Finish Session" : "Next Exercise"}</button></div>}
       {!completionPending && bonusNotice?.token === run.activeExerciseToken && <p className="mt-2 text-sm text-amber-200" role="status">{bonusNotice.message}</p>}
     </header>
-    <div hidden={!!lesson && targetComplete && !showLessonDetails} inert={!!lesson && targetComplete || undefined} className={`practice-session-engine min-h-0 [&_button[aria-keyshortcuts]]:hidden${lesson ? " [&>*>header>div:first-child:has(h1)]:hidden [&>*>header]:justify-end" : ""}${mobilePlay.isMobilePlayMode || isFocusMode ? " overflow-hidden" : ""}`} key={`${run.runId}:${run.activeExerciseToken}`}>{engine}</div>
+    <div hidden={!!lesson && targetComplete && !showLessonDetails} inert={!!lesson && targetComplete || undefined} className={`practice-session-engine min-h-0${lesson ? " [&>*>header>div:first-child:has(h1)]:hidden [&>*>header]:justify-end" : ""}${mobilePlay.isMobilePlayMode || isFocusMode ? " overflow-hidden" : ""}`} key={`${run.runId}:${run.activeExerciseToken}`}>{engine}</div>
     </div>
     {completionPending && <div className="practice-session-completion-backdrop fixed inset-0 z-[70] grid place-items-center bg-black/65 p-4">
       <div aria-labelledby="practice-session-completion-title" aria-modal="true" className="w-full max-w-md rounded-xl border border-sky-300/50 bg-zinc-900 p-5 shadow-2xl" onKeyDown={containCompletionFocus} ref={completionDialogRef} role="dialog">

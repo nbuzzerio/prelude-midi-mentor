@@ -38,6 +38,10 @@ function renderCard(overrides: Partial<Parameters<typeof FlashcardCard>[0]> = {}
 }
 
 describe("FlashcardCard Mobile Play", () => {
+  it("omits the native Focus Staff control when the host owns focus", () => {
+    renderCard({ showFocusControl: false }); expect(screen.queryByRole("button", { name: "Focus Staff" })).toBeNull();
+    expect(screen.getByText("Music staff")).toBeTruthy();
+  });
   it("shows the authoritative completed count in every presentation", () => {
     const view = renderCard();
     expect(screen.getByText("Completed: 7")).toBeTruthy();

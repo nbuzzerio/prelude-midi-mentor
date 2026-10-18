@@ -53,6 +53,8 @@ export type StaffBuilderMeasureRenderOptions = StaffBuilderMeasureProjectionOpti
   excludedEventIds?: ReadonlySet<string>;
   visibleStaff?: "grand" | StaffBuilderStaff;
   ghostedStaff?: StaffBuilderStaff;
+  /** Reading Flow only: compact single-staff vertical layout and responsive formatting. */
+  readingFlowWidth?: number;
 }>;
 
 export type StaffBuilderMeasureRenderResult = Readonly<{
@@ -77,11 +79,13 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const lyricCues = getStaffBuilderLyricCues(score, measureEventIds);
   const visibleStaff = options?.visibleStaff ?? "grand";
   const singleStaff = visibleStaff !== "grand";
-  const baseTrebleY = singleStaff ? 95 : TREBLE_Y;
-  const baseBassY = singleStaff ? 95 : BASS_Y;
+  const readingFlow = singleStaff && options?.readingFlowWidth !== undefined;
+  const renderWidth = readingFlow && Number.isFinite(options?.readingFlowWidth) ? Math.max(440, options!.readingFlowWidth!) : RENDER_WIDTH;
+  const baseTrebleY = singleStaff ? readingFlow ? 35 : 95 : TREBLE_Y;
+  const baseBassY = singleStaff ? readingFlow ? 35 : 95 : BASS_Y;
   const vertical = getStaffBuilderVerticalGeometry({
     pitchSources: [...projection.staves.treble, ...projection.staves.bass].flatMap((item) => item.kind === "notes" ? [{ staff: item.staff, clef: projection.clefs[item.staff], pitches: item.pitches }] : []),
-    baseHeight: BASE_RENDER_HEIGHT,
+    baseHeight: readingFlow ? 180 : BASE_RENDER_HEIGHT,
     trebleStaveY: baseTrebleY,
     bassStaveY: baseBassY,
     visibleStaff,
@@ -89,7 +93,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   });
   container.replaceChildren();
   const renderer = new Renderer(container, Renderer.Backends.SVG);
-  renderer.resize(RENDER_WIDTH, vertical.height);
+  renderer.resize(renderWidth, vertical.height);
   const context = renderer.getContext();
   const drawStaff = (staff: StaffBuilderStaff, draw: () => void) => {
     if (!options?.ghostedStaff) { draw(); return; }
@@ -99,7 +103,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     draw();
     context.closeGroup();
   };
-  const staveWidth = RENDER_WIDTH - STAVE_X - STAVE_RIGHT_PADDING;
+  const staveWidth = renderWidth - STAVE_X - STAVE_RIGHT_PADDING;
   const trebleStave = new Stave(STAVE_X, vertical.trebleStaveY, staveWidth).addClef(projection.clefs.treble);
   const bassStave = new Stave(STAVE_X, vertical.bassStaveY, staveWidth).addClef(projection.clefs.bass);
   const clefEndX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
@@ -130,7 +134,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const visibleTrebleVoices = visibleStaff === "bass" ? [] : trebleVoices;
   const visibleBassVoices = visibleStaff === "treble" ? [] : bassVoices;
   const allVoices = [...visibleTrebleVoices, ...visibleBassVoices];
-  formatter.format(allVoices.map(({ voice }) => voice), RENDER_WIDTH - FORMAT_PADDING);
+  formatter.format(allVoices.map(({ voice }) => voice), renderWidth - FORMAT_PADDING);
   if (!options?.ghostedStaff) {
     visibleTrebleVoices.forEach(({ voice }) => voice.draw(context, trebleStave));
     visibleBassVoices.forEach(({ voice }) => voice.draw(context, bassStave));
@@ -172,9 +176,9 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     if (staff) drawStaff(staff, draw);
     else draw();
   });
-  if (visibleStaff !== "bass") drawStaff("treble", () => drawStaffBuilderLyricCues(context, lyricCues, noteByEventId, 16, STAVE_X, RENDER_WIDTH - STAVE_RIGHT_PADDING));
+  if (visibleStaff !== "bass") drawStaff("treble", () => drawStaffBuilderLyricCues(context, lyricCues, noteByEventId, 16, STAVE_X, renderWidth - STAVE_RIGHT_PADDING));
 
-  configureStaffBuilderSvg(container, RENDER_WIDTH, vertical.height);
+  configureStaffBuilderSvg(container, renderWidth, vertical.height);
   const eventAnchors = createStaffBuilderEventAnchors([...(visibleStaff === "bass" ? [] : trebleRendered), ...(visibleStaff === "treble" ? [] : bassRendered)]);
   const pitchAnchors = createStaffBuilderPitchAnchors([...(visibleStaff === "bass" ? [] : trebleRendered), ...(visibleStaff === "treble" ? [] : bassRendered)]);
   const trebleTop = trebleStave.getTopLineTopY() - 28;
@@ -202,8 +206,8 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
       },
     },
     projection,
-    width: RENDER_WIDTH,
+    width: renderWidth,
     height: vertical.height,
-    coordinateSpace: { width: RENDER_WIDTH, height: vertical.height },
+    coordinateSpace: { width: renderWidth, height: vertical.height },
   };
 }
