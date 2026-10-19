@@ -43,7 +43,7 @@ it("presents acknowledged native feedback at target completion and retains it af
   expect(within(feedback).getByText("Average completed-target response: 2.1 seconds.")).toBeTruthy();
   expect(within(feedback).getByText("Recorded answer sources: simulation.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Next Exercise" })); await screen.findByText(/Exercise 2 of 3/);
-  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); await screen.findByText("Lesson finished");
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); await screen.findByText("Lesson finished");
   const summary = screen.getByLabelText("Lesson teaching summary");
   expect(within(summary).getByText("1 completed · 1 stopped early · 1 unperformed")).toBeTruthy();
   expect(within(summary).getByText("Note Recognition (prescribed target): 1 of 1 completed targets were correct on the first attempt.")).toBeTruthy();
@@ -60,7 +60,7 @@ it("retains failed skip evidence as pending until Retry acknowledges the explici
   expect((screen.getByRole("button", { name: "Return" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Retry saving" }));
   await waitFor(() => expect(screen.getByText(/Exercise 3 of 3/)).toBeTruthy());
-  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); await screen.findByText("Lesson finished");
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); await screen.findByText("Lesson finished");
   expect(screen.getByText("1 completed · 1 deliberately skipped · 1 unperformed")).toBeTruthy();
 });
 
@@ -96,12 +96,12 @@ it("retains failed saves until explicit Retry without starting the next engine",
   expect(await rows()).toHaveLength(2);
 });
 it("Finish stops a performed attempt without marking remaining selections skipped or failed", async () => {
-  fixture(); await screen.findByTestId("native"); fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" }));
+  fixture(); await screen.findByTestId("native"); fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" }));
   await screen.findByText("Lesson finished"); expect(await rows()).toEqual([expect.objectContaining({ exerciseId: "exercise-0", outcome: "stopped-early", closed: true })]);
 });
 it("Finish during an unacknowledged start never mounts an engine or loses the acknowledged start", async () => {
   const hold = fake.holdNextCommit(), f = fixture(); await waitFor(() => expect(hold.ready()).toBe(true));
-  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); expect(screen.queryByTestId("native")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); expect(screen.queryByTestId("native")).toBeNull();
   expect(screen.getByText("Finishing lesson")).toBeTruthy(); expect(screen.queryByText("Lesson finished")).toBeNull();
   expect(screen.queryByText(/Saved attempt:|Your acknowledged attempts are saved/)).toBeNull();
   const back = screen.getByRole("button", { name: "Return" }) as HTMLButtonElement;
@@ -113,7 +113,7 @@ it("Finish during an unacknowledged start never mounts an engine or loses the ac
 });
 it("keeps Finish pending after a failed terminal save and returns only after successful Retry", async () => {
   const f = fixture(); await screen.findByTestId("native"); const attemptId = f.executor.getSnapshot().record!.attemptId;
-  fake.commitError = "QuotaExceededError"; fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" }));
+  fake.commitError = "QuotaExceededError"; fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" }));
   await screen.findByRole("alert");
   expect(screen.getByText("Finishing lesson")).toBeTruthy(); expect(screen.queryByText("Lesson finished")).toBeNull();
   expect(screen.queryByText(/Saved attempt:|Your acknowledged attempts are saved/)).toBeNull();
@@ -128,7 +128,7 @@ it("keeps Finish pending after a failed terminal save and returns only after suc
 });
 it("does not announce successful Finish or enable Return while a terminal acknowledgement is pending", async () => {
   const f = fixture(); await screen.findByTestId("native"); const hold = fake.holdNextCommit();
-  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); await waitFor(() => expect(hold.ready()).toBe(true));
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); await waitFor(() => expect(hold.ready()).toBe(true));
   expect(screen.getByText("Finishing lesson")).toBeTruthy(); expect(screen.queryByText("Lesson finished")).toBeNull();
   expect(screen.queryByText(/Saved attempt:|Your acknowledged attempts are saved/)).toBeNull();
   expect((screen.getByRole("button", { name: "Return" }) as HTMLButtonElement).disabled).toBe(true);
@@ -138,14 +138,14 @@ it("does not announce successful Finish or enable Return while a terminal acknow
   expect(screen.getByText("Saved attempt: stopped-early.")).toBeTruthy(); expect(f.executor.getSnapshot().durable?.closed).toBe(true);
 });
 it("uses neutral Finish wording when no exercise has been performed", async () => {
-  fixture([]); fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" }));
+  fixture([]); fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" }));
   await screen.findByText("Lesson finished"); expect(screen.getByText("Unperformed exercises remain unperformed.")).toBeTruthy();
   expect(screen.queryByText(/Saved attempt:|Your acknowledged attempts are saved/)).toBeNull(); expect(await rows()).toEqual([]);
 });
 it("retains Finish intent and Retry when the pending start acknowledgement fails", async () => {
   const hold = fake.holdNextCommit(), f = fixture(); await waitFor(() => expect(hold.ready()).toBe(true));
   const attemptId = f.executor.getSnapshot().record!.attemptId;
-  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); fake.commitError = "QuotaExceededError";
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); fake.commitError = "QuotaExceededError";
   await act(async () => hold.release()); await screen.findByRole("alert");
   expect(screen.getByText("Finishing lesson")).toBeTruthy(); expect(screen.queryByText("Lesson finished")).toBeNull();
   expect(screen.queryByText(/Saved attempt:|Your acknowledged attempts are saved/)).toBeNull(); expect(screen.queryByTestId("native")).toBeNull();
@@ -169,7 +169,7 @@ it.each(["error", "write", "evidence"] as const)("keeps an exhausted selection v
 it("Finish cancels a pending Next after preserving the previous terminal acknowledgement", async () => {
   fixture(); await screen.findByTestId("native"); await complete(); const hold = fake.holdNextCommit();
   fireEvent.click(screen.getByRole("button", { name: "Next Exercise" })); await waitFor(() => expect(hold.ready()).toBe(true));
-  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); await act(async () => hold.release());
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); await act(async () => hold.release());
   await screen.findByText("Lesson finished"); expect(await rows()).toEqual([expect.objectContaining({ exerciseId: "exercise-0", outcome: "completed", closed: true })]);
 });
 it("keeps Bonus in place and creates only one Repeat occurrence from rapid clicks", async () => {
@@ -185,7 +185,7 @@ it("records a deliberate preview Skip, with no attempt for the skipped selection
   fireEvent.click(screen.getByRole("button", { name: /^Skip Exercise:/ }));
   await waitFor(() => expect(screen.getByText(/Exercise 3 of 3/)).toBeTruthy()); expect(screen.queryByTestId("native")).toBeNull();
   expect(await rows()).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "skip", exerciseId: "exercise-2" })]));
-  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); await screen.findByText("Lesson finished"); expect(await rows()).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); await screen.findByText("Lesson finished"); expect(await rows()).toHaveLength(2);
 });
 it("offers a soft ten-minute message without stopping or completing the current attempt", async () => {
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });

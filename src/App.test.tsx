@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import App from "./App";
 import { version } from "../package.json";
+import { RUNNING_BUILD } from "./lib/build-identity";
 import { useAppMidiInput } from "./hooks/use-app-midi-input";
 import { APP_UPDATES } from "./features/app-update/app-updates";
 import { APP_UPDATE_STORAGE_KEY } from "./features/app-update/app-update-storage";
@@ -252,6 +253,8 @@ describe("App focus mode", () => {
     const versionLabel = within(navigation).getByLabelText(`Prelude v${version}`);
     expect(versionLabel.textContent).toBe(`v${version}`);
     expect(versionLabel.getAttribute("title")).toBe(`Prelude v${version}`);
+    expect(within(navigation).getByLabelText("Running build").textContent).toBe(`· ${RUNNING_BUILD.label}`);
+    expect(within(navigation).getByLabelText("Running build").getAttribute("title")).toBe(RUNNING_BUILD.detail);
   });
 
   it("shares focus state between the visible control and keyboard shortcut", () => {

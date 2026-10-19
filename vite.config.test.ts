@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import config from "./vite.config";
+import makeConfig from "./vite.config";
 import { PRELUDE_PWA_GLOB_PATTERNS } from "./src/pwa-assets";
 import {
   PRELUDE_BASE_PATH,
@@ -9,6 +9,7 @@ import {
 } from "./src/pwa-config";
 
 describe("Prelude production and PWA configuration", () => {
+  const config = makeConfig({ command: "build", mode: "production" });
   const output = config.build?.rolldownOptions?.output;
   if (!output || Array.isArray(output)) throw new Error("Expected one production output configuration");
   const splitting = output.codeSplitting;

@@ -689,6 +689,13 @@ button {
   min-height: calc(100dvh - 7rem);
 }
 
+.playing-view-details:has(> section[hidden]) { display: none; }
+.lesson-primary:focus-visible,
+.practice-session-shell summary:focus-visible {
+  outline: 3px solid rgb(125 211 252);
+  outline-offset: 3px;
+}
+
 .practice-session-strip {
   max-height: min(32dvh, 9rem);
   overflow-y: auto;

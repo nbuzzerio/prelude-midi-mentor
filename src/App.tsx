@@ -13,6 +13,7 @@ import MidiDiagnostic from "./components/midi/midi-diagnostic";
 import TunerSession from "./features/tuner/components/tuner-session";
 import type { ImprovDepartureGuard } from "./features/improv/components/improv-workspace";
 import { version } from "../package.json";
+import { RUNNING_BUILD } from "./lib/build-identity";
 import type { PwaUpdateController } from "./lib/pwa/register-service-worker";
 import { AppUpdateNotices } from "./features/app-update/components/app-update-notices";
 import { ExportSettingsDialog } from "./components/export-settings-dialog";
@@ -235,6 +236,7 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
         >
           v{version}
         </span>
+        <span aria-label="Running build" title={RUNNING_BUILD.detail} className="min-w-0 self-center text-xs text-zinc-500">· {RUNNING_BUILD.label}</span>
       </nav>
 
       <div hidden={practiceSection !== "practice-session"}>

@@ -1,4 +1,5 @@
 import type { EarTrainingConfig } from "../ear-training-config";
+import { PlayingViewDetails } from "@/components/playing-view-details";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef } from "react";
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
@@ -119,10 +120,10 @@ export default function EarTrainingSession({ initialConfig, onPracticeUnitComple
       <EarTrainingCard answerIntervals={settings.enabledIntervals} canReplay={canReplay} feedback={feedback} onAnswer={answer} onPlayPrompt={playCurrentPrompt} promptState={promptState} target={target} wrongAnswers={wrongAnswers} />
     </main>
 
-    <section className="grid gap-4 md:grid-cols-2" hidden={isMobilePlayActive || isHostedFocus}>
+    <PlayingViewDetails enabled={!!hostedPracticePresentation?.isPlayingView}><section className="grid gap-4 md:grid-cols-2" hidden={isMobilePlayActive || isHostedFocus}>
       {!practiceSessionMode && <EarTrainingControls {...settings} onDirectionToggle={settings.toggleDirection} onIntervalToggle={settings.toggleInterval} onReset={resetSession} />}
       <div className="grid gap-4"><FeedbackVolumeControl /><InstrumentVolumeControl showReplayCompletedChords={false} /></div>
     </section>
-    <div hidden={isMobilePlayActive || isHostedFocus}><EarTrainingStatsView stats={stats} /></div>
+    <div hidden={isMobilePlayActive || isHostedFocus}><EarTrainingStatsView stats={stats} /></div></PlayingViewDetails>
   </div>;
 }

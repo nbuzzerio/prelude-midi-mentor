@@ -51,18 +51,18 @@ function ExercisePrintSection({ exercise, options, total }: Readonly<{ exercise:
   </article>;
 }
 
-export function PracticeSessionPrintableReport({ options, report }: Readonly<{ options: PracticeSessionPrintOptions; report: PracticeSessionReport }>) {
+export function PracticeSessionPrintableReport({ options, report, scopeNote }: Readonly<{ options: PracticeSessionPrintOptions; report: PracticeSessionReport; scopeNote?: string }>) {
   const exercises = report.exercises.filter(({ outcome: value }) => options.includeSkippedAndNotEntered || (value !== "skipped" && value !== "never-entered"));
   const showExercises = options.exerciseSummaries || options.exerciseDetails || options.timing || options.engineDiagnostics;
   return <section aria-label={`${report.presetName} printable Practice Session report`} className="practice-session-print-document">
-    <header><h1>Practice Session Report</h1><p>{report.presetName}</p><p>Completed practice session</p></header>
+    <header><h1>Practice Session Report</h1><p>{report.presetName}</p><p>{scopeNote ? "Single-attempt native report" : "Completed practice session"}</p>{scopeNote && <p>{scopeNote}</p>}</header>
     {options.sessionSummary && <section className="practice-session-print-summary"><h2>Session summary</h2><dl><div><dt>Active practice</dt><dd>{duration(report.totalActiveDurationMs)}</dd></div><div><dt>Exercises entered</dt><dd>{report.enteredExerciseCount} of {report.exercises.length}</dd></div><div><dt>Targets reached</dt><dd>{report.targetReachedCount}</dd></div><div><dt>Skipped</dt><dd>{report.skippedCount}</dd></div><div><dt>Ended before target</dt><dd>{report.endedBeforeTargetCount}</dd></div><div><dt>Bonus used</dt><dd>{report.bonusExerciseCount}</dd></div></dl></section>}
     {!options.sessionSummary && options.timing && <p><strong>Total active practice:</strong> {duration(report.totalActiveDurationMs)}</p>}
     {showExercises && <section className="practice-session-print-exercises"><h2>Exercises</h2>{exercises.map((exercise) => <ExercisePrintSection exercise={exercise} key={exercise.exerciseId} options={options} total={report.exercises.length} />)}</section>}
   </section>;
 }
 
-export function PracticeSessionPrintControls({ report }: Readonly<{ report: PracticeSessionReport }>) {
+export function PracticeSessionPrintControls({ report, scopeNote }: Readonly<{ report: PracticeSessionReport; scopeNote?: string }>) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [printOptions, setPrintOptions] = useState<PracticeSessionPrintOptions | null>(null);
   const generateRef = useRef<HTMLButtonElement>(null);
@@ -71,6 +71,6 @@ export function PracticeSessionPrintControls({ report }: Readonly<{ report: Prac
   return <>
     <button className="min-h-11 rounded border border-sky-400/60 px-4 font-semibold" onClick={() => setDialogOpen(true)} ref={generateRef} type="button">Generate Report</button>
     {dialogOpen && <OptionsDialog onCancel={close} onGenerate={(options) => { setDialogOpen(false); setPrintOptions(options); }} />}
-    {printOptions && <PracticeSessionPrintableReport options={printOptions} report={report} />}
+    {printOptions && <PracticeSessionPrintableReport options={printOptions} report={report} scopeNote={scopeNote} />}
   </>;
 }

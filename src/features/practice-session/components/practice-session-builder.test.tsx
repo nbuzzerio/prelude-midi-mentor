@@ -29,6 +29,17 @@ const readyLibrary = (lastUsedPresetId: string | null = null) => ({
 });
 
 describe("Practice Session builder", () => {
+  it("keeps an unsaved V1 preset mounted when legacy setup is collapsed", () => {
+    const storage = new MemoryStorage(); render(<PracticeSessionBuilder storage={storage} />);
+    const summary = screen.getByText("Legacy Practice Sessions (V1)");
+    expect(summary.closest("details")!.open).toBe(false); fireEvent.click(summary);
+    fireEvent.click(screen.getByRole("button", { name: "New Preset" }));
+    const input = screen.getByRole("textbox", { name: "Preset name" }); fireEvent.change(input, { target: { value: "Unsaved piano draft" } });
+    const writes = storage.setItem.mock.calls.length;
+    fireEvent.click(summary); fireEvent.click(summary);
+    expect((screen.getByRole("textbox", { name: "Preset name" }) as HTMLInputElement).value).toBe("Unsaved piano draft");
+    expect(storage.setItem.mock.calls).toHaveLength(writes);
+  });
   it("reports active ownership through hidden, target-complete and Bonus states, then releases it at summary", () => {
     const storage = new MemoryStorage(); storage.values.set(PRACTICE_SESSION_LIBRARY_STORAGE_KEY, JSON.stringify(readyLibrary()));
     const onActiveRunChange = vi.fn();

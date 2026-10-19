@@ -46,8 +46,8 @@ export default function PracticeProgramLesson({ executor, state, active, program
   const midi = useContext(AppMidiContext);
   const result = <>
     <p role="status">{!evidencePending && state.durable?.closed ? `Saved attempt: ${state.durable.outcome}.` : "Attempt ended. Results are awaiting durable save."}</p>
-    {!finished && state.durable?.closed && !evidencePending && <LessonExerciseFeedback attempt={state.durable} />}
-    {!finished && run?.status === "summary" && <LessonNativeDetails pending={evidencePending} run={run} />}
+    {!finished && state.durable?.closed && !evidencePending && <LessonExerciseFeedback compact attempt={state.durable} />}
+    {!finished && run?.status === "summary" && <LessonNativeDetails pending={evidencePending} run={run} scopeNote={`Today's Piano Lesson · exercise ${state.index + 1} of ${state.queue.length}. This is a single-attempt native report; other lesson selections are not included.`} />}
   </>;
   return <section aria-label="Today's active piano lesson" className="space-y-3 break-words">
     <header className="flex flex-wrap items-center justify-between gap-2">
@@ -65,23 +65,22 @@ export default function PracticeProgramLesson({ executor, state, active, program
       {run?.status === "summary" && result}
       <button className={primary} disabled={evidencePending} onClick={returnToEntry} type="button">Return</button>
     </> : <>
-      {active && !finishRequested && run?.status === "active" && <PracticeSessionRuntime allowSkip={false} hostedStart createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={run.runId} now={executor.now} onPracticeActivityChange={activityChanged} run={run} lesson={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(exercise), nextTitle, disabled, evidence: state.durable, canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, onNext: next, onRepeat: repeat, onFinish: finish }} />}
+      {active && !finishRequested && run?.status === "active" && <PracticeSessionRuntime allowSkip={false} hostedStart createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={run.runId} now={executor.now} onPracticeActivityChange={activityChanged} run={run} lesson={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(exercise), nextTitle, disabled, pendingReason: state.error ? "Retry saving before continuing." : "Saving results before continuing…", evidence: state.durable, canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, onNext: next, onRepeat: repeat, onFinish: finish }} />}
       {run?.status === "summary" && <>
         <h3 className="font-semibold">Exercise {state.index + 1} of {state.queue.length} · {exercise?.label}</h3>
-        {result}
         <div className="flex flex-wrap gap-2">
-          {nextTitle && <button className={primary} disabled={disabled || executor.busy} onClick={next} type="button">Next Exercise</button>}
-          <button className={button} disabled={disabled || executor.busy || state.queue.length >= PROGRAM_ATTEMPT_LIMITS.queue} onClick={repeat} type="button">Repeat Exercise</button>
+          <button aria-label={nextTitle ? "Next Exercise" : "Finish Lesson"} className={primary} disabled={disabled || executor.busy} onClick={nextTitle ? next : finish} type="button">{nextTitle ? <>Next Exercise <span aria-hidden="true">→ {nextTitle}</span></> : "Finish Lesson"}</button>
+          <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">More practice options</summary><button className={button} disabled={disabled || executor.busy || state.queue.length >= PROGRAM_ATTEMPT_LIMITS.queue} onClick={repeat} type="button">Repeat Exercise</button></details>
         </div>
+        {result}
       </>}
       {!run && !state.record && exercise && <>
         <h3 className="font-semibold">Exercise {state.index + 1} of {state.queue.length} · {exercise.label}</h3><p className="text-sm text-zinc-300">{getPracticeLessonCue(exercise)}</p>
         <button className={primary} disabled={disabled} onClick={next} type="button">Next Exercise</button>
       </>}
-      {nextTitle && <p className="text-sm text-zinc-300">Next: {nextTitle}</p>}
-      {nextTitle && (run?.status === "summary" || run?.completionPresentation === "target-complete" || !run && !state.record) && <button className={button} disabled={disabled || state.saving || !!state.error} onClick={skip} type="button">Skip Exercise: {nextTitle}</button>}
-      <div className="flex flex-wrap gap-2">{!(run?.status === "active" && (exercise?.engine === "melody" || run.completionPresentation !== "practicing" && !nextTitle)) && <button className={button} disabled={finishRequested || !!state.error || !active} onClick={finish} type="button">Finish Lesson</button>}<button className={button} disabled={evidencePending} onClick={returnToEntry} type="button">Return</button></div>
-      <p className="text-xs text-zinc-400">Finish Lesson stops current work and leaves the rest unperformed. Return is available after pending results are saved.</p>
+      {nextTitle && (run?.status === "summary" || run?.completionPresentation === "target-complete" || !run && !state.record) && <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">Skip an unstarted selection</summary><button className={button} disabled={disabled || state.saving || !!state.error} onClick={skip} type="button">Skip Exercise: {nextTitle}</button></details>}
+      {run?.status !== "active" && <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3">{(nextTitle || !run) && <button className={button} disabled={finishRequested || !!state.error || !active} onClick={finish} type="button">Finish Lesson early</button>}<button className={button} disabled={evidencePending} onClick={returnToEntry} type="button">Return</button></div>}
+      {run?.status !== "active" && <p className="text-xs text-zinc-400">Finish leaves remaining selections unperformed. Return is available after pending results are saved.</p>}
     </>}
   </section>;
 }

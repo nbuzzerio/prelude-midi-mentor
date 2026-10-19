@@ -3,4 +3,5 @@ export type HostedPracticePresentation = Readonly<{
   isFocusMode: boolean;
   isMobilePlayMode: boolean;
   showVirtualKeyboard: boolean;
+  isPlayingView?: boolean;
 }>;

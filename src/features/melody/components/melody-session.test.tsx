@@ -73,6 +73,24 @@ describe("MelodySession", () => {
     view.unmount(); expect(audio.close).toHaveBeenCalledTimes(1);
     expect(audio.nodes.every(node => node.stop.mock.calls.length > 0)).toBe(true);
   });
+  it("keeps hosted reading continuation outside collapsed native diagnostics without replacing the input owner", async () => {
+    const audio = fakeAudio(), createAudioContext = vi.fn(() => audio.context);
+    const view = render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart hostedPracticePresentation={{ isFocusMode: false, isMobilePlayMode: false, showVirtualKeyboard: true, isPlayingView: true }} seedFactory={() => "compact-reading"} />);
+    await screen.findByText("Lead-in");
+    audio.setNow(8.6); frame();
+    expect(screen.getByRole("heading", { name: "Reading trial complete" })).toBeTruthy();
+    const disclosure = screen.getByText("Native reading diagnostics").closest("details")!;
+    expect(disclosure.open).toBe(false);
+    const next = screen.getByRole("button", { name: "Try Another" });
+    expect(next.closest("details")).toBeNull();
+    fireEvent.click(screen.getByText("Native reading diagnostics"));
+    expect(disclosure.open).toBe(true);
+    expect(screen.getByLabelText("Melody pitch result score")).toBeTruthy();
+    fireEvent.click(next);
+    await screen.findByText("Lead-in");
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
+    view.unmount(); expect(audio.close).toHaveBeenCalledTimes(1);
+  });
   it("offers an explicit audio continuation using the same pending context and attempt", async () => {
     const audio = fakeAudio(), resume: (() => void)[] = [], activity = vi.fn();
     audio.context.state = "suspended";

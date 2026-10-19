@@ -1,4 +1,5 @@
 import type { SequenceConfig } from "../sequence-config";
+import { PlayingViewDetails } from "@/components/playing-view-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import FeedbackVolumeControl from "@/components/audio/feedback-volume-control";
@@ -858,7 +859,7 @@ export default function SequenceSession({
         </>}
       </div>
 
-      <section
+      <PlayingViewDetails enabled={!!hostedPracticePresentation?.isPlayingView}><section
         className="flex flex-col gap-6"
         hidden={presentationFocusMode || isMobilePlayActive}
       >
@@ -912,7 +913,7 @@ export default function SequenceSession({
         </div>
 
         <SequenceStats stats={stats} />
-      </section>
+      </section></PlayingViewDetails>
     </div>
   );
 }

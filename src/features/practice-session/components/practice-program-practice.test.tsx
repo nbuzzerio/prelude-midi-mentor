@@ -23,6 +23,51 @@ const createExecutor = (program: ReturnType<typeof testProgram>) => new Practice
 async function start(index = 0) { fireEvent.click(screen.getByRole("checkbox", { name: testProgram().program.exercises[index]!.label })); fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" })); fireEvent.click(screen.getByRole("button", { name: "Start selected exercise" })); await screen.findByTestId("native"); }
 const mount = (active = true) => render(<PracticeProgramPractice active={active} createExecutor={createExecutor} onBusyChange={vi.fn()} onClose={vi.fn()} program={testProgram()} />);
 describe("weekly daily selection and native attempts", () => {
+  it("keeps three selected exercises and advances once per explicit Next through all three", async () => {
+    let executor!: PracticeProgramExecutor;
+    const program = testProgram(); render(<PracticeProgramPractice active createExecutor={p => (executor = createExecutor(p))} onBusyChange={vi.fn()} onClose={vi.fn()} program={program} />);
+    for (const index of [0, 1, 2]) fireEvent.click(screen.getByRole("checkbox", { name: program.program.exercises[index]!.label }));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" }));
+    expect(executor.getSnapshot().queue.map(row => row.exerciseId)).toEqual(["exercise-0", "exercise-1", "exercise-2"]);
+    fireEvent.click(screen.getByRole("button", { name: "Start selected exercise" })); await screen.findByTestId("native");
+    expect(screen.getByText(/Exercise 1 of 3/)).toBeTruthy(); expect(screen.queryByText(/Exercise 1 of 1/)).toBeNull();
+    expect(screen.getByText(`Up next: ${program.nativeExercises[1]!.label}`)).toBeTruthy();
+    for (const index of [0, 1]) {
+      fireEvent.click(screen.getByRole("button", { name: "native unit" }));
+      const next = await screen.findByRole("button", { name: "Next Exercise" });
+      await waitFor(() => expect((next as HTMLButtonElement).disabled).toBe(false));
+      expect(next.textContent).toContain(program.nativeExercises[index + 1]!.label);
+      await waitFor(() => expect(document.activeElement).toBe(next));
+      const hold = fake.holdNextCommit(); fireEvent.click(next); fireEvent.click(next);
+      await waitFor(() => expect(hold.ready()).toBe(true)); expect(screen.queryByTestId("native")).toBeNull();
+      await act(async () => hold.release()); await screen.findByTestId("native");
+      expect(executor.getSnapshot().index).toBe(index + 1);
+      expect(await new IndexedDbPracticeAttempts(fake.factory).list(program.programId)).toHaveLength(index + 2);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "native unit" }));
+    const finish = await screen.findByRole("button", { name: "Finish practice" });
+    await waitFor(() => expect((finish as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByRole("button", { name: "Next Exercise" })).toBeNull(); fireEvent.click(finish);
+    await screen.findByText("Manual practice finished");
+    expect((await new IndexedDbPracticeAttempts(fake.factory).list(program.programId)).every(row => row.kind === "attempt" && row.closed && row.outcome === "completed")).toBe(true);
+  });
+  it("holds manual Next on failed terminal evidence and Retry does not silently advance", async () => {
+    let executor!: PracticeProgramExecutor; const program = testProgram();
+    render(<PracticeProgramPractice active createExecutor={p => (executor = createExecutor(p))} onBusyChange={vi.fn()} onClose={vi.fn()} program={program} />);
+    for (const index of [0, 1, 2]) fireEvent.click(screen.getByRole("checkbox", { name: program.program.exercises[index]!.label }));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" })); fireEvent.click(screen.getByRole("button", { name: "Start selected exercise" })); await screen.findByTestId("native");
+    fireEvent.click(screen.getByRole("button", { name: "native unit" })); await waitFor(() => expect(executor.getSnapshot().saving).toBe(false));
+    fake.commitError = "QuotaExceededError"; fireEvent.click(screen.getByRole("button", { name: "Next Exercise" })); await screen.findByRole("alert");
+    expect(executor.getSnapshot().index).toBe(0); expect((screen.getByRole("button", { name: "Next Exercise" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Retry saving" })); await waitFor(() => expect(executor.getSnapshot().durable?.closed).toBe(true));
+    expect(executor.getSnapshot().index).toBe(0); fireEvent.click(screen.getByRole("button", { name: "Next Exercise" })); await screen.findByTestId("native"); expect(executor.getSnapshot().index).toBe(1);
+  });
+  it("offers Finish rather than Next for one selected exercise", async () => {
+    mount(); await start(); fireEvent.click(screen.getByRole("button", { name: "native unit" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Finish practice" }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByRole("button", { name: "Next Exercise" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Finish practice" })); await screen.findByText("Manual practice finished");
+  });
   it("rejects empty selection and permits ordered off-rotation subsets", async () => {
     mount(); expect((screen.getByRole("button", { name: "Prepare selected exercises" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: testProgram().program.exercises[2]!.label })); fireEvent.click(screen.getByRole("checkbox", { name: testProgram().program.exercises[0]!.label }));
@@ -38,15 +83,15 @@ describe("weekly daily selection and native attempts", () => {
   });
   it.each(testConcepts.map((concept, index) => [concept.type, index] as const))("hosts %s with the exact saved native configuration", async (_, index) => {
     mount(); await start(index); expect(JSON.parse(screen.getByTestId("native").getAttribute("data-config")!)).toEqual(testProgram().nativeExercises[index]!.config);
-    fireEvent.click(screen.getByRole("button", { name: "End Session" })); await screen.findByText(/Saved attempt: stopped-early/);
+    fireEvent.click(screen.getByRole("button", { name: "Stop Exercise" })); await screen.findByText(/Saved attempt: stopped-early/);
   });
   it("creates a fresh keyed Repeat while Bonus keeps the same attempt and ignores stale callbacks", async () => {
     mount(); await start(); const first = screen.getByTestId("native"), stale = observed.props.at(-1)!;
-    fireEvent.click(screen.getByRole("button", { name: "native unit" })); fireEvent.click(screen.getByRole("button", { name: "Keep Playing" })); expect(screen.getByTestId("native")).toBe(first);
-    fireEvent.click(screen.getByRole("button", { name: "native unit" })); fireEvent.click(screen.getByRole("button", { name: "Finish Session" })); await screen.findByText(/Saved attempt: completed/);
-    fireEvent.click(screen.getByRole("button", { name: "Repeat exercise (new attempt)" })); await screen.findByTestId("native"); expect(screen.getByTestId("native")).not.toBe(first);
+    fireEvent.click(screen.getByRole("button", { name: "native unit" })); await waitFor(() => expect((screen.getByRole("button", { name: "Keep Playing" }) as HTMLButtonElement).disabled).toBe(false)); fireEvent.click(screen.getByRole("button", { name: "Keep Playing" })); expect(screen.getByTestId("native")).toBe(first);
+    fireEvent.click(screen.getByRole("button", { name: "native unit" })); fireEvent.click(screen.getByRole("button", { name: "Stop Exercise" })); await screen.findByText(/Saved attempt: completed/);
+    fireEvent.click(screen.getByRole("button", { name: "Repeat Exercise" })); await screen.findByTestId("native"); expect(screen.getByTestId("native")).not.toBe(first);
     act(() => stale.onPracticeUnitCompleted?.()); expect(screen.queryByRole("dialog", { name: "Practice Complete" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "End Session" })); await screen.findByText(/Saved attempt: stopped-early/);
+    fireEvent.click(screen.getByRole("button", { name: "Stop Exercise" })); await screen.findByText(/Saved attempt: stopped-early/);
     const rows = await new IndexedDbPracticeAttempts(fake.factory).list(testProgram().programId); expect(rows).toHaveLength(2); expect(rows).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "attempt", bonusUnits: 1 })]));
   });
   it("records a deliberate skip separately without creating a performed attempt", async () => {
@@ -58,11 +103,11 @@ describe("weekly daily selection and native attempts", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: testProgram().program.exercises[0]!.label })); fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" }));
     expect(input).not.toHaveBeenCalledWith(true); fireEvent.click(screen.getByRole("button", { name: "Edit selection" })); expect((screen.getByRole("checkbox", { name: testProgram().program.exercises[0]!.label }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" })); fireEvent.click(screen.getByRole("button", { name: "Start selected exercise" })); await screen.findByTestId("native"); expect(input).toHaveBeenLastCalledWith(true);
-    fireEvent.click(screen.getByRole("button", { name: "End Session" })); await screen.findByText(/Saved attempt: stopped-early/); expect(input).toHaveBeenLastCalledWith(false);
+    fireEvent.click(screen.getByRole("button", { name: "Stop Exercise" })); await screen.findByText(/Saved attempt: stopped-early/); expect(input).toHaveBeenLastCalledWith(false);
   });
   it("preserves pending failed results across hidden navigation and allows retry", async () => {
     const program = testProgram(), props = { createExecutor, onBusyChange: vi.fn(), onClose: vi.fn(), program }; const view = render(<PracticeProgramPractice active {...props} />); await start();
-    fake.commitError = "QuotaExceededError"; fireEvent.click(screen.getByRole("button", { name: "End Session" })); await screen.findByRole("alert");
+    fake.commitError = "QuotaExceededError"; fireEvent.click(screen.getByRole("button", { name: "Stop Exercise" })); await screen.findByRole("alert");
     expect((screen.getByRole("button", { name: "Return to exercise pool" }) as HTMLButtonElement).disabled).toBe(true); view.rerender(<PracticeProgramPractice active={false} {...props} />); view.rerender(<PracticeProgramPractice active {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Retry saving" })); await screen.findByText(/Saved attempt: stopped-early/);
   });

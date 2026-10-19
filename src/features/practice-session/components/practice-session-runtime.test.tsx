@@ -38,7 +38,7 @@ describe("Practice Session runtime", () => {
     render(<PracticeSessionRuntime createExerciseToken={() => "unused"} dispatch={vi.fn()} now={() => 2} run={run} lesson={{ position: 1, total: 1, cue: "Keep the pulse", disabled: false, canRepeat: true, onNext: vi.fn(), onRepeat: vi.fn(), onFinish }} />);
     const native = screen.getByTestId("melody"); fireEvent.click(screen.getByRole("button", { name: "Focus" }));
     expect(screen.getByTestId("melody")).toBe(native); expect(native.closest('[data-engine="melody"]')).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Finish Lesson" })); expect(onFinish).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" })); expect(onFinish).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Exit Focus" })); expect(screen.getByTestId("melody")).toBe(native);
   });
   it("keeps Focus and keyboard intent independent without remounting, and carries both through Next and Skip", () => {

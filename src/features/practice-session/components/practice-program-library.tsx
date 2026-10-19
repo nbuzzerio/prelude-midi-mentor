@@ -141,7 +141,13 @@ export default function PracticeProgramLibrary({ createStore = createBrowserStor
         })}</ol> : <p>{NO_SUGGESTED_LESSON}</p>}
       </>}
     </section>
-    <div hidden={!!practice} inert={launching || !!practice || undefined}>{children}</div>
+    {children && <details className="mb-3 rounded-xl border border-white/10 px-4" hidden={!!practice} inert={launching || !!practice || undefined}>
+      <summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">Legacy Practice Sessions (V1)</summary>
+      <p className="mb-3 text-sm text-zinc-400">Separate preset-based practice. Your saved presets and unsaved drafts stay here.</p>
+      {children}
+    </details>}
+    <details className="rounded-xl border border-white/10 px-4" open={!preference.programId} hidden={!!practice} inert={launching || !!practice || undefined}>
+    <summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">Weekly program setup and management</summary>
     <section aria-label="Weekly programs" className="mt-6 space-y-4 rounded-xl border border-white/10 bg-white/5 p-4" hidden={!!practice} inert={launching || !!practice || undefined}>
     <div><h2 className="text-xl font-semibold">Weekly Programs</h2><p className="mt-1 text-sm text-zinc-400">Save a reusable Sunday–Saturday exercise pool. Choose freely, repeat exercises and retain basic attempt history locally.</p></div>
     <div className="flex flex-wrap gap-2">
@@ -157,5 +163,5 @@ export default function PracticeProgramLibrary({ createStore = createBrowserStor
     {dialog === "import" && importStore && <PracticeProgramImportDialog onClose={close} onSaved={message => { close(); setStatus(message); setRefresh(value => value + 1); void load(); }} store={importStore} />}
     {dialog === "guide" && <WeeklyPracticeGuideDialog onClose={close} version={2} />}
     {selected && <button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={() => setPractice({ program: revisions.at(-1)! })} type="button">Practice current revision</button>}
-  </section></>;
+  </section></details></>;
 }

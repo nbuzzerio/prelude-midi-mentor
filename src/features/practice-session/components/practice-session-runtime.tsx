@@ -16,6 +16,11 @@ import { PracticeSessionPrintControls } from "./practice-session-print-report";
 import type { ProgramAttempt } from "../practice-program-attempt";
 import { LessonExerciseFeedback, LessonNativeDetails } from "./practice-lesson-summary";
 
+type QueuePresentation = Readonly<{
+  position: number; total: number; cue: string; nextTitle?: string; disabled: boolean; canRepeat: boolean;
+  onNext: () => void; onRepeat: () => void; onFinish: () => void;
+  evidence?: ProgramAttempt | null; pendingReason?: string;
+}>;
 type RuntimeProps = Readonly<{
   run: ActivePracticeSessionRun;
   dispatch: Dispatch<PracticeSessionRunEvent>;
@@ -25,14 +30,14 @@ type RuntimeProps = Readonly<{
   /** Explicit morning-launch request for this acknowledged attempt only. */
   hostedStart?: boolean;
   onPracticeActivityChange?: (available: boolean) => void;
-  lesson?: Readonly<{
-    position: number; total: number; cue: string; nextTitle?: string; disabled: boolean; canRepeat: boolean;
-    onNext: () => void; onRepeat: () => void; onFinish: () => void;
-    evidence?: ProgramAttempt | null;
-  }>;
+  lesson?: QueuePresentation;
+  manualQueue?: QueuePresentation;
 }>;
 
-export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true, hostedStart = false, lesson, onPracticeActivityChange }: RuntimeProps) {
+export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true, hostedStart = false, lesson: dailyLesson, manualQueue, onPracticeActivityChange }: RuntimeProps) {
+  // Both V2 entry routes present the outer queue; their native start policies stay separate.
+  const lesson = dailyLesson ?? manualQueue;
+  const isV2 = lesson !== undefined;
   const melodyRef = useRef<MelodySessionHandle>(null);
   const mobilePlayEntryRef = useRef<HTMLButtonElement>(null);
   const exerciseContextRef = useRef<HTMLHeadingElement>(null);
@@ -51,10 +56,13 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
     isFocusMode,
     isMobilePlayMode: mobilePlay.isMobilePlayMode,
     showVirtualKeyboard,
-  }), [isFocusMode, mobilePlay.isMobilePlayMode, showVirtualKeyboard]);
+    isPlayingView: isV2,
+  }), [isFocusMode, mobilePlay.isMobilePlayMode, showVirtualKeyboard, isV2]);
   const targetComplete = run.completionPresentation === "target-complete";
   const completionPending = targetComplete && !lesson;
   const lessonCompletionReady = !!lesson && targetComplete && !lesson.disabled;
+  const finishLabel = dailyLesson ? "Finish Lesson" : "Finish practice";
+  const scopeNote = lesson ? `${dailyLesson ? "Today's Piano Lesson" : "Manual V2 practice"} · exercise ${lesson.position} of ${lesson.total}. This is a single-attempt native report; other selections are not included.` : undefined;
 
   useEffect(() => {
     if (entry.engine !== "flashcards" && entry.engine !== "sequences") return;
@@ -142,32 +150,33 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
 
   return <section data-engine={entry.engine} aria-label="Active Practice Session" style={lesson && targetComplete ? { minHeight: 0 } : undefined} className={mobilePlay.isMobilePlayMode ? `practice-session-shell practice-session-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950 text-white${isFocusMode ? " practice-session-focus" : ""}` : isFocusMode ? "practice-session-shell practice-session-focus fixed inset-0 z-50 grid w-full overflow-hidden bg-zinc-950 text-white" : "practice-session-shell mx-auto grid w-full max-w-7xl text-white"}>
     <div aria-hidden={completionPending || undefined} className="contents" inert={completionPending || undefined}>
-    <header style={lesson && !isFocusMode && !mobilePlay.isMobilePlayMode ? { maxHeight: "none", overflowY: "visible" } : undefined} className={`practice-session-strip border border-sky-400/30 bg-zinc-900 ${mobilePlay.isMobilePlayMode || isFocusMode ? "p-2" : "rounded-xl p-3"}`}>
+    <header style={lesson && (targetComplete || !isFocusMode && !mobilePlay.isMobilePlayMode) ? { maxHeight: "none", overflowY: "visible" } : undefined} className={`practice-session-strip border border-sky-400/30 bg-zinc-900 ${mobilePlay.isMobilePlayMode || isFocusMode ? "p-2" : "rounded-xl p-3"}`}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto min-w-0">
           {!lesson && <p className="truncate font-semibold">{run.snapshot.presetName}</p>}
-          <h1 className="text-sm font-normal text-zinc-300 focus:outline-none" ref={exerciseContextRef} tabIndex={-1}>Exercise {lesson?.position ?? run.activeExerciseIndex + 1} of {lesson?.total ?? run.snapshot.exercises.length} · {entry.label}</h1>
+          <h1 className={lesson ? "text-lg font-semibold focus:outline-none" : "text-sm font-normal text-zinc-300 focus:outline-none"} ref={exerciseContextRef} tabIndex={-1}>Exercise {lesson?.position ?? run.activeExerciseIndex + 1} of {lesson?.total ?? run.snapshot.exercises.length} · {entry.label}</h1>
           <p className="text-sm text-zinc-300">{getPracticeSessionProgressText(entry, record.actual)}</p>
-          {lesson && <p className="mt-1 text-sm text-sky-100">{lesson.cue}</p>}
+          {lesson && !targetComplete && <p className="mt-1 text-sm text-sky-100">{lesson.cue}</p>}
+          {lesson?.nextTitle && !targetComplete && <p className="mt-1 text-xs text-zinc-400">Up next: {lesson.nextTitle}</p>}
         </div>
-        <button aria-pressed={isFocusMode} className="min-h-11 rounded border border-sky-400/50 px-3 font-semibold text-sky-100" onClick={() => setIsFocusMode((current) => !current)} type="button">{isFocusMode ? "Exit Focus" : "Focus"}</button>
-        <button aria-pressed={showVirtualKeyboard} className="min-h-11 rounded border border-zinc-600 px-3" onClick={() => setShowVirtualKeyboard((current) => !current)} type="button">{showVirtualKeyboard ? "Hide Keyboard" : "Show Keyboard"}</button>
-        {!mobilePlay.isMobilePlayMode && <button className="practice-mobile-play-entry min-h-11 rounded border border-sky-400/50 px-3 font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>}
+        <button aria-pressed={isFocusMode} className="min-h-11 rounded border border-zinc-600 px-3 text-zinc-300" onClick={() => setIsFocusMode((current) => !current)} type="button">{isFocusMode ? "Exit Focus" : "Focus"}</button>
+        <button hidden={!!lesson && targetComplete} aria-pressed={showVirtualKeyboard} className="min-h-11 rounded border border-zinc-600 px-3 text-zinc-300" onClick={() => setShowVirtualKeyboard((current) => !current)} type="button">{showVirtualKeyboard ? "Hide Keyboard" : "Show Keyboard"}</button>
+        {!mobilePlay.isMobilePlayMode && (lesson ? <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">View options</summary><button className="practice-mobile-play-entry min-h-11 rounded border border-zinc-600 px-3" onClick={mobilePlay.enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button></details> : <button className="practice-mobile-play-entry min-h-11 rounded border border-sky-400/50 px-3 font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>)}
         {allowSkip && run.completionPresentation === "practicing" && <button className="min-h-11 rounded bg-zinc-800 px-3" onClick={() => advance("SKIP")} type="button">Skip for Today</button>}
         <button className="min-h-11 rounded border border-zinc-600 px-3" onClick={() => dispatch({ type: "END", ...scope, endedAt: now() })} type="button">{lesson ? "Stop Exercise" : "End Session"}</button>
-        {lesson && entry.engine === "melody" && (!targetComplete || lesson.nextTitle) && <button className="min-h-11 rounded border border-zinc-600 px-3" disabled={lesson.disabled} onClick={lesson.onFinish} type="button">Finish Lesson</button>}
+        {lesson && !targetComplete && <button className="min-h-11 border-l border-zinc-700 px-3 text-sm text-zinc-400 disabled:opacity-40" disabled={lesson.disabled} onClick={lesson.onFinish} type="button">{finishLabel} early</button>}
         {mobilePlay.isMobilePlayMode && <button className="min-h-11 rounded border border-sky-400/60 px-3 font-semibold text-sky-100" onClick={exitMobilePlay} type="button">Exit Mobile Play</button>}
       </div>
       {lesson && (targetComplete || run.completionPresentation === "bonus") && <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
-        <p role="status">{targetComplete ? "Target complete. Take a moment before continuing." : "Target complete · Bonus practice"}</p>
-        {targetComplete && lesson.evidence?.attemptId === run.runId && lesson.evidence.outcome === "completed" && <LessonExerciseFeedback attempt={lesson.evidence} />}
-        {lesson.nextTitle && <p className="text-sm">Next: {lesson.nextTitle}</p>}
-        <div className="flex flex-wrap gap-2">
-          <button className="min-h-11 rounded bg-sky-500 px-4 font-semibold disabled:opacity-40" disabled={lesson.disabled} onClick={lesson.nextTitle ? lesson.onNext : lesson.onFinish} ref={completionPrimaryActionRef} type="button">{lesson.nextTitle ? "Next Exercise" : "Finish Lesson"}</button>
+        <h2 className="font-semibold" role="status">{targetComplete ? `${entry.label} complete` : "Target complete · Bonus practice"}</h2>
+        <button aria-label={lesson.nextTitle ? "Next Exercise" : finishLabel} aria-description={lesson.nextTitle ? `Continue to ${lesson.nextTitle}` : undefined} className="lesson-primary min-h-12 max-w-full rounded bg-sky-500 px-5 py-3 text-left font-semibold disabled:opacity-40" disabled={lesson.disabled} onClick={lesson.nextTitle ? lesson.onNext : lesson.onFinish} ref={completionPrimaryActionRef} type="button">{lesson.nextTitle ? <>Next Exercise <span aria-hidden="true">→ {lesson.nextTitle}</span></> : finishLabel}</button>
+        {lesson.disabled && <p className="text-sm text-amber-200" role="status">{lesson.pendingReason ?? "Saving results before continuing…"}</p>}
+        {targetComplete && lesson.evidence?.attemptId === run.runId && lesson.evidence.outcome === "completed" && <LessonExerciseFeedback compact attempt={lesson.evidence} />}
+        <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">More practice options</summary><div className="flex flex-wrap gap-2">
           {targetComplete && <button className="min-h-11 rounded border border-zinc-600 px-3 disabled:opacity-40" disabled={lesson.disabled} onClick={keepPlaying} type="button">Keep Playing</button>}
           <button className="min-h-11 rounded border border-zinc-600 px-3 disabled:opacity-40" disabled={lesson.disabled || !lesson.canRepeat} onClick={lesson.onRepeat} type="button">Repeat Exercise</button>
-        </div>
-        {targetComplete && <LessonNativeDetails pending={lesson.disabled} run={run} />}
+        </div></details>
+        {targetComplete && <LessonNativeDetails pending={lesson.disabled} run={run} scopeNote={scopeNote} />}
       </div>}
       {!lesson && run.completionPresentation === "bonus" && <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/10 pt-3"><span className="mr-auto">Target complete · Bonus practice</span><button className="min-h-11 rounded bg-sky-500 px-4 font-semibold" onClick={() => advance("ADVANCE")} type="button">{finalExercise ? "Finish Session" : "Next Exercise"}</button></div>}
       {!completionPending && bonusNotice?.token === run.activeExerciseToken && <p className="mt-2 text-sm text-amber-200" role="status">{bonusNotice.message}</p>}

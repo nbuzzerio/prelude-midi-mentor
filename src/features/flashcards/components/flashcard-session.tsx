@@ -1,4 +1,5 @@
 import type { FlashcardConfig } from "../flashcard-config";
+import { PlayingViewDetails } from "@/components/playing-view-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import InstrumentVolumeControl from "@/components/audio/instrument-volume-control";
@@ -669,7 +670,7 @@ export default function FlashcardSession({
         </div>
       </div>
 
-      <section
+      <PlayingViewDetails enabled={!!hostedPracticePresentation?.isPlayingView}><section
         className="flashcard-secondary flex flex-col gap-3 sm:gap-6"
         hidden={presentationFocusMode || isMobilePlayActive}
       >
@@ -704,7 +705,7 @@ export default function FlashcardSession({
         </div>
 
         <PracticeStats stats={stats} />
-      </section>
+      </section></PlayingViewDetails>
     </div>
   );
 }

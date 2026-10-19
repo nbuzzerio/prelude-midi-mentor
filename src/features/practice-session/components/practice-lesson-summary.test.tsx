@@ -39,7 +39,7 @@ it("retains native diagnostics and real print controls behind an expandable sect
   const scope = { runId: run.runId, exerciseToken: run.activeExerciseToken, exerciseId: entry.id };
   run = practiceSessionRunReducer(run, { type: "UNIT_COMPLETED", ...scope, at: 2 }) as ActivePracticeSessionRun;
   const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
-  render(<LessonNativeDetails run={run} />);
+  render(<LessonNativeDetails run={run} scopeNote="Today's Piano Lesson · exercise 1 of 3. Single-attempt report only." />);
   expect(screen.queryByRole("button", { name: "Generate Report" })).toBeNull();
   fireEvent.click(screen.getByText("Detailed native report and printing"));
   fireEvent.click(await screen.findByRole("button", { name: "Generate Report" }));
@@ -47,5 +47,8 @@ it("retains native diagnostics and real print controls behind an expandable sect
   fireEvent.click(screen.getByRole("button", { name: "Generate printable report" }));
   await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
   expect(screen.getByLabelText("Native lesson printable Practice Session report")).toBeTruthy();
+  const text = screen.getByLabelText("Native lesson printable Practice Session report").textContent;
+  expect(text).toContain("exercise 1 of 3. Single-attempt report only.");
+  expect(text).toContain("Exercise 1 of 1");
   fireEvent(window, new Event("afterprint"));
 });
