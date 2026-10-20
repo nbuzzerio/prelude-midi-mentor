@@ -1,5 +1,16 @@
 # Weekly Programs — schema 2 and local attempt history
 
+## Optional local repertoire supplement - Checkpoint C
+
+Today's Piano Lesson has a secondary Repertoire settings disclosure. Include repertoire defaults OFF; Piano is selected initially, while Violin/Ocarina require explicit preference changes. Enabling other instruments does not authorize acoustic work in this Piano lesson. A candidate must be active, explicitly Piano-eligible, selected for Piano execution, and compatible with the unchanged A1 score/range/policy validator.
+
+At Start, the existing local-day V2 rotation is resolved unchanged. A separate acknowledged Rolodex read selects at most one passage: priority, oldest current-prescription practice date, then stable creation/identity order. Missing or obsolete prescription evidence is not recent practice. A stopped/interrupted performance date never means successful completion. Empty/unavailable repertoire does not prevent fundamentals. The full selected score and settings are frozen for this temporary lesson occurrence; subsequent source/collection changes cannot replace them.
+
+After the last fundamental is durably closed, Next: Repertoire opens native A1 Ready. A connected Piano input is reused without another instrument question. Begin Count-in remains a deliberate audio gesture. Without MIDI, connect/retry or Skip Repertoire remains available. Early Finish leaves repertoire unperformed; Skip is explicit; Stop closes an actual native attempt; Replay has its own A1 identity. Background or app-section departure interrupts the native player and releases input/audio resources.
+
+No supplementary exercise enters the schema-2 definition, V2 queue, revision or coverage. V2 fundamentals, A1 results and Rolodex practice dates retain separate persistence. Pending A1 terminal evidence blocks Finish/Return/printing. A failed date update does not undo an acknowledged A1 result: Retry remains available in final review. The combined printable summary is current-tab-only, with native fundamental evidence and separate A1 pitch/onset counts and outcomes; reloading leaves independent saved attempts, not a reconstructed lesson archive. The ten-minute budget is guidance and never cuts off repertoire music.
+
+
 Weekly Programs import, preview and explicitly save reusable definitions, launch freely selected native exercises and retain basic local attempts/progress. Comparison dashboards and Guided Improvisation are not implemented. Existing daily presets, their execution and schema-1 Weekly Practice imports remain independent and unchanged. The pending application version remains 2.9.21; release versioning is for the owner to reconcile separately.
 
 Use **Practice Sessions → Import Weekly Program** for schema 2. **Weekly Program AI Guide → Copy for AI** includes the full strict schema, current native allowed values and a validated example. **Import Weekly Plan** and its original AI guide continue accepting schema 1; no automatic conversion occurs.

@@ -18,6 +18,26 @@ function context() {
   return { value, consumer: () => consumer };
 }
 describe("continuous workspace and native ownership boundary", () => {
+  it("hosted terminal failure blocks Finish and departure until Retry saves the same identity", async () => {
+    const c = context(), p = projectContinuousPassage(testScore(), 0, 1, 60);
+    const store = { save: vi.fn().mockRejectedValueOnce(Error("quota")).mockResolvedValue(undefined), list: async () => [] };
+    const session = new ContinuousSession(p, TEST_INPUT, store, () => { throw Error("audio denied"); });
+    const onExit = vi.fn(), onAcknowledgedAttempt = vi.fn(), onView = vi.fn();
+    let guard: (() => boolean) | null = null;
+    const tree = (active: boolean) => <AppMidiContext.Provider value={c.value}><ContinuousPlayer passage={p} input={TEST_INPUT} store={store} onExit={onExit} createSession={() => session} onAcknowledgedAttempt={onAcknowledgedAttempt} onGuardChange={value => { guard = value; }} lessonHost={{ active, onView }} /></AppMidiContext.Provider>;
+    const view = render(tree(true));
+    await act(async () => fireEvent.click(screen.getByText("Ready — Begin Count-in")));
+    expect(screen.getByText("Result not saved")).toBeTruthy();
+    expect((screen.getByText("Finish Lesson") as HTMLButtonElement).disabled).toBe(true);
+    expect(guard!()).toBe(false); expect(onAcknowledgedAttempt).not.toHaveBeenCalled();
+    const id = session.snapshot().attempt!.id;
+    await act(async () => fireEvent.click(screen.getByText("Retry Save")));
+    expect(session.snapshot().attempt!.id).toBe(id); expect(onAcknowledgedAttempt).toHaveBeenCalledWith(expect.objectContaining({ id, status: "failed" }));
+    expect(guard!()).toBe(true);
+    view.rerender(tree(false)); expect(c.consumer()).toBeUndefined();
+    view.rerender(tree(true)); expect(c.consumer()).toBeDefined();
+    fireEvent.click(screen.getByText("Finish Lesson")); expect(onExit).toHaveBeenCalledOnce();
+  });
   it("allows manual Rolodex saving without a physical MIDI connection or attempt", () => {
     const save = vi.fn(async () => {});
     render(<ContinuousWorkspace score={testScore()} onExit={vi.fn()} onPitchFirst={vi.fn()} store={{ save, list: async () => [] }} />);

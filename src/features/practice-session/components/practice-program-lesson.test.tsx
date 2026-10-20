@@ -9,6 +9,9 @@ import PracticeProgramPractice from "./practice-program-practice";
 import PracticeProgramLesson from "./practice-program-lesson";
 import { appendFlashcardCompletedTarget, createFlashcardPracticeResult } from "@/features/flashcards/flashcard-practice-result";
 import type { PracticeSessionEngineResult } from "../practice-session-engine-result";
+import { createEntry } from "../../piece-practice/rolodex/rolodex-model";
+import { testScore } from "../../piece-practice/continuous/continuous-test-fixtures";
+import { freezeLessonRepertoire } from "../practice-lesson-repertoire";
 
 type Props = { hostedStart?: boolean; onPracticeUnitCompleted?: () => void; onPracticeTargetReached?: () => void; onScaleRepertoireCompleted?: () => void; onPracticeActivityChange?: (available: boolean) => void; onPracticeResultChange?: (result: PracticeSessionEngineResult) => void };
 function Native(props: Props) {
@@ -34,6 +37,31 @@ function fixture(ids = ["exercise-0", "exercise-2", "exercise-8"], initiallyActi
   return { executor, view, tree, close };
 }
 const rows = () => new IndexedDbPracticeAttempts(fake.factory).list(testProgram().programId);
+it("enters one frozen repertoire occurrence only after the final fundamental terminal acknowledgement", async () => {
+  const program = testProgram(), executor = new PracticeProgramExecutor(program, { ownership: testOwnership() });
+  const repertoire = freezeLessonRepertoire(createEntry(testScore(), "piano"));
+  render(<StrictMode><PracticeProgramPractice active createExecutor={() => executor} morningSelection={["exercise-0"]} onBusyChange={vi.fn()} onClose={vi.fn()} program={program} repertoire={repertoire} /></StrictMode>);
+  await screen.findByTestId("native"); fireEvent.click(screen.getByRole("button", { name: "unit" }));
+  const next = await screen.findByRole("button", { name: "Next: Repertoire" });
+  await waitFor(() => expect((next as HTMLButtonElement).disabled).toBe(false));
+  const hold = fake.holdNextCommit(); fireEvent.click(next); fireEvent.click(next);
+  await waitFor(() => expect(hold.ready()).toBe(true));
+  expect(screen.queryByText("Skip Repertoire")).toBeNull(); expect(executor.getSnapshot().index).toBe(0);
+  await act(async () => hold.release()); await screen.findByText("Skip Repertoire");
+  expect(executor.getSnapshot().queue.map(item => item.exerciseId)).toEqual(["exercise-0"]);
+  expect(await rows()).toHaveLength(1);
+  expect(screen.getByText(/Connect a physical MIDI piano/)).toBeTruthy();
+  fireEvent.click(screen.getByText("Skip Repertoire")); await screen.findByText("Lesson finished");
+  expect(screen.getByText("Deliberately skipped — no performance.")).toBeTruthy();
+  expect(await rows()).toHaveLength(1);
+});
+it("early Finish leaves selected repertoire unperformed and does not create an A1 attempt", async () => {
+  const program = testProgram(), executor = new PracticeProgramExecutor(program, { ownership: testOwnership() });
+  render(<PracticeProgramPractice active createExecutor={() => executor} morningSelection={["exercise-0"]} onBusyChange={vi.fn()} onClose={vi.fn()} program={program} repertoire={freezeLessonRepertoire(createEntry(testScore(), "piano"))} />);
+  await screen.findByTestId("native"); fireEvent.click(screen.getByRole("button", { name: "Finish Lesson early" }));
+  await screen.findByText("Lesson finished"); expect(screen.getByText("Not performed.")).toBeTruthy();
+  expect(screen.queryByText("Ready — Begin Count-in")).toBeNull(); expect(executor.getSnapshot().acknowledged).toHaveLength(1);
+});
 async function complete() { fireEvent.click(screen.getByRole("button", { name: "unit" })); await waitFor(() => expect((screen.getByRole("button", { name: "Next Exercise" }) as HTMLButtonElement).disabled).toBe(false)); }
 
 it("presents acknowledged native feedback at target completion and retains it after moving on", async () => {

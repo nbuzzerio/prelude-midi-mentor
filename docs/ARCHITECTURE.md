@@ -1,5 +1,20 @@
 # Prelude: MIDI Mentor — ARCHITECTURE
 
+## Daily Piano Lesson repertoire - Checkpoint C
+
+Checkpoint C composes one optional local repertoire occurrence outside the authored V2 queue. `practice-repertoire-preferences.ts` owns localStorage `prelude-lesson-repertoire-v1`: inclusion defaults off, Piano is the initial instrument choice, and reads never write or repair data. Failed saves retain the previous readable preference and report failure. No Weekly Program definition or imported schema changes.
+
+`practice-lesson-repertoire.ts` filters acknowledged Rolodex records by enabled Piano preference, active status, explicit Piano eligibility, selected Piano Continuous Tempo profile and unchanged A1 compatibility. Ordering is priority first, then oldest current-prescription acknowledged practice date, then creation timestamp and identity. No date or obsolete-prescription evidence receives no recency credit. A valid stopped/interrupted performance date denotes practice, never successful completion. Priority can outweigh rotation among unprioritized alternatives. Selection uses only the retained last-practice summary, not a historical scheduler.
+
+The program library rereads acknowledged passages on Start and freezes one complete prescription with a temporary occurrence ID. Later source/Rolodex edits, pauses or deletion cannot change the running lesson. Another tab's changes are reflected by the next selection read; there is no global lock across databases. A failed optional read or empty eligible pool leaves fundamentals available. V2's executor, queue, authored order, revisions, occurrence identities and coverage remain authoritative and unchanged.
+
+The lesson presentation waits for the last fundamental's terminal acknowledgement before mounting the supplementary `PracticeLessonRepertoire`. It reuses `RolodexPractice` and `ContinuousPlayer`; optional host notifications expose native phase and acknowledged terminal records without introducing another MIDI/audio/scoring owner. Changing app sections interrupts A1 and releases its MIDI consumer; returning retains native Retry and Replay. Ready/count-in and review do not accrue playing time. The soft budget never stops a phrase.
+
+Current-lesson evidence remains in memory, deduplicated by A1 attempt ID. Replay adds a distinct performance; save Retry does not. A pending/failed A1 terminal write blocks Finish and Return. A separate failed Rolodex date update preserves saved A1 evidence and its Retry remains mounted through final review; leaving unresolved date updates requires confirmation. V2, A1 and Rolodex transactions are independent and never presented as atomic. Deleting a passage after launch may prevent its date update but cannot invalidate the native performance.
+
+The screen and print summary distinguish fundamental queue outcomes from the optional passage, unperformed/skipped work, independent A1 performances and native pitch/onset counts. Only acknowledged terminal A1 records are shown as saved. Pending native evidence blocks full-summary printing; separate date failures are labelled. No durable combined lesson archive, aggregate grade, mastery or retention model is added. Standalone player defaults and strict native/import storage contracts remain unchanged.
+
+
 > This document describes the current architecture of Prelude and the responsibilities of its major systems. It focuses on how the application is organized today rather than every possible future direction.
 
 ## Practice Rolodex — Checkpoint B

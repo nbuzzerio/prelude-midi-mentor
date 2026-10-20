@@ -18,7 +18,7 @@ import type { ProgramAttempt } from "../practice-program-attempt";
 import { LessonExerciseFeedback, LessonNativeDetails } from "./practice-lesson-summary";
 
 type QueuePresentation = Readonly<{
-  position: number; total: number; cue: string; nextTitle?: string; disabled: boolean; canRepeat: boolean;
+  position: number; total: number; cue: string; nextTitle?: string; nextLabel?: string; disabled: boolean; canRepeat: boolean;
   onNext: () => void; onRepeat: () => void; onFinish: () => void;
   evidence?: ProgramAttempt | null; pendingReason?: string;
 }>;
@@ -181,7 +181,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
       </div>
       {lesson && (targetComplete || run.completionPresentation === "bonus") && <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
         <h2 className="font-semibold" role="status">{targetComplete ? `${entry.label} complete` : "Target complete · Bonus practice"}</h2>
-        <button aria-label={lesson.nextTitle ? "Next Exercise" : finishLabel} aria-description={lesson.nextTitle ? `Continue to ${lesson.nextTitle}` : undefined} className="lesson-primary min-h-12 max-w-full rounded bg-sky-500 px-5 py-3 text-left font-semibold disabled:opacity-40" disabled={lesson.disabled} onClick={lesson.nextTitle ? lesson.onNext : lesson.onFinish} ref={completionPrimaryActionRef} type="button">{lesson.nextTitle ? <>Next Exercise <span aria-hidden="true">→ {lesson.nextTitle}</span></> : finishLabel}</button>
+        <button aria-label={lesson.nextTitle ? lesson.nextLabel ?? "Next Exercise" : finishLabel} aria-description={lesson.nextTitle ? `Continue to ${lesson.nextTitle}` : undefined} className="lesson-primary min-h-12 max-w-full rounded bg-sky-500 px-5 py-3 text-left font-semibold disabled:opacity-40" disabled={lesson.disabled} onClick={lesson.nextTitle ? lesson.onNext : lesson.onFinish} ref={completionPrimaryActionRef} type="button">{lesson.nextTitle ? <>{lesson.nextLabel ?? "Next Exercise"} <span aria-hidden="true">→ {lesson.nextTitle}</span></> : finishLabel}</button>
         {lesson.disabled && <p className="text-sm text-amber-200" role="status">{lesson.pendingReason ?? "Saving results before continuing…"}</p>}
         {targetComplete && lesson.evidence?.attemptId === run.runId && lesson.evidence.outcome === "completed" && <LessonExerciseFeedback compact attempt={lesson.evidence} />}
         <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">More practice options</summary><div className="flex flex-wrap gap-2">

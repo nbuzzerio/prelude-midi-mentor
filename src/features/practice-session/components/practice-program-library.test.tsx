@@ -45,7 +45,7 @@ describe("weekly program foundation interface", () => {
     const { createStore } = fixture(); const parsed = validatePracticeProgram(WEEKLY_PROGRAM_EXAMPLE); if (!parsed.ok) throw Error("fixture"); await createStore().save(parsed.value, null);
     render(<PracticeProgramLibrary createStore={createStore} />); fireEvent.click(screen.getByRole("button", { name: "Import Weekly Program" })); paste({ ...WEEKLY_PROGRAM_EXAMPLE, revision: 2 }); await preview();
     const save = screen.getByRole("button", { name: "Save program" }) as HTMLButtonElement; expect(save.disabled).toBe(true);
-    fireEvent.click(screen.getByRole("checkbox")); expect(save.disabled).toBe(false); fireEvent.click(save);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox")); expect(save.disabled).toBe(false); fireEvent.click(save);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); fireEvent.click(await screen.findByRole("button", { name: "Flexible foundations · Revision 2" }));
     const revisions = await screen.findByRole("combobox", { name: "Saved revision" }); expect(within(revisions).getAllByRole("option")).toHaveLength(2);
     fireEvent.change(revisions, { target: { value: "1" } }); expect(screen.getByText(/piano-foundations · Revision 1/)).toBeTruthy();

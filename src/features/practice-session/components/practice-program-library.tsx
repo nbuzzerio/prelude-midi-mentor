@@ -10,13 +10,18 @@ import { browserLessonStorage, loadLessonPreference, saveLessonPreference } from
 import type { PracticeSessionStorage } from "../practice-session-library";
 import { NO_SUGGESTED_LESSON, resolveMorningLesson, type MorningLesson } from "../practice-lesson";
 import { getPracticeExerciseConfigurationSummary, getPracticeExerciseTargetSummary } from "../practice-session-presenters";
+import { loadRepertoirePreference, saveRepertoirePreference, REPERTOIRE_INSTRUMENTS } from "../practice-repertoire-preferences";
+import { freezeLessonRepertoire, selectLessonRepertoire, type LessonRepertoire } from "../practice-lesson-repertoire";
+import { rolodexStore } from "../../piece-practice/rolodex/rolodex-store";
+import type { RolodexEntry, RolodexStore } from "../../piece-practice/rolodex/rolodex-types";
 
 const createBrowserStore = () => new IndexedDbPracticePrograms();
 const ignoreBusy = () => {};
 const wallNow = () => Date.now();
-export default function PracticeProgramLibrary({ createStore = createBrowserStore, active = true, onBusyChange = ignoreBusy, onInputChange = ignoreBusy, children, preferenceStorage = browserLessonStorage, now = wallNow }: Readonly<{
+export default function PracticeProgramLibrary({ createStore = createBrowserStore, active = true, onBusyChange = ignoreBusy, onInputChange = ignoreBusy, children, preferenceStorage = browserLessonStorage, now = wallNow, repertoireStore = rolodexStore }: Readonly<{
   createStore?: () => PracticeProgramStore; active?: boolean; onBusyChange?: (busy: boolean) => void; onInputChange?: (active: boolean) => void;
   children?: ReactNode; preferenceStorage?: () => PracticeSessionStorage; now?: () => number;
+  repertoireStore?: RolodexStore;
 }>) {
   // Read connection controls only. The native engine remains the sole MIDI consumer.
   const midi = useContext(AppMidiContext);
@@ -27,7 +32,10 @@ export default function PracticeProgramLibrary({ createStore = createBrowserStor
   const [error, setError] = useState(""); const [status, setStatus] = useState(""); const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"import" | "guide" | null>(null);
   const [importStore, setImportStore] = useState<PracticeProgramStore | null>(null);
-  const [practice, setPractice] = useState<Readonly<{ program: PracticeProgramRevision; startIds?: readonly string[]; notice?: string }> | null>(null);
+  const [practice, setPractice] = useState<Readonly<{ program: PracticeProgramRevision; startIds?: readonly string[]; notice?: string; repertoire?: LessonRepertoire }> | null>(null);
+  const [repertoirePreference, setRepertoirePreference] = useState(() => loadRepertoirePreference(preferenceStorage));
+  const [repertoirePreview, setRepertoirePreview] = useState<RolodexEntry | null>(null);
+  const [repertoireNotice, setRepertoireNotice] = useState("");
   const [preference, setPreference] = useState(() => loadLessonPreference(preferenceStorage));
   const [lesson, setLesson] = useState<MorningLesson | null>(null);
   const [lessonError, setLessonError] = useState("");
@@ -37,6 +45,17 @@ export default function PracticeProgramLibrary({ createStore = createBrowserStor
   const [launching, setLaunching] = useState(false);
   const launchLock = useRef(false), lessonGeneration = useRef(0);
   const importButton = useRef<HTMLButtonElement>(null); const guideButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!active || practice || !repertoirePreference.enabled) return;
+    void repertoireStore.list().then(list => {
+      if (cancelled) return;
+      const selected = selectLessonRepertoire(list.entries, repertoirePreference);
+      setRepertoirePreview(selected);
+      setRepertoireNotice(selected ? "" : "No compatible active Piano passage is available. Fundamentals will proceed normally.");
+    }, () => { if (!cancelled) { setRepertoirePreview(null); setRepertoireNotice("Repertoire could not be read. Fundamentals remain available."); } });
+    return () => { cancelled = true; };
+  }, [active, practice, repertoirePreference, repertoireStore, refresh]);
   useEffect(() => { const epoch = generation, store = createStore(); owner.current = store; return () => { epoch.current++; owner.current = null; store.close(); }; }, [createStore]);
   useEffect(() => {
     const epoch = lessonGeneration, token = ++epoch.current, store = owner.current;
@@ -96,8 +115,17 @@ export default function PracticeProgramLibrary({ createStore = createBrowserStor
       const resolved = resolveMorningLesson(program, now());
       setLesson(resolved);
       if (start && resolved.exerciseIds.length) {
+        let repertoire: LessonRepertoire | undefined;
+        if (repertoirePreference.enabled) {
+          try {
+            const list = await repertoireStore.list();
+            const selected = selectLessonRepertoire(list.entries, repertoirePreference);
+            if (selected) repertoire = freezeLessonRepertoire(selected);
+            if (current()) setRepertoireNotice(selected ? "" : "No compatible Piano passage was selected; fundamentals proceed normally.");
+          } catch { if (current()) setRepertoireNotice("Repertoire could not be read. Fundamentals proceed normally."); }
+        }
         await connect;
-        if (current()) setPractice({ program: resolved.program, startIds: resolved.exerciseIds });
+        if (current()) setPractice({ program: resolved.program, startIds: resolved.exerciseIds, repertoire });
       } else {
         setPractice({ program: resolved.program, notice: !resolved.exerciseIds.length ? NO_SUGGESTED_LESSON : undefined });
       }
@@ -120,9 +148,21 @@ export default function PracticeProgramLibrary({ createStore = createBrowserStor
   };
   const close = () => { const previous = dialog; setDialog(null); (previous === "guide" ? guideButton : importButton).current?.focus(); };
   return <>
-    {practice && <PracticeProgramPractice active={active} key={`${practice.program.programId}:${practice.program.revision}`} onBusyChange={onBusyChange} onInputChange={onInputChange} onClose={() => setPractice(null)} program={practice.program} morningSelection={practice.startIds} notice={practice.notice} />}
+    {practice && <PracticeProgramPractice active={active} key={`${practice.program.programId}:${practice.program.revision}`} onBusyChange={onBusyChange} onInputChange={onInputChange} onClose={() => setPractice(null)} program={practice.program} morningSelection={practice.startIds} notice={practice.notice} repertoire={practice.repertoire} />}
     <section aria-label="Today's Piano Lesson" className="mb-4 min-w-0 space-y-3 break-words rounded-xl border border-sky-400/40 bg-sky-950/30 p-4" hidden={!!practice}>
       <h2 className="text-2xl font-bold">Today&apos;s Piano Lesson</h2>
+      {lesson && <p className="text-sm">Today&apos;s lesson: {lesson.exerciseIds.length} fundamentals{repertoirePreference.enabled && repertoirePreview ? " + one optional Piano repertoire passage" : ""}.</p>}
+      {repertoirePreference.enabled && repertoirePreview && <p className="text-sm">Optional repertoire: {repertoirePreview.nickname || repertoirePreview.sourceTitle} · Measures {repertoirePreview.start + 1}–{repertoirePreview.end + 1} · {repertoirePreview.bpm} BPM</p>}
+      <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">Repertoire settings</summary>
+        <fieldset disabled={launching} className="space-y-2">
+          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={repertoirePreference.enabled} onChange={event => { setRepertoirePreview(null); setRepertoirePreference(saveRepertoirePreference({ ...repertoirePreference, enabled: event.target.checked }, preferenceStorage)); }} />Include repertoire practice</label>
+          <p className="text-sm">Piano lessons use only compatible passages explicitly enabled and configured for Piano. Manage passages in Staff Builder → Practice Rolodex.</p>
+          {REPERTOIRE_INSTRUMENTS.map(instrument => <label className="flex min-h-11 items-center gap-2 capitalize" key={instrument}><input type="checkbox" checked={repertoirePreference.instruments.includes(instrument)} onChange={event => { setRepertoirePreview(null); setRepertoirePreference(saveRepertoirePreference({ ...repertoirePreference, instruments: event.target.checked ? [...repertoirePreference.instruments, instrument] : repertoirePreference.instruments.filter(i => i !== instrument) }, preferenceStorage)); }} />{instrument}</label>)}
+          <p className="text-sm">Selection: priority first, then least recently acknowledged practice of the current prescription, then creation and identity order. Repertoire may extend the lesson beyond ten minutes.</p>
+          {repertoirePreference.message && <p role="status">{repertoirePreference.message}</p>}
+          {repertoirePreference.enabled && repertoireNotice && <p role="status">{repertoireNotice}</p>}
+        </fieldset>
+      </details>
       {preference.message && <p className="text-sm text-amber-200" role="status">{preference.message}</p>}
       {lessonError && <p className="text-red-300" role="alert">{lessonError}</p>}
       {lessonLoading && !launching && <p role="status">Loading today&apos;s lesson…</p>}

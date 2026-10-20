@@ -1,5 +1,20 @@
 # Prelude: MIDI Mentor — Testing
 
+## Daily lesson repertoire C validation
+
+C uses the existing installed dependencies only, with process-local `pnpm_config_verify_deps_before_run=false`, `pnpm_config_update_notifier=false` and `npm_config_offline=true`. Focused tests cover preference opt-in/failure/no-write-on-load; instrument/profile/status/notation eligibility; priority/recency order; immutable launch prescriptions; final V2 acknowledgement gating; A1 save Retry versus Replay; independent date Retry through final review; neutral skipped/unperformed outcomes; and combined printing.
+
+Production-browser QA is `.dev/repertoire-c-browser-qa.mjs`, with isolated Chrome profiles and synthetic records under `.dev/qa-runs/repertoire-c-*`. It uses native IndexedDB transactions and AudioContext with synthetic Web MIDI, six required viewports, separate persistence failures, source/collection changes, deterministic selection, offline service-worker reload and a combined-summary PDF. Existing A1/Rolodex and V1/manual-V2 lesson QA scripts provide compatibility coverage. No owner browser records are used. Physical timing, real-piano comfort and screen-reader acceptance require separate owner testing.
+
+Verification logs, browser result JSON, actual PDFs/rendered page evidence and the complete unstaged CxR remain under ignored `.dev` paths. Exact final counts and limitations accompany the owner-review report.
+
+
+Final C verification: **11 focused test files / 95 tests**; full `pnpm verify`: **303 files / 4,352 tests**, with successful lint, typecheck and fresh production/PWA build. Existing acoustic-input hook lint warning, jsdom canvas/media limitations, large-chunk/plugin-timing warnings and unavailable local build revision remain. Main/vendor JavaScript are 1,185,297 / 1,119,962 bytes; 35 PWA precache entries total 8,088.91 KiB, within the existing per-file ceiling.
+
+Chrome 155.0.8059.85 mixed-lesson QA passed 14 grouped scenarios with 30 screenshots across the six required viewports and zero runtime exceptions. Standalone A1 passed 14 groups / six viewports; standalone Rolodex passed 13 groups / six viewports. Existing daily/manual-V2/V1/Melody checks remain separate. The actual combined PDF is two pages: text extracted from the PDF and both Windows-rendered pages inspected; white background, distinct native attempts, and no clipped performance blocks. At 320px, the preexisting 320px document minimum plus a 15px scrollbar causes the same overflow with repertoire disabled and enabled.
+
+The initial A1 browser regression exposed a QA injector assumption: wall-clock timers delivered approximately 160ms early relative to AudioContext. The ignored QA script now schedules synthetic arrivals against the authoritative audio clock; its existing early/late/wrong/missing assertions and all product thresholds remain unchanged. Final mixed-lesson QA also asserts ten matched/on-time synthetic attacks. This establishes routing and assessment behavior, not calibrated physical piano latency.
+
 ## Practice Rolodex B validation
 
 B uses installed dependencies only, with process-local `pnpm_config_verify_deps_before_run=false`, `pnpm_config_update_notifier=false` and `npm_config_offline=true`. This suppresses pnpm's automatic dependency recreation without installation or repository configuration changes.
@@ -8,7 +23,7 @@ Focused tests cover immutable source/range/policy, declared/Unknown instrument d
 
 `.dev/rolodex-browser-qa.mjs` uses a disposable Chrome profile and synthetic full-score library under `.dev/qa-runs/rolodex-b-*`. It exercises manual save/find/native A1 execution, Replay identities, source rename/edit/delete, backup restoration and duplicate/conflict handling, failed native writes and atomic batch rollback, explicit violin-to-piano opt-in, unsupported-meter gating, background/device interruption and service-worker offline persistence. Six viewports are 1366×768, 1280×800, 1024×768, 768×1024, 375×812 and 320×768. Logs/results stay under `.dev/rolodex-*`. Synthetic MIDI establishes routing and lifecycle behavior, not physical timing accuracy or piano-distance comfort.
 
-Owner physical acceptance: save a real two-measure passage under Piano, reconnect a physical keyboard, study Ready, play through mistakes, replay, reload the library, and confirm the same passage/BPM remains after changing its original source. Confirm hardware latency and notation comfort separately. No violin/ocarina acoustic execution, mastery or daily-lesson integration is claimed.
+Owner physical acceptance: save a real two-measure passage under Piano, reconnect a physical keyboard, study Ready, play through mistakes, replay, reload the library, and confirm the same passage/BPM remains after changing its original source. Confirm hardware latency and notation comfort separately. B does not claim violin/ocarina acoustic execution, mastery or daily-lesson integration; separately authorized C validation is described above.
 
 Final B verification: **16 focused test files / 208 tests**; full `pnpm verify` **298 test files / 4,321 tests**, including typecheck, lint and fresh production/PWA build. Chrome **155.0.8059.85** passed **13 Rolodex scenario groups** with six-viewport save/library/Ready evidence (`.dev/rolodex-browser-results.json`, `.dev/qa-runs/rolodex-b-QUNXyd/screenshots/`). The A1 regression passed **14 scenario groups / six viewports** (`.dev/continuous-browser-results.json`, `.dev/qa-runs/continuous-a1-DJkiaw/`). Existing lesson/manual-V2/V1/Melody browser regression passed four observation groups (`.dev/qa-runs/checkpoint5-keyboard-nIPPuM/results.json`). These successful runs recorded no uncaught application exceptions.
 

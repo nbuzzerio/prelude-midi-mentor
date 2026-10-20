@@ -1,4 +1,6 @@
 import { useState } from "react";
+import type { RepertoireEvidence } from "../practice-lesson-repertoire";
+import { PracticeLessonRepertoireSummary } from "./practice-lesson-repertoire-summary";
 import type { ProgramAttempt } from "../practice-program-attempt";
 import type { ProgramExecutionState } from "../practice-program-executor";
 import type { PracticeExerciseEntry } from "../practice-session-types";
@@ -36,8 +38,8 @@ export function LessonExerciseFeedback({ attempt, compact = false }: Readonly<{ 
   </section>;
 }
 
-export default function PracticeLessonSummary({ state, exercises, pending, programName = "Piano practice", workflowLabel = "Today's Piano Lesson" }: Readonly<{
-  state: ProgramExecutionState; exercises: readonly PracticeExerciseEntry[]; pending: boolean; programName?: string; workflowLabel?: string;
+export default function PracticeLessonSummary({ state, exercises, pending, programName = "Piano practice", workflowLabel = "Today's Piano Lesson", repertoire }: Readonly<{
+  state: ProgramExecutionState; exercises: readonly PracticeExerciseEntry[]; pending: boolean; programName?: string; workflowLabel?: string; repertoire?: RepertoireEvidence;
 }>) {
   const rows = lessonSummaryRows(state.queue, state.acknowledged.map(entry => entry.record), exercises, pending ? state.record : null,
     pending && !state.record && (state.saving || state.error) ? state.queue[state.index]?.occurrenceId : undefined);
@@ -59,7 +61,8 @@ export default function PracticeLessonSummary({ state, exercises, pending, progr
   </>;
   return <section aria-label="Lesson teaching summary" className="space-y-3 text-sm">
     {overview}
-    <PracticeLessonPrintControls exercises={exercises} overview={overview} pending={pending} programName={programName} state={state} workflowLabel={workflowLabel} />
+    {repertoire && <PracticeLessonRepertoireSummary evidence={repertoire} />}
+    <PracticeLessonPrintControls repertoire={repertoire} exercises={exercises} overview={overview} pending={pending} programName={programName} state={state} workflowLabel={workflowLabel} />
     <details><summary className="min-h-11 cursor-pointer py-3">Exercise results and native reports</summary>
       <div className="space-y-4">{rows.flatMap((row, index) => {
         const acknowledged = state.acknowledged.find(entry => entry.record.recordId === row.record?.recordId);

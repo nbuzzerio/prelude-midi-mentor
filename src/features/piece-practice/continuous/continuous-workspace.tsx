@@ -6,7 +6,7 @@ import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-t
 import type { MidiInputInfo } from "@/lib/midi/midi-transport";
 import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
 import { projectContinuousPassage } from "./continuous-projection";
-import { ContinuousSession } from "./continuous-session";
+import { ContinuousSession, type ContinuousView } from "./continuous-session";
 import { continuousStore } from "./continuous-store";
 import { ContinuousScore } from "./continuous-score";
 import type { ContinuousAttempt, ContinuousPassage, ContinuousStore } from "./continuous-types";
@@ -81,16 +81,20 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
   </section>;
 }
 
-export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange, createSession, onAcknowledgedAttempt }: Readonly<{
+export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange, createSession, onAcknowledgedAttempt, lessonHost }: Readonly<{
   passage: ContinuousPassage; input: MidiInputInfo; store: ContinuousStore; onExit: () => void;
   onGuardChange?: (guard: (() => boolean) | null) => void;
   createSession?: () => ContinuousSession;
   onAcknowledgedAttempt?: (attempt: ContinuousAttempt) => void;
+  lessonHost?: Readonly<{ active: boolean; onView: (view: ContinuousView) => void }>;
 }>) {
   const midi = useContext(AppMidiContext);
   const [session] = useState(() => createSession?.() ?? new ContinuousSession(passage, input, store));
   const playerRef = useRef<HTMLElement>(null);
   const view = useSyncExternalStore(session.subscribe, session.snapshot);
+  const active = lessonHost?.active ?? true;
+  const notifyView = lessonHost?.onView;
+  useEffect(() => { notifyView?.(view); }, [notifyView, view]);
   const [saveDraft, setSaveDraft] = useState<RolodexEntry | null>(null);
   const [saveNotice, setSaveNotice] = useState("");
   useEffect(() => {
@@ -101,9 +105,10 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
   const registerConsumer = midi?.registerConsumer;
   useEffect(() => { playerRef.current?.scrollIntoView?.({ block: "start" }); }, []);
   useEffect(() => {
-    const unregister = registerConsumer?.({ rawInputId: session.input.id ?? undefined, onRawMessage: session.rawMessage,
+    if (!active) session.interrupt("Lesson left the foreground. Replay when ready.");
+    const unregister = active ? registerConsumer?.({ rawInputId: session.input.id ?? undefined, onRawMessage: session.rawMessage,
       onOwnershipChange: session.ownershipChanged,
-      onInputConnectionChange: (change) => { if (change.state === "disconnected") session.disconnect(change.input.id); } });
+      onInputConnectionChange: (change) => { if (change.state === "disconnected") session.disconnect(change.input.id); } }) : undefined;
     const hidden = () => { if (document.visibilityState === "hidden") session.interrupt("Browser background interruption. Replay when ready."); };
     const leaving = () => session.interrupt("The page was closed, frozen or left.");
     const beforeUnload = (event: BeforeUnloadEvent) => { if (!session.canExit()) { event.preventDefault(); event.returnValue = ""; } };
@@ -119,16 +124,16 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
       window.removeEventListener("pagehide", leaving);
       window.removeEventListener("beforeunload", beforeUnload);
     };
-  }, [registerConsumer, session]);
+  }, [registerConsumer, session, active]);
   useEffect(() => {
     onGuardChange?.(() => {
       if (session.canExit()) return true;
-      if (session.snapshot().phase === "results" && session.snapshot().save === "failed") return window.confirm("This result is not saved. Leave and lose its pending in-memory evidence? Retry Save keeps the same attempt.");
+      if (session.snapshot().phase === "results" && session.snapshot().save === "failed") return lessonHost ? false : window.confirm("This result is not saved. Leave and lose its pending in-memory evidence? Retry Save keeps the same attempt.");
       session.stop();
       return false; // First navigation stops and saves; the next follows its acknowledgement.
     });
     return () => onGuardChange?.(null);
-  }, [onGuardChange, session]);
+  }, [onGuardChange, session, lessonHost]);
   useEffect(() => { if (!connected) session.disconnect(session.input.id); else session.reconnect(session.input.id); }, [connected, session]);
   const playing = view.phase === "playing";
   const activeIndex = Math.min(passage.end, passage.start + Math.floor(view.elapsedMs / passage.measureMs));
@@ -147,15 +152,15 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
       {view.phase === "starting" && <p role="status">Preparing audio and waiting for attempt-start acknowledgement…</p>}
       {view.phase === "count-in" && <p className="text-xl font-bold" role="status">Count-in · {view.pulse || "Ready"} / {passage.pulsesPerBar}</p>}
       {playing && <p className="text-xl font-bold">Playing · Measure {activeIndex + 1} · Pulse {view.pulse} {view.elapsedMs >= passage.durationMs ? "· final association tail" : ""}</p>}
-      {["starting", "count-in", "playing"].includes(view.phase) && <button className={button} type="button" onClick={session.stop}>Stop Attempt</button>}
+      {["starting", "count-in", "playing"].includes(view.phase) && <button className={button} type="button" onClick={session.stop}>{lessonHost ? "Stop Repertoire" : "Stop Attempt"}</button>}
       {view.phase === "results" && <>
         <button className={primary} type="button" disabled={view.save !== "saved" || !connected} onClick={() => { setReviewMeasure(passage.start); session.replay(); }}>Replay Same Range</button>
         {view.save === "failed" && <button className={primary} onClick={session.retrySave} type="button">Retry Save</button>}
         <span role="status">{view.save === "saved" ? "Result saved locally" : view.save === "failed" ? "Result not saved" : "Saving result…"}</span>
       </>}
-      <button className={button} type="button" disabled={!session.canExit() && !(view.phase === "results" && view.save === "failed")} onClick={() => {
+      <button className={button} type="button" disabled={!session.canExit() && !(!lessonHost && view.phase === "results" && view.save === "failed")} onClick={() => {
         if (session.canExit() || window.confirm("This result is not saved. Exit and lose its pending in-memory evidence?")) onExit();
-      }}>Exit Continuous Practice</button>
+      }}>{lessonHost ? "Finish Lesson" : "Exit Continuous Practice"}</button>
     </div>
     {view.phase === "ready" && <p role="status">Ready — read first. The clock and scoring begin after count-in.</p>}
     {!connected && <p role="alert">Reconnect the selected physical MIDI piano ({session.input.name ?? session.input.id}). Return to range selection to choose a different input.</p>}

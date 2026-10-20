@@ -8,18 +8,20 @@ import PracticeLessonSummary, { LessonExerciseFeedback, LessonNativeDetails } fr
 import { getPracticeLessonCue } from "../practice-lesson-cues";
 import PracticeProgramHistory from "./practice-program-history";
 import PracticeProgramLesson from "./practice-program-lesson";
+import type { LessonRepertoire } from "../practice-lesson-repertoire";
 const buttonClass = "min-h-11 rounded border border-zinc-600 px-3 disabled:opacity-40";
 const primary = `${buttonClass} bg-sky-500 py-3 font-semibold text-white`;
 const ignoreInput = () => {};
-export default function PracticeProgramPractice({ program, active, onBusyChange, onClose, createExecutor, onInputChange = ignoreInput, morningSelection, notice }: Readonly<{
+export default function PracticeProgramPractice({ program, active, onBusyChange, onClose, createExecutor, onInputChange = ignoreInput, morningSelection, notice, repertoire }: Readonly<{
   program: PracticeProgramRevision; active: boolean; onBusyChange: (busy: boolean) => void; onClose: () => void;
   createExecutor?: (program: PracticeProgramRevision) => PracticeProgramExecutor;
   onInputChange?: (active: boolean) => void;
-  morningSelection?: readonly string[]; notice?: string;
+  morningSelection?: readonly string[]; notice?: string; repertoire?: LessonRepertoire;
 }>) {
   const [executor] = useState(() => createExecutor?.(program) ?? new PracticeProgramExecutor(program));
   const state = useSyncExternalStore(executor.subscribe, executor.getSnapshot), [selection, setSelection] = useState<readonly string[]>([]);
   const [finishRequested, setFinishRequested] = useState(false);
+  const [repertoireInput, setRepertoireInput] = useState(false);
   const [keyboardChoice, setKeyboardChoice] = useState<boolean | null>(null);
   useEffect(() => executor.attach(), [executor]);
   const busy = executor.busy || state.queue.length > 0;
@@ -33,7 +35,7 @@ export default function PracticeProgramPractice({ program, active, onBusyChange,
     executor.select(morningSelection);
     void executor.start();
   }, [active, executor, morningSelection]);
-  const inputActive = active && state.run?.status === "active";
+  const inputActive = active && (state.run?.status === "active" || repertoireInput);
   useLayoutEffect(() => { onInputChange(inputActive); return () => onInputChange(false); }, [inputActive, onInputChange]);
   const occurrence = state.queue[state.index];
   const nextTitle = program.nativeExercises.find(entry => entry.id === state.queue[state.index + 1]?.exerciseId)?.label;
@@ -42,7 +44,7 @@ export default function PracticeProgramPractice({ program, active, onBusyChange,
   const finish = () => { setFinishRequested(true); executor.stop(); };
   useEffect(() => { if (finishRequested && state.run?.status === "active") executor.stop(); }, [finishRequested, state.run, executor]);
   const changeOrder = (index: number, delta: number) => { const values = [...selection], other = index + delta; if (other < 0 || other >= values.length) return; [values[index], values[other]] = [values[other]!, values[index]!]; setSelection(values); };
-  if (morningSelection) return <PracticeProgramLesson active={active} executor={executor} keyboardChoice={keyboardChoice} onKeyboardChoiceChange={setKeyboardChoice} onClose={onClose} program={program} state={state} />;
+  if (morningSelection) return <PracticeProgramLesson active={active} executor={executor} keyboardChoice={keyboardChoice} onKeyboardChoiceChange={setKeyboardChoice} onClose={onClose} program={program} state={state} repertoire={repertoire} onRepertoireInput={setRepertoireInput} />;
   return <section aria-label="Weekly program practice" className="space-y-4 break-words">
     <div><h2 className="text-xl font-semibold">Manual V2 practice</h2><p className="text-sm text-zinc-400">{program.program.title} · Revision {program.revision}</p></div>
     {notice && <p role="status">{notice}</p>}

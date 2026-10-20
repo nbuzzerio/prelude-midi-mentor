@@ -27,6 +27,27 @@ function terminal(id = "attempt-1"): ContinuousAttempt {
     observedThroughMs: 10000, reason: null, attacks: [], assessment: null, terminalSaveAttempts: 1 };
 }
 describe("Rolodex A1 execution adapter", () => {
+  it("keeps failed date Retry mounted in a finished lesson and reports count-in-only outcomes", async () => {
+    const { entry, store } = setup();
+    store.acknowledge = vi.fn<RolodexStore["acknowledge"]>().mockRejectedValueOnce(Error("quota")).mockResolvedValue(undefined);
+    const host = { active: true, finished: false, onView: vi.fn(), onAcknowledged: vi.fn(), onDates: vi.fn() };
+    const tree = (finished: boolean) => <AppMidiContext.Provider value={midi}><RolodexPractice entry={entry} store={store} onExit={vi.fn()} lessonHost={{ ...host, finished }} /></AppMidiContext.Provider>;
+    const view = render(tree(false));
+    expect(screen.getByText("Native A1 boundary")).toBeTruthy(); // No repeated morning input setup.
+    const { act } = await import("@testing-library/react");
+    const attempt = terminal();
+    await act(async () => capture.callback!(attempt));
+    view.rerender(tree(true));
+    expect(screen.queryByText("Native A1 boundary")).toBeNull();
+    fireEvent.click(screen.getByText("Retry Rolodex Update (1)"));
+    await screen.findByText("Rolodex practice date saved locally.");
+    expect(host.onAcknowledged).toHaveBeenCalledExactlyOnceWith(attempt);
+    expect(vi.mocked(store.acknowledge).mock.calls[0]).toEqual(vi.mocked(store.acknowledge).mock.calls[1]);
+    view.rerender(tree(false));
+    await act(async () => capture.callback!({ ...terminal("count-in-stop"), status: "stopped", performanceStartedAt: null }));
+    expect(host.onAcknowledged).toHaveBeenLastCalledWith(expect.objectContaining({ id: "count-in-stop", status: "stopped" }));
+    expect(store.acknowledge).toHaveBeenCalledTimes(2);
+  });
   it("passes frozen music, range, BPM and exact policy without current-library lookup", () => {
     const { entry, store } = setup();
     render(<AppMidiContext.Provider value={midi}><RolodexPractice entry={entry} store={store} onExit={vi.fn()} /></AppMidiContext.Provider>);

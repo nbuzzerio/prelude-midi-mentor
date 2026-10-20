@@ -8,6 +8,10 @@ import { IndexedDbPracticeAttempts } from "../persistence/practice-attempt-index
 import { PRACTICE_LESSON_PREFERENCE_KEY as preferenceKey } from "../practice-lesson-preferences";
 import { testProgram } from "../practice-program-test-fixtures";
 import PracticeProgramLibrary from "./practice-program-library";
+import { REPERTOIRE_PREFERENCE_KEY } from "../practice-repertoire-preferences";
+import { createEntry, editEntry } from "../../piece-practice/rolodex/rolodex-model";
+import { testScore } from "../../piece-practice/continuous/continuous-test-fixtures";
+import type { RolodexStore } from "../../piece-practice/rolodex/rolodex-types";
 
 type NativeProps = { initialConfig: unknown; hostedStart?: boolean; onPracticeUnitCompleted?: () => void };
 function Native(props: NativeProps) { return <div data-testid="native" data-hosted-start={String(props.hostedStart)} data-config={JSON.stringify(props.initialConfig)}><button onClick={props.onPracticeUnitCompleted}>native unit</button></div>; }
@@ -50,6 +54,32 @@ async function rows() { const store = new IndexedDbPracticeAttempts(fake.factory
 const lessonCard = () => within(screen.getByRole("region", { name: "Today's Piano Lesson" }));
 
 describe("one-action morning launch through the existing V2 owner", () => {
+  it("rereads acknowledged repertoire at Start, freezes it, and never inserts a V2 exercise", async () => {
+    const f = await fixture(undefined, program(1, ["exercise-0"]));
+    let entries = [createEntry(testScore(), "piano")];
+    const repertoireStore: RolodexStore = { list: vi.fn(async () => ({ entries, unavailableCount: 0 })), save: vi.fn(), remove: vi.fn(), importEntries: vi.fn(), acknowledge: vi.fn() };
+    f.storage.getItem.mockImplementation((...args: unknown[]) => args[0] === REPERTOIRE_PREFERENCE_KEY ? JSON.stringify({ version: 1, enabled: true, instruments: ["piano"] }) : f.stored());
+    render(<PracticeProgramLibrary {...f.props} repertoireStore={repertoireStore} />);
+    await screen.findByText(/Optional repertoire: Synthetic piano study/);
+    entries = [editEntry(entries[0]!, { bpm: 89 })];
+    fireEvent.click(await ready()); await screen.findByTestId("native");
+    entries = []; // Another tab deletes the entry after launch.
+    fireEvent.click(screen.getByText("native unit"));
+    const next = await screen.findByRole("button", { name: "Next: Repertoire" });
+    await waitFor(() => expect((next as HTMLButtonElement).disabled).toBe(false)); fireEvent.click(next);
+    await screen.findByText(/89 quarter BPM/);
+    expect((await rows()).map(row => row.exerciseId)).toEqual(["exercise-0"]);
+    expect(repertoireStore.list).toHaveBeenCalledTimes(2);
+  });
+  it("unavailable repertoire does not block the normal authored lesson", async () => {
+    const f = await fixture();
+    f.storage.getItem.mockImplementation((...args: unknown[]) => args[0] === REPERTOIRE_PREFERENCE_KEY ? JSON.stringify({ version: 1, enabled: true, instruments: ["piano"] }) : f.stored());
+    const repertoireStore: RolodexStore = { list: vi.fn(async () => { throw Error("unavailable"); }), save: vi.fn(), remove: vi.fn(), importEntries: vi.fn(), acknowledge: vi.fn() };
+    render(<PracticeProgramLibrary {...f.props} repertoireStore={repertoireStore} />);
+    fireEvent.click(await ready()); await screen.findByTestId("native");
+    expect((await rows()).map(row => row.exerciseId)).toEqual(["exercise-0"]);
+    expect(screen.queryByText("Next: Repertoire")).toBeNull();
+  });
   it("places the lesson above legacy setup and remembers only an explicit choice/change", async () => {
     const f = await fixture(null); render(f.tree());
     expect(f.storage.setItem).not.toHaveBeenCalled();
