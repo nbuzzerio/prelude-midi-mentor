@@ -1,8 +1,10 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026, with the six-phase Improv capture direction subsequently approved. Current pending package/application version: **2.9.21**; committed baseline **2.9.20** is at `1003fa1a`. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
+> Authoritative product direction, instrument-learning priority updated by the owner October 7, 2026, with the six-phase Improv capture direction subsequently approved. A1's committed baseline is **2.9.21**, HEAD `9b08d467`; A1 working changes retain that version by explicit owner instruction. Earlier pending-checkpoint descriptions below are historical. Implementation, physical validation, deployment, and owner-controlled tagging/releasing are separate facts.
 
 Prelude develops through eight continuing threads. This is a rolling roadmap, not a rigid sequence of phases or a delivery-date commitment. Major musical milestones, permanent product threads, small QOL work, conditional integrations, and physical QA can progress at different rates.
+
+**Continuous-tempo Piece Practice A1** is implemented against committed **2.9.21**, HEAD `9b08d467`, with no package or What's New change. Owner review and real MIDI-piano acceptance remain separate from automated/browser validation. Saved Staff Builder pieces can launch a distinct MIDI-only, fixed-tempo passage: one to four complete measures, constant 3/4, 4/4 or 6/8, 40–120 quarter BPM, untimed Ready, meter-correct count-in, uninterrupted grand-staff following, onset/pitch results, acknowledged local attempts and exact frozen-range Replay. Unsupported incoming ties/rolled chords/notation are rejected; internal ties, rests, ordinary chords and simultaneous staves are supported. Pitch-first stays the default and retains its existing semantics. **Practice Rolodex MVP requires separate authorization.** No collection, automatic difficult-passage enrollment, lesson injection, retention/mastery model, duration/hand/fingering grade or acoustic continuous engine is included.
 
 Pending **2.9.21 checkpoint 1** adds browser-local filename high-water marks and best-effort piece/report print titles. Counters share sanitized name/extension identities, retain manual edits, count successful native closure or ordinary download initiation, preserve higher numbers and stop automatic suggestions at 999. Storage problems leave exports usable; no disk inspection or guaranteed cross-tab uniqueness is claimed. All application-controlled print paths suggest `_001` through a temporary document title; actual PDF naming/saving stays browser-owned and PDF counters are not persisted. Checkpoint 1 has passed owner review and remains pending/uncommitted.
 
@@ -29,7 +31,7 @@ The following systems exist today. Pending physical QA does not make their imple
 | Ear Training | Ascending/descending melodic-interval identification, explicit replay, statistics, and pedal-to-Play-Prompt. Other aural tasks remain future work. |
 | Melody | Seeded monophonic one/two-measure 4/4 reading, count-in/metronome, continuous capture, nonblocking performance, alignment, separate Pitch/Movement/Timing results, timed review and repair. Evidence is memory-only; sustained Flow remains future work. |
 | Staff Builder | Application-owned score authoring, notes/chords/rests/rhythm/ties/context/annotations, capture and correction, derived polyphony, playback, local library/drafts, validated Save, score import/export, duplication, Lyric Cues, display clefs, and printable Study View. Committed 2.9.15 adds direct library Study View and a transient editing lock. Study View is score presentation, not Guided Studies. |
-| Piece Practice | Blocking pitch-attack practice from authoritative Staff Builder scores, excerpts, Staff Focus, ordinary/rolled checks, diagnostics, copy/print reports, and durable browser-local IndexedDB run snapshots/checkpoints with paused recovery and bounded retention. Continuous performance grading is not implemented. |
+| Piece Practice | Default blocking pitch-attack practice, excerpts, Staff Focus, ordinary/rolled checks, diagnostics, reports and existing IndexedDB recovery. A1 adds a separate physical-MIDI continuous-tempo owner for one-to-four-measure saved passages, fixed musical time, pitch/onset assessment, bounded acknowledged attempts and frozen-range Replay. Physical piano acceptance is pending. |
 | Targeted Practice | Provisional evidence-led repair inside Piece Practice: transparent measure recommendations, original-snapshot single-measure runs, and in-tab original/latest count comparison. Ordinary runs persist; navigation/comparison links do not. No adaptive coaching or mastery score. |
 | Practice Sessions | Reusable browser-local prescriptions across Flashcards, Sequences, Ear Training and timed Melody; native targets, Scale Repertoire, Bonus/Skip/End, stable hosted Mobile Play, comprehensive authored-order reports including never-entered work, and browser printing. Runtime evidence remains memory-only. |
 | Weekly Practice import | Reduced nine-concept interchange, curriculum metadata, validation/translation/schema/examples, paste/upload preview and atomic import into the unsaved library, plus a Copy-for-AI guide. No weekly scheduler, cloud AI service, or report history. |
@@ -82,11 +84,11 @@ Phase 6 was limited to temporary room audio; broader Flow Mode and composition a
 
 ## 2. Continuous / Flow Sight-Reading
 
-**Status:** FOUNDATION EXISTS; MAJOR FUTURE PRACTICE MILESTONE.
+**Status:** A1 AUTHORED-PIECE CONTINUOUS PRACTICE IMPLEMENTED; OWNER PHYSICAL ACCEPTANCE PENDING. SUSTAINED GENERATED FLOW REMAINS FUTURE WORK.
 
 **Purpose:** Support reading ahead, maintaining pulse, continuing through mistakes and sustained reading beyond short trials, with review after a passage/session rather than constant stops.
 
-**Likely next milestone:** Define and deliver the first sustained-reading increment. Longer generated reading, an uninterrupted generated stream and authored-piece continuous practice remain deferred alternatives for owner choice when this thread becomes active.
+**Next authorized boundary:** Stop after A1 implementation, validation and review export. Practice Rolodex MVP is the owner's next proposed milestone and requires separate authorization. Longer generated reading and an uninterrupted generated stream remain deferred alternatives; A1 does not redefine Melody's existing timed Reading Flow.
 
 **Dependencies:** Melody already supplies a musical clock, continuous MIDI/VKB capture, timing alignment, notation, scoring foundations and nonblocking performance. Practice Sessions' existing Reading Flow label refers to timed Melody practice, not completion of this broader milestone.
 

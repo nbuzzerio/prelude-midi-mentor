@@ -40,6 +40,7 @@ import { piecePracticeAssessmentLabel, type PiecePracticeAssessmentFocus } from 
 import { focusPiecePracticeProjection } from "../piece-practice-projection";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { createPiecePracticeRun, hydratePiecePracticeRun, parsePiecePracticeRun, piecePracticeRunStore, revisePiecePracticeRun, type PiecePracticeRunRecordV2, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
+import { ContinuousWorkspace } from "../continuous/continuous-workspace";
 
 function writtenPitchName(pitch: PiecePracticeAttackedPitch): string {
   return formatPiecePracticeMidiPitch(pitch.midiNumber, { expectedPitches: [pitch] });
@@ -80,6 +81,7 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
   microphoneAvailable?: boolean;
   onAudioGuardChange?: (guard: (() => boolean) | null) => void;
 }>) {
+  const [practiceMode, setPracticeMode] = useState<"pitch-first" | "continuous">("pitch-first");
   const [selectedInput, setSelectedInput] = useState<PiecePracticeInputConfiguration>(DEFAULT_PIECE_PRACTICE_INPUT);
   const [tolerancePreset, setTolerancePreset] = useState("Normal");
   const [selectedStartMeasure, setSelectedStartMeasure] = useState(0);
@@ -334,9 +336,16 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
     return () => window.removeEventListener("beforeunload", warn);
   }, [sessionState, saveProgress]);
 
+  if (!sessionState && practiceMode === "continuous" && sourceScore) {
+    return <ContinuousWorkspace score={sourceScore} onExit={onExit} onPitchFirst={() => setPracticeMode("pitch-first")} onGuardChange={onAudioGuardChange} />;
+  }
   if (!sessionState) {
     return <section aria-labelledby="piece-practice-setup-title" className="mx-auto grid w-full max-w-3xl gap-5 rounded-xl border border-zinc-700 bg-zinc-900 p-5 text-zinc-100">
       <header><h1 className="text-2xl font-bold" id="piece-practice-setup-title">Practice {piece.title}</h1><p className="mt-1 text-sm text-zinc-300">{selectedAssessmentFocus === "both" ? "Practice one measure at a time. Incorrect notes never move you forward." : "Practice one measure at a time. Supply every assessed-staff pitch to move forward."}</p></header>
+      {sourceScore && <fieldset className="flex flex-wrap gap-3"><legend className="font-medium">Practice mode</legend>
+        <label className="flex min-h-11 items-center gap-2"><input type="radio" name="piece-practice-mode" checked onChange={() => setPracticeMode("pitch-first")} />Pitch-first</label>
+        <label className="flex min-h-11 items-center gap-2"><input type="radio" name="piece-practice-mode" checked={false} onChange={() => setPracticeMode("continuous")} />Continuous tempo</label>
+      </fieldset>}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid max-w-xs gap-2 font-medium" htmlFor="piece-practice-start-measure">Start Measure
           <select className="rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2" id="piece-practice-start-measure" onChange={(event) => {
