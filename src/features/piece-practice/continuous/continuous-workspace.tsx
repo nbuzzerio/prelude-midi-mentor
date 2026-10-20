@@ -10,6 +10,9 @@ import { ContinuousSession } from "./continuous-session";
 import { continuousStore } from "./continuous-store";
 import { ContinuousScore } from "./continuous-score";
 import type { ContinuousAttempt, ContinuousPassage, ContinuousStore } from "./continuous-types";
+import { createEntry, parseEntry } from "../rolodex/rolodex-model";
+import { RolodexEditor } from "../rolodex/rolodex-editor";
+import type { RolodexEntry } from "../rolodex/rolodex-types";
 
 const button = "min-h-11 rounded-lg border border-zinc-500 px-4 py-2 font-semibold disabled:opacity-40";
 const primary = `${button} bg-sky-700 hover:bg-sky-600`;
@@ -27,8 +30,11 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
   const [frozen, setFrozen] = useState<ContinuousPassage | null>(null);
   const [history, setHistory] = useState<readonly ContinuousAttempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveDraft, setSaveDraft] = useState<RolodexEntry | null>(null);
+  const [saveNotice, setSaveNotice] = useState("");
   const inputs = midi?.connectedInputs.filter((i) => i.id !== null) ?? [];
   const selectedInput = inputs.find((i) => i.id === inputId) ?? (inputId === "" ? inputs[0] : undefined);
+  if (saveDraft) return <RolodexEditor entry={saveDraft} onCancel={() => setSaveDraft(null)} onSaved={result => { setSaveDraft(null); setSaveNotice(result.duplicate ? "This passage already exists in Practice Rolodex." : "Passage saved to Practice Rolodex. Open it from the Staff Builder library."); }} />;
   if (frozen) return <ContinuousPlayer passage={frozen} input={selectedInput ?? { id: inputId || null, name: null }} store={store}
     onExit={() => { setFrozen(null); setHistory(null); }} onGuardChange={onGuardChange} />;
   return <section className="mx-auto grid w-full min-w-0 max-w-6xl gap-4 rounded-xl border border-zinc-700 bg-zinc-900 p-3 text-zinc-100 sm:p-5" aria-labelledby="continuous-title">
@@ -51,6 +57,11 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
     </select></label>
     <p>Connect a MIDI piano by USB, select its input, and allow MIDI access. Microphone, simulation and virtual keys cannot start a scored continuous run.</p>
     {error && <p role="alert">{error}</p>}
+    {saveNotice && <p role="status">{saveNotice}</p>}
+    <button className={button} type="button" onClick={() => {
+      try { setSaveDraft(createEntry(score, "piano", start, end, bpm)); setError(null); }
+      catch (e) { setError(e instanceof Error ? e.message : "Check the selected passage."); }
+    }}>Save to Practice Rolodex</button>
     <div className="flex flex-wrap gap-3"><button className={primary} disabled={!selectedInput || midi?.status !== "connected"} onClick={() => {
       try { const p = projectContinuousPassage(score, start, end, bpm); setInputId(selectedInput!.id!); setFrozen(p); setError(null); }
       catch (e) { setError(e instanceof Error ? e.message : "This range is unavailable."); }
@@ -70,15 +81,21 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
   </section>;
 }
 
-export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange, createSession }: Readonly<{
+export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange, createSession, onAcknowledgedAttempt }: Readonly<{
   passage: ContinuousPassage; input: MidiInputInfo; store: ContinuousStore; onExit: () => void;
   onGuardChange?: (guard: (() => boolean) | null) => void;
   createSession?: () => ContinuousSession;
+  onAcknowledgedAttempt?: (attempt: ContinuousAttempt) => void;
 }>) {
   const midi = useContext(AppMidiContext);
   const [session] = useState(() => createSession?.() ?? new ContinuousSession(passage, input, store));
   const playerRef = useRef<HTMLElement>(null);
   const view = useSyncExternalStore(session.subscribe, session.snapshot);
+  const [saveDraft, setSaveDraft] = useState<RolodexEntry | null>(null);
+  const [saveNotice, setSaveNotice] = useState("");
+  useEffect(() => {
+    if (view.phase === "results" && view.save === "saved" && view.attempt) onAcknowledgedAttempt?.(view.attempt);
+  }, [view.phase, view.save, view.attempt, onAcknowledgedAttempt]);
   const [reviewMeasure, setReviewMeasure] = useState(passage.start);
   const connected = Boolean(midi?.status === "connected" && midi.connectedInputs.some((i) => i.id === session.input.id));
   const registerConsumer = midi?.registerConsumer;
@@ -143,6 +160,11 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
     {view.phase === "ready" && <p role="status">Ready — read first. The clock and scoring begin after count-in.</p>}
     {!connected && <p role="alert">Reconnect the selected physical MIDI piano ({session.input.name ?? session.input.id}). Return to range selection to choose a different input.</p>}
     {view.error && <p role="alert">{view.error}</p>}
+    {saveNotice && <p role="status">{saveNotice}</p>}
+    {view.phase === "results" && view.save === "saved" && view.attempt?.status === "completed" && !onAcknowledgedAttempt && <button type="button" className={button} onClick={() => {
+      setSaveDraft(parseEntry({ ...createEntry(passage.score, "piano", passage.start, passage.end, passage.bpm), policy: passage.policy }));
+    }}>Save to Practice Rolodex</button>}
+    {saveDraft && <RolodexEditor entry={saveDraft} onCancel={() => setSaveDraft(null)} onSaved={result => { setSaveDraft(null); setSaveNotice(result.duplicate ? "This passage already exists in Practice Rolodex." : "Passage saved to Practice Rolodex."); }} />}
     {view.phase === "results" && view.attempt && <ContinuousResults attempt={view.attempt} />}
     {view.phase === "results" && <nav aria-label="Review measure" className="flex flex-wrap gap-2">{Array.from({ length: passage.end - passage.start + 1 }, (_, i) =>
       <button type="button" className={button} aria-pressed={reviewMeasure === passage.start + i} key={i} onClick={() => setReviewMeasure(passage.start + i)}>Measure {passage.start + i + 1}</button>)}</nav>}

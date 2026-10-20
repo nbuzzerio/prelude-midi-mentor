@@ -236,6 +236,17 @@ describe("Staff Builder recovery entry", () => {
 });
 
 describe("Staff Builder session", () => {
+  it("opens manual Rolodex saving from a saved piece without starting practice or changing the source", async () => {
+    const storage = new MemoryStorage(), score = savedTwoMeasureScore("Frozen Study");
+    seedLibrary(storage, [score]);
+    const before = storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library);
+    render(<StaffBuilderSession storage={storage} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Save passage from Frozen Study" }));
+    expect(screen.getByLabelText("First measure")).toBeTruthy();
+    expect((screen.getByLabelText("Source instrument") as HTMLSelectElement).value).toBe("unknown");
+    expect(practiceBoundary.piece).toBeNull();
+    expect(storage.values.get(STAFF_BUILDER_STORAGE_KEYS.library)).toBe(before);
+  });
   it("enters a clean Study View, preserves editor state, suppresses MIDI, and restores focus", async () => {
     const storage = new MemoryStorage();
     seedLibrary(storage, [savedTwoMeasureScore("Study Shell")]);

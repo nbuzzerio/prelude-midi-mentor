@@ -5,7 +5,7 @@ import { sortStaffBuilderLibraryPieces, type StaffBuilderLibrarySort } from "../
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { validateStaffBuilderScore } from "../staff-builder-validation";
 
-export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByPieceId, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onStudy, onPractice, onPrint, onRename }: Readonly<{
+export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByPieceId, onDelete, onDownload, onDuplicate, onImportFile, onOpen, onStudy, onPractice, onPrint, onRename, onSavePassage }: Readonly<{
   activePieceId: string | null;
   pieces: readonly StaffBuilderScore[];
   practiceMetadataByPieceId: Readonly<Record<string, StaffBuilderPiecePracticeMetadata>>;
@@ -18,6 +18,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByP
   onPractice: (piece: StaffBuilderScore) => void;
   onPrint: (piece: StaffBuilderScore) => void;
   onRename: (id: string, title: string) => void;
+  onSavePassage?: (piece: StaffBuilderScore) => void;
 }>) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [sort, setSort] = useState<StaffBuilderLibrarySort>("recently-played");
@@ -56,6 +57,7 @@ export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByP
                   <button aria-label={`Open ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onOpen(piece.id)} type="button">Open</button>
                   <button aria-label={`Study View ${piece.title}`} className="staff-builder-secondary-button min-h-11" onClick={(event) => onStudy(piece.id, event.currentTarget)} type="button">Study View</button>
                   <button aria-describedby={!practiceEligible ? practiceReasonId : undefined} aria-label={`Practice ${piece.title}`} className="staff-builder-secondary-button" disabled={!practiceEligible} onClick={() => onPractice(piece)} title={!practiceEligible ? "Complete structural validation before practicing this piece." : undefined} type="button">Practice</button>
+                  {onSavePassage && <button aria-label={`Save passage from ${piece.title}`} className="staff-builder-secondary-button min-h-11" disabled={!practiceEligible} type="button" onClick={() => onSavePassage(piece)}>Save to Practice Rolodex</button>}
                   <button aria-label={`Download ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onDownload(piece)} type="button">Download</button>
                   <button aria-label={`Print / PDF ${piece.title}`} className="staff-builder-secondary-button" onClick={() => onPrint(piece)} type="button">Print / PDF</button>
                   <details>

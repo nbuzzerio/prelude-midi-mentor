@@ -18,6 +18,14 @@ function context() {
   return { value, consumer: () => consumer };
 }
 describe("continuous workspace and native ownership boundary", () => {
+  it("allows manual Rolodex saving without a physical MIDI connection or attempt", () => {
+    const save = vi.fn(async () => {});
+    render(<ContinuousWorkspace score={testScore()} onExit={vi.fn()} onPitchFirst={vi.fn()} store={{ save, list: async () => [] }} />);
+    fireEvent.click(screen.getByText("Save to Practice Rolodex"));
+    expect(screen.getByLabelText("First measure")).toBeTruthy();
+    expect((screen.getByLabelText("Source instrument") as HTMLSelectElement).value).toBe("piano");
+    expect(save).not.toHaveBeenCalled();
+  });
   it("offers a bounded range, tempo, physical input and explicit untimed preparation", () => {
     const c = context(); const save = vi.fn(async () => {});
     render(<AppMidiContext.Provider value={c.value}><ContinuousWorkspace score={testScore("4/4", 6)} onExit={vi.fn()} onPitchFirst={vi.fn()} store={{ save, list: async () => [] }} /></AppMidiContext.Provider>);

@@ -16,6 +16,9 @@ import { readStaffBuilderLibrary, readStaffBuilderSustainPedalLocksInput, writeS
 import { createStaffBuilderPieceDownload, readStaffBuilderPieceFile } from "../persistence/staff-builder-piece-file-browser";
 import { DownloadDialog } from "@/components/download-dialog";
 import type { DownloadSnapshot } from "@/lib/files/browser-download";
+import { RolodexLibrary } from "@/features/piece-practice/rolodex/rolodex-library";
+import { createEntry } from "@/features/piece-practice/rolodex/rolodex-model";
+import type { RolodexEntry } from "@/features/piece-practice/rolodex/rolodex-types";
 
 const StaffBuilderStudyView = lazy(() => import("./staff-builder-study-view").then((module) => ({ default: module.StaffBuilderStudyView })));
 
@@ -34,6 +37,7 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
   const [sustainPedalLocksInput, setSustainPedalLocksInput] = useState(initialPedalPreference.ok ? initialPedalPreference.value : false);
   const [preferenceError, setPreferenceError] = useState(initialPedalPreference.ok ? null : initialPedalPreference.message);
   const state = useStaffBuilderLibrary(storage);
+  const [rolodex, setRolodex] = useState<{ draft?: RolodexEntry } | null>(null);
   const [practicePiece, setPracticePiece] = useState<PiecePracticePiece | null>(null);
   const [practiceSourceScore, setPracticeSourceScore] = useState<StaffBuilderScore | null>(null);
   const [openedRun, setOpenedRun] = useState<PiecePracticeRunRecordV2 | null>(null);
@@ -61,6 +65,7 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
     if (!window.confirm(`Discard saved Piece Practice run ${value.runId}? This permanently removes its practice evidence.`)) return;
     void piecePracticeRunStore.discard(value.runId).then(refreshRuns).catch(() => setRunStorageError(true));
   };
+  if (rolodex) return <RolodexLibrary sources={state.library.pieces} initialDraft={rolodex.draft} onExit={() => setRolodex(null)} onGuardChange={onAudioGuardChange} />;
   if (practicePiece) {
     return <PiecePracticeSession microphoneAvailable={microphoneAvailable} onAudioGuardChange={onAudioGuardChange} key={openedRun?.runId ?? practiceSourceScore?.id ?? practicePiece.sourceScoreId} onExit={() => { setPracticePiece(null); setOpenedRun(null); refreshRuns(); }} piece={practicePiece} recoveredRun={openedRun ?? undefined} sourceScore={practiceSourceScore ?? undefined} />;
   }
@@ -92,6 +97,7 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div><h1 className="text-2xl font-bold">Staff Builder</h1><p className="text-zinc-300">Build a simplified, local practice reference.</p></div>
         <button className="staff-builder-secondary-button" onClick={state.reopenIntroduction} ref={introductionOpenerRef} type="button">About Staff Builder</button>
+        <button className="staff-builder-secondary-button min-h-11" onClick={() => setRolodex({})} type="button">Practice Rolodex</button>
       </header>
 
       <aside className="staff-builder-storage-notice">
@@ -153,7 +159,10 @@ export default function StaffBuilderSession({ storage = browserStorage(), microp
               validatedSavedSnapshot={state.lastValidatedSavedSnapshot}
             /></div>
         : <div className="staff-builder-columns">
-            <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onDelete={state.deletePiece} onDownload={(score) => {
+            <StaffBuilderLibrary activePieceId={state.activeSavedPieceId} onSavePassage={score => {
+              try { setRolodex({ draft: createEntry(score) }); }
+              catch (e) { setPieceFileStatus({ kind: "error", message: e instanceof Error ? e.message : "This passage cannot be saved." }); }
+            }} onDelete={state.deletePiece} onDownload={(score) => {
               try {
                 setDownload(createStaffBuilderPieceDownload(score));
               } catch {

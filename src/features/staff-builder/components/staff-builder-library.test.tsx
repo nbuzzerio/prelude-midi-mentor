@@ -2,11 +2,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { StaffBuilderLibrary } from "./staff-builder-library";
+import { testScore } from "@/features/piece-practice/continuous/continuous-test-fixtures";
 
 const piece: StaffBuilderScore = { schemaVersion: 4, annotations: [], id: "saved", title: "Saved Piece", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", tempoBpm: 100, initialKeySignatureId: "c-major", initialTimeSignature: "4/4", ties: [], measures: [{ id: "m1", events: [] }] };
 afterEach(cleanup);
 
 describe("StaffBuilderLibrary", () => {
+  it("offers manual passage saving with the exact saved source independently of Practice", () => {
+    const source = testScore(), save = vi.fn(), practice = vi.fn();
+    render(<StaffBuilderLibrary activePieceId={null} onDelete={vi.fn()} onDownload={vi.fn()} onDuplicate={vi.fn()} onImportFile={vi.fn()} onOpen={vi.fn()} onStudy={vi.fn()} onPractice={practice} onPrint={vi.fn()} onRename={vi.fn()} onSavePassage={save} pieces={[source]} practiceMetadataByPieceId={{}} />);
+    fireEvent.click(screen.getByText("Save to Practice Rolodex"));
+    expect(save).toHaveBeenCalledWith(source); expect(practice).not.toHaveBeenCalled();
+  });
   it("opens Study View by saved ID through an accessible independent action", () => {
     const onStudy = vi.fn();
     const onOpen = vi.fn();
