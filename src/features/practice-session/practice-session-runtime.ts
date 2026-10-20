@@ -31,6 +31,8 @@ type RunBase = Readonly<{
 export type ActivePracticeSessionRun = RunBase & Readonly<{
   status: "active"; activeExerciseIndex: number; activeExerciseToken: string;
   completionPresentation: "practicing" | "target-complete" | "bonus"; foreground: boolean;
+  /** Transient native activity gate. Reading preparation is not practice time. */
+  practiceActivity?: boolean;
 }>;
 export type CompletedPracticeSessionRun = RunBase & Readonly<{ status: "summary"; endedAt: number; endReason: "completed" | "ended" }>;
 export type PracticeSessionRunState = ActivePracticeSessionRun | CompletedPracticeSessionRun;
@@ -44,6 +46,7 @@ export type PracticeSessionRunEvent =
   | (ScopedEvent & Readonly<{ type: "TARGET_REACHED"; at: number }>)
   | (ScopedEvent & Readonly<{ type: "KEEP_PLAYING"; at: number }>)
   | (ScopedEvent & Readonly<{ type: "VISIBILITY_CHANGED"; at: number; foreground: boolean }>)
+  | (ScopedEvent & Readonly<{ type: "ENGINE_ACTIVITY_CHANGED"; at: number; active: boolean }>)
   | (ScopedEvent & Readonly<{ type: "ADVANCE"; endedAt: number; nextStartedAt?: number; nextExerciseToken?: string }>)
   | (ScopedEvent & Readonly<{ type: "SKIP"; endedAt: number; nextStartedAt?: number; nextExerciseToken?: string }>)
   | (ScopedEvent & Readonly<{ type: "END"; endedAt: number }>);
@@ -57,7 +60,7 @@ function createRecord(entry: PracticeExerciseEntry, exerciseIndex: number, start
   return {
     exerciseId: entry.id, exerciseIndex, label: entry.label, startedAt, endedAt: null,
     actual: entry.engine === "melody" ? null : 0, prescribedUnitsCompleted: 0, bonusUnitsCompleted: 0,
-    prescribedTime: createActiveTimeAccumulator(startedAt, foreground), bonusTime: createActiveTimeAccumulator(startedAt, false),
+    prescribedTime: createActiveTimeAccumulator(startedAt, foreground && entry.engine !== "melody"), bonusTime: createActiveTimeAccumulator(startedAt, false),
     latestEngineResult: null, targetBoundaryEngineResult: null,
     targetAchieved: false, bonusUsed: false, disposition: null,
   };
@@ -122,7 +125,7 @@ function advanceOrFinish(state: ActivePracticeSessionRun, event: Extract<Practic
   const nextRecord = createRecord(nextEntry, nextIndex, event.nextStartedAt, state.foreground);
   const enteredState = { ...state, records: [...finished.records, nextRecord], evidence: evidenceAfterEnd };
   return {
-    ...state, activeExerciseIndex: nextIndex, activeExerciseToken: event.nextExerciseToken, completionPresentation: "practicing",
+    ...state, activeExerciseIndex: nextIndex, activeExerciseToken: event.nextExerciseToken, completionPresentation: "practicing", practiceActivity: nextEntry.engine !== "melody",
     records: enteredState.records, evidence: [...evidenceAfterEnd, exerciseEvidence(enteredState, nextRecord, event.nextStartedAt, { type: "exercise-entered" })],
   };
 }
@@ -133,7 +136,7 @@ export function practiceSessionRunReducer(state: PracticeSessionRunState | null,
     const first = event.snapshot.exercises[0]; if (!first) return state;
     const foreground = event.foreground ?? true;
     const record = createRecord(first, 0, event.startedAt, foreground);
-    const initial: ActivePracticeSessionRun = { status: "active", runId: event.runId, snapshot: event.snapshot, startedAt: event.startedAt, activeExerciseIndex: 0, activeExerciseToken: event.firstExerciseToken, completionPresentation: "practicing", foreground, records: [record], evidence: [] };
+    const initial: ActivePracticeSessionRun = { status: "active", runId: event.runId, snapshot: event.snapshot, startedAt: event.startedAt, activeExerciseIndex: 0, activeExerciseToken: event.firstExerciseToken, completionPresentation: "practicing", foreground, practiceActivity: first.engine !== "melody", records: [record], evidence: [] };
     return { ...initial, evidence: [exerciseEvidence(initial, record, event.startedAt, { type: "exercise-entered" })] };
   }
   if (state === null || !matchesActive(state, event)) return state;
@@ -147,9 +150,16 @@ export function practiceSessionRunReducer(state: PracticeSessionRunState | null,
     if (state.foreground === event.foreground) return state;
     let changed = current;
     if (!event.foreground) changed = pauseRecord(current, event.at);
-    else if (state.completionPresentation === "practicing") changed = { ...current, prescribedTime: resumeActiveTime(current.prescribedTime, event.at) };
-    else if (state.completionPresentation === "bonus") changed = { ...current, bonusTime: resumeActiveTime(current.bonusTime, event.at) };
+    else if (state.practiceActivity !== false && state.completionPresentation === "practicing") changed = { ...current, prescribedTime: resumeActiveTime(current.prescribedTime, event.at) };
+    else if (state.practiceActivity !== false && state.completionPresentation === "bonus") changed = { ...current, bonusTime: resumeActiveTime(current.bonusTime, event.at) };
     return { ...replaceActiveRecord(state, changed), foreground: event.foreground };
+  }
+  if (event.type === "ENGINE_ACTIVITY_CHANGED") {
+    if (entry.engine !== "melody" || state.practiceActivity === event.active) return state;
+    let changed = pauseRecord(current, event.at);
+    if (event.active && state.foreground && state.completionPresentation === "practicing") changed = { ...changed, prescribedTime: resumeActiveTime(changed.prescribedTime, event.at) };
+    if (event.active && state.foreground && state.completionPresentation === "bonus") changed = { ...changed, bonusTime: resumeActiveTime(changed.bonusTime, event.at) };
+    return { ...replaceActiveRecord(state, changed), practiceActivity: event.active };
   }
   if (event.type === "UNIT_COMPLETED") {
     if (state.completionPresentation === "target-complete" || current.actual === null) return state;
@@ -174,7 +184,7 @@ export function practiceSessionRunReducer(state: PracticeSessionRunState | null,
   }
   if (event.type === "KEEP_PLAYING") {
     if (!current.targetAchieved || state.completionPresentation !== "target-complete") return state;
-    const nextRecord = { ...current, bonusUsed: true, bonusTime: state.foreground ? resumeActiveTime(current.bonusTime, event.at) : current.bonusTime };
+    const nextRecord = { ...current, bonusUsed: true, bonusTime: state.foreground && state.practiceActivity !== false ? resumeActiveTime(current.bonusTime, event.at) : current.bonusTime };
     const next = replaceActiveRecord(state, nextRecord);
     return { ...next, completionPresentation: "bonus", evidence: [...state.evidence, exerciseEvidence(next, nextRecord, event.at, { type: "bonus-started" })] };
   }

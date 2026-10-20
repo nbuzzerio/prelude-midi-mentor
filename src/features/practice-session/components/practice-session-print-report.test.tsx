@@ -88,7 +88,7 @@ describe("Practice Session printable report", () => {
   it("mounts before print, cleans on afterprint or fallback, repeats, and removes work on unmount", () => {
     const view = render(<PracticeSessionPrintControls report={report} />);
     const start = () => { fireEvent.click(screen.getByRole("button", { name: "Generate Report" })); fireEvent.click(screen.getByRole("button", { name: "Generate printable report" })); };
-    start(); expect(document.querySelector(".practice-session-print-document")).toBeTruthy(); expect(window.print).not.toHaveBeenCalled(); act(() => vi.advanceTimersByTime(0)); expect(window.print).toHaveBeenCalledTimes(1);
+    start(); expect(document.querySelector(".practice-session-print-document")?.parentElement).toBe(document.body); expect(window.print).not.toHaveBeenCalled(); act(() => vi.advanceTimersByTime(0)); expect(window.print).toHaveBeenCalledTimes(1);
     expect(document.title).toBe("daily_practice_report_001");
     act(() => window.dispatchEvent(new Event("afterprint"))); expect(document.querySelector(".practice-session-print-document")).toBeNull(); expect(document.activeElement).toBe(screen.getByRole("button", { name: "Generate Report" }));
     expect(document.title).toBe("Prelude: MIDI Mentor");

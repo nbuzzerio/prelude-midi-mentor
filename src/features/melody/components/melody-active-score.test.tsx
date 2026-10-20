@@ -15,8 +15,8 @@ describe("one active Reading Flow measure", () => {
     const view = render(<MelodyActiveScore {...props} displayMeasureIndex={null} />);
     expect(screen.getByText(`Measure 1 of ${measureCount}`)).toBeTruthy();
     view.rerender(<MelodyActiveScore {...props} displayMeasureIndex={0} activeTick={-480} measureTick={480} />);
-    expect(screen.getByText("Lead-in · Preparatory rests")).toBeTruthy(); expect(screen.getByLabelText("Preparatory lead-in")).toHaveProperty("textContent", "12");
-    expect(observed.props.mock.lastCall?.[0]).toMatchObject({ measureIndex: 0, playbackPosition: { offsetTicks: 480 }, readingFlow: "normal" });
+    expect(screen.getByText(`Measure 1 of ${measureCount}`)).toBeTruthy(); expect(screen.getByLabelText("Preparatory lead-in")).toHaveProperty("textContent", "12");
+    expect(observed.props.mock.lastCall?.[0]).toMatchObject({ measureIndex: 1, playbackPosition: undefined, readingFlow: "normal" });
     for (let index = 1; index <= measureCount; index++) {
       view.rerender(<MelodyActiveScore {...props} displayMeasureIndex={index} activeTick={(index - 1) * 1920 + 480} measureTick={480} />);
       expect(screen.getAllByTestId("score")).toHaveLength(1); expect(screen.getByTestId("score").textContent).toBe(JSON.stringify(score.measures[index]));

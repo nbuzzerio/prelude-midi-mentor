@@ -63,20 +63,58 @@ describe("MelodySession", () => {
 
   const timedConfig: MelodyConfig = { ...DEFAULT_MELODY_CONFIG, continuousPractice: true, continuousDurationMinutes: 1 };
   const frame = () => act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
-  const startTimed = () => act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+  // Preparation actions now require a separate, deliberate transport start.
+  const beginCountInIfReady = async () => {
+    await act(async () => { await Promise.resolve(); });
+    const ready = screen.queryByRole("button", { name: "Ready — Begin Count-in" });
+    if (ready) await act(async () => { fireEvent.click(ready); });
+    return screen.getByText("Count-in");
+  };
+  const startTimed = () => act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
 
-  it("starts one acknowledged hosted morning session under Strict Mode without another Start action", async () => {
+  it("freezes Ready without audio, grading, source locking or phrase regeneration and excludes later preparation from the budget", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const audio = fakeAudio(), createAudioContext = vi.fn(() => audio.context), seeds = vi.fn(() => `ready-${seeds.mock.calls.length}`), results = vi.fn(), completed = vi.fn(), activity = vi.fn();
+    let now = 0;
+    const view = render(<MelodySession initialConfig={timedConfig} practiceSessionMode hostedStart createAudioContext={createAudioContext} nowMs={() => now} seedFactory={seeds} onPracticeResultChange={results} onPracticeTargetReached={completed} onPracticeActivityChange={activity} />);
+    await act(async () => { await Promise.resolve(); });
+    const score = screen.getByText("Score measure 1");
+    now = 300_000; act(() => vi.advanceTimersByTime(300_000)); frame();
+    act(() => midi.options?.onNotePlayed?.(60));
+    expect(createAudioContext).not.toHaveBeenCalled(); expect(completed).not.toHaveBeenCalled();
+    expect(activity).toHaveBeenLastCalledWith(false); expect(score.getAttribute("data-offset")).toBeNull();
+    expect(screen.queryByText(/Input:/)).toBeNull(); expect(seeds).toHaveBeenCalledTimes(1);
+    await startTimed(); expect(screen.getByText("Score measure 1")).toBe(score);
+    expect(score.getAttribute("data-offset")).toBeNull(); expect(screen.getByText(/2 preparatory beats/)).toBeTruthy();
+    now += 10_000; audio.setNow(20); frame();
+    fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
+    const nextScore = screen.getByText("Score measure 1");
+    const nodes = audio.nodes.length;
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
+    const resultCount = results.mock.calls.length;
+    now += 300_000; act(() => vi.advanceTimersByTime(300_000)); audio.setNow(320); frame();
+    expect(screen.getByText("Score measure 1")).toBe(nextScore); expect(nextScore.getAttribute("data-offset")).toBeNull();
+    expect(completed).not.toHaveBeenCalled(); expect(results).toHaveBeenCalledTimes(resultCount); expect(audio.nodes).toHaveLength(nodes); expect(seeds).toHaveBeenCalledTimes(2);
+    await startTimed(); expect(screen.getByText(/Time remaining: 0:50/)).toBeTruthy();
+    expect(createAudioContext).toHaveBeenCalledTimes(1);
+    view.unmount(); expect(audio.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("prepares one acknowledged hosted morning session under Strict Mode before deliberate count-in", async () => {
     const audio = fakeAudio(), createAudioContext = vi.fn(() => audio.context);
     const view = render(<StrictMode><MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart seedFactory={() => "morning"} /></StrictMode>);
-    await screen.findByText("Lead-in"); expect(createAudioContext).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("button", { name: "Start Session" })).toBeNull();
+    await act(async () => { await Promise.resolve(); });
+    expect(createAudioContext).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
+    await beginCountInIfReady(); expect(createAudioContext).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Ready — Begin Count-in" })).toBeNull();
     view.unmount(); expect(audio.close).toHaveBeenCalledTimes(1);
     expect(audio.nodes.every(node => node.stop.mock.calls.length > 0)).toBe(true);
   });
   it("keeps hosted reading continuation outside collapsed native diagnostics without replacing the input owner", async () => {
     const audio = fakeAudio(), createAudioContext = vi.fn(() => audio.context);
     const view = render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart hostedPracticePresentation={{ isFocusMode: false, isMobilePlayMode: false, showVirtualKeyboard: true, isPlayingView: true }} seedFactory={() => "compact-reading"} />);
-    await screen.findByText("Lead-in");
+    await beginCountInIfReady();
     audio.setNow(8.6); frame();
     expect(screen.getByRole("heading", { name: "Reading trial complete" })).toBeTruthy();
     const disclosure = screen.getByText("Native reading diagnostics").closest("details")!;
@@ -87,7 +125,7 @@ describe("MelodySession", () => {
     expect(disclosure.open).toBe(true);
     expect(screen.getByLabelText("Melody pitch result score")).toBeTruthy();
     fireEvent.click(next);
-    await screen.findByText("Lead-in");
+    await beginCountInIfReady();
     expect(createAudioContext).toHaveBeenCalledTimes(1);
     view.unmount(); expect(audio.close).toHaveBeenCalledTimes(1);
   });
@@ -97,11 +135,13 @@ describe("MelodySession", () => {
     audio.context.resume.mockImplementation(() => new Promise<undefined>(resolve => { resume.push(() => resolve(undefined)); }));
     const createAudioContext = vi.fn(() => audio.context);
     const view = render(<MelodySession createAudioContext={createAudioContext} initialConfig={timedConfig} practiceSessionMode hostedStart onPracticeActivityChange={activity} seedFactory={() => "blocked-audio"} />);
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" }));
     await screen.findByRole("button", { name: "Enable audio and continue" });
     expect(activity).toHaveBeenLastCalledWith(false);
     fireEvent.click(screen.getByRole("button", { name: "Enable audio and continue" }));
     await act(async () => { audio.context.state = "running"; resume.forEach(resolve => resolve()); });
-    await screen.findByText("Lead-in"); expect(createAudioContext).toHaveBeenCalledTimes(1);
+    await beginCountInIfReady(); expect(createAudioContext).toHaveBeenCalledTimes(1);
     expect(activity).toHaveBeenLastCalledWith(true);
     expect(audio.context.resume).toHaveBeenCalledTimes(2);
     view.unmount(); expect(activity).toHaveBeenLastCalledWith(false);
@@ -119,7 +159,7 @@ describe("MelodySession", () => {
     expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
     view.rerender(<MelodySession initialConfig={timedConfig} practiceSessionMode seedFactory={() => "hosted"} />);
     expect(screen.queryByRole("combobox", { name: "Tempo" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
   });
 
   it("renders hosted Mobile Play inside its owner without local entry or exit controls", () => {
@@ -130,7 +170,7 @@ describe("MelodySession", () => {
     expect(session.classList.contains("fixed")).toBe(false);
     expect(screen.queryByRole("button", { name: "Mobile Play" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Exit Mobile Play" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
   });
 
   it("hides and restores the hosted keyboard without remounting Melody", () => {
@@ -208,7 +248,7 @@ describe("MelodySession", () => {
     now = 60_000;
     act(() => vi.advanceTimersByTime(1000));
     expect(latest).not.toHaveBeenCalled();
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
     audio.setNow(2.1);
     frame();
     expect(screen.getByText("Play")).toBeTruthy();
@@ -261,7 +301,7 @@ describe("MelodySession", () => {
     now = 60_000;
     audio.setNow(20);
     await act(async () => { frame(); });
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    await beginCountInIfReady();
     expect(screen.queryByText(/Time remaining:/)).toBeNull();
     now = 600_000;
     act(() => vi.advanceTimersByTime(120_000));
@@ -271,12 +311,14 @@ describe("MelodySession", () => {
     expect(screen.queryByText(/Time remaining:/)).toBeNull();
     // Existing continuous-practice interaction advances without host intervention.
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Try Another" })); });
+    await beginCountInIfReady();
     audio.setNow(60);
     frame();
     expect(screen.getByText("Diagnostic trial 3 complete")).toBeTruthy();
     expect(resultChanged.mock.calls.at(-1)?.[0].diagnosticTrials).toHaveLength(3);
     expect(completed).toHaveBeenCalledTimes(1);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Try Another" })); });
+    await beginCountInIfReady();
     // Existing interruption returns to Review, preserving completed trials.
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     act(() => document.dispatchEvent(new Event("visibilitychange")));
@@ -284,6 +326,7 @@ describe("MelodySession", () => {
     expect(screen.getByText("Diagnostic trial 1 of 3")).toBeTruthy();
     const original = screen.getByRole("heading", { name: "Original Sight Read" }).parentElement!.textContent;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" })); });
+    await beginCountInIfReady();
     expect(ref.current?.continuePractice()).toBe(false);
     audio.setNow(80);
     frame();
@@ -294,10 +337,12 @@ describe("MelodySession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Original" }));
     fireEvent.click(screen.getByRole("button", { name: "Latest" }));
     await act(async () => { expect(ref.current?.continuePractice()).toBe(true); });
+    await beginCountInIfReady();
     audio.setNow(100);
     frame();
     expect(screen.getByText("Diagnostic trial 4 complete")).toBeTruthy();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Try Another" })); });
+    await beginCountInIfReady();
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     act(() => document.dispatchEvent(new Event("visibilitychange")));
     expect(screen.getByText("Diagnostic trial 1 of 4")).toBeTruthy();
@@ -331,6 +376,9 @@ describe("MelodySession", () => {
     act(() => vi.advanceTimersByTime(1000));
     expect(completed).toHaveBeenCalledTimes(1);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "New Timed Session" })); });
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
+    expect(screen.queryByText(/Time remaining:/)).toBeNull();
+    await startTimed();
     expect(screen.getByText(/Time remaining: 1:00/)).toBeTruthy();
     now = 180_000;
     audio.setNow(60);
@@ -381,7 +429,7 @@ describe("MelodySession", () => {
     expect(completed).not.toHaveBeenCalled();
     const singleAudio = fakeAudio();
     render(<MelodySession initialConfig={DEFAULT_MELODY_CONFIG} createAudioContext={() => singleAudio.context} nowMs={() => now} onPracticeTargetReached={completed} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     singleAudio.setNow(20);
     now = 600_000;
     frame();
@@ -428,25 +476,26 @@ describe("MelodySession", () => {
       name: "Continuous Practice",
     });
     expect((continuous as HTMLInputElement).checked).toBe(false);
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
     expect(screen.queryByRole("combobox", { name: "Session duration" })).toBeNull();
 
     fireEvent.click(continuous);
     const duration = screen.getByRole("combobox", { name: "Session duration" });
     expect((duration as HTMLSelectElement).value).toBe("5");
     expect([...duration.querySelectorAll("option")].map(({ value }) => value)).toEqual(["1", "2", "3", "5"]);
-    expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
   });
 
-  it("shows only preparatory notation during lead-in, ignores prep input, and accepts the first target downbeat", async () => {
+  it("keeps authored measure one during count-in, ignores prep input, and accepts the first target downbeat", async () => {
     const audio = fakeAudio();
     const target = generateMelodyExercise(DEFAULT_MELODY_SETTINGS, "lead-in-boundary");
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "lead-in-boundary"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
 
-    expect(screen.getByText("Lead-in")).toBeTruthy();
-    expect(screen.getByText("Preparatory rest region")).toBeTruthy();
-    expect(screen.queryByText("Score measure 1")).toBeNull();
+    expect(screen.getByText("Count-in")).toBeTruthy();
+    expect(screen.queryByText("Preparatory rest region")).toBeNull();
+    expect(screen.getByText("Score measure 1")).toBeTruthy();
+    expect(screen.getByText("Score measure 1").getAttribute("data-offset")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Melody Results" })).toBeNull();
     act(() => midi.options?.onNotePlayed?.(target.expectedAttacks[0]!.midiNumber));
     expect(screen.queryByText(/Input:/)).toBeNull();
@@ -468,11 +517,11 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     const target = generateMelodyExercise(DEFAULT_MELODY_SETTINGS, "early-first-note");
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "early-first-note"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
 
     audio.setNow(1.6);
     act(() => midi.options?.onNotePlayed?.(target.expectedAttacks[0]!.midiNumber));
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
 
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -495,7 +544,7 @@ describe("MelodySession", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), {
       target: { value: "1" },
     });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(screen.getByText(/Time remaining: 1:00/)).toBeTruthy();
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -503,8 +552,8 @@ describe("MelodySession", () => {
     expect(screen.queryByRole("button", { name: "Retry Same" })).toBeNull();
     nowMs = 20_000;
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "Start Session" })).toBeNull();
+    await beginCountInIfReady();
+    expect(screen.queryByRole("button", { name: "Ready — Begin Count-in" })).toBeNull();
     expect(createAudioContext).toHaveBeenCalledTimes(1);
   });
 
@@ -514,9 +563,9 @@ describe("MelodySession", () => {
     render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     nowMs = 60_001;
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     expect(screen.getByRole("heading", { name: "Timed Melody Session Review" })).toBeTruthy();
@@ -531,7 +580,7 @@ describe("MelodySession", () => {
     render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={seedFactory} onPracticeTargetReached={completed} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     nowMs = 60_000;
@@ -548,7 +597,7 @@ describe("MelodySession", () => {
     render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={seedFactory} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(20);
     nowMs = 70_000;
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -556,12 +605,15 @@ describe("MelodySession", () => {
 
     nowMs = 100_000;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "New Timed Session" })); });
+    expect(screen.queryByText(/Time remaining:/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
+    await startTimed();
     expect(screen.getByText(/Time remaining: 1:00/)).toBeTruthy();
     audio.setNow(40);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     nowMs = 159_999;
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     expect(seedFactory).toHaveBeenCalledTimes(3);
   });
 
@@ -572,12 +624,12 @@ describe("MelodySession", () => {
     render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => seeds.shift() ?? "later"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     nowMs = 1_000;
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     nowMs = 60_000;
     audio.setNow(40);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -586,11 +638,11 @@ describe("MelodySession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next Needs Review" }));
     expect(screen.getByText("Diagnostic trial 2 of 2")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.getByRole("button", { name: "Start Session" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Timed Melody Session Review" })).toBeNull();
   });
 
-  it("starts Try Another directly with a fresh exercise and the same AudioContext", async () => {
+  it("prepares Try Another with a fresh exercise and the same AudioContext", async () => {
     const seeds = ["first", "second"];
     const seedFactory = vi.fn(() => seeds.shift() ?? "later");
     const audio = fakeAudio();
@@ -598,13 +650,13 @@ describe("MelodySession", () => {
     render(<MelodySession createAudioContext={createAudioContext} seedFactory={seedFactory} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     const firstScore = screen.getByText("Score measure 1");
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
 
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
-    expect(screen.getByText("Preparatory rest region")).not.toBe(firstScore);
+    await beginCountInIfReady();
+    expect(screen.getByText("Score measure 1")).not.toBe(firstScore);
     expect(seedFactory).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("button", { name: /Start (Session|Exercise)/ })).toBeNull();
     expect(createAudioContext).toHaveBeenCalledTimes(1);
@@ -614,21 +666,21 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
 
     act(() => midi.options?.onSustainPedalChanged?.(true));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     expect(screen.getByText(/Trials completed: 1/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Start Session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ready — Begin Count-in" })).toBeNull();
   });
 
   it("preserves completed diagnostic trials and enters an interrupted summary when hidden", async () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
@@ -645,7 +697,7 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     act(() => midi.options?.onNotePlayed?.(60));
@@ -653,7 +705,7 @@ describe("MelodySession", () => {
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     expect(screen.queryByText(/Input:/)).toBeNull();
     audio.setNow(22.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -670,7 +722,7 @@ describe("MelodySession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     nowMs = 60_000;
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -685,7 +737,7 @@ describe("MelodySession", () => {
     expect(createAudioContext).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
     expect(seedFactory).toHaveBeenCalledTimes(1);
     audio.setNow(40);
@@ -695,7 +747,7 @@ describe("MelodySession", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Trial 1 result" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     const retainedExercise = generateMelodyExercise(DEFAULT_MELODY_SETTINGS, "review-retry-seed");
     for (const attack of getMelodyTimedExpectedAttacks(retainedExercise)) {
       audio.setNow(42.1 + attack.expectedTimeSeconds);
@@ -721,7 +773,7 @@ describe("MelodySession", () => {
     render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     act(() => midi.options?.onNotePlayed?.(60));
@@ -730,7 +782,7 @@ describe("MelodySession", () => {
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     audio.setNow(22.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
@@ -749,7 +801,7 @@ describe("MelodySession", () => {
     render(<MelodySession createAudioContext={() => audio.context} nowMs={() => nowMs} seedFactory={() => "seed"} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Continuous Practice" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Session duration" }), { target: { value: "1" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
@@ -758,7 +810,7 @@ describe("MelodySession", () => {
     audio.setNow(20);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Retry This Melody" }));
-    await waitFor(() => expect(screen.getByText("Lead-in")).toBeTruthy());
+    await beginCountInIfReady();
     audio.setNow(22.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     act(() => midi.options?.onNotePlayed?.(60));
@@ -777,7 +829,7 @@ describe("MelodySession", () => {
     expect(screen.getByText("Measure 1 of 2")).toBeTruthy();
     expect(screen.getByLabelText("Melody exercise score and preparatory lead-in").tabIndex).toBe(0);
     expect(scroll?.querySelectorAll(".melody-score-track")).toHaveLength(0);
-    expect(scroll?.querySelectorAll('[aria-label="Preparatory lead-in and count guide"]')).toHaveLength(1);
+    expect(scroll?.querySelectorAll('[aria-label="Count guide"]')).toHaveLength(1);
   });
 
   it("enters and exits Mobile Play in setup without regenerating or duplicating practice UI", async () => {
@@ -789,8 +841,8 @@ describe("MelodySession", () => {
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
     expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
     expect(screen.getAllByText("Score measure 1")).toHaveLength(1);
-    expect(screen.getAllByLabelText("Preparatory lead-in and count guide")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getAllByLabelText("Count guide")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
     expect(seedFactory).toHaveBeenCalledTimes(1);
 
@@ -804,12 +856,12 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     const createAudioContext = vi.fn(() => audio.context);
     render(<MelodySession createAudioContext={createAudioContext} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
 
     fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Exit Mobile Play" }));
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
     expect(createAudioContext).toHaveBeenCalledTimes(1);
 
     audio.setNow(2.1);
@@ -821,7 +873,7 @@ describe("MelodySession", () => {
   it("preserves the performing recorder and MIDI source lock across entry and exit", async () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     act(() => midi.options?.onNotePlayed?.(60));
@@ -841,7 +893,7 @@ describe("MelodySession", () => {
   it("preserves a virtual source lock across Mobile Play", async () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.pointerDown(screen.getByRole("button", { name: "Virtual note" }));
@@ -860,7 +912,7 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={seedFactory} />);
     fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(8.6);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
 
@@ -890,7 +942,7 @@ describe("MelodySession", () => {
     expect(screen.getByRole("button", { name: "Exit Mobile Play" })).toBeTruthy();
     expect(seedFactory).toHaveBeenCalledTimes(1);
 
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(17.2);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
@@ -898,7 +950,7 @@ describe("MelodySession", () => {
     expect(seedFactory).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("combobox", { name: "Tempo" })).toBeTruthy();
 
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(25.8);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
@@ -910,7 +962,7 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     act(() => midi.options?.onSustainPedalChanged?.(true));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(8.6);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
@@ -919,7 +971,7 @@ describe("MelodySession", () => {
     expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
     act(() => midi.options?.onSustainPedalChanged?.(false));
     act(() => midi.options?.onSustainPedalChanged?.(true));
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
   });
 
   it("preserves exercise and lazy AudioContext ownership across resize", async () => {
@@ -930,18 +982,18 @@ describe("MelodySession", () => {
     fireEvent(window, new Event("resize"));
     expect(screen.getByText("Score measure 1")).toBe(scoreBefore);
     expect(createAudioContext).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     fireEvent(window, new Event("resize"));
     expect(createAudioContext).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
   });
   it("follows both authored measures without regenerating, restarting audio or publishing premature results", async () => {
     const audio = fakeAudio(), seedFactory = vi.fn(() => "two-measure-follow"), createAudioContext = vi.fn(() => audio.context), results = vi.fn();
     const config = { ...timedConfig, measureCount: 2 as const };
     const exercise = generateMelodyExercise(melodyConfigToSettings(config), "two-measure-follow");
     const view = render(<MelodySession initialConfig={config} createAudioContext={createAudioContext} seedFactory={seedFactory} onPracticeResultChange={results} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Session" })); });
-    expect(view.container.querySelector('[data-active-display-measure="0"]')).not.toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
+    expect(view.container.querySelector('[data-active-display-measure="1"]')).not.toBeNull();
     results.mockClear(); audio.setNow(2.1); frame();
     expect(view.container.querySelector('[data-active-display-measure="1"]')).not.toBeNull();
     act(() => midi.options?.onNotePlayed?.(exercise.expectedAttacks[0]!.midiNumber));
@@ -958,7 +1010,7 @@ describe("MelodySession", () => {
   it.each(["count-in", "performing"] as const)("aborts without scoring when hidden during %s", async (phase) => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     if (phase === "performing") {
       audio.setNow(2.1);
       act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -968,12 +1020,12 @@ describe("MelodySession", () => {
     expect(screen.getByRole("status").textContent).toContain("no longer active");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getAllByText(/Exercise stopped because Prelude was no longer active/)).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Melody results" })).toBeNull();
     expect(audio.close).not.toHaveBeenCalled();
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
     act(() => document.dispatchEvent(new Event("visibilitychange")));
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
   });
 
   it("aborts safely while audio startup is pending", async () => {
@@ -982,7 +1034,7 @@ describe("MelodySession", () => {
     audio.context.state = "suspended";
     audio.context.resume.mockImplementation(() => new Promise<undefined>((resolve) => { resolveResume = () => resolve(undefined); }));
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
-    act(() => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    act(() => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(screen.getByText("Starting audio…")).toBeTruthy();
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     act(() => document.dispatchEvent(new Event("visibilitychange")));
@@ -990,7 +1042,7 @@ describe("MelodySession", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     resolveResume?.();
     await act(async () => { await Promise.resolve(); });
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
     expect(audio.nodes.every(({ stop }) => stop.mock.calls.length >= 2)).toBe(true);
   });
 
@@ -1001,9 +1053,9 @@ describe("MelodySession", () => {
     const view = render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     act(() => document.dispatchEvent(new Event("visibilitychange")));
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(8.6);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
@@ -1020,8 +1072,8 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
     expect(audio.context.createOscillator).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
+    expect(screen.getByText("Count-in")).toBeTruthy();
     act(() => midi.options?.onNotePlayed?.(60));
     audio.setNow(2.1);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
@@ -1046,7 +1098,7 @@ describe("MelodySession", () => {
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => seeds.shift() ?? "later"} />);
     const firstScore = screen.getByText("Score measure 1").getAttribute("data-staff");
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(8.6);
     act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
     fireEvent.click(screen.getByRole("button", { name: "Retry Same" }));
@@ -1062,7 +1114,7 @@ describe("MelodySession", () => {
     const seeds = ["first", "replacement"];
     const audio = fakeAudio();
     render(<MelodySession createAudioContext={() => audio.context} hostedPracticePresentation={hostedPracticePresentation} seedFactory={() => seeds.shift() ?? "later"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     audio.setNow(8.6);
     frame();
     fireEvent.click(screen.getByRole("button", { name: "Try Another" }));
@@ -1072,15 +1124,15 @@ describe("MelodySession", () => {
 
   it("reports audio startup failure without entering performance", async () => {
     render(<MelodySession createAudioContext={() => { throw new Error("no audio"); }} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(screen.getByRole("alert").textContent).toContain("couldn't start");
-    expect(screen.getByRole("button", { name: "Start Exercise" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready — Begin Count-in" })).toBeTruthy();
   });
 
   it("cancels scheduled audio on unmount", async () => {
     const audio = fakeAudio();
     const view = render(<MelodySession createAudioContext={() => audio.context} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     view.unmount();
     expect(audio.nodes.every(({ stop }) => stop.mock.calls.length >= 2)).toBe(true);
     expect(audio.close).toHaveBeenCalledTimes(1);
@@ -1093,7 +1145,7 @@ describe("MelodySession", () => {
     expect(createAudioContext).not.toHaveBeenCalled();
 
     const startAndComplete = async () => {
-      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
       audio.setNow(8.6);
       act(() => (globalThis as typeof globalThis & { runMelodyFrame: () => void }).runMelodyFrame());
       expect(screen.getByRole("heading", { name: "Melody results" })).toBeTruthy();
@@ -1122,11 +1174,11 @@ describe("MelodySession", () => {
       .mockImplementationOnce(() => { throw new Error("creation failed"); })
       .mockImplementationOnce(() => audio.context);
     render(<MelodySession createAudioContext={createAudioContext} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(screen.getByRole("alert")).toBeTruthy();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(createAudioContext).toHaveBeenCalledTimes(2);
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
   });
 
   it("reuses a created context after clock startup fails", async () => {
@@ -1139,24 +1191,24 @@ describe("MelodySession", () => {
     });
     const createAudioContext = vi.fn(() => audio.context);
     render(<MelodySession createAudioContext={createAudioContext} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(screen.getByRole("alert")).toBeTruthy();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(createAudioContext).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Lead-in")).toBeTruthy();
+    expect(screen.getByText("Count-in")).toBeTruthy();
   });
 
   it("contains synchronous and asynchronous context close failures on unmount", async () => {
     const asyncAudio = fakeAudio();
     asyncAudio.close.mockRejectedValueOnce(new Error("close rejected"));
     const asyncView = render(<MelodySession createAudioContext={() => asyncAudio.context} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(() => asyncView.unmount()).not.toThrow();
 
     const syncAudio = fakeAudio();
     syncAudio.context.close = vi.fn(() => { throw new Error("close threw"); });
     const syncView = render(<MelodySession createAudioContext={() => syncAudio.context} seedFactory={() => "seed"} />);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Start Exercise" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(() => syncView.unmount()).not.toThrow();
   });
 });

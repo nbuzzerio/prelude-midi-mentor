@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PRACTICE_SESSION_BUILDER_OPTIONS } from "./practice-session-builder-options";
 import {
   createPracticeSessionRunSnapshot,
+  getPracticeSessionExerciseActiveTime,
   practiceSessionRunReducer,
   type ActivePracticeSessionRun,
   type PracticeSessionRunSnapshot,
@@ -26,6 +27,24 @@ function start(exercises: readonly PracticeExerciseEntry[], runId = "run"): Acti
 const scope = { runId: "run", exerciseToken: "token-1", exerciseId: "e1" };
 
 describe("Practice Session runtime reducer", () => {
+  it("excludes Reading Flow readiness from prescribed and Bonus time without changing foreground or evidence", () => {
+    let state: PracticeSessionRunState = start([entry(7, "e1")]);
+    expect(getPracticeSessionExerciseActiveTime(state.records[0]!, 5000).totalActiveDurationMs).toBe(0);
+    state = practiceSessionRunReducer(state, { type: "VISIBILITY_CHANGED", ...scope, at: 5100, foreground: false })!;
+    state = practiceSessionRunReducer(state, { type: "VISIBILITY_CHANGED", ...scope, at: 5200, foreground: true })!;
+    expect(getPracticeSessionExerciseActiveTime(state.records[0]!, 9000).totalActiveDurationMs).toBe(0);
+    state = practiceSessionRunReducer(state, { type: "ENGINE_ACTIVITY_CHANGED", ...scope, at: 10000, active: true })!;
+    state = practiceSessionRunReducer(state, { type: "ENGINE_ACTIVITY_CHANGED", ...scope, at: 12000, active: false })!;
+    expect(getPracticeSessionExerciseActiveTime(state.records[0]!, 60000).totalActiveDurationMs).toBe(2000);
+    expect(state.status === "active" && state.foreground).toBe(true);
+    expect(state.evidence.map(item => item.type)).toEqual(["exercise-entered"]);
+    state = practiceSessionRunReducer(state, { type: "TARGET_REACHED", ...scope, at: 60000 })!;
+    state = practiceSessionRunReducer(state, { type: "KEEP_PLAYING", ...scope, at: 61000 })!;
+    expect(getPracticeSessionExerciseActiveTime(state.records[0]!, 90000).bonusActiveDurationMs).toBe(0);
+    state = practiceSessionRunReducer(state, { type: "ENGINE_ACTIVITY_CHANGED", ...scope, at: 100000, active: true })!;
+    state = practiceSessionRunReducer(state, { type: "ENGINE_ACTIVITY_CHANGED", ...scope, at: 101000, active: false })!;
+    expect(getPracticeSessionExerciseActiveTime(state.records[0]!, 200000)).toMatchObject({ prescribedActiveDurationMs: 2000, bonusActiveDurationMs: 1000 });
+  });
   it("creates a detached snapshot", () => {
     const exercise = entry(0, "e1");
     const preset: PracticeSessionPreset = { schemaVersion: 1, id: "preset", name: "Daily", exercises: [exercise] };

@@ -11,9 +11,10 @@ import { useLessonPacing } from "./use-lesson-pacing";
 const button = "min-h-11 rounded border border-zinc-600 px-3 py-2 disabled:opacity-40";
 const primary = `${button} bg-sky-500 font-semibold text-white`;
 /** Presentation and ephemeral pacing only. Queue/attempt/recovery ownership stays in the executor. */
-export default function PracticeProgramLesson({ executor, state, active, program, onClose }: Readonly<{
+export default function PracticeProgramLesson({ executor, state, active, program, onClose, keyboardChoice, onKeyboardChoiceChange }: Readonly<{
   executor: PracticeProgramExecutor; state: ProgramExecutionState; active: boolean;
   program: PracticeProgramRevision; onClose: () => void;
+  keyboardChoice?: boolean | null; onKeyboardChoiceChange?: (visible: boolean) => void;
 }>) {
   const [finishRequested, setFinishRequested] = useState(false);
   const [ready, setReady] = useState<{ attemptId: string; available: boolean } | null>(null);
@@ -61,11 +62,11 @@ export default function PracticeProgramLesson({ executor, state, active, program
     {finished ? <>
       <h3 className="text-lg font-semibold">{evidencePending ? "Finishing lesson" : "Lesson finished"}</h3>
       <p role="status">{evidencePending ? "Results are awaiting durable save. Keep this tab open and retry saving if needed." : "Unperformed exercises remain unperformed."}</p>
-      <PracticeLessonSummary exercises={program.nativeExercises} pending={evidencePending} state={state} />
+      <PracticeLessonSummary exercises={program.nativeExercises} pending={evidencePending} programName={program.program.title} state={state} />
       {run?.status === "summary" && result}
       <button className={primary} disabled={evidencePending} onClick={returnToEntry} type="button">Return</button>
     </> : <>
-      {active && !finishRequested && run?.status === "active" && <PracticeSessionRuntime allowSkip={false} hostedStart createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={run.runId} now={executor.now} onPracticeActivityChange={activityChanged} run={run} lesson={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(exercise), nextTitle, disabled, pendingReason: state.error ? "Retry saving before continuing." : "Saving results before continuing…", evidence: state.durable, canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, onNext: next, onRepeat: repeat, onFinish: finish }} />}
+      {active && !finishRequested && run?.status === "active" && <PracticeSessionRuntime allowSkip={false} hostedStart keyboardChoice={keyboardChoice} onKeyboardChoiceChange={onKeyboardChoiceChange} createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={run.runId} now={executor.now} onPracticeActivityChange={activityChanged} run={run} lesson={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(exercise), nextTitle, disabled, pendingReason: state.error ? "Retry saving before continuing." : "Saving results before continuing…", evidence: state.durable, canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, onNext: next, onRepeat: repeat, onFinish: finish }} />}
       {run?.status === "summary" && <>
         <h3 className="font-semibold">Exercise {state.index + 1} of {state.queue.length} · {exercise?.label}</h3>
         <div className="flex flex-wrap gap-2">

@@ -6,6 +6,7 @@ import { IndexedDbPracticeAttempts } from "../persistence/practice-attempt-index
 import { PracticeProgramExecutor } from "../practice-program-executor";
 import { testProgram, testOwnership, testConcepts } from "../practice-program-test-fixtures";
 import PracticeProgramPractice from "./practice-program-practice";
+import { AppMidiContext, type AppMidiContextValue } from "@/components/midi/midi-context";
 const observed = vi.hoisted(() => ({ props: [] as { onPracticeUnitCompleted?: () => void; onPracticeTargetReached?: () => void; onScaleRepertoireCompleted?: () => void; initialConfig: unknown }[] }));
 type Props = (typeof observed.props)[number];
 function Native(props: Props) { observed.props.push(props); return <div data-testid="native" data-config={JSON.stringify(props.initialConfig)}><button onClick={props.onPracticeUnitCompleted}>native unit</button><button onClick={props.onPracticeTargetReached ?? props.onScaleRepertoireCompleted}>native marker</button></div>; }
@@ -23,6 +24,20 @@ const createExecutor = (program: ReturnType<typeof testProgram>) => new Practice
 async function start(index = 0) { fireEvent.click(screen.getByRole("checkbox", { name: testProgram().program.exercises[index]!.label })); fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" })); fireEvent.click(screen.getByRole("button", { name: "Start selected exercise" })); await screen.findByTestId("native"); }
 const mount = (active = true) => render(<PracticeProgramPractice active={active} createExecutor={createExecutor} onBusyChange={vi.fn()} onClose={vi.fn()} program={testProgram()} />);
 describe("weekly daily selection and native attempts", () => {
+  it("retains explicit keyboard choice across native attempts in one manual queue", async () => {
+    const value: AppMidiContextValue = { status: "connected", deviceName: "QA piano", error: null, connectedInputs: [], connectMidi: vi.fn(async () => undefined), registerConsumer: vi.fn(() => () => undefined) };
+    render(<AppMidiContext.Provider value={value}><PracticeProgramPractice active createExecutor={createExecutor} onBusyChange={vi.fn()} onClose={vi.fn()} program={testProgram()} /></AppMidiContext.Provider>);
+    for (const index of [0, 1]) fireEvent.click(screen.getByRole("checkbox", { name: testProgram().program.exercises[index]!.label }));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start selected exercise" }));
+    const first = await screen.findByTestId("native");
+    fireEvent.click(screen.getByRole("button", { name: "Show Keyboard" }));
+    fireEvent.click(screen.getByRole("button", { name: "native unit" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next Exercise" })).toHaveProperty("disabled", false));
+    fireEvent.click(screen.getByRole("button", { name: "Next Exercise" }));
+    await waitFor(() => expect(screen.getByTestId("native")).not.toBe(first));
+    expect(screen.getByRole("button", { name: "Hide Keyboard" })).toBeTruthy();
+  });
   it("keeps three selected exercises and advances once per explicit Next through all three", async () => {
     let executor!: PracticeProgramExecutor;
     const program = testProgram(); render(<PracticeProgramPractice active createExecutor={p => (executor = createExecutor(p))} onBusyChange={vi.fn()} onClose={vi.fn()} program={program} />);

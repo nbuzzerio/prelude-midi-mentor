@@ -20,6 +20,7 @@ export default function PracticeProgramPractice({ program, active, onBusyChange,
   const [executor] = useState(() => createExecutor?.(program) ?? new PracticeProgramExecutor(program));
   const state = useSyncExternalStore(executor.subscribe, executor.getSnapshot), [selection, setSelection] = useState<readonly string[]>([]);
   const [finishRequested, setFinishRequested] = useState(false);
+  const [keyboardChoice, setKeyboardChoice] = useState<boolean | null>(null);
   useEffect(() => executor.attach(), [executor]);
   const busy = executor.busy || state.queue.length > 0;
   useLayoutEffect(() => { onBusyChange(busy); return () => onBusyChange(false); }, [busy, onBusyChange]);
@@ -37,11 +38,11 @@ export default function PracticeProgramPractice({ program, active, onBusyChange,
   const occurrence = state.queue[state.index];
   const nextTitle = program.nativeExercises.find(entry => entry.id === state.queue[state.index + 1]?.exerciseId)?.label;
   const navigationDisabled = state.saving || !!state.error || !active;
-  const returnToPool = () => { if (executor.returnToPool()) { setSelection([]); setFinishRequested(false); } };
+  const returnToPool = () => { if (executor.returnToPool()) { setSelection([]); setFinishRequested(false); setKeyboardChoice(null); } };
   const finish = () => { setFinishRequested(true); executor.stop(); };
   useEffect(() => { if (finishRequested && state.run?.status === "active") executor.stop(); }, [finishRequested, state.run, executor]);
   const changeOrder = (index: number, delta: number) => { const values = [...selection], other = index + delta; if (other < 0 || other >= values.length) return; [values[index], values[other]] = [values[other]!, values[index]!]; setSelection(values); };
-  if (morningSelection) return <PracticeProgramLesson active={active} executor={executor} onClose={onClose} program={program} state={state} />;
+  if (morningSelection) return <PracticeProgramLesson active={active} executor={executor} keyboardChoice={keyboardChoice} onKeyboardChoiceChange={setKeyboardChoice} onClose={onClose} program={program} state={state} />;
   return <section aria-label="Weekly program practice" className="space-y-4 break-words">
     <div><h2 className="text-xl font-semibold">Manual V2 practice</h2><p className="text-sm text-zinc-400">{program.program.title} · Revision {program.revision}</p></div>
     {notice && <p role="status">{notice}</p>}
@@ -57,8 +58,8 @@ export default function PracticeProgramPractice({ program, active, onBusyChange,
       {state.error && <div className="space-y-2"><p className="text-red-300" role="alert">{state.error} Results are pending in this tab; they are not shown as saved.</p><button className={buttonClass} disabled={state.saving} onClick={() => void executor.retry()} type="button">Retry saving</button></div>}
       {state.saving && <p role="status">{state.run ? "Saving acknowledged checkpoint…" : "Preparing your exercise…"}</p>}
       {!finishRequested && !state.run && !state.record && occurrence && <div className="flex flex-wrap gap-2"><button className={primary} disabled={executor.busy || !active} onClick={() => void executor.start()} type="button">Start selected exercise</button><button className={buttonClass} disabled={executor.busy} onClick={() => void executor.skip()} type="button">Skip this selection</button>{state.index === 0 && <button className={buttonClass} disabled={executor.busy} onClick={() => executor.returnToPool()} type="button">Edit selection</button>}</div>}
-      {finishRequested && <><h3 className="text-lg font-semibold">{executor.busy ? "Finishing practice" : "Manual practice finished"}</h3><PracticeLessonSummary workflowLabel="Manual V2 practice" exercises={program.nativeExercises} pending={executor.busy} state={state} /></>}
-      {active && !finishRequested && state.run?.status === "active" && <PracticeSessionRuntime allowSkip={false} createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={state.run.runId} now={executor.now} run={state.run} manualQueue={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(state.record?.exercise), nextTitle, disabled: navigationDisabled, pendingReason: state.error ? "Retry saving before continuing." : "Saving results before continuing…", canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, evidence: state.durable, onNext: () => void executor.advanceLesson("next"), onRepeat: () => void executor.advanceLesson("repeat"), onFinish: finish }} />}
+      {finishRequested && <><h3 className="text-lg font-semibold">{executor.busy ? "Finishing practice" : "Manual practice finished"}</h3><PracticeLessonSummary workflowLabel="Manual V2 practice" programName={program.program.title} exercises={program.nativeExercises} pending={executor.busy} state={state} /></>}
+      {active && !finishRequested && state.run?.status === "active" && <PracticeSessionRuntime allowSkip={false} keyboardChoice={keyboardChoice} onKeyboardChoiceChange={setKeyboardChoice} createExerciseToken={() => crypto.randomUUID()} dispatch={executor.handle} key={state.run.runId} now={executor.now} run={state.run} manualQueue={{ position: state.index + 1, total: state.queue.length, cue: getPracticeLessonCue(state.record?.exercise), nextTitle, disabled: navigationDisabled, pendingReason: state.error ? "Retry saving before continuing." : "Saving results before continuing…", canRepeat: state.queue.length < PROGRAM_ATTEMPT_LIMITS.queue, evidence: state.durable, onNext: () => void executor.advanceLesson("next"), onRepeat: () => void executor.advanceLesson("repeat"), onFinish: finish }} />}
       {state.run?.status === "summary" && <>
         <p role="status">{state.durable?.closed ? `Saved attempt: ${state.durable.outcome}. Detailed native report below is temporary.` : "Attempt ended. Results are awaiting durable save."}</p>
         {!finishRequested && <><button aria-label={nextTitle ? "Next Exercise" : "Finish practice"} className={primary} disabled={executor.busy || !active} onClick={nextTitle ? () => void executor.advanceLesson("next") : finish} type="button">{nextTitle ? <>Next Exercise <span aria-hidden="true">→ {nextTitle}</span></> : "Finish practice"}</button>

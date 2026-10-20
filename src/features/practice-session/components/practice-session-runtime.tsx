@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from "react";
+import { AppMidiContext } from "@/components/midi/midi-context";
 import EarTrainingSession from "@/features/ear-training/components/ear-training-session";
 import FlashcardSession from "@/features/flashcards/components/flashcard-session";
 import MelodySession, { type MelodySessionHandle } from "@/features/melody/components/melody-session";
@@ -30,11 +31,14 @@ type RuntimeProps = Readonly<{
   /** Explicit morning-launch request for this acknowledged attempt only. */
   hostedStart?: boolean;
   onPracticeActivityChange?: (available: boolean) => void;
+  /** The V2 queue host retains explicit choice across native attempt mounts. */
+  keyboardChoice?: boolean | null;
+  onKeyboardChoiceChange?: (visible: boolean) => void;
   lesson?: QueuePresentation;
   manualQueue?: QueuePresentation;
 }>;
 
-export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true, hostedStart = false, lesson: dailyLesson, manualQueue, onPracticeActivityChange }: RuntimeProps) {
+export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true, hostedStart = false, lesson: dailyLesson, manualQueue, onPracticeActivityChange, keyboardChoice, onKeyboardChoiceChange }: RuntimeProps) {
   // Both V2 entry routes present the outer queue; their native start policies stay separate.
   const lesson = dailyLesson ?? manualQueue;
   const isV2 = lesson !== undefined;
@@ -46,7 +50,11 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
   const previousExerciseTokenRef = useRef(run.activeExerciseToken);
   const mobilePlay = useMobilePlay();
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const [showVirtualKeyboard, setShowVirtualKeyboard] = useState(true);
+  const midi = useContext(AppMidiContext);
+  const [localKeyboardChoice, setLocalKeyboardChoice] = useState<boolean | null>(null);
+  const explicitKeyboardChoice = keyboardChoice === undefined ? localKeyboardChoice : keyboardChoice;
+  const showVirtualKeyboard = explicitKeyboardChoice ?? midi?.status !== "connected";
+  const chooseKeyboard = onKeyboardChoiceChange ?? setLocalKeyboardChoice;
   const [bonusNotice, setBonusNotice] = useState<Readonly<{ token: string; message: string }> | null>(null);
   const entry = run.snapshot.exercises[run.activeExerciseIndex]!;
   const record = run.records[run.records.length - 1]!;
@@ -63,6 +71,10 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
   const lessonCompletionReady = !!lesson && targetComplete && !lesson.disabled;
   const finishLabel = dailyLesson ? "Finish Lesson" : "Finish practice";
   const scopeNote = lesson ? `${dailyLesson ? "Today's Piano Lesson" : "Manual V2 practice"} · exercise ${lesson.position} of ${lesson.total}. This is a single-attempt native report; other selections are not included.` : undefined;
+  const readingActivityChanged = useCallback((active: boolean) => {
+    dispatch({ type: "ENGINE_ACTIVITY_CHANGED", runId: run.runId, exerciseToken: run.activeExerciseToken, exerciseId: entry.id, at: now(), active });
+    onPracticeActivityChange?.(active);
+  }, [dispatch, run.runId, run.activeExerciseToken, entry.id, now, onPracticeActivityChange]);
 
   useEffect(() => {
     if (entry.engine !== "flashcards" && entry.engine !== "sequences") return;
@@ -144,7 +156,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
       engine = <EarTrainingSession hostedStart={hostedStart} onPracticeActivityChange={onPracticeActivityChange} hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeUnitCompleted={unitCompleted} practiceSessionMode />;
       break;
     case "melody":
-      engine = <MelodySession hostedStart={hostedStart} onPracticeActivityChange={onPracticeActivityChange} hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeTargetReached={targetReached} practiceSessionMode ref={melodyRef} />;
+      engine = <MelodySession hostedStart={hostedStart} onPracticeActivityChange={readingActivityChanged} hostedPracticePresentation={hostedPracticePresentation} initialConfig={entry.config} onPracticeResultChange={resultChanged} onPracticeTargetReached={targetReached} practiceSessionMode ref={melodyRef} />;
       break;
   }
 
@@ -160,7 +172,7 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
           {lesson?.nextTitle && !targetComplete && <p className="mt-1 text-xs text-zinc-400">Up next: {lesson.nextTitle}</p>}
         </div>
         <button aria-pressed={isFocusMode} className="min-h-11 rounded border border-zinc-600 px-3 text-zinc-300" onClick={() => setIsFocusMode((current) => !current)} type="button">{isFocusMode ? "Exit Focus" : "Focus"}</button>
-        <button hidden={!!lesson && targetComplete} aria-pressed={showVirtualKeyboard} className="min-h-11 rounded border border-zinc-600 px-3 text-zinc-300" onClick={() => setShowVirtualKeyboard((current) => !current)} type="button">{showVirtualKeyboard ? "Hide Keyboard" : "Show Keyboard"}</button>
+        <button hidden={!!lesson && targetComplete} aria-pressed={showVirtualKeyboard} className="min-h-11 rounded border border-zinc-600 px-3 text-zinc-300" onClick={() => chooseKeyboard(!showVirtualKeyboard)} type="button">{showVirtualKeyboard ? "Hide Keyboard" : "Show Keyboard"}</button>
         {!mobilePlay.isMobilePlayMode && (lesson ? <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-zinc-400">View options</summary><button className="practice-mobile-play-entry min-h-11 rounded border border-zinc-600 px-3" onClick={mobilePlay.enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button></details> : <button className="practice-mobile-play-entry min-h-11 rounded border border-sky-400/50 px-3 font-semibold text-sky-100" onClick={mobilePlay.enterMobilePlay} ref={mobilePlayEntryRef} type="button">Mobile Play</button>)}
         {allowSkip && run.completionPresentation === "practicing" && <button className="min-h-11 rounded bg-zinc-800 px-3" onClick={() => advance("SKIP")} type="button">Skip for Today</button>}
         <button className="min-h-11 rounded border border-zinc-600 px-3" onClick={() => dispatch({ type: "END", ...scope, endedAt: now() })} type="button">{lesson ? "Stop Exercise" : "End Session"}</button>

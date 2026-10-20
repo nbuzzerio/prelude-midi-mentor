@@ -5,6 +5,7 @@ import { PRACTICE_SESSION_BUILDER_OPTIONS } from "../practice-session-builder-op
 import { practiceSessionRunReducer, type ActivePracticeSessionRun, type PracticeSessionRunSnapshot } from "../practice-session-runtime";
 import type { PracticeExerciseEntry } from "../practice-session-types";
 import { PracticeSessionRuntime, PracticeSessionSummary } from "./practice-session-runtime";
+import { AppMidiContext, type AppMidiContextValue } from "@/components/midi/midi-context";
 
 const observed = vi.hoisted(() => ({ melodyContinue: vi.fn(() => true), props: new Map<string, unknown>() }));
 type Hosted = { isFocusMode: boolean; isMobilePlayMode: boolean; showVirtualKeyboard: boolean };
@@ -32,6 +33,39 @@ function Harness({ exercises }: Readonly<{ exercises: readonly PracticeExerciseE
 }
 
 describe("Practice Session runtime", () => {
+  const midiValue = (status: AppMidiContextValue["status"]): AppMidiContextValue => ({ status, deviceName: status === "connected" ? "QA piano" : null, error: null, connectedInputs: [], connectMidi: vi.fn(async () => undefined), registerConsumer: vi.fn(() => () => undefined) });
+
+  it.each(["connected", "disconnected", "connecting", "error", "unsupported"] as const)("uses the %s MIDI default without acquiring an input consumer", status => {
+    const value = midiValue(status);
+    render(<AppMidiContext.Provider value={value}><Harness exercises={[readyEntry(0, "e1")]} /></AppMidiContext.Provider>);
+    expect(screen.getByTestId("flashcards").dataset.hostedKeyboard).toBe(String(status !== "connected"));
+    expect(screen.getByRole("button", { name: status === "connected" ? "Show Keyboard" : "Hide Keyboard" })).toBeTruthy();
+    expect(value.registerConsumer).not.toHaveBeenCalled();
+  });
+
+  it("tracks connection and genuine disconnect only until an explicit Show or Hide, retaining input and Focus owners", () => {
+    const children = <Harness exercises={[readyEntry(0, "e1")]} />;
+    const view = render(<AppMidiContext.Provider value={midiValue("disconnected")}>{children}</AppMidiContext.Provider>);
+    const native = screen.getByTestId("flashcards");
+    expect(native.dataset.hostedKeyboard).toBe("true");
+    view.rerender(<AppMidiContext.Provider value={midiValue("connected")}>{children}</AppMidiContext.Provider>);
+    expect(native.dataset.hostedKeyboard).toBe("false");
+    view.rerender(<AppMidiContext.Provider value={midiValue("disconnected")}>{children}</AppMidiContext.Provider>);
+    expect(native.dataset.hostedKeyboard).toBe("true");
+    view.rerender(<AppMidiContext.Provider value={midiValue("connected")}>{children}</AppMidiContext.Provider>);
+    fireEvent.click(screen.getByRole("button", { name: "Show Keyboard" }));
+    view.rerender(<AppMidiContext.Provider value={midiValue("connected")}>{children}</AppMidiContext.Provider>);
+    expect(native.dataset.hostedKeyboard).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Focus" }));
+    expect(screen.getByTestId("flashcards")).toBe(native);
+    view.rerender(<AppMidiContext.Provider value={midiValue("disconnected")}>{children}</AppMidiContext.Provider>);
+    fireEvent.click(screen.getByRole("button", { name: "Hide Keyboard" }));
+    for (const status of ["disconnected", "connected", "disconnected"] as const) {
+      view.rerender(<AppMidiContext.Provider value={midiValue(status)}>{children}</AppMidiContext.Provider>);
+      expect(native.dataset.hostedKeyboard).toBe("false");
+      expect(screen.getByRole("button", { name: "Show Keyboard" })).toBeTruthy();
+    }
+  });
   it("keeps lesson Finish and host Focus reachable for Reading Flow without remounting its engine", () => {
     const entry = PRACTICE_SESSION_BUILDER_OPTIONS.map(option => option.createEntry("reading")).find(exercise => exercise.engine === "melody")!;
     const onFinish = vi.fn(), run = initial([entry]);

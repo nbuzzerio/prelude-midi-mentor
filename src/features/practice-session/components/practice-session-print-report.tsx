@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { useBrowserPrint } from "@/hooks/use-browser-print";
 import { printFilenameTitle } from "@/lib/files/print-filename";
 import { PracticeDiagnosticChips, type PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
@@ -62,15 +63,15 @@ export function PracticeSessionPrintableReport({ options, report, scopeNote }: R
   </section>;
 }
 
-export function PracticeSessionPrintControls({ report, scopeNote }: Readonly<{ report: PracticeSessionReport; scopeNote?: string }>) {
+export function PracticeSessionPrintControls({ report, scopeNote, label = "Generate Report" }: Readonly<{ report: PracticeSessionReport; scopeNote?: string; label?: string }>) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [printOptions, setPrintOptions] = useState<PracticeSessionPrintOptions | null>(null);
   const generateRef = useRef<HTMLButtonElement>(null);
   const close = () => { setDialogOpen(false); generateRef.current?.focus(); };
   useBrowserPrint(printOptions !== null, () => { setPrintOptions(null); generateRef.current?.focus(); }, printFilenameTitle(report.presetName, "practice-session"));
   return <>
-    <button className="min-h-11 rounded border border-sky-400/60 px-4 font-semibold" onClick={() => setDialogOpen(true)} ref={generateRef} type="button">Generate Report</button>
+    <button className="min-h-11 rounded border border-sky-400/60 px-4 font-semibold" onClick={() => setDialogOpen(true)} ref={generateRef} type="button">{label}</button>
     {dialogOpen && <OptionsDialog onCancel={close} onGenerate={(options) => { setDialogOpen(false); setPrintOptions(options); }} />}
-    {printOptions && <PracticeSessionPrintableReport options={printOptions} report={report} scopeNote={scopeNote} />}
+    {printOptions && createPortal(<PracticeSessionPrintableReport options={printOptions} report={report} scopeNote={scopeNote} />, document.body)}
   </>;
 }

@@ -8,6 +8,7 @@ import { getPracticeExerciseConceptName } from "../practice-session-presenters";
 import { lessonExerciseFeedback, lessonSummaryRows } from "../practice-lesson-feedback";
 import { ExerciseDiagnostics } from "./practice-session-report";
 import { PracticeSessionPrintControls } from "./practice-session-print-report";
+import { PracticeLessonPrintControls } from "./practice-lesson-print-report";
 
 export function LessonNativeDetails({ run, pending = false, scopeNote }: Readonly<{ run: PracticeSessionRunState; pending?: boolean; scopeNote?: string }>) {
   const [open, setOpen] = useState(false);
@@ -18,7 +19,7 @@ export function LessonNativeDetails({ run, pending = false, scopeNote }: Readonl
       <p className="text-xs text-zinc-400">Full native diagnostics are temporary. Saved attempts retain their native scalar summaries.</p>
       {scopeNote && <p className="text-sm text-zinc-300">{scopeNote}</p>}
       <ExerciseDiagnostics exercise={report.exercises[0]!} />
-      <PracticeSessionPrintControls report={report} scopeNote={scopeNote} />
+      <PracticeSessionPrintControls label="Print Exercise Details" report={report} scopeNote={scopeNote} />
     </div>}
   </details>;
 }
@@ -35,8 +36,8 @@ export function LessonExerciseFeedback({ attempt, compact = false }: Readonly<{ 
   </section>;
 }
 
-export default function PracticeLessonSummary({ state, exercises, pending, workflowLabel = "Today's Piano Lesson" }: Readonly<{
-  state: ProgramExecutionState; exercises: readonly PracticeExerciseEntry[]; pending: boolean; workflowLabel?: string;
+export default function PracticeLessonSummary({ state, exercises, pending, programName = "Piano practice", workflowLabel = "Today's Piano Lesson" }: Readonly<{
+  state: ProgramExecutionState; exercises: readonly PracticeExerciseEntry[]; pending: boolean; programName?: string; workflowLabel?: string;
 }>) {
   const rows = lessonSummaryRows(state.queue, state.acknowledged.map(entry => entry.record), exercises, pending ? state.record : null,
     pending && !state.record && (state.saving || state.error) ? state.queue[state.index]?.occurrenceId : undefined);
@@ -45,7 +46,7 @@ export default function PracticeLessonSummary({ state, exercises, pending, workf
   const feedback = focus ? lessonExerciseFeedback(focus) : null;
   const counts = ["Completed", "Stopped early", "Interrupted", "Deliberately skipped", "Unperformed", "Results pending", "Skip save pending", "In progress", "Target reached"]
     .map(outcome => ({ outcome, count: rows.filter(row => row.outcome === outcome).length })).filter(value => value.count > 0);
-  return <section aria-label="Lesson teaching summary" className="space-y-3 text-sm">
+  const overview = <>
     <div><h3 className="font-semibold">What I practiced</h3>
       {!rows.some(row => row.record?.kind === "attempt") && <p>No exercises were performed.</p>}
       <ol className="list-inside list-decimal space-y-1">{rows.map(row => <li key={row.occurrenceId}>
@@ -55,6 +56,10 @@ export default function PracticeLessonSummary({ state, exercises, pending, workf
     <div><h3 className="font-semibold">What I completed</h3><p>{counts.length ? counts.map(value => `${value.count} ${value.outcome.toLowerCase()}`).join(" · ") : "No selections were undertaken."}</p></div>
     <div><h3 className="font-semibold">One useful observation</h3><p>{feedback ? `${getPracticeExerciseConceptName(focus!.exercise)} (${focus!.targetMetrics ? "prescribed target" : "all recorded work"}): ${feedback.summaryObservation}` : pending ? "Evidence is still pending; a result observation is not available yet." : "There is no completed attempt evidence to interpret."}</p></div>
     <div><h3 className="font-semibold">Next time</h3><p>{feedback?.suggestion ?? "Continue the selected fundamentals at a comfortable pace."}</p></div>
+  </>;
+  return <section aria-label="Lesson teaching summary" className="space-y-3 text-sm">
+    {overview}
+    <PracticeLessonPrintControls exercises={exercises} overview={overview} pending={pending} programName={programName} state={state} workflowLabel={workflowLabel} />
     <details><summary className="min-h-11 cursor-pointer py-3">Exercise results and native reports</summary>
       <div className="space-y-4">{rows.flatMap((row, index) => {
         const acknowledged = state.acknowledged.find(entry => entry.record.recordId === row.record?.recordId);
