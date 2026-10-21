@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
@@ -234,7 +234,7 @@ describe("piano recording through real physical MIDI and Piece Practice owners",
     const player = screen.getByLabelText("Play recording segment 1") as HTMLAudioElement;
     vi.spyOn(player, "paused", "get").mockReturnValue(false);
     const pause = vi.spyOn(player, "pause").mockImplementation(() => undefined);
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Resume recording" })); });
+    await act(async () => { fireEvent.click(within(screen.getByLabelText("Practice controls")).getByRole("button", { name: "Resume recording" })); });
     expect(pause).toHaveBeenCalledTimes(1);
     expect(env.getUserMedia).toHaveBeenCalledTimes(2);
     expect(env.recorders[1].stream).toBe(env.streams[1].stream);
@@ -315,6 +315,7 @@ describe("piano recording through real physical MIDI and Piece Practice owners",
 
   it("offers microphone recording to VKB without producing synthesized or physical MIDI evidence", async () => {
     const env = browser(); const s = await mountPractice(env); await optIn(env);
+    fireEvent.click(screen.getByRole("button", { name: "Show Keyboard" }));
     fireEvent.click(screen.getByRole("button", { name: /MIDI 60/ }));
     expect(s.store.records.at(-1)!.checkpoint.completedTargetCount).toBe(1);
     expect(s.store.records.at(-1)!.checkpoint.attackEvidence ?? []).toEqual([]);

@@ -17,6 +17,7 @@ import type { PitchSnapshot } from "@/lib/audio/monophonic/pitch-analysis-types"
 import * as analysisBrowser from "@/features/acoustic-analysis/acoustic-analysis-browser";
 
 const mocks = vi.hoisted(() => ({
+  midiStatus: "connected" as "connected" | "disconnected",
   feedback: { status: "idle", source: null, grade: null } as PiecePracticeInputFeedback,
   resetInput: vi.fn(),
   inputMounts: 0,
@@ -71,7 +72,7 @@ vi.mock("../hooks/use-piece-practice-input", () => ({
       return () => { mocks.inputUnmounts += 1; };
     }, []);
     return {
-      connectMidi: vi.fn(), deviceName: "Test Piano", error: null, status: "connected",
+      connectMidi: vi.fn(), deviceName: "Test Piano", error: null, status: mocks.midiStatus,
       feedback: mocks.feedback, midiChordAttemptMidiNumbers: new Set<number>(), midiHeldNotes: new Set<number>(),
       virtualSelectedMidiNumbers: new Set<number>(), onVirtualNoteToggle: (midiNumber: number) => submit([midiNumber]), resetInput: mocks.resetInput,
       skipCurrentTarget: () => {
@@ -289,6 +290,7 @@ function deliverMockStream(capture: (typeof microphone.sessions)[number]) {
 }
 
 beforeEach(() => {
+  mocks.midiStatus = "connected";
   microphone.sessions.length = 0;
   mocks.feedback = { status: "idle", source: null, grade: null };
   mocks.resetInput.mockClear(); mocks.useInputCalls = 0; mocks.inputMounts = 0; mocks.inputUnmounts = 0; mocks.inputOptions = null; mocks.scoreProps = null; mocks.success.mockClear(); mocks.incorrect.mockClear();
@@ -331,6 +333,44 @@ describe("PiecePracticeSession", () => {
     expect(screen.queryByLabelText("Performance audio notice")).toBeNull();
     expect(microphone.sessions).toHaveLength(0);
     expect(screen.queryByLabelText("Ocarina fingering guide")).toBeNull();
+  });
+  it("automatically follows MIDI availability until an explicit keyboard choice, without remounting input", () => {
+    const source = piece(), store = runStore(), onExit = vi.fn();
+    mocks.midiStatus = "disconnected";
+    const view = render(<PiecePracticeSession piece={source} onExit={onExit} runStore={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Practice" }));
+    const keyboard = screen.getByLabelText("Practice keyboard");
+    expect(keyboard.hidden).toBe(false);
+    const refresh = () => view.rerender(<PiecePracticeSession piece={source} onExit={onExit} runStore={store} />);
+    mocks.midiStatus = "connected"; refresh();
+    expect(keyboard.hidden).toBe(true);
+    expect(screen.getByRole("button", { name: "Show Keyboard" }).getAttribute("aria-controls")).toBe(keyboard.id);
+    mocks.midiStatus = "disconnected"; refresh(); expect(keyboard.hidden).toBe(false);
+    mocks.midiStatus = "connected"; refresh();
+    fireEvent.click(screen.getByRole("button", { name: "Show Keyboard" }));
+    expect(screen.getByRole("button", { name: "Hide Keyboard" }).getAttribute("aria-pressed")).toBe("true");
+    refresh(); expect(keyboard.hidden).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Mobile Play" })); expect(keyboard.hidden).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Hide Keyboard" }));
+    mocks.midiStatus = "disconnected"; refresh(); expect(keyboard.hidden).toBe(true);
+    expect(screen.getByLabelText("Active practice workspace").style.gridTemplateRows).toBe("auto");
+    expect(screen.getByLabelText("Active practice workspace").style.minHeight).toBe("min-content");
+    act(() => submit([60, 64]));
+    expect(screen.getByText("Expected: G4")).toBeTruthy();
+    expect(mocks.inputMounts).toBe(1); expect(mocks.inputUnmounts).toBe(0);
+    expect(mocks.resetInput).not.toHaveBeenCalled();
+  });
+  it("keeps the recording action before the score and links keyboard focus to details", () => {
+    start();
+    const action = screen.getByRole("button", { name: "Record performance audio" });
+    expect(action.getAttribute("aria-pressed")).toBe("false");
+    expect(action.compareDocumentPosition(screen.getByTestId("score-view")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const details = screen.getByLabelText("Performance audio recording");
+    const scroll = vi.fn(); details.scrollIntoView = scroll;
+    fireEvent.click(screen.getByRole("link", { name: "Recording details" }));
+    expect(document.activeElement).toBe(details); expect(scroll).toHaveBeenCalledWith({ block: "start", behavior: "instant" });
+    expect(within(screen.getByLabelText("Target options")).getByRole("button", { name: "Skip Target" })).toBeTruthy();
+    expect(microphone.sessions).toHaveLength(0);
   });
   it("preserves ocarina grading, completion, reports, recording and analysis while expected/live fingerings update independently", async () => {
     vi.useFakeTimers(); localStorage.clear();
@@ -1816,6 +1856,7 @@ describe("PiecePracticeSession", () => {
   it("routes virtual keyboard presses through the single input owner", () => {
     start(piece(), 3);
     expect(mocks.useInputCalls).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Show Keyboard" }));
     fireEvent.click(screen.getByRole("button", { name: "Virtual C4" }));
     expect(screen.getByText("Incorrect — try the same target again.")).toBeTruthy();
   });

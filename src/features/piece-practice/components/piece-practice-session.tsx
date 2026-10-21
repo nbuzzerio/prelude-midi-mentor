@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { StaffBuilderScoreView, type StaffBuilderEventHighlight } from "@/features/staff-builder/components/staff-builder-score-view";
@@ -7,7 +7,7 @@ import { playIncorrectFeedback, playSuccessChirp } from "@/lib/audio/feedback";
 import { usePiecePracticeAcousticInput } from "../hooks/use-piece-practice-acoustic-input";
 import { PiecePracticeAcousticControls, PiecePracticeAcousticSetup } from "./piece-practice-acoustic-controls";
 import { AcousticAnalysisExportControls } from "@/features/acoustic-analysis/components/acoustic-analysis-export-controls";
-import { PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
+import { PiecePracticeRecordingAction, PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
 import { usePiecePracticeKeyboardRecording } from "../hooks/use-piece-practice-keyboard-recording";
 import { usePiecePracticeRecordingGuard } from "../hooks/use-piece-practice-recording-guard";
 import { getInstrumentLiveContext, type InstrumentPitchContext } from "@/features/instrument-learning/instrument-pitch-context";
@@ -441,6 +441,10 @@ function AcousticPiecePracticeOwner(props: ActivePiecePracticeSessionProps) {
 }
 function PiecePracticeSessionView({ acceptedTarget, completionSaveState, displayScore, exitAwaitingSave, targetedPractice, now, onExit, onRestartPiece, onSessionStateChange, piece, sessionState, input, microphoneAvailable }: ActivePiecePracticeSessionProps & Readonly<{ input: SessionInput }>) {
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
+  const [keyboardChoice, setKeyboardChoice] = useState<boolean | null>(null);
+  const showKeyboard = keyboardChoice ?? (input.kind === "keyboard" && input.controller.status !== "connected");
+  const keyboardId = useId();
+  const recordingId = useId();
   const completionHeadingRef = useRef<HTMLHeadingElement>(null);
   const practiceHeadingRef = useRef<HTMLHeadingElement>(null);
   const targetedPracticeMeasureIndex = targetedPractice.review?.activeMeasureIndex ?? null;
@@ -561,7 +565,7 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
   const lastAnswer = feedback.status === "incorrect" && grade ? { midiNumbers: new Set(grade.receivedMidiNumbers), result: "incorrect" as const } : null;
   const activeNotes = input.kind === "keyboard" ? new Set([...input.controller.virtualSelectedMidiNumbers, ...input.controller.midiChordAttemptMidiNumbers]) : new Set<number>();
 
-  return <section className={isMobilePlayMode ? "piece-practice-session piece-practice-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100" : "piece-practice-session mx-auto grid w-full max-w-6xl gap-2 text-zinc-100"}>
+  return <section style={isMobilePlayMode && input.kind === "keyboard" && !showKeyboard ? { gridAutoRows: "max-content" } : undefined} className={isMobilePlayMode ? "piece-practice-session piece-practice-mobile-play mobile-play-mode fixed inset-0 z-50 grid w-full overflow-y-auto bg-zinc-950 text-zinc-100" : "piece-practice-session mx-auto grid w-full max-w-6xl gap-2 text-zinc-100"}>
     {mobilePlayExit}
     <header className="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-zinc-900 p-3">
       <div className="min-w-0"><h1 className="break-words text-2xl font-bold" ref={practiceHeadingRef} tabIndex={-1}>{piece.title}</h1>{targetedPracticeMeasureIndex !== null && <p className="font-semibold text-sky-200">Targeted Practice · focused practice</p>}<div className="flex flex-wrap gap-x-3 text-sm text-zinc-300"><p>Practicing {rangeText}</p><p>Assessing: {piecePracticeAssessmentLabel(sessionState.assessmentFocus)}</p>{target ? <p>Target {(sessionState.currentTargetIndex ?? 0) + 1} of {measure?.targets.length ?? 0}</p> : null}</div></div>
@@ -570,9 +574,19 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
     </header>
     <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{statusText}</div>
     {acknowledgment}
+    {input.kind === "keyboard" && <div aria-label="Practice controls" className="flex flex-wrap items-center gap-2">
+      <PiecePracticeRecordingAction recording={input.audio.recording} keyboard={input.audio} />
+      <a href={`#${recordingId}`} className="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sky-200 underline focus-visible:outline-2" onClick={(event) => {
+        event.preventDefault();
+        const controls = document.getElementById(recordingId);
+        controls?.focus({ preventScroll: true });
+        controls?.scrollIntoView({ block: "start", behavior: "instant" });
+      }}>Recording details</a>
+      <button type="button" aria-pressed={showKeyboard} aria-controls={keyboardId} className="min-h-11 rounded-lg border border-zinc-600 px-3 py-2 focus-visible:outline-2" onClick={() => setKeyboardChoice(!showKeyboard)}>{showKeyboard ? "Hide Keyboard" : "Show Keyboard"}</button>
+    </div>}
     <PiecePracticeRecordingNotice recording={input.kind === "keyboard" ? input.audio.recording : input.controller.recording} />
     {input.kind === "microphone" && input.controller.phase === "preflight" && <PiecePracticeAcousticControls pieceTitle={piece.title} input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} />}
-    <div aria-label="Active practice workspace" className={`${isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}${instrumentContext ? " piece-practice-instrument-stage" : ""}`}>
+    <div aria-label="Active practice workspace" style={isMobilePlayMode && input.kind === "keyboard" && !showKeyboard ? { gridTemplateRows: "auto", minHeight: "min-content" } : undefined} className={`${isMobilePlayMode ? "piece-practice-stage grid min-h-0 gap-2" : "piece-practice-stage grid gap-4"}${instrumentContext ? " piece-practice-instrument-stage" : ""}`}>
       <div className="grid min-w-0 content-start gap-2">
       {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls pieceTitle={piece.title} input={input.controller} available={microphoneAvailable} target={target} measureProgress={measureProgress} presentation="playing" />}
       <section aria-labelledby="piece-practice-current-target" className="grid min-h-0 gap-3 rounded-lg bg-zinc-900 p-3">
@@ -586,7 +600,7 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
         </div> : null}
         <StaffBuilderScoreView eventHighlights={eventHighlights} measureIndex={sessionState.currentMeasureIndex} score={displayScore} ghostedStaff={sessionState.assessmentFocus === "upper" ? "bass" : sessionState.assessmentFocus === "lower" ? "treble" : undefined} />
         {feedback.status === "incorrect" ? <div className="grid gap-1 rounded-md border border-red-600 bg-red-950 p-3 text-red-100"><p className="font-semibold">Incorrect — try the same target again.</p><details><summary className="min-h-11 cursor-pointer py-2">Practice Details - Last played attempt</summary><p>Expected: {expectedNames.join(", ")}</p><p>Played: {received.join(", ") || "No new notes"}</p>{missing.length ? <p>Missing: {missing.join(", ")}</p> : null}{extra.length ? <p>Extra: {extra.join(", ")}</p> : null}{grade?.unexpectedHeldMidiNumbers.length ? <p>Other notes still held: {grade.unexpectedHeldMidiNumbers.map(feedbackPitchName).join(", ")}</p> : null}</details></div> : null}
-        {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <button className="justify-self-start rounded-lg border border-amber-500/70 px-4 py-2 font-semibold text-amber-100 hover:bg-amber-950" disabled={sessionState.clockPaused} onClick={input.controller.skipCurrentTarget} type="button">Skip Target</button> : null}
+        {target && sessionState.currentTargetIndex !== null && sessionState.currentTargetIndex >= 0 ? <div aria-label="Target options" className="flex justify-end border-t border-zinc-800 pt-2"><button className="min-h-11 rounded-lg px-3 py-2 text-sm text-zinc-300 underline hover:text-zinc-100 focus-visible:outline-2" disabled={sessionState.clockPaused} onClick={input.controller.skipCurrentTarget} type="button">Skip Target</button></div> : null}
         {sessionState.status === "awaiting-explicit-measure-advance" ? <button className="justify-self-start rounded-lg bg-sky-600 px-4 py-2 font-semibold" disabled={sessionState.clockPaused} onClick={() => {
           const result = advancePiecePracticeNoAttackMeasure(piece, sessionState, now());
           if (result.advanced) {
@@ -598,11 +612,11 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
       </div>
       {instrumentContext && instrument === "violin" && <ViolinFingerboard context={instrumentContext} />}
       {instrumentContext && instrument === "ocarina" && <OcarinaFingeringGuide context={instrumentContext} />}
-      {input.kind === "keyboard" && <div aria-label="Practice keyboard" className={isMobilePlayMode ? "mobile-play-keyboard-region min-h-0" : "min-h-52"} data-presentation={isMobilePlayMode ? "mobile-play" : "standard"}>
+      {input.kind === "keyboard" && <div id={keyboardId} hidden={!showKeyboard} aria-label="Practice keyboard" className={isMobilePlayMode ? "mobile-play-keyboard-region min-h-0" : "min-h-52"} data-presentation={isMobilePlayMode ? "mobile-play" : "standard"}>
         <PianoKeyboard activeMidiNumbers={activeNotes} failedMidiNumbers={failedNotes} lastAnswer={lastAnswer} onNoteToggle={input.controller.onVirtualNoteToggle} targetMidiNumbers={new Set(target?.expectedMidiNumbers ?? [])} />
       </div>}
     </div>
     {input.kind === "microphone" && input.controller.phase === "practice" && <PiecePracticeAcousticControls pieceTitle={piece.title} input={input.controller} available={microphoneAvailable} target={target} presentation="secondary" />}
-    {input.kind === "keyboard" && <PiecePracticeRecordingControls pieceTitle={piece.title} listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
+    {input.kind === "keyboard" && <PiecePracticeRecordingControls id={recordingId} pieceTitle={piece.title} listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}
   </section>;
 }

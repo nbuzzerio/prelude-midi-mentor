@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { exportPreferences } from "@/lib/files/export-preferences";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
+import { PiecePracticeRecordingAction, PiecePracticeRecordingControls, PiecePracticeRecordingNotice } from "./piece-practice-recording-controls";
 import type { RecordingSegment, RecordingSnapshot } from "../piece-practice-recording";
 
 afterEach(() => { cleanup(); if (vi.isFakeTimers()) vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); localStorage.clear(); });
@@ -17,6 +17,23 @@ const recording = (changes: Partial<RecordingSnapshot> = {}) => ({
 });
 
 describe("performance recording controls", () => {
+  it("routes the prominent action through the existing start, stop and explicit resume controls", () => {
+    const control = recording(), keyboard = { capturing: false, canRecord: true, resume: vi.fn() };
+    const view = render(<PiecePracticeRecordingAction recording={control} keyboard={keyboard} />);
+    expect(control.setEnabled).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Record performance audio" }));
+    expect(control.setEnabled).toHaveBeenCalledExactlyOnceWith(true);
+    view.rerender(<PiecePracticeRecordingAction recording={{ ...control, enabled: true, phase: "recording" }} keyboard={{ ...keyboard, capturing: true }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop recording" }));
+    expect(control.setEnabled).toHaveBeenLastCalledWith(false);
+    view.rerender(<PiecePracticeRecordingAction recording={{ ...control, enabled: true, phase: "armed" }} keyboard={keyboard} />);
+    fireEvent.click(screen.getByRole("button", { name: "Resume recording" }));
+    expect(keyboard.resume).toHaveBeenCalledTimes(1);
+    view.rerender(<PiecePracticeRecordingAction recording={{ ...control, phase: "finalizing" }} keyboard={keyboard} />);
+    expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
+    view.rerender(<PiecePracticeRecordingAction recording={control} keyboard={{ ...keyboard, canRecord: false }} />);
+    expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
+  });
   it("native saving retains the exact temporary segment and preview while reporting Saved", async () => {
     const directory={kind:"directory" as const,name:"Music",queryPermission:vi.fn().mockResolvedValue("granted"),requestPermission:vi.fn().mockResolvedValue("granted")};
     const writable={write:vi.fn().mockResolvedValue(undefined),close:vi.fn().mockResolvedValue(undefined),abort:vi.fn().mockResolvedValue(undefined)};

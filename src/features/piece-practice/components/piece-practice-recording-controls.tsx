@@ -24,16 +24,32 @@ export function PiecePracticeRecordingNotice({ recording }: Readonly<{ recording
   </div>;
 }
 
-export function PiecePracticeRecordingControls({ recording, listening, keyboard, pieceTitle = "performance_audio" }: Readonly<{
+/** Uses the existing recording owner; this control never acquires media itself. */
+export function PiecePracticeRecordingAction({ recording, keyboard }: Readonly<{
+  recording: RecordingSnapshot & { setEnabled: (enabled: boolean) => void };
+  keyboard: Readonly<{ capturing: boolean; canRecord: boolean; resume: () => void }>;
+}>) {
+  const resume = recording.enabled && !keyboard.capturing && keyboard.canRecord
+    && ["armed", "stopped"].includes(recording.phase) && !recording.limitReached;
+  return <button type="button" aria-pressed={recording.enabled}
+    className="min-h-11 rounded-lg border border-red-400 bg-red-950 px-4 py-2 font-semibold text-red-100 hover:bg-red-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 disabled:opacity-50"
+    disabled={recording.phase === "finalizing" || !keyboard.canRecord && !recording.enabled}
+    onClick={() => resume ? keyboard.resume() : recording.setEnabled(!recording.enabled)}>
+    {resume ? "Resume recording" : recording.enabled ? "Stop recording" : "Record performance audio"}
+  </button>;
+}
+
+export function PiecePracticeRecordingControls({ recording, listening, keyboard, pieceTitle = "performance_audio", id }: Readonly<{
   recording: RecordingSnapshot & { setEnabled: (enabled: boolean) => void };
   listening: boolean;
   keyboard?: Readonly<{ status: CaptureStatus; resume: () => void; canRecord: boolean }>;
   pieceTitle?: string;
+  id?: string;
 }>) {
   const [download, setDownload] = useState<DownloadSnapshot | null>(null);
   const [message, setMessage] = useState("");
   const unsaved = recording.segments.length > 0 || ["starting", "recording", "finalizing"].includes(recording.phase);
-  return <section aria-label="Performance audio recording" className="grid min-w-0 gap-2 rounded-lg border border-amber-400/50 bg-zinc-900 p-3">
+  return <section id={id} tabIndex={id ? -1 : undefined} aria-label="Performance audio recording" className="grid min-w-0 scroll-mt-4 gap-2 rounded-lg border border-amber-400/50 bg-zinc-900 p-3">
     <label className="flex min-h-11 items-center gap-3 font-semibold"><input checked={recording.enabled} disabled={Boolean(keyboard && !keyboard.canRecord && !recording.enabled)} onChange={(event) => recording.setEnabled(event.target.checked)} type="checkbox" />Record performance audio</label>
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <p aria-live="polite" className={recording.phase === "recording" ? "font-bold text-red-200" : "text-zinc-200"}>
