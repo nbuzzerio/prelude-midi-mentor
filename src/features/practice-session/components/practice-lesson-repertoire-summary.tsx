@@ -1,3 +1,4 @@
+import { RolodexProgressPanel } from "../../piece-practice/rolodex/rolodex-progress-panel";
 import type { RepertoireEvidence } from "../practice-lesson-repertoire";
 
 export function PracticeLessonRepertoireSummary({ evidence }: Readonly<{ evidence: RepertoireEvidence }>) {
@@ -16,8 +17,9 @@ export function PracticeLessonRepertoireSummary({ evidence }: Readonly<{ evidenc
       <p className="break-words text-xs">Physical MIDI · {attempt.input.name ?? attempt.input.id} · Attempt {attempt.id} · {attempt.endedAt}</p>
     </section>)}
     {evidence.pending && evidence.attempts.length > 0 && <p>A further performance remains unresolved; its result is not shown as saved.</p>}
-    {evidence.datePending > 0 && <p>Separate Rolodex practice-date update pending.</p>}
-    {evidence.dateFailed > 0 && <p>Separate Rolodex practice-date update failed. Acknowledged A1 evidence remains saved; Retry is available in this tab.</p>}
+    {evidence.progress && <RolodexProgressPanel entry={evidence.progress} />}
+    {evidence.datePending > 0 && <p>Separate Rolodex practice-date/progress update pending.</p>}
+    {evidence.dateFailed > 0 && <p>Separate Rolodex practice-date/progress update failed. Acknowledged A1 evidence remains saved; Retry is available in this tab.</p>}
     <p className="break-words text-xs">Occurrence {id} · Passage {entry.id} · Prescription {entry.prescriptionRevision} · Policy {entry.policy.version} · Source instrument: {entry.sourceInstrument} · Selected profile: Piano Continuous Tempo.</p>
     <p className="text-xs">Timing thresholds are provisional. These measurements do not establish fingering, hand coordination or mastery.</p>
   </article>;

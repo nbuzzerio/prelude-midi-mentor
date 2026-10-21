@@ -38,11 +38,11 @@ describe("supplementary Piano selection", () => {
     const complete = createEntry(score, "piano", 0, 1);
     expect(selectLessonRepertoire([complete], preferences)?.score).toEqual(score);
   });
-  it("orders priority, current-prescription recency, creation and identity deterministically", () => {
+  it("orders oldest practice-day cohorts before priority to avoid starvation", () => {
     const a = { ...entry(), id: "a", createdAt: "2026-10-19T12:00:00.000Z" }, b = { ...entry(), id: "b" };
     const recent = practiced(a, "2026-10-20T13:00:00.000Z");
     expect(selectLessonRepertoire([recent, b], preferences)?.id).toBe("b");
-    expect(selectLessonRepertoire([b, { ...recent, priority: true }], preferences)?.id).toBe("a");
+    expect(selectLessonRepertoire([b, { ...recent, priority: true }], preferences)?.id).toBe("b");
     expect(selectLessonRepertoire([b, a], preferences)?.id).toBe("a");
     expect(selectLessonRepertoire([{ ...b, id: "z" }, b], preferences)?.id).toBe("b");
     expect(selectLessonRepertoire([recent, practiced(b, "2026-10-20T12:00:00.000Z")], preferences)?.id).toBe("b");

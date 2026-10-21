@@ -68,7 +68,7 @@ describe("immutable Rolodex prescriptions", () => {
     expect(musicKey(a)).not.toBe(musicKey(b));
   });
   it.each([
-    { schemaVersion: 2 }, { start: -1 }, { end: 4 }, { bpm: 39 }, { bpm: 121 },
+    { schemaVersion: 99 }, { start: -1 }, { end: 4 }, { bpm: 39 }, { bpm: 121 },
     { eligibleInstruments: [] }, { eligibleInstruments: ["piano", "piano"] }, { practiceInstrument: "violin" },
     { sourceInstrument: "treble" }, { measureIds: ["wrong"] }, { measureNumbers: [59, 60] }, { mode: "microphone" },
     { policy: { version: 2 } }, { lastPractice: { outcome: "completed" } },

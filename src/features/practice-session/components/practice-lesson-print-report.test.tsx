@@ -23,6 +23,6 @@ it("prints separate acknowledged repertoire attempts and blocks unresolved nativ
   expect(report.textContent).toContain("1 fundamental selection + optional repertoire");
   expect(report.querySelector("style")?.textContent).toContain("background: white !important");
   expect(report.textContent).toContain("Performance 1 · stopped · A1 result saved locally");
-  expect(report.textContent).toContain("native-a1"); expect(report.textContent).toContain("practice-date update failed");
+  expect(report.textContent).toContain("native-a1"); expect(report.textContent).toContain("practice-date/progress update failed");
   fireEvent(window, new Event("afterprint"));
 });

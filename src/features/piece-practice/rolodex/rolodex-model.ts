@@ -1,3 +1,5 @@
+import { EMPTY_PROGRESS } from "./rolodex-progress-types";
+import { validateProgress } from "./rolodex-progress";
 import { parseStaffBuilderScore } from "@/features/staff-builder/persistence/staff-builder-schema";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
@@ -29,7 +31,7 @@ export function validatePractice(p: RolodexPractice): void {
 export function parseEntry(value: unknown): RolodexEntry {
   if (!value || typeof value !== "object") throw Error("Invalid Rolodex entry.");
   const e = value as RolodexEntry;
-  if (e.schemaVersion !== 1) throw Error("Unsupported Rolodex record version. Original data preserved.");
+  if (e.schemaVersion !== 1 && e.schemaVersion !== 2) throw Error("Unsupported Rolodex record version. Original data preserved.");
   if (!text(e.id) || !integer(e.revision) || e.revision < 1 || !integer(e.prescriptionRevision) || e.prescriptionRevision < 1
     || !text(e.sourceId) || !text(e.sourceTitle, 4096) || !date(e.sourceUpdatedAt) || !date(e.createdAt) || !date(e.updatedAt)
     || typeof e.nickname !== "string" || e.nickname.length > 120 || !["manual", "evidence-suggested"].includes(e.origin)
@@ -46,6 +48,8 @@ export function parseEntry(value: unknown): RolodexEntry {
   const parsed = parseStaffBuilderScore(e.score);
   if (!parsed.ok || e.score.schemaVersion !== 4 || !projectStaffBuilderPieceForPractice(parsed.value).ok) throw Error("Resolve the source score's notation and rhythm validation before saving.");
   const score = parsed.value;
+  const progress = e.schemaVersion === 1 ? EMPTY_PROGRESS : e.progress;
+  validateProgress(progress!);
   if (e.sourceId !== score.id || e.sourceTitle !== score.title || e.sourceUpdatedAt !== score.updatedAt || e.end >= score.measures.length
     || stable(e.measureIds) !== stable(score.measures.slice(e.start, e.end + 1).map(m => m.id))
     || stable(e.measureNumbers) !== stable(Array.from({ length: e.end - e.start + 1 }, (_, i) => e.start + i + 1))) throw Error("The frozen source and range identities do not agree.");
@@ -53,13 +57,13 @@ export function parseEntry(value: unknown): RolodexEntry {
   if (e.origin === "evidence-suggested" && !e.evidence) throw Error("Missing suggestion evidence.");
   if (e.lastPractice !== null) { validatePractice(e.lastPractice); if (e.lastPractice.prescriptionRevision > e.prescriptionRevision) throw Error("Invalid practice revision."); }
   if (bytes(score) > ROLODEX_LIMITS.scoreBytes || bytes(e) > ROLODEX_LIMITS.recordBytes) throw Error("This passage exceeds the local application size ceiling.");
-  return freeze(JSON.parse(JSON.stringify({ ...e, score })) as RolodexEntry);
+  return freeze(JSON.parse(JSON.stringify({ ...e, schemaVersion: 2, progress, score })) as RolodexEntry);
 }
 export function createEntry(score: StaffBuilderScore, sourceInstrument: RolodexSourceInstrument = "unknown",
   start = 0, end = Math.min(1, score.measures.length - 1), bpm = Math.max(40, Math.min(120, score.tempoBpm))): RolodexEntry {
   const now = new Date().toISOString();
   const chosen = sourceInstrument === "unknown" ? "piano" : sourceInstrument;
-  return parseEntry({ schemaVersion: 1, id: crypto.randomUUID(), revision: 1, prescriptionRevision: 1,
+  return parseEntry({ schemaVersion: 2, progress: EMPTY_PROGRESS, id: crypto.randomUUID(), revision: 1, prescriptionRevision: 1,
     sourceId: score.id, sourceTitle: score.title, sourceUpdatedAt: score.updatedAt, score, start, end,
     measureIds: score.measures.slice(start, end + 1).map(m => m.id), measureNumbers: Array.from({ length: end - start + 1 }, (_, i) => start + i + 1),
     sourceInstrument, eligibleInstruments: [chosen], practiceInstrument: chosen, mode: "continuous", bpm,

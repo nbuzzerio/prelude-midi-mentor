@@ -58,7 +58,7 @@ export default function PracticeProgramLesson({ executor, state, active, program
   const finish = () => { if (repertoireEvidence?.pending) return; setFinishRequested(true); executor.stop(); };
   const returnToEntry = () => {
     if (evidencePending || repertoireEvidence?.datePending) return;
-    if (repertoireEvidence?.dateFailed && !window.confirm("A1 performances are saved. Leave without retrying the separate Rolodex practice-date update?")) return;
+    if (repertoireEvidence?.dateFailed && !window.confirm("A1 performances are saved. Leave without retrying the separate Rolodex practice-date/progress update?")) return;
     if (executor.returnToPool()) onClose();
   };
   const midi = useContext(AppMidiContext);

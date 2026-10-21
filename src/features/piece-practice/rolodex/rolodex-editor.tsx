@@ -61,7 +61,8 @@ export function RolodexEditor({ entry, existing = false, store = rolodexStore, o
         {draft.eligibleInstruments.map(i => <option key={i} value={i}>{i[0]!.toUpperCase() + i.slice(1)}</option>)}</select></label>
       <p>Mode: Continuous Tempo · physical MIDI Piano is the only executable Rolodex profile in this checkpoint. Violin/Ocarina eligibility can be saved for later; no acoustic engine is launched.</p>
       <label className="grid gap-1">Target quarter-note BPM<input className={rolodexField} type="number" min={40} max={120} step={1} value={draft.bpm} onChange={e => update({ bpm: Number(e.target.value) })} /></label>
-      {existing && <label className="grid gap-1">Passage status<select className={rolodexField} value={draft.status} onChange={e => update({ status: e.target.value as RolodexEntry["status"] })}>
+      {existing && <p>Changing range, eligibility, selected instrument or target BPM begins a new qualification context. Earlier evidence keeps its original target.</p>}
+      {existing && <label className="grid gap-1">Manual organization (separate from measured progress)<select className={rolodexField} value={draft.status} onChange={e => update({ status: e.target.value as RolodexEntry["status"] })}>
         <option value="needs-practice">Needs Practice</option><option value="improving">Improving</option><option value="paused">Paused</option><option value="archived">Archived</option></select></label>}
       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={draft.priority} onChange={e => update({ priority: e.target.checked })} />Prioritize this passage</label>
       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />I confirm the source instrument and eligible practice instruments.</label>

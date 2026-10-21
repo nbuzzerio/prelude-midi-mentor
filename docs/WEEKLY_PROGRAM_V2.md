@@ -1,5 +1,14 @@
 # Weekly Programs — schema 2 and local attempt history
 
+## Rolodex retention supplement - Checkpoint D
+
+The schema-2 program definition, fundamental queue, native attempts and coverage are unchanged. Optional repertoire remains OFF by default and freezes at most one unchanged, explicitly Piano-eligible A1 prescription. Selection now considers legitimately due retention first, then unpracticed/oldest local practice-day cohorts, priority within a cohort, exact recency, and creation/identity. This makes manual priority useful without indefinite starvation. Other-piece error counts are not treated as comparable difficulty.
+
+Automatic qualification requires deliberate owner physical acceptance, and applies only to future compatible native performances. Three distinct clean completed runs establish a later-day retention check; confidently failed checks return to practice and inconclusive checks do not punish unavailable evidence. Mastered current targets leave ordinary rotation while their music/history remain available. Empty, disabled or unavailable repertoire still leaves fundamentals unchanged.
+
+The current-lesson report keeps A1 native results separate from Rolodex date/progress acknowledgement. A failed Rolodex update leaves A1 valid and Retry available in final review. Only acknowledged progress is shown as saved; restored history is labeled historical. Screen/print never infer general musical mastery, hand independence or fingering from pitch/onset counts.
+
+
 ## Optional local repertoire supplement - Checkpoint C
 
 Today's Piano Lesson has a secondary Repertoire settings disclosure. Include repertoire defaults OFF; Piano is selected initially, while Violin/Ocarina require explicit preference changes. Enabling other instruments does not authorize acoustic work in this Piano lesson. A candidate must be active, explicitly Piano-eligible, selected for Piano execution, and compatible with the unchanged A1 score/range/policy validator.

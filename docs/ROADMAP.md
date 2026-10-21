@@ -1,10 +1,15 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
+## Practice Rolodex Checkpoint D - implementation under owner review
+
+Authorized D1-D3 adds bounded acknowledged pitch/onset summaries, conservative comparable history, explicitly gated three-run/later-day retention and fair daily selection. C is committed at `9c59f659`. Automatic qualification/retirement defaults OFF pending owner physical MIDI-piano acceptance; synthetic QA cannot establish that acceptance. Restored history remains historical, exact targets stay immutable, and A1/V2 evidence remains separately owned. No package/release changes or additional milestone is included.
+
+
 ## Practice Rolodex Checkpoint C - pending owner review
 
 Implemented against committed Checkpoint B `812b2472709a86c3d9d77110ffc9f2f53a9969b5`, keeping version 2.9.21. Today's Piano Lesson may supplement its unchanged authored fundamentals with one frozen, explicitly Piano-eligible A1 passage. Repertoire defaults off; preferences are independent, selection is deterministic, and incompatible/empty/unavailable collections do not block fundamentals. A1, V2 and Rolodex retain separate acknowledgements and Retry. Current-lesson screen/print feedback includes distinct repertoire evidence without a persisted lesson archive or mastery claim.
 
-Checkpoint D (mastery, retention and historical coaching) is not implemented or authorized. Physical MIDI-piano timing/comfort acceptance remains an owner task; A1 thresholds remain provisional. No version, release, deployment or Git action is part of C.
+Checkpoint D is now separately authorized and described above. Physical MIDI-piano timing/comfort acceptance remains an owner task; A1 thresholds remain provisional. No version, release, deployment or Git action is part of C.
 
 
 **Practice Rolodex Checkpoint B — committed at `812b247`:** starts from committed A1 `b621843`, retains version 2.9.21, and adds manual saved passages, immutable full-source snapshots, explicit instrument eligibility, owner-controlled organization, separate acknowledged IndexedDB storage, versioned backup/import and Piano Practice Now through the unchanged A1 engine. Optional saved pitch-first recommendations remain explicit enrollment. Source edits/deletion never replace frozen music. Violin/Ocarina entries can be organized but have no executable Rolodex acoustic profile. Application storage ceilings are not browser quota guarantees. A1 physical-piano acceptance remains pending. Checkpoint C is separately authorized and described above; D (automatic mastery/retention) remains unauthorized.
@@ -97,7 +102,7 @@ Phase 6 was limited to temporary room audio; broader Flow Mode and composition a
 
 **Purpose:** Support reading ahead, maintaining pulse, continuing through mistakes and sustained reading beyond short trials, with review after a passage/session rather than constant stops.
 
-**Next authorized boundary:** Stop after Practice Rolodex C implementation, validation and review export. D requires separate authorization. Longer generated reading and an uninterrupted generated stream remain deferred alternatives; A1 does not redefine Melody's existing timed Reading Flow.
+**Next authorized boundary:** Stop after Practice Rolodex D implementation, validation and review export. Physical timing acceptance remains a separate owner action. Longer generated reading and an uninterrupted generated stream remain deferred alternatives; A1 does not redefine Melody's existing timed Reading Flow.
 
 **Dependencies:** Melody already supplies a musical clock, continuous MIDI/VKB capture, timing alignment, notation, scoring foundations and nonblocking performance. Practice Sessions' existing Reading Flow label refers to timed Melody practice, not completion of this broader milestone.
 

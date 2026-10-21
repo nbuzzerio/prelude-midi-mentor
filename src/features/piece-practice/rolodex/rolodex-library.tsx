@@ -1,3 +1,6 @@
+import { RolodexProgressPanel, RolodexAcceptanceControl } from "./rolodex-progress-panel";
+import { progressState } from "./rolodex-progress";
+import type { RolodexAcceptance } from "./rolodex-progress-types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DownloadDialog } from "@/components/download-dialog";
 import type { DownloadSnapshot } from "@/lib/files/browser-download";
@@ -7,7 +10,7 @@ import { exportBackup, parseBackup, prepareImport } from "./rolodex-backup";
 import { editEntry, instruments, playability, ROLODEX_LIMITS, sourceStatus } from "./rolodex-model";
 import { RolodexEditor, rolodexButton, rolodexField } from "./rolodex-editor";
 import { RolodexPractice } from "./rolodex-practice";
-import { rolodexStore } from "./rolodex-store";
+import { rolodexStore, reactivateRolodex, savePhysicalAcceptance } from "./rolodex-store";
 import { rolodexSuggestions } from "./rolodex-suggestions";
 import type { RolodexEntry, RolodexStore } from "./rolodex-types";
 
@@ -16,6 +19,7 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
   sources: readonly StaffBuilderScore[]; initialDraft?: RolodexEntry; store?: RolodexStore; onExit: () => void;
   onGuardChange?: (guard: (() => boolean) | null) => void;
 }>) {
+  const [acceptance, setAcceptance] = useState<RolodexAcceptance | null>(null);
   const [entries, setEntries] = useState<readonly RolodexEntry[]>([]);
   const [unavailable, setUnavailable] = useState(0), [loaded, setLoaded] = useState(false);
   const [editor, setEditor] = useState<{ entry: RolodexEntry; existing: boolean } | null>(initialDraft ? { entry: initialDraft, existing: false } : null);
@@ -30,12 +34,12 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
   const importRef = useRef<HTMLInputElement>(null);
   const [suggestions, setSuggestions] = useState<readonly RolodexEntry[] | null>(null);
   const reload = useCallback(async () => {
-    const listing = await store.list(); setEntries(listing.entries); setUnavailable(listing.unavailableCount); setLoaded(true);
+    const listing = await store.list(); setEntries(listing.entries); setAcceptance(listing.acceptance ?? null); setUnavailable(listing.unavailableCount); setLoaded(true);
   }, [store]);
   useEffect(() => {
     let active = true;
     void store.list().then(listing => {
-      if (active) { setEntries(listing.entries); setUnavailable(listing.unavailableCount); setLoaded(true); }
+      if (active) { setEntries(listing.entries); setAcceptance(listing.acceptance ?? null); setUnavailable(listing.unavailableCount); setLoaded(true); }
     }, () => { if (active) setError("Rolodex could not be read. Existing records are preserved. Retry Load."); });
     return () => { active = false; };
   }, [store]);
@@ -60,9 +64,9 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
     }} />;
   const filtered = entries.filter(e => (instrument === "all" || e.eligibleInstruments.includes(instrument as typeof e.practiceInstrument))
     && (piece === "all" || e.sourceId === piece) && (!priority || e.priority)
-    && (status === "all" || (status === "active" ? e.status === "needs-practice" || e.status === "improving" : e.status === status)));
+    && (status === "all" || (status === "active" ? (e.status === "needs-practice" || e.status === "improving") && progressState(e, acceptance).stage !== "mastered" : status === "mastered" ? progressState(e, acceptance).stage === "mastered" : e.status === status)));
   return <section className="mx-auto grid w-full min-w-0 max-w-6xl gap-4 rounded-xl bg-zinc-900 p-3 text-zinc-100 sm:p-5" aria-label="Practice Rolodex">
-    <header><h1 className="text-2xl font-bold">Practice Rolodex</h1><p>{entries.filter(e => e.status === "needs-practice" || e.status === "improving").length} active passages · your saved musical challenges</p></header>
+    <header><h1 className="text-2xl font-bold">Practice Rolodex</h1><p>{entries.filter(e => (e.status === "needs-practice" || e.status === "improving") && progressState(e, acceptance).stage !== "mastered").length} active passages · your saved musical challenges</p></header>
     <p>Save a passage from the Staff Builder piece library or Continuous Tempo range selection. Frozen music stays here if the original changes.</p>
     <button className={rolodexButton} type="button" disabled={busy} onClick={onExit}>Return to Piece Library</button>
     {notice && <p role="status">{notice}</p>}
@@ -71,7 +75,7 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
     <details><summary className="min-h-11 cursor-pointer py-2">Filter passages</summary><div className="grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1">Instrument filter<select className={rolodexField} value={instrument} onChange={e => setInstrument(e.target.value)}><option value="all">All instruments</option>{instruments.map(i => <option key={i}>{i}</option>)}</select></label>
       <label className="grid gap-1">Piece filter<select className={rolodexField} value={piece} onChange={e => setPiece(e.target.value)}><option value="all">All pieces</option>{Array.from(new Map(entries.map(e => [e.sourceId, e.sourceTitle]))).map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select></label>
-      <label className="grid gap-1">Status filter<select className={rolodexField} value={status} onChange={e => setStatus(e.target.value)}><option value="active">Active</option><option value="all">All statuses</option>{Object.entries(statusLabel).map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
+      <label className="grid gap-1">Status filter<select className={rolodexField} value={status} onChange={e => setStatus(e.target.value)}><option value="active">Active</option><option value="all">All statuses</option><option value="mastered">Mastered at target</option>{Object.entries(statusLabel).map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={priority} onChange={e => setPriority(e.target.checked)} />Prioritized only</label>
     </div></details>
     {!loaded && !error && <p role="status">Loading saved passages…</p>}
@@ -81,12 +85,16 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
       return <li className="grid min-w-0 gap-2 rounded-lg border border-zinc-600 p-3" key={entry.id}>
         <h2 className="break-words text-xl font-semibold">{entry.nickname || entry.sourceTitle}</h2><p className="break-words">{entry.sourceTitle} · Measures {entry.start + 1}–{entry.end + 1}</p>
         <p>Eligible: {entry.eligibleInstruments.join(", ")} · Selected: {entry.practiceInstrument} · Continuous Tempo · {entry.bpm} quarter BPM</p>
-        <p>{statusLabel[entry.status]}{entry.priority ? " · Prioritized" : ""}</p>
+        <p>Manual organization: {statusLabel[entry.status]}{entry.priority ? " · Prioritized" : ""}</p>
+        <RolodexProgressPanel entry={entry} acceptance={acceptance} />
         {entry.lastPractice && <p>Last acknowledged practice: {new Date(entry.lastPractice.endedAt).toLocaleString()} · {entry.lastPractice.outcome}{entry.lastPractice.prescriptionRevision !== entry.prescriptionRevision ? " · earlier passage settings" : ""}</p>}
         {sourceStatus(entry, sources) && <p className="text-sm text-zinc-300">{sourceStatus(entry, sources)}</p>}
         {reason && <p>{reason}</p>}
         <button className={rolodexButton} disabled={Boolean(reason) || busy} type="button" onClick={() => setPractice(entry)}>Practice Now</button>
         <details><summary className="min-h-11 cursor-pointer py-2">Manage passage</summary><div className="flex flex-wrap gap-2">
+          {progressState(entry, acceptance).stage === "mastered" && <button className={rolodexButton} disabled={busy} type="button" onClick={() => {
+            const at = new Date().toISOString(); void perform(async () => { await reactivateRolodex(entry.id, entry.revision, at); setNotice("Reactivated with a fresh qualification cycle. Historical evidence is preserved."); });
+          }}>Reactivate Target</button>}
           <button className={rolodexButton} disabled={busy} type="button" onClick={() => setEditor({ entry, existing: true })}>Edit Range / Settings</button>
           <button className={rolodexButton} disabled={busy} type="button" onClick={() => change(entry, { priority: !entry.priority })}>{entry.priority ? "Remove Priority" : "Prioritize"}</button>
           <button className={rolodexButton} disabled={busy} type="button" onClick={() => change(entry, { status: entry.status === "paused" ? "needs-practice" : "paused" })}>{entry.status === "paused" ? "Resume" : "Pause"}</button>
@@ -100,6 +108,7 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
         </div></details>
       </li>;
     })}</ul>
+    <RolodexAcceptanceControl acceptance={acceptance} busy={busy} onSave={next => { const expected = acceptance?.generation ?? null; void perform(async () => { await savePhysicalAcceptance(next, expected); setNotice("Physical acceptance setting saved. Only future compatible attempts can qualify."); }); }} />
     <details><summary className="min-h-11 cursor-pointer py-2">Backup and import</summary>
       <p>Browser-local only. Up to 256 passages, 256 KiB per source, 384 KiB per entry and 64 MiB total. These are application ceilings; available browser quota may be smaller. No automatic removal.</p>
       <div className="flex flex-wrap gap-3"><button className={rolodexButton} type="button" disabled={!loaded || !entries.length} onClick={() => backup(entries)}>Export Rolodex</button>
@@ -111,7 +120,7 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
         void file.text().then(raw => { setImported(parseBackup(raw)); setRemap(false); setError(""); }, () => setError("Backup could not be read.")).catch(e => setError(String(e)));
       }} />
       {imported && <div className="grid gap-2 border border-zinc-600 p-3">
-        <p>Review import: {imported.length} validated passages. Matching musical prescriptions will be skipped. Conflicting IDs require explicit permission to create new identities. No existing entry will be replaced.</p>
+        <p>Review import: {imported.length} validated passages. Matching musical prescriptions will be skipped. Conflicting IDs require explicit permission to create new identities. No existing entry will be replaced. Restored progress remains historical; import never enables physical acceptance or creates native A1 acknowledgements.</p>
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={remap} onChange={e => setRemap(e.target.checked)} />Import conflicting identities as new passages</label>
         <button className={rolodexButton} disabled={busy || unavailable > 0} type="button" onClick={() => {
           try {

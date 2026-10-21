@@ -19,6 +19,6 @@ it("presents only native attack evidence with separate practice-date status", ()
   render(<PracticeLessonRepertoireSummary evidence={{ ...evidence, attempts, dateFailed: 1 }} />);
   expect(screen.getByText(/Expected attacks: 2 · Correct pitch: 1 · Missing: 1/)).toBeTruthy();
   expect(screen.getByText(/completed · A1 result saved locally/)).toBeTruthy();
-  expect(screen.getByText(/practice-date update failed/)).toBeTruthy();
+  expect(screen.getByText(/practice-date\/progress update failed/)).toBeTruthy();
   expect(screen.getByText(/Physical MIDI · Test physical piano/)).toBeTruthy();
 });

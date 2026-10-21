@@ -81,11 +81,12 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
   </section>;
 }
 
-export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange, createSession, onAcknowledgedAttempt, lessonHost }: Readonly<{
+export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange, createSession, onAcknowledgedAttempt, lessonHost, onView }: Readonly<{
   passage: ContinuousPassage; input: MidiInputInfo; store: ContinuousStore; onExit: () => void;
   onGuardChange?: (guard: (() => boolean) | null) => void;
   createSession?: () => ContinuousSession;
   onAcknowledgedAttempt?: (attempt: ContinuousAttempt) => void;
+  onView?: (view: ContinuousView) => void;
   lessonHost?: Readonly<{ active: boolean; onView: (view: ContinuousView) => void }>;
 }>) {
   const midi = useContext(AppMidiContext);
@@ -94,7 +95,7 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
   const view = useSyncExternalStore(session.subscribe, session.snapshot);
   const active = lessonHost?.active ?? true;
   const notifyView = lessonHost?.onView;
-  useEffect(() => { notifyView?.(view); }, [notifyView, view]);
+  useEffect(() => { notifyView?.(view); onView?.(view); }, [notifyView, onView, view]);
   const [saveDraft, setSaveDraft] = useState<RolodexEntry | null>(null);
   const [saveNotice, setSaveNotice] = useState("");
   useEffect(() => {

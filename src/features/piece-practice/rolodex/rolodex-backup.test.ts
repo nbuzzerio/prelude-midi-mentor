@@ -10,7 +10,7 @@ describe("versioned Rolodex backup", () => {
     expect(parseBackup(encode([entry]))).toEqual([entry]);
     expect(exportBackup([entry])).toMatchObject({ extension: "json", format: "Practice Rolodex backup" });
   });
-  it.each(["{}", "null", "{", '{"format":"prelude-practice-rolodex","version":2,"entries":[]}'])("rejects malformed/incompatible backup %s", raw => {
+  it.each(["{}", "null", "{", '{"format":"prelude-practice-rolodex","version":99,"entries":[]}'])("rejects malformed/incompatible backup %s", raw => {
     expect(() => parseBackup(raw)).toThrow();
   });
   it("rejects any invalid entry and duplicated identities", () => {
