@@ -1,5 +1,9 @@
 # Weekly Programs — schema 2 and local attempt history
 
+## Release candidate status
+
+The working application version is **2.9.22**, prepared for owner review without deployment. A1–D are committed in baseline `d0e4a5e`; their automated/browser evidence does not establish real MIDI-piano acceptance. Qualification defaults OFF pending explicit owner acceptance for future compatible attempts. Older checkpoint descriptions record implementation history; strict Weekly Plan schema 1, Weekly Program schema 2, saved revisions, native fundamental records and authored coverage remain unchanged.
+
 ## Rolodex retention supplement - Checkpoint D
 
 The schema-2 program definition, fundamental queue, native attempts and coverage are unchanged. Optional repertoire remains OFF by default and freezes at most one unchanged, explicitly Piano-eligible A1 prescription. Selection now considers legitimately due retention first, then unpracticed/oldest local practice-day cohorts, priority within a cohort, exact recency, and creation/identity. This makes manual priority useful without indefinite starvation. Other-piece error counts are not treated as comparable difficulty.
@@ -13,14 +17,14 @@ The current-lesson report keeps A1 native results separate from Rolodex date/pro
 
 Today's Piano Lesson has a secondary Repertoire settings disclosure. Include repertoire defaults OFF; Piano is selected initially, while Violin/Ocarina require explicit preference changes. Enabling other instruments does not authorize acoustic work in this Piano lesson. A candidate must be active, explicitly Piano-eligible, selected for Piano execution, and compatible with the unchanged A1 score/range/policy validator.
 
-At Start, the existing local-day V2 rotation is resolved unchanged. A separate acknowledged Rolodex read selects at most one passage: priority, oldest current-prescription practice date, then stable creation/identity order. Missing or obsolete prescription evidence is not recent practice. A stopped/interrupted performance date never means successful completion. Empty/unavailable repertoire does not prevent fundamentals. The full selected score and settings are frozen for this temporary lesson occurrence; subsequent source/collection changes cannot replace them.
+At Start, the existing local-day V2 rotation is resolved unchanged. A separate acknowledged Rolodex read selects at most one passage using D’s due-retention / oldest-local-day / within-cohort-priority ordering described above. Missing or obsolete prescription evidence is not recent practice. A stopped/interrupted performance date never means successful completion. Empty/unavailable repertoire does not prevent fundamentals. The full selected score and settings are frozen for this temporary lesson occurrence; subsequent source/collection changes cannot replace them.
 
 After the last fundamental is durably closed, Next: Repertoire opens native A1 Ready. A connected Piano input is reused without another instrument question. Begin Count-in remains a deliberate audio gesture. Without MIDI, connect/retry or Skip Repertoire remains available. Early Finish leaves repertoire unperformed; Skip is explicit; Stop closes an actual native attempt; Replay has its own A1 identity. Background or app-section departure interrupts the native player and releases input/audio resources.
 
 No supplementary exercise enters the schema-2 definition, V2 queue, revision or coverage. V2 fundamentals, A1 results and Rolodex practice dates retain separate persistence. Pending A1 terminal evidence blocks Finish/Return/printing. A failed date update does not undo an acknowledged A1 result: Retry remains available in final review. The combined printable summary is current-tab-only, with native fundamental evidence and separate A1 pitch/onset counts and outcomes; reloading leaves independent saved attempts, not a reconstructed lesson archive. The ten-minute budget is guidance and never cuts off repertoire music.
 
 
-Weekly Programs import, preview and explicitly save reusable definitions, launch freely selected native exercises and retain basic local attempts/progress. Comparison dashboards and Guided Improvisation are not implemented. Existing daily presets, their execution and schema-1 Weekly Practice imports remain independent and unchanged. The pending application version remains 2.9.21; release versioning is for the owner to reconcile separately.
+Weekly Programs import, preview and explicitly save reusable definitions, launch freely selected native exercises and retain basic local attempts/progress. Comparison dashboards and Guided Improvisation are not implemented. Existing daily presets, their execution and schema-1 Weekly Practice imports remain independent and unchanged. The 2.9.22 candidate changes release metadata only; release deployment remains owner-controlled.
 
 Use **Practice Sessions → Import Weekly Program** for schema 2. **Weekly Program AI Guide → Copy for AI** includes the full strict schema, current native allowed values and a validated example. **Import Weekly Plan** and its original AI guide continue accepting schema 1; no automatic conversion occurs.
 
@@ -186,7 +190,7 @@ An individual printable native report represents one attempt, not all outer sele
 
 The landing page prioritizes Today's Piano Lesson. Legacy Practice Sessions (V1) and weekly program management remain in expandable sections with mounted draft state. First-time management starts expanded; Edit Lesson remains beside the preferred lesson. Nothing is migrated or deleted.
 
-The header retains the package version and adds the revision embedded in the running compiled bundle: v2.9.21 · build <short SHA>. An uncommitted local build additionally says local changes. For future deployment acceptance, compare the displayed SHA after reload with the successful deployment workflow's checked-out revision; hover over the identity for its full revision title. A reload/update prompt alone does not establish that the new bundle is active. Local builds without verified Git metadata explicitly report that limitation.
+The header retains the package version and adds the revision embedded in the running compiled bundle: v2.9.22 · build <short SHA>. An uncommitted local build additionally says local changes. For future deployment acceptance, compare the displayed SHA after reload with the successful deployment workflow's checked-out revision; hover over the identity for its full revision title. A reload/update prompt alone does not establish that the new bundle is active. Local builds without verified Git metadata explicitly report that limitation.
 
 
 ## Physical piano QA — Checkpoint 5

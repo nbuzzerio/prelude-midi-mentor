@@ -184,6 +184,19 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Violin beginner calibration now remembers a selected acceptance tolerance from ±1 to ±30 cents, with the existing ±10-cent default. Stop listening to adjust it; previous attempts and fixed tuning-quality guidance keep their meaning. Piece Practice grading and ocarina behavior are unchanged.",
     "Saved Improv takes now show a moving replay playhead with a following review window. It uses the replay's musical time, excluding capture pauses, with the existing Play and Stop controls. Notes and saved evidence are unchanged; sampled audio timing remains approximate.",
   ],
+}, {
+  id: "2026-10-20-repertoire-practice-loop",
+  sequence: 17,
+  title: "What's New in Prelude v2.9.22",
+  date: "2026-10-20",
+  version: "2.9.22",
+  changes: [
+    "Continuous-Tempo Piece Practice: use a physical MIDI piano to practice selected measures of your saved music at a steady tempo. Prelude keeps moving through mistakes and reports pitch and onset timing separately.",
+    "Practice Rolodex: save difficult passages, organize them, and revisit the exact saved music, measure range and practice tempo, even if the original piece changes.",
+    "Repertoire in Today's Piano Lesson: optionally add one eligible saved Piano passage after your regular fundamentals. Lessons remain unchanged when repertoire is disabled.",
+    "Progress and Retention: review comparable attempts, work toward three clean pitch-and-onset performances, and revisit passages on a later day. Automatic qualification is off by default and requires explicit owner acceptance with a real MIDI piano. Earlier provisional results never qualify retroactively; physical timing acceptance remains pending.",
+    "Better Piece Practice Controls: with MIDI connected, the virtual keyboard hides by default. Optional performance-audio recording is easier to reach, with recording details and exports still available.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { version } from "../../../package.json";
+import { acknowledgeAppUpdates, readAppUpdateAcknowledgment } from "./app-update-storage";
 import { APP_UPDATES, assertAppUpdateCatalog, parseAppUpdateAcknowledgment, unseenAppUpdates, type AppUpdate } from "./app-updates";
 
 const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `update-${sequence}`, sequence, title: `Update ${sequence}`, date: "2026-10-05", changes: ["A product change"] }));
@@ -7,7 +8,7 @@ const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `upd
 describe("curated product updates", () => {
   it("validates the published catalog and limits the first record to the new update feature", () => {
     expect(() => assertAppUpdateCatalog(APP_UPDATES)).not.toThrow();
-    expect(APP_UPDATES).toHaveLength(16);
+    expect(APP_UPDATES).toHaveLength(17);
     expect(APP_UPDATES[0]).toMatchObject({ sequence: 1, version: "2.8.8" });
     expect(APP_UPDATES[0]?.changes.join(" ")).not.toMatch(/tuner|tie|since your last update/i);
     expect(APP_UPDATES[1]).toMatchObject({ sequence: 2, version: "2.9.0", date: "2026-10-06", title: "Practice with violin and ocarina" });
@@ -33,7 +34,7 @@ describe("curated product updates", () => {
     expect(APP_UPDATES[12]).toMatchObject({ sequence: 13, version: "2.9.17", date: "2026-10-11" });
     expect(APP_UPDATES[13]).toMatchObject({ sequence: 14, version: "2.9.19", date: "2026-10-11" });
     expect(APP_UPDATES[14]).toMatchObject({ sequence: 15, version: "2.9.20", date: "2026-10-12" });
-    expect(APP_UPDATES[15]).toMatchObject({ sequence: 16, version, date: "2026-10-13" });
+    expect(APP_UPDATES[15]).toMatchObject({ sequence: 16, version: "2.9.21", date: "2026-10-13" });
     expect(APP_UPDATES[15].changes.join(" ")).toContain("sequences stop at 999");
     expect(APP_UPDATES[15].changes.join(" ")).toContain("PDF suggestions always use 001");
     expect(APP_UPDATES[15].changes.join(" ")).toContain("existing ±10-cent default");
@@ -49,6 +50,33 @@ describe("curated product updates", () => {
     expect(APP_UPDATES[11].changes.join(" ")).toContain("not automatically transcribed or rhythmically validated sheet music");
     expect(APP_UPDATES[10].changes.join(" ")).toMatch(/Study View.*Lock Editing/);
     expect(APP_UPDATES[9].changes.join(" ")).toContain("not permanently stored or included in MIDI/JSON backups");
+  });
+  it("announces the five 2.9.22 improvements with the physical acceptance boundary", () => {
+    expect(version).toBe("2.9.22");
+    const release = APP_UPDATES.at(-1)!;
+    expect(release).toMatchObject({ id: "2026-10-20-repertoire-practice-loop", sequence: 17,
+      version, title: "What's New in Prelude v2.9.22", date: "2026-10-20" });
+    expect(release.changes).toHaveLength(5);
+    expect(release.changes[0]).toMatch(/Continuous-Tempo.*physical MIDI piano.*pitch and onset timing separately/);
+    expect(release.changes[1]).toMatch(/Practice Rolodex.*exact saved music, measure range and practice tempo/);
+    expect(release.changes[2]).toMatch(/Today's Piano Lesson.*after your regular fundamentals.*unchanged when repertoire is disabled/);
+    expect(release.changes[3]).toMatch(/three clean pitch-and-onset performances.*later day/);
+    expect(release.changes[3]).toContain("Automatic qualification is off by default");
+    expect(release.changes[3]).toContain("explicit owner acceptance with a real MIDI piano");
+    expect(release.changes[3]).toContain("Earlier provisional results never qualify retroactively");
+    expect(release.changes[3]).toContain("physical timing acceptance remains pending");
+    expect(release.changes[4]).toMatch(/MIDI connected.*keyboard hides by default.*Optional performance-audio recording.*exports still available/);
+    expect(release.changes.join(" ")).not.toMatch(/calibrated|certified|fingering|hand independence|general musical mastery|acoustic violin|acoustic ocarina/i);
+  });
+  it("offers 2.9.22 after dismissed 2.9.21 and persists acknowledgement for later visits", () => {
+    const previous = APP_UPDATES[15]!;
+    let saved = JSON.stringify({ id: previous.id, sequence: previous.sequence });
+    const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    const displayed = unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage));
+    expect(displayed).toEqual([APP_UPDATES[16]]);
+    expect(acknowledgeAppUpdates(storage, displayed)).toBe(true);
+    expect(unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage))).toEqual([]);
+    expect(unseenAppUpdates(APP_UPDATES.slice(0, 16), readAppUpdateAcknowledgment(storage))).toEqual([]);
   });
   it("collects multiple missed known updates newest first without changing the catalog", () => {
     expect(unseenAppUpdates(updates, { id: "update-2", sequence: 2 }).map((update) => update.id)).toEqual(["update-4", "update-3"]);

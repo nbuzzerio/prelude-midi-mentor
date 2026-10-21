@@ -18,21 +18,31 @@ A physical MIDI keyboard provides the full experience, but the on-screen keyboar
 
 ## Features
 
-### Export numbers and suggested PDF names (pending 2.9.21 checkpoint 1)
+### Saved repertoire: continuous practice and the Practice Rolodex
+
+Open a saved Staff Builder piece and choose Practice. **Pitch-first remains the default.** Continuous tempo uses a physical MIDI piano for one to four complete measures in constant 3/4, 4/4 or 6/8 at 40–120 quarter-note BPM. Study the authored grand staff in untimed Ready, begin the meter-aware count-in, and play through mistakes. Results distinguish correct pitch, early/late timing, wrong/missing/extra attacks and partial chords. Internal ties and rests retain their meaning; unsupported ranges are rejected rather than adapted. Timing thresholds remain provisional.
+
+Use **Save to Practice Rolodex** from the saved-piece library or continuous setup, without completing a run first. Confirm source instrument, explicit eligibility, range and tempo; the snapshot preserves the full original score and context. Find it later in **Practice Rolodex → Practice Now**. Source edits or deletion do not change the saved music. Continuous execution is Piano-only with physical MIDI; Violin/Ocarina eligibility does not enable an acoustic continuous engine.
+
+Today's Piano Lesson can optionally add one compatible saved Piano passage after its authored fundamentals. Repertoire defaults off; a saved preference avoids repeated morning setup. A1 native results, Rolodex date/progress and V2 fundamental acknowledgements remain separate, with their own Retry. Replay is a new performance. Comparable history and three-clean-run/later-day retention apply only to the exact accepted pitch/onset target; Automatic Qualification defaults off pending physical acceptance. No general mastery, fingering, hand, pedal or expression grade is inferred.
+
+In pitch-first Piece Practice, a MIDI connection initially hides the virtual keyboard; Show/Hide remains available. Optional **Record performance audio** and **Recording details** are prominent, while Skip Target is secondary. Room audio is temporary and separate from MIDI assessment; only an explicit action requests microphone capture.
+
+### Export numbers and suggested PDF names (implemented 2.9.21 checkpoint 1)
 
 Downloads remember the next three-digit number locally for each sanitized name and exact format. Name and Number remain editable; lower manual numbers never lower the remembered sequence, 000 is reserved, and reaching 999 requires a new name or deliberate number reuse. Normal downloads advance after initiation; native Save As advances after successful stream closure. Storage failures retain a tab-local fallback. Prelude does not inspect existing disk files or guarantee unique suggestions across simultaneous tabs. Preferred-folder permissions, native replacement warnings and original MIDI/JSON/audio bytes are unchanged.
 
 Staff Builder library/Study View, Piece Practice and Practice Session printing suggest piece/report titles such as `bells_of_notre_dame_001` and `weekly_practice_report_001`. PDF suggestions always use 001 because Prelude cannot confirm saving; the browser controls the actual filename, extension and destination. The application title is restored after the print lifecycle. Calibration and replay changes are not included in this checkpoint.
 
-### Violin calibration tolerance (pending 2.9.21 checkpoint 2)
+### Violin calibration tolerance (implemented 2.9.21 checkpoint 2)
 
 The existing violin beginner preflight offers a locally remembered ±1–30-cent readiness slider, defaulting to ±10 cents, with one-cent adjustment buttons and numerical feedback. Stop listening before changing it; adjustment starts a fresh attempt while preserving prior results and their effective tolerance. The detector, evidence-stability gates, fixed tuning-quality colors and Piece Practice grading are unchanged. A ±1-cent selection does not establish one-cent microphone accuracy. Ocarina calibration is not included.
 
-### Improv replay playhead (pending 2.9.21 checkpoint 3)
+### Improv replay playhead (implemented 2.9.21 checkpoint 3)
 
 Saved-take replay moves the blue playhead through the existing performance staff and follows it in a bounded 12-second desktop or 6-second narrow review window. The cursor uses the MIDI replay scheduler's musical time, which already excludes intentional capture pauses. Play restarts at zero; Stop and failures retain the last valid position, and completion retains the projected duration. Manual review navigation returns when playback stops. Notes, key-down trails, original Take 1 and MIDI/JSON evidence remain unchanged. Sampled piano audio timing is approximate; the display does not infer a score or grade the performance.
 
-### Ocarina fingering guide (pending 2.9.8)
+### Ocarina fingering guide (2.9.8, provisional)
 
 Ocarina microphone Piece Practice now shows a **Standard 12-hole Alto C — provisional profile** with FRONT finger/subhole and BACK thumb diagrams, expected-note instructions, and separate fresh live pitch-derived suggestions. Thirteen natural concert pitches from A4 through F6 are mapped; unsupported pitches retain their written targets and show unavailable fingering. Filled means cover; outlined means open, with accessible text equivalents. The manufacturer's chart and physical subhole layout remain unverified. Pitch cannot identify actual covered holes, and the guide changes no grading or recording. See [the complete provisional chart and limitations](./docs/OCARINA_FINGERING.md).
 
@@ -475,11 +485,13 @@ For a more detailed technical explanation, see
 
 ---
 
-## Current Status
+## Current Status — v2.9.22 release candidate
 
-Pending package/application version is **2.9.21**, derived by the UI from `package.json`; committed baseline is **2.9.20** at `1003fa1a`. This naming checkpoint remains uncommitted for owner review. No release or tag is implied.
+The application version is **2.9.22**, derived from `package.json`. A1–D, the Piece Practice keyboard/recording polish and the UTC CI correction are committed in the baseline `d0e4a5e`. Checkpoint E verified Actions #123 and that baseline's deployed bundle under **2.9.21**; those observations do not establish deployment of this candidate. Release preparation is separate from the owner's eventual commit, push, annotated tag and deployed-PWA verification.
 
-The nine top-level modes/tools above are implemented. Staff Builder also launches blocking Piece Practice with durable browser-local runs and provisional Targeted Practice. Practice Sessions provide prescriptions, comprehensive reports/printing and Weekly Practice import; their runtime evidence and Melody diagnostics remain memory-only. Device/instrument QA remains separate from implementation.
+Implementation and automated/browser validation are complete for A1–D. **Real MIDI-piano timing and piano-distance acceptance remain pending. Automatic Qualification defaults OFF** and requires deliberate owner acceptance for future compatible attempts; provisional results never qualify retroactively. See [TESTING.md](./docs/TESTING.md) for candidate validation and [RELEASING.md](./docs/RELEASING.md) for the remaining gates. Older checkpoint notes below describe their historical scope, not outstanding authorization or uncommitted feature work.
+
+The top-level tools and the A1–D repertoire loop are implemented. Blocking Piece Practice and continuous A1 retain separate durable records. Practice Sessions V1 remains memory-based; V2 persists independent native fundamental attempts. The combined current-lesson conversation and detailed live diagnostics remain temporary. Device/instrument acceptance is separate from implementation.
 
 Staff Builder projects/drafts use local storage; Piece Practice keeps practiced snapshots/checkpoints in IndexedDB. There is no account or cloud synchronization. Back up important pieces as `.prelude.json`; importing a piece does not restore practice evidence. Clearing site data or losing the browser/profile/device can remove local work.
 
@@ -495,7 +507,7 @@ See [ROADMAP.md](./docs/ROADMAP.md) for the authoritative rolling direction.
 
 Instrument learning now precedes Improv: Acoustic Piece Practice → violin calibration/acoustic analysis → instrument learning visualizers → later Intonation Search/Practice Coach → Improv. Flow Sight-Reading has a foundation in Melody; sustained reading beyond short trials remains a major future milestone. Guided Studies will teach through explanation, demonstration, experiment, repetition, comparison and reflection while composing native modes.
 
-Violin first-position guidance is committed in 2.9.6; pending 2.9.8 adds a provisional common Alto C ocarina chart through the same presentation-only pitch context. Manufacturer-specific fingerings and ocarina calibration remain unverified/deferred; voice means sung pitch. Microphone Staff Builder authoring remains later. Acoustic participation in practice is conditional on evidence and activity-specific semantics, not automatic MIDI substitution.
+Violin first-position guidance was committed in 2.9.6; 2.9.8 added a provisional common Alto C ocarina chart through the same presentation-only pitch context. Manufacturer-specific fingerings and ocarina calibration remain unverified/deferred; voice means sung pitch. Microphone Staff Builder authoring remains later. Acoustic participation in practice is conditional on evidence and activity-specific semantics, not automatic MIDI substitution.
 
 PWA Update + What's New is implemented; small QOL work and physical QA continue alongside musical milestones. Broader creative tools extend Improv rather than a competing Composer mode; Prelude remains focused on learning rather than DAW production. Full priorities and deferred choices live only in [ROADMAP.md](./docs/ROADMAP.md).
 
@@ -552,10 +564,6 @@ Every new feature should strengthen the student's understanding of music.
 
 This project is available under the [MIT License](./LICENSE).
 
-## Weekly Program foundation (pending owner review)
+## Weekly Programs and daily practice
 
-Practice Sessions now offers a separate schema-2 **Import Weekly Program**, definition preview, explicit save and **View saved programs** interface for a flexible Sunday–Saturday exercise pool. **Weekly Program AI Guide** copies the strict current contract and a tested example. Existing **Import Weekly Plan** (schema 1), daily presets, their original AI guide and execution remain unchanged. Definitions are browser-local immutable IndexedDB revisions; no weekly execution, attempts, comparisons or Guided Improvisation are implemented. See [the schema and persistence contract](docs/WEEKLY_PROGRAM_V2.md). Pending version remains 2.9.21 for separate owner reconciliation; the staged QOL release/What's New entry is preserved.
-
-## Weekly Program execution (Checkpoint 2, pending owner review)
-
-Open a saved program with Practice current revision, choose any ordered pool subset, optionally use today's suggested rotation, and edit before Start. Start, early Stop, separate selection Skip and explicit Repeat use the existing hosted native engines. Keep Playing remains Bonus within the same attempt. Basic browser-local history survives reload, distinguishes completion/incomplete work/skips and shows weekly goals with neutral missing days. Imports/definitions, v1 presets and native detailed reports/printing remain intact. See [the updated weekly contract](docs/WEEKLY_PROGRAM_V2.md). No comparison dashboard, Guided Improvisation, legacy conversion or release/version bump is included.
+Practice Sessions supports strict schema-2 **Import Weekly Program**, definition preview, explicit save, immutable local revisions and native execution. **Weekly Program AI Guide** describes that contract. Existing schema-1 **Import Weekly Plan**, daily presets and their execution remain independent. Choose a preferred program for one-action Today's Piano Lesson, retaining authored rotation, Next/Repeat/Skip/Stop, durable fundamental acknowledgements and current-lesson printing. Optional Rolodex repertoire is a local supplement outside the imported queue/schema. See [WEEKLY_PROGRAM_V2.md](docs/WEEKLY_PROGRAM_V2.md).

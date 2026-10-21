@@ -1,8 +1,17 @@
 # Dev Log
 
-A high-level release history and record of significant milestones. Unreleased records implementation and review work without asserting a release; dated/versioned sections retain their original history. Current pending package/application version is 2.9.21; committed 2.9.20 is at `1003fa1a`. Tagging, releasing and deployment verification remain owner-controlled; the older v2.7.0 candidate notes below are historical preparation.
+A high-level release history and record of significant milestones. Candidate/Unreleased records do not assert release, tagging or deployment. Older checkpoint notes retain their original observations and test counts, including their at-the-time pending/staged status; they are historical, not the current worktree state.
 
-## Unreleased
+## Unreleased — v2.9.22 candidate
+
+- Checkpoint F prepares package **2.9.22** and curated announcement sequence 17 for owner review. Previous announcement records remain intact. No dependency, lockfile, schema, scoring, MIDI/audio or update-lifecycle change is included.
+- Included feature work is already committed: A1 `b621843`, Rolodex B `812b247`, daily repertoire C `9c59f659`, progress/retention D `ba0ecd1`, Piece Practice controls `2c5a603`, UTC test correction `d0e4a5e`. Checkpoint E verified Actions #123 and that last baseline’s deployed bundle under 2.9.21; this is not deployment evidence for 2.9.22.
+- A1 offers physical-MIDI continuous authored passages; B retains immutable saved music; C supplements fundamentals with one optional Piano passage; D gates future exact-target qualification behind explicit physical acceptance and a later-day retention check. Automatic Qualification defaults OFF; real MIDI-piano acceptance remains pending and provisional evidence never qualifies retroactively.
+- Release documentation reconciles current and historical scope, native/backup compatibility and the DB2 rollback caveat. Exact F verification is recorded in [TESTING.md](TESTING.md). Owner review, release commit/push/tag and deployed/PWA verification remain outstanding. No release date is asserted.
+
+## Historical checkpoint records
+
+The following records preserve prior validation and the status reported when each checkpoint was reviewed. Those implementations are present in the committed baseline; their references to uncommitted work or pending owner review do not describe this release candidate.
 
 ### QOL batch checkpoints 1–3 (pending 2.9.21; October 13, 2026)
 

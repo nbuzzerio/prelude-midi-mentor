@@ -2,6 +2,12 @@
 
 This document defines Prelude's release discipline and records the assumptions of the current deployment. It does not replace the automated workflow or the manual QA guidance in [`TESTING.md`](./TESTING.md).
 
+## v2.9.22 candidate and remaining gates
+
+Checkpoint F prepares **2.9.22** for owner review; it does not deploy or enable qualification. A1–D and UI/CI corrections are committed through `d0e4a5e`. Checkpoint E verified that baseline’s Actions #123 and served revision under 2.9.21. Implementation and release preparation are complete for review, and candidate automated/browser checks passed. Real MIDI-piano acceptance, owner release review/commit/push/tag, the candidate’s Actions result, and actual site/existing installed-PWA activation remain separate pending gates. Candidate checks are in [TESTING.md](TESTING.md).
+
+Automatic Qualification remains OFF by default. Only deliberate owner confirmation after real physical testing enables future compatible attempts; release metadata, startup and imports cannot grant acceptance or promote provisional history.
+
 ## Versioning
 
 Prelude uses Semantic Versioning and annotated Git tags named `vX.Y.Z`.
@@ -48,7 +54,7 @@ Keep Unreleased history accurate while a candidate is being evaluated. The packa
 
 The repository owner performs Git and release operations:
 
-1. Update `package.json` to the approved SemVer version and update `pnpm-lock.yaml` through pnpm so their root metadata agrees.
+1. Update `package.json` to the approved SemVer version and inspect lockfile metadata. The current pnpm lockfile v9 root importer contains dependency metadata, not the application version; a version-only bump requires no lockfile change or install. Do not regenerate it for release metadata.
 2. Move the relevant entries in [`DEVLOG.md`](./DEVLOG.md) from Unreleased into a dated version section and finalize user-facing release notes.
 3. Run `pnpm verify` again and confirm the manual release gate remains satisfied.
 4. Review the final diff, then commit the version and release documentation.
@@ -69,10 +75,11 @@ Do not tag or publish merely because automated tests pass; hardware, browser, re
 The current `.github/workflows/deploy.yml` workflow has these operational assumptions:
 
 - every push to `master` starts deployment;
-- the job requires an available self-hosted Linux GitHub Actions runner;
-- the runner installs pnpm 10 and uses Node.js 22;
+- the `build` job uses `ubuntu-latest`, pnpm 10 and Node.js 22;
+- only the dependent `deploy` job requires an available self-hosted Linux runner;
 - dependencies are installed with the frozen lockfile;
 - the canonical `pnpm verify` gate runs lint, type-checking, the full automated test suite, and the production build before deployment;
+- the build uploads `prelude-dist` with one-day retention, and deploy downloads it;
 - static output is copied with `rsync --delete` into `/var/www/prelude`;
 - Nginx serves the application below `/prelude/`, matching the Vite base path, PWA scope/start URL, and navigation fallback;
 - runner permissions, `rsync`, the target directory, Nginx configuration, TLS, storage, and rollback/backup procedures are operational responsibilities outside this repository.
@@ -84,3 +91,18 @@ The current workflow now invokes the same `pnpm verify` gate used for local rele
 ## Failed or Partial Releases
 
 If validation, deployment, or installed-PWA verification fails, stop and record the failure before taking further release actions. Prefer a new corrective commit and, when appropriate, a new SemVer release over moving or silently replacing a published tag. Never rewrite a public release marker casually.
+
+
+## Build identity, compatibility and safe rollback
+
+The UI derives its semantic version from `package.json`. `build/build-revision.ts` independently verifies checkout metadata; CI supplies `PRELUDE_BUILD_REVISION` and requires a matching clean checkout. Never hardcode a release SHA in application source. Local uncommitted builds may show local changes or explicitly unavailable metadata. Verify both version and actual running revision after deployment; a reload prompt alone proves neither.
+
+PWA registration remains prompt-based at `/prelude/`, with hashed assets and generated precache revisions. No manual cache-version edit is needed. What's New snapshots the bundled catalog at startup; service-worker events never open it mid-performance. Sequence 17 has a candidate publication date, not a claim of tagging/deployment. Got it, Close and Escape acknowledge the displayed notice; normal revisits suppress acknowledged entries, while storage failure can cause them to reappear. Reload/Later retains the existing active-work confirmation. Complete/save work and download temporary recordings before a deliberate reload.
+
+Staff Builder Score V4 and `.prelude.json`, blocking Piece Practice records, strict Weekly Plan schema 1 / Weekly Program schema 2 and native V2 attempts retain their contracts. Rolodex stores full frozen music and keeps native A1 evidence independent from its date/progress acknowledgements. These are separate database transactions, not an atomic multi-store save; a crash between acknowledgements can leave A1 valid without a Rolodex update. In-memory Retry is not guaranteed after page termination.
+
+Rolodex keeps database name `prelude-practice-rolodex-v1` at IndexedDB version 2. Existing schema-1 entries normalize to schema 2 without read-time rewriting. Backup v2 exports bounded history and prescriptions; imports accept v1/v2, mark restored history and do not enable physical acceptance or create native A1 acknowledgements. Raw A1 records are not included in Rolodex backups. Arbitrary pre-D binaries opening database version 1 cannot be assumed to read an already upgraded database.
+
+Before an owner-controlled release push, retain a known-good **schema-compatible** production artifact beyond the one-day Actions retention and export important authored pieces/Rolodex entries. These exports do not back up all native history or physical-acceptance settings. This repository supplies no automated server backup, rollback or deployed-site smoke procedure. Infrastructure recovery remains an owner operation.
+
+If deployment or acceptance fails, stop release activity, preserve browser data and use an owner-approved compatible artifact or a corrective forward commit. Do not delete/downgrade IndexedDB, clear site data, rewrite evidence, move published tags or deploy an arbitrary old binary as recovery. After recovery verify the served revision, existing-PWA activation and saved data. A push to `master` automatically starts verification and deployment: defer it until the owner explicitly authorizes going live.
