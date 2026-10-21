@@ -7,16 +7,17 @@ import { freezeLessonRepertoire, type RepertoireEvidence } from "../practice-les
 import { createEntry } from "../../piece-practice/rolodex/rolodex-model";
 import { testScore, TEST_INPUT } from "../../piece-practice/continuous/continuous-test-fixtures";
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-it("prints separate acknowledged repertoire attempts and blocks unresolved native evidence", async () => {
+it.each(["Today's Piano Lesson", "Manual V2 practice"])("prints separate acknowledged repertoire attempts and blocks unresolved native evidence for %s", async workflowLabel => {
   const program = testProgram(), record = { ...testAttempt(), closed: true, outcome: "completed" as const };
   const state = { ...new PracticeProgramExecutor(program).getSnapshot(), queue: [record], acknowledged: [{ record, report: null }] };
   const occurrence = freezeLessonRepertoire(createEntry(testScore(), "piano"));
   const repertoire: RepertoireEvidence = { occurrence, skipped: false, pending: false, datePending: 0, dateFailed: 1, attempts: [{ version: 1, id: "native-a1", revision: 2, passage: occurrence.passage, input: TEST_INPUT, status: "stopped", startedAt: "2026-10-20T12:00:00.000Z", endedAt: "2026-10-20T12:01:00.000Z", performanceStartedAt: "2026-10-20T12:00:04.000Z", observedThroughMs: 1000, reason: null, attacks: [], assessment: null, terminalSaveAttempts: 1 }] };
   const print = vi.spyOn(window, "print").mockImplementation(() => {});
-  const tree = (pending: boolean) => <PracticeLessonPrintControls state={state} exercises={program.nativeExercises} pending={false} programName="Mixed lesson" workflowLabel="Today's Piano Lesson" overview={<p>Fundamentals</p>} repertoire={{ ...repertoire, pending }} />;
+  const label = workflowLabel === "Manual V2 practice" ? "Print Practice Summary" : "Print Lesson Summary";
+  const tree = (pending: boolean) => <PracticeLessonPrintControls state={state} exercises={program.nativeExercises} pending={false} programName="Mixed lesson" workflowLabel={workflowLabel} overview={<p>Fundamentals</p>} repertoire={{ ...repertoire, pending }} />;
   const view = render(tree(true));
-  expect((screen.getByText("Print Lesson Summary") as HTMLButtonElement).disabled).toBe(true);
-  view.rerender(tree(false)); fireEvent.click(screen.getByText("Print Lesson Summary"));
+  expect((screen.getByText(label) as HTMLButtonElement).disabled).toBe(true);
+  view.rerender(tree(false)); fireEvent.click(screen.getByText(label));
   await waitFor(() => expect(print).toHaveBeenCalledOnce());
   const report = screen.getByLabelText("Mixed lesson printable lesson summary");
   expect(report.textContent).toContain("Exercise 1 of 1");

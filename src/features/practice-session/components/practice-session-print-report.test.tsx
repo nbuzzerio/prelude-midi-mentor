@@ -33,6 +33,15 @@ beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("print", vi.fn()); document
 afterEach(() => { cleanup(); vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("Practice Session printable report", () => {
+  it("labels a reached but open individual attempt without claiming a completed queue", () => {
+    const open = { ...report, exercises: [{ ...report.exercises[0]!, outcome: "in-progress" as const }] };
+    const scopeNote = "Manual V2 practice · exercise 9 of 9. This is a single-attempt native report; other selections are not included.";
+    const view = render(<PracticeSessionPrintableReport options={DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS} report={open} scopeNote={scopeNote} />);
+    expect(screen.getByText(/Target reached — attempt still open at export/)).toBeTruthy();
+    expect(screen.getByText(scopeNote)).toBeTruthy(); expect(screen.getByText("Single-attempt native report")).toBeTruthy();
+    view.rerender(<PracticeSessionPrintableReport options={DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS} report={report} scopeNote={scopeNote} />);
+    expect(screen.queryByText(/still open at export/)).toBeNull();
+  });
   it("defaults all six options on, toggles each, cancels, escapes, traps focus, and restores focus", () => {
     render(<PracticeSessionPrintControls report={report} />);
     const generate = screen.getByRole("button", { name: "Generate Report" });

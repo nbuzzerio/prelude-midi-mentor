@@ -4,6 +4,15 @@ import type { PracticeSessionEngineResult } from "./practice-session-engine-resu
 
 export type PracticeSessionReportExerciseOutcome = "completed" | "skipped" | "ended-before-target" | "never-entered" | "in-progress";
 
+/** Target attainment and terminal closure are separate native lifecycle facts. */
+export function practiceSessionOutcomeText(exercise: Pick<PracticeSessionExerciseReport, "outcome" | "targetReached">): string {
+  if (exercise.outcome === "completed") return "Target reached";
+  if (exercise.outcome === "skipped") return "Skipped for today";
+  if (exercise.outcome === "ended-before-target") return "Session ended before target";
+  if (exercise.outcome === "never-entered") return "Not reached in this session";
+  return exercise.targetReached ? "Target reached — attempt still open at export" : "In progress — snapshot before attempt closure";
+}
+
 export type PracticeSessionExerciseReport = Readonly<{
   exerciseIndex: number;
   exerciseId: string;

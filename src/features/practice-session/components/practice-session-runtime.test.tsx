@@ -33,6 +33,17 @@ function Harness({ exercises }: Readonly<{ exercises: readonly PracticeExerciseE
 }
 
 describe("Practice Session runtime", () => {
+  it("focuses each manual activation once without refocusing during ordinary native updates", () => {
+    const run = initial([readyEntry(0, "e1", 10)]);
+    const queue = { position: 1, total: 2, cue: "Read the note", disabled: false, canRepeat: true, onNext: vi.fn(), onRepeat: vi.fn(), onFinish: vi.fn() };
+    const tree = (value: ActivePracticeSessionRun) => <PracticeSessionRuntime run={value} dispatch={vi.fn()} now={() => 2} createExerciseToken={() => "unused"} manualQueue={{ ...queue }} />;
+    const view = render(tree(run));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: /Exercise 1 of 2/ }));
+    const keyboard = screen.getByRole("button", { name: "Hide Keyboard" }); keyboard.focus();
+    const updated = practiceSessionRunReducer(run, { type: "UNIT_COMPLETED", runId: run.runId, exerciseId: "e1", exerciseToken: run.activeExerciseToken, at: 3 }) as ActivePracticeSessionRun;
+    view.rerender(tree(updated)); view.rerender(tree({ ...updated }));
+    expect(document.activeElement).toBe(keyboard);
+  });
   const midiValue = (status: AppMidiContextValue["status"]): AppMidiContextValue => ({ status, deviceName: status === "connected" ? "QA piano" : null, error: null, connectedInputs: [], connectMidi: vi.fn(async () => undefined), registerConsumer: vi.fn(() => () => undefined) });
 
   it.each(["connected", "disconnected", "connecting", "error", "unsupported"] as const)("uses the %s MIDI default without acquiring an input consumer", status => {

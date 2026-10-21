@@ -29,6 +29,15 @@ function terminal(id = "attempt-1"): ContinuousAttempt {
     observedThroughMs: capture.passage!.durationMs + capture.passage!.tailMs, reason: null, attacks: [], assessment: assessContinuous(capture.passage!, []), terminalSaveAttempts: 1 };
 }
 describe("Rolodex A1 execution adapter", () => {
+  it("uses manual Finish wording and focuses only an authorized entry", () => {
+    const { entry, store } = setup();
+    const focus = vi.fn(() => true), host = { active: true, finished: false, onView: vi.fn(), onAcknowledged: vi.fn(), onDates: vi.fn(), finishLabel: "Finish practice", entryFocusAllowed: focus };
+    const view = render(<RolodexPractice entry={entry} store={store} onExit={vi.fn()} lessonHost={host} />);
+    expect(screen.getByText("Finish practice")).toBeTruthy(); expect(document.activeElement).toBe(screen.getByRole("heading"));
+    const finish = screen.getByText("Finish practice"); finish.focus();
+    view.rerender(<RolodexPractice entry={entry} store={store} onExit={vi.fn()} lessonHost={{ ...host }} />);
+    expect(document.activeElement).toBe(finish); expect(focus).toHaveBeenCalledOnce();
+  });
   it("keeps failed date Retry mounted in a finished lesson and reports count-in-only outcomes", async () => {
     const { entry, store } = setup();
     store.acknowledge = vi.fn<RolodexStore["acknowledge"]>().mockRejectedValueOnce(Error("quota")).mockResolvedValue(undefined);

@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from "react";
 import { AppMidiContext } from "@/components/midi/midi-context";
 import EarTrainingSession from "@/features/ear-training/components/ear-training-session";
 import FlashcardSession from "@/features/flashcards/components/flashcard-session";
@@ -36,9 +36,10 @@ type RuntimeProps = Readonly<{
   onKeyboardChoiceChange?: (visible: boolean) => void;
   lesson?: QueuePresentation;
   manualQueue?: QueuePresentation;
+  entryFocusAllowed?: () => boolean;
 }>;
 
-export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true, hostedStart = false, lesson: dailyLesson, manualQueue, onPracticeActivityChange, keyboardChoice, onKeyboardChoiceChange }: RuntimeProps) {
+export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now, allowSkip = true, hostedStart = false, lesson: dailyLesson, manualQueue, entryFocusAllowed, onPracticeActivityChange, keyboardChoice, onKeyboardChoiceChange }: RuntimeProps) {
   // Both V2 entry routes present the outer queue; their native start policies stay separate.
   const lesson = dailyLesson ?? manualQueue;
   const isV2 = lesson !== undefined;
@@ -48,6 +49,10 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
   const completionDialogRef = useRef<HTMLDivElement>(null);
   const completionPrimaryActionRef = useRef<HTMLButtonElement>(null);
   const previousExerciseTokenRef = useRef(run.activeExerciseToken);
+  const entryFocused = useRef<string | null>(null);
+  const completionFocused = useRef<string | null>(null);
+  const interaction = useRef(0);
+  const completionIntent = useRef<{ token: string; interaction: number } | null>(null);
   const mobilePlay = useMobilePlay();
   const [isFocusMode, setIsFocusMode] = useState(false);
   const midi = useContext(AppMidiContext);
@@ -83,14 +88,41 @@ export function PracticeSessionRuntime({ run, dispatch, createExerciseToken, now
   }, [entry.engine, onPracticeActivityChange]);
 
   useEffect(() => {
+    const interacted = () => { interaction.current++; };
+    document.addEventListener("pointerdown", interacted, true);
+    document.addEventListener("keydown", interacted, true);
+    return () => { document.removeEventListener("pointerdown", interacted, true); document.removeEventListener("keydown", interacted, true); };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (manualQueue && targetComplete && completionIntent.current?.token !== run.activeExerciseToken) completionIntent.current = { token: run.activeExerciseToken, interaction: interaction.current };
+  }, [manualQueue, targetComplete, run.activeExerciseToken]);
+
+  useEffect(() => {
+    if (!manualQueue || entryFocused.current === run.activeExerciseToken) return;
+    entryFocused.current = run.activeExerciseToken;
+    if (!targetComplete && (!entryFocusAllowed || entryFocusAllowed()) && document.visibilityState !== "hidden") {
+      exerciseContextRef.current?.focus({ preventScroll: true });
+      exerciseContextRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    }
+  }, [manualQueue, entryFocusAllowed, run.activeExerciseToken, targetComplete]);
+
+  useEffect(() => {
+    if (manualQueue) return;
     if (previousExerciseTokenRef.current === run.activeExerciseToken) return;
     previousExerciseTokenRef.current = run.activeExerciseToken;
     exerciseContextRef.current?.focus();
-  }, [run.activeExerciseToken]);
+  }, [run.activeExerciseToken, manualQueue]);
 
   useEffect(() => {
+    if (manualQueue) {
+      if (!lessonCompletionReady || manualQueue.evidence?.attemptId !== run.runId || manualQueue.evidence.outcome !== "completed" || completionFocused.current === run.activeExerciseToken) return;
+      completionFocused.current = run.activeExerciseToken;
+      if (completionIntent.current?.interaction === interaction.current && document.visibilityState !== "hidden") completionPrimaryActionRef.current?.focus();
+      return;
+    }
     if (completionPending || lessonCompletionReady) completionPrimaryActionRef.current?.focus();
-  }, [completionPending, lessonCompletionReady]);
+  }, [completionPending, lessonCompletionReady, manualQueue, run.runId, run.activeExerciseToken]);
 
   useEffect(() => {
     const handleVisibilityChange = () => dispatch({

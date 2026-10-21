@@ -18,6 +18,14 @@ function context() {
   return { value, consumer: () => consumer };
 }
 describe("continuous workspace and native ownership boundary", () => {
+  it("uses the manual host Finish label without changing Ready, audio or save ownership", () => {
+    const c = context(), passage = projectContinuousPassage(testScore(), 0, 1, 60);
+    const store = { save: vi.fn(async () => {}), list: async () => [] }, audio = vi.fn(() => { throw Error("not in Ready"); });
+    const session = new ContinuousSession(passage, TEST_INPUT, store, audio), exit = vi.fn();
+    render(<AppMidiContext.Provider value={c.value}><ContinuousPlayer passage={passage} input={TEST_INPUT} store={store} createSession={() => session} onExit={exit} lessonHost={{ active: true, onView: vi.fn(), finishLabel: "Finish practice" }} /></AppMidiContext.Provider>);
+    expect(screen.getByText("Ready — Begin Count-in")).toBeTruthy(); expect(screen.queryByText("Finish Lesson")).toBeNull();
+    fireEvent.click(screen.getByText("Finish practice")); expect(exit).toHaveBeenCalledOnce(); expect(audio).not.toHaveBeenCalled(); expect(store.save).not.toHaveBeenCalled();
+  });
   it("hosted terminal failure blocks Finish and departure until Retry saves the same identity", async () => {
     const c = context(), p = projectContinuousPassage(testScore(), 0, 1, 60);
     const store = { save: vi.fn().mockRejectedValueOnce(Error("quota")).mockResolvedValue(undefined), list: async () => [] };

@@ -31,7 +31,7 @@ export function PracticeLessonPrintControls({ state, exercises, pending, program
     {blocked && <p role="status">Save all pending results before printing the full summary.</p>}
     {active && createPortal(<section aria-label={`${programName} printable lesson summary`} className="practice-session-print-document" data-lesson-repertoire={repertoire ? "true" : undefined}>
       {repertoire && <style>{"@media print { html:has(body > [data-lesson-repertoire]), body:has(> [data-lesson-repertoire]) { background: white !important; } }"}</style>}
-      <header><h1>{workflowLabel === "Manual V2 practice" ? "Practice Summary" : "Piano Lesson Summary"}</h1><h2>{programName}</h2><p>{workflowLabel} · {repertoire ? `Current lesson only · ${rows.length} fundamental selection${rows.length === 1 ? "" : "s"} + optional repertoire` : `Current queue only · ${rows.length} selections`}</p></header>
+      <header><h1>{workflowLabel === "Manual V2 practice" ? "Practice Summary" : "Piano Lesson Summary"}</h1><h2>{programName}</h2><p>{workflowLabel} · {repertoire ? `${workflowLabel === "Manual V2 practice" ? "Current session" : "Current lesson"} only · ${rows.length} fundamental selection${rows.length === 1 ? "" : "s"} + optional repertoire` : `Current queue only · ${rows.length} selections`}</p></header>
       <section className="practice-session-print-summary">{overview}</section>
       <h2>Exercises in performed / authored order</h2>
       {rows.map((row, index) => {

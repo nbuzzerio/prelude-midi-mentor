@@ -7,11 +7,23 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: min(320px, 100%);
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* The document owns ordinary practice scrolling; reserve its classic scrollbar
+   width through short results and tall exercise stages without another scroller. */
+@media screen {
+  html { scrollbar-gutter: stable; }
+  html:fullscreen { scrollbar-gutter: auto; }
+}
+
+.manual-v2-practice h1:focus-visible {
+  outline: 3px solid rgb(125 211 252);
+  outline-offset: 3px;
 }
 
 button {
@@ -470,6 +482,7 @@ button {
 .practice-session-print-document { display: none; }
 .staff-builder-printed-measure-number { position: absolute; z-index: 3; font: 11px/1 sans-serif; color: black; }
 @media print {
+  html:has(body > .practice-session-print-document), body:has(> .practice-session-print-document) { background: white !important; }
   body:has(> .practice-session-print-document) { height: auto !important; min-height: 0 !important; overflow: visible !important; }
   body:has(> .practice-session-print-document) > :not(.practice-session-print-document) { display: none !important; }
   .practice-session-print-document, .practice-session-print-document * { visibility: visible !important; color: black !important; }

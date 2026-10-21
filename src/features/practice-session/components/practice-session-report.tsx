@@ -5,7 +5,7 @@ import { MelodyResultDetail, MelodyResultMetrics } from "@/features/melody/compo
 import { getMelodyContinuousTrialLatestResult, getMelodyContinuousTrialRetryCount, isMelodyContinuousTrialMastered } from "@/features/melody/melody-continuous-practice";
 import { selectMelodyPracticeDiagnosticChips, selectMelodyPracticeReportPhases, type MelodyPracticeReport } from "@/features/melody/melody-practice-result";
 import { selectSequenceDiagnosticChips, selectSequencePracticeReportPhases, type SequencePracticeReport } from "@/features/sequences/sequence-practice-result";
-import { derivePracticeSessionReport, type PracticeSessionExerciseReport, type PracticeSessionReportExerciseOutcome } from "../practice-session-report";
+import { derivePracticeSessionReport, practiceSessionOutcomeText, type PracticeSessionExerciseReport } from "../practice-session-report";
 import type { CompletedPracticeSessionRun } from "../practice-session-runtime";
 
 function formatDuration(durationMs: number): string {
@@ -13,14 +13,6 @@ function formatDuration(durationMs: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return minutes === 0 ? `${seconds}s` : `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
-}
-
-function outcomeText(outcome: PracticeSessionReportExerciseOutcome): string {
-  if (outcome === "completed") return "Target reached";
-  if (outcome === "skipped") return "Skipped for today";
-  if (outcome === "ended-before-target") return "Session ended before target";
-  if (outcome === "never-entered") return "Not reached in this session";
-  return "In progress";
 }
 
 function Metric({ label, value }: Readonly<{ label: string; value: string | number }>) {
@@ -164,7 +156,7 @@ export function PracticeSessionCompletedReport({ run, onBack, renderActions }: R
     <section aria-labelledby="exercise-report-title" className="space-y-3">
       <h2 className="text-lg font-semibold" id="exercise-report-title">Exercises in prescribed order</h2>
       <ol className="space-y-3">{report.exercises.map((exercise) => <li className="rounded-xl border border-white/10 bg-white/5 p-4" key={exercise.exerciseId}>
-        <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs text-zinc-400">Exercise {exercise.exerciseIndex + 1} of {report.exercises.length} · {exercise.engine}</p><h3 className="font-semibold">{exercise.label}</h3></div><div className="grid justify-items-end gap-2"><p className="rounded-full bg-zinc-800 px-3 py-1 text-sm">{outcomeText(exercise.outcome)}</p>{exercise.outcome === "skipped" && <PracticeDiagnosticChips chips={[{ id: "skipped", kind: "process", label: "Skipped", count: 1, accessibleText: "Exercise was deliberately skipped for today" } satisfies PracticeDiagnosticChip]} label="Exercise process shorthand" />}</div></div>
+        <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs text-zinc-400">Exercise {exercise.exerciseIndex + 1} of {report.exercises.length} · {exercise.engine}</p><h3 className="font-semibold">{exercise.label}</h3></div><div className="grid justify-items-end gap-2"><p className="rounded-full bg-zinc-800 px-3 py-1 text-sm">{practiceSessionOutcomeText(exercise)}</p>{exercise.outcome === "skipped" && <PracticeDiagnosticChips chips={[{ id: "skipped", kind: "process", label: "Skipped", count: 1, accessibleText: "Exercise was deliberately skipped for today" } satisfies PracticeDiagnosticChip]} label="Exercise process shorthand" />}</div></div>
         <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Metric label="Prescribed work" value={`${exercise.prescribedUnitsCompleted} ${exercise.prescribedUnitsCompleted === 1 ? "unit" : "units"}`} />
           <Metric label="Prescribed active time" value={formatDuration(exercise.prescribedActiveDurationMs)} />

@@ -16,6 +16,7 @@ import type { RolodexEntry, RolodexPractice as PracticeAcknowledgement, RolodexS
 import type { MidiInputInfo } from "@/lib/midi/midi-transport";
 
 export type RolodexLessonHost = Readonly<{
+  finishLabel?: string; entryFocusAllowed?: () => boolean;
   active: boolean; finished: boolean; onView: (view: ContinuousView) => void;
   onAcknowledged: (attempt: ContinuousAttempt) => void;
   onDates: (pending: number, failed: number) => void;
@@ -27,6 +28,14 @@ export function RolodexPractice({ entry, store = rolodexStore, attempts = contin
   lessonHost?: RolodexLessonHost;
 }>) {
   const midi = useContext(AppMidiContext);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const entryFocused = useRef(false);
+  const focusAllowed = lessonHost?.entryFocusAllowed;
+  useEffect(() => {
+    if (!focusAllowed || entryFocused.current) return;
+    entryFocused.current = true;
+    if (focusAllowed() && document.visibilityState !== "hidden") { heading.current?.focus({ preventScroll: true }); heading.current?.scrollIntoView?.({ block: "nearest" }); }
+  }, [focusAllowed]);
   const [inputId, setInputId] = useState("");
   const [input, setInput] = useState<MidiInputInfo | null>(() => lessonHost && midi?.status === "connected" ? midi.connectedInputs.find(i => i.id !== null) ?? null : null);
   const [pending, setPending] = useState(0);
@@ -97,7 +106,7 @@ export function RolodexPractice({ entry, store = rolodexStore, attempts = contin
   const inputs = midi?.connectedInputs.filter(i => i.id !== null) ?? [];
   const selected = inputs.find(i => i.id === inputId) ?? (inputId === "" ? inputs[0] : undefined);
   return <section className="grid min-w-0 gap-3">
-    {!lessonHost?.finished && <h1 className="text-2xl font-bold">{lessonHost ? "Optional Piano repertoire" : "Practice Rolodex"} · {entry.nickname || entry.sourceTitle}</h1>}
+    {!lessonHost?.finished && <h1 ref={heading} tabIndex={-1} className="text-2xl font-bold">{lessonHost ? "Optional Piano repertoire" : "Practice Rolodex"} · {entry.nickname || entry.sourceTitle}</h1>}
     {unavailable && <p role="alert">{unavailable}</p>}
     {savedProgress && <RolodexProgressPanel entry={savedProgress} acceptance={acceptance} />}
     {notice && <p role="status">{notice}</p>}
@@ -110,7 +119,7 @@ export function RolodexPractice({ entry, store = rolodexStore, attempts = contin
         {!inputs.length && <option value="">No MIDI piano connected</option>}{inputs.map(i => <option key={i.id} value={i.id!}>{i.name ?? i.id}</option>)}</select></label>
       <p>Connect a physical MIDI piano and allow MIDI access. Virtual keys and microphones cannot start this profile.</p>
       <button className={rolodexButton} type="button" disabled={Boolean(unavailable) || !selected || midi?.status !== "connected"} onClick={() => { if (selected && !playability(entry)) setInput(selected); }}>Prepare Saved Passage</button>
-      <button className={rolodexButton} onClick={exit} type="button" disabled={pending > 0}>{lessonHost ? "Finish Lesson" : "Return to Rolodex"}</button>
+      <button className={rolodexButton} onClick={exit} type="button" disabled={pending > 0}>{lessonHost ? lessonHost.finishLabel ?? "Finish Lesson" : "Return to Rolodex"}</button>
     </>}
     {input && passage && !unavailable && !lessonHost?.finished && <ContinuousPlayer passage={passage} input={input} store={attempts} onExit={exit} onGuardChange={registerGuard} onAcknowledgedAttempt={acknowledged} onView={observe} lessonHost={lessonHost} />}
   </section>;

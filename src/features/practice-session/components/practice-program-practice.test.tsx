@@ -24,6 +24,18 @@ const createExecutor = (program: ReturnType<typeof testProgram>) => new Practice
 async function start(index = 0) { fireEvent.click(screen.getByRole("checkbox", { name: testProgram().program.exercises[index]!.label })); fireEvent.click(screen.getByRole("button", { name: "Prepare selected exercises" })); fireEvent.click(screen.getByRole("button", { name: "Start selected exercise" })); await screen.findByTestId("native"); }
 const mount = (active = true) => render(<PracticeProgramPractice active={active} createExecutor={createExecutor} onBusyChange={vi.fn()} onClose={vi.fn()} program={testProgram()} />);
 describe("weekly daily selection and native attempts", () => {
+  it("Select All uses authored order without opting into repertoire; Clear All prevents preparation", () => {
+    const program = testProgram(), original = structuredClone(program);
+    render(<PracticeProgramPractice active createExecutor={createExecutor} onBusyChange={vi.fn()} onClose={vi.fn()} program={program} repertoirePreference={{ enabled: false, instruments: ["piano"], message: "" }} />);
+    fireEvent.click(screen.getByLabelText(program.program.exercises[2]!.label));
+    fireEvent.click(screen.getByText("Select All"));
+    expect(screen.getByLabelText("Include Rolodex Repertoire")).toHaveProperty("checked", false);
+    expect([...document.querySelectorAll(".manual-v2-practice > ol > li")].map(item => item.textContent?.split("↑")[0])).toEqual(program.program.exercises.map((exercise, index) => `${index + 1}. ${exercise.label}`));
+    fireEvent.click(screen.getByText("Clear All"));
+    expect(screen.getByText("Prepare selected exercises")).toHaveProperty("disabled", true);
+    expect(screen.getAllByRole("checkbox").every(item => !(item as HTMLInputElement).checked)).toBe(true);
+    expect(program).toEqual(original);
+  });
   it("retains explicit keyboard choice across native attempts in one manual queue", async () => {
     const value: AppMidiContextValue = { status: "connected", deviceName: "QA piano", error: null, connectedInputs: [], connectMidi: vi.fn(async () => undefined), registerConsumer: vi.fn(() => () => undefined) };
     render(<AppMidiContext.Provider value={value}><PracticeProgramPractice active createExecutor={createExecutor} onBusyChange={vi.fn()} onClose={vi.fn()} program={testProgram()} /></AppMidiContext.Provider>);

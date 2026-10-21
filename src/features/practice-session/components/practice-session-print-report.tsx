@@ -4,7 +4,7 @@ import { useBrowserPrint } from "@/hooks/use-browser-print";
 import { printFilenameTitle } from "@/lib/files/print-filename";
 import { PracticeDiagnosticChips, type PracticeDiagnosticChip } from "@/components/practice-diagnostic-chips";
 import { getPracticeExerciseConceptName, getPracticeExerciseConfigurationSummary, getPracticeExerciseTargetSummary } from "../practice-session-presenters";
-import type { PracticeSessionExerciseReport, PracticeSessionReport, PracticeSessionReportExerciseOutcome } from "../practice-session-report";
+import { practiceSessionOutcomeText, type PracticeSessionExerciseReport, type PracticeSessionReport } from "../practice-session-report";
 import { ExerciseDiagnostics } from "./practice-session-report";
 import { DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS, type PracticeSessionPrintOptions } from "../practice-session-print-options";
 
@@ -15,10 +15,6 @@ const optionLabels = [
 ] as const;
 
 function duration(ms: number) { const seconds = Math.round(ms / 1_000); return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`; }
-function outcome(outcomeValue: PracticeSessionReportExerciseOutcome) {
-  return outcomeValue === "completed" ? "Target reached" : outcomeValue === "skipped" ? "Skipped for today" : outcomeValue === "ended-before-target" ? "Session ended before target" : outcomeValue === "never-entered" ? "Not reached in this session" : "In progress";
-}
-
 function OptionsDialog({ onCancel, onGenerate }: Readonly<{ onCancel: () => void; onGenerate: (options: PracticeSessionPrintOptions) => void }>) {
   const [options, setOptions] = useState(DEFAULT_PRACTICE_SESSION_PRINT_OPTIONS);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -44,7 +40,7 @@ function OptionsDialog({ onCancel, onGenerate }: Readonly<{ onCancel: () => void
 
 function ExercisePrintSection({ exercise, options, total }: Readonly<{ exercise: PracticeSessionExerciseReport; options: PracticeSessionPrintOptions; total: number }>) {
   return <article className="practice-session-print-exercise">
-    <header><p>Exercise {exercise.exerciseIndex + 1} of {total} · {getPracticeExerciseConceptName(exercise.prescription)}</p><h2>{exercise.label}</h2><p><strong>Outcome:</strong> {outcome(exercise.outcome)}</p>{exercise.outcome === "skipped" && <PracticeDiagnosticChips chips={[{ id: "skipped", kind: "process", label: "Skipped", count: 1, accessibleText: "Exercise was deliberately skipped for today" } satisfies PracticeDiagnosticChip]} label="Exercise process shorthand" />}</header>
+    <header><p>Exercise {exercise.exerciseIndex + 1} of {total} · {getPracticeExerciseConceptName(exercise.prescription)}</p><h2>{exercise.label}</h2><p><strong>Outcome:</strong> {practiceSessionOutcomeText(exercise)}</p>{exercise.outcome === "skipped" && <PracticeDiagnosticChips chips={[{ id: "skipped", kind: "process", label: "Skipped", count: 1, accessibleText: "Exercise was deliberately skipped for today" } satisfies PracticeDiagnosticChip]} label="Exercise process shorthand" />}</header>
     {options.exerciseSummaries && <section className="practice-session-print-block"><h3>Exercise summary</h3><p><strong>Prescription:</strong> {getPracticeExerciseTargetSummary(exercise.prescription)}</p><p>Prescribed work: {exercise.prescribedUnitsCompleted} {exercise.prescribedUnitsCompleted === 1 ? "unit" : "units"}{exercise.bonusUnitsCompleted > 0 ? ` · Bonus work: ${exercise.bonusUnitsCompleted} ${exercise.bonusUnitsCompleted === 1 ? "unit" : "units"}` : ""}</p></section>}
     {options.exerciseDetails && <section className="practice-session-print-block"><h3>Exercise details</h3><p>{getPracticeExerciseConfigurationSummary(exercise.prescription)}</p></section>}
     {options.timing && <section className="practice-session-print-block"><h3>Active exercise time</h3><p>Prescribed: {duration(exercise.prescribedActiveDurationMs)}{exercise.bonusActiveDurationMs > 0 ? ` · Bonus: ${duration(exercise.bonusActiveDurationMs)}` : ""}</p></section>}

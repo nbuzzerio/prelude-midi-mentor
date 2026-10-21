@@ -1,5 +1,15 @@
 # Prelude: MIDI Mentor — ARCHITECTURE
 
+## Manual V2 repertoire and usability checkpoint
+
+`PracticeProgramLibrary` passes its existing repertoire preference and read boundary to manual `PracticeProgramPractice`. The manual owner keeps its own launch/cancellation, optional occurrence, review and Finish state; it does not delegate to or merge with `PracticeProgramLesson`. The first deliberate Start uses `selectLessonRepertoire` and `freezeLessonRepertoire`. A generation fence rejects cancelled/background/departed lookups. The immutable supplemental prescription stays outside the fundamental executor, authored V2 queue, revisions, coverage and strict import contracts.
+
+Manual practice composes the existing `PracticeLessonRepertoire`, `RolodexPractice` and `ContinuousPlayer`. Optional host presentation supplies **Finish practice** and an entry-focus permission; daily and standalone defaults remain unchanged. Native A1 owns Ready, audio/count-in, MIDI, scoring, start/terminal transactions, Retry and Replay. The existing adapter retains independent Rolodex progress writes and failed Retry through final review. Manual Finish/Return and printing respect pending native evidence; a separately failed Rolodex update never invalidates an acknowledged A1 performance.
+
+Fundamental target attainment remains an open checkpoint. Next closes it through the unchanged executor and starts the next fundamental or repertoire only after terminal acknowledgement. Shared report presentation uses existing `outcome` and `targetReached` fields to distinguish an open target-reached export from a closed attempt; no outcome/schema conversion is introduced. Existing current-queue screen/print components receive separate repertoire evidence without inventing a combined native run or durable session archive.
+
+Manual runtime focus is keyed to exercise activation and first acknowledged target availability, including fresh V2 runtime mounts. Pointer/keyboard interaction generations suppress delayed focus after deliberate user actions. Terminal Retry focus is tied to a still-owned Next intent, excluding Stop/Finish/Repeat. No note callback, musical clock, or input consumer is changed. The ordinary scroll owner is the document; screen-only stable root gutter and a client-width-safe body minimum prevent classic scrollbar shifts without adding a scrolling container. Browser fullscreen and print preserve their own layout behavior.
+
 ## Release candidate status
 
 The working application is **2.9.22**. A1–D and the Piece Practice UI/CI follow-ups are committed through baseline `d0e4a5e`; release metadata is now prepared separately for owner review. Physical MIDI-piano acceptance remains pending and Automatic Qualification defaults OFF. Package version and embedded checkout revision retain separate owners. No musical model, scoring, native evidence or update lifecycle changes accompany this release preparation. Earlier baseline/version and checkpoint-scope notes below are historical.

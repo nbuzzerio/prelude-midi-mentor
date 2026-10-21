@@ -1,5 +1,17 @@
 # Weekly Programs — schema 2 and local attempt history
 
+## Manual V2 usability checkpoint
+
+Manual queue setup includes **Select All**, **Clear All**, and **Include Rolodex Repertoire**. Select All uses authored pool order without changing repertoire inclusion, definitions or revisions. Clear All disables preparation until at least one fundamental is selected. Individual selection/reordering and the advisory daily rotation remain available.
+
+Manual repertoire uses the same optional preference as Today's Piano Lesson, defaulting OFF when no valid preference exists. An existing explicit opt-in is honored. It selects only a compatible saved Piano passage with the existing retention-aware ordering. The first deliberate **Start selected exercise** reads and freezes the full prescription; Prepare, Retry, Repeat and later fundamentals do not reselect it. A failed or empty optional lookup leaves fundamentals usable. Cancelling or leaving during lookup cannot start an exercise from a stale response.
+
+**Next: Repertoire** uses the normal fundamental closure path and mounts A1 only after terminal acknowledgement. It preserves native Ready/count-in, Stop, Replay and save Retry, then **Finish practice** returns the manual summary. A1 and Rolodex progress saves remain separate; failed Rolodex Retry stays available in final review. Skip and early Finish never create completed repertoire evidence. The printable summary contains the exact fundamental queue plus distinct native repertoire performances, without changing V2 coverage or importing supplementary exercises.
+
+Manual exercise headings receive focus once on deliberate activation. Acknowledged target availability can focus Next once; intervening keyboard/pointer actions cancel delayed focus. Target completion still permits Keep Playing: Next initiates terminal closure and progression waits for its acknowledgement. An individual report exported at the target boundary says **Target reached — attempt still open at export**. It is an earlier single-attempt snapshot, separate from a subsequently completed full-queue summary.
+
+Normal document scrolling reserves a stable scrollbar gutter. Focus/Mobile Play retain their existing scroll owners and print uses its own layout. Version **2.9.22**, What's New, strict imports, native musical assessment and database schemas are unchanged by owner instruction. Combined manual summaries remain current-tab-only; offline reload retains independent saved records and preferences, not a reconstructed session.
+
 ## Release candidate status
 
 The working application version is **2.9.22**, prepared for owner review without deployment. A1–D are committed in baseline `d0e4a5e`; their automated/browser evidence does not establish real MIDI-piano acceptance. Qualification defaults OFF pending explicit owner acceptance for future compatible attempts. Older checkpoint descriptions record implementation history; strict Weekly Plan schema 1, Weekly Program schema 2, saved revisions, native fundamental records and authored coverage remain unchanged.

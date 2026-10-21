@@ -54,6 +54,23 @@ async function rows() { const store = new IndexedDbPracticeAttempts(fake.factory
 const lessonCard = () => within(screen.getByRole("region", { name: "Today's Piano Lesson" }));
 
 describe("one-action morning launch through the existing V2 owner", () => {
+  it("shares explicit manual repertoire preference changes with the daily card without changing the program", async () => {
+    const f = await fixture();
+    const values = new Map([[preferenceKey, f.stored()!], [REPERTOIRE_PREFERENCE_KEY, JSON.stringify({ version: 1, enabled: false, instruments: ["piano"] })]]);
+    f.storage.getItem.mockImplementation((...args: unknown[]) => values.get(String(args[0])) ?? null);
+    f.storage.setItem.mockImplementation((key, value) => { values.set(key, value); });
+    render(<PracticeProgramLibrary {...f.props} />); await ready();
+    fireEvent.click(screen.getByText("Edit Lesson"));
+    expect(await screen.findByLabelText("Include Rolodex Repertoire")).toHaveProperty("checked", false);
+    fireEvent.click(screen.getByText("Select All"));
+    expect(f.storage.setItem).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText("Include Rolodex Repertoire"));
+    expect(JSON.parse(values.get(REPERTOIRE_PREFERENCE_KEY)!)).toEqual({ version: 1, enabled: true, instruments: ["piano"] });
+    fireEvent.click(screen.getByText("Back to definitions")); await ready();
+    expect(lessonCard().getByLabelText("Include repertoire practice")).toHaveProperty("checked", true);
+    expect(await rows()).toEqual([]);
+    const store = f.createStore(); expect((await store.list())[0]!.program).toEqual(program().program); store.close();
+  });
   it("rereads acknowledged repertoire at Start, freezes it, and never inserts a V2 exercise", async () => {
     const f = await fixture(undefined, program(1, ["exercise-0"]));
     let entries = [createEntry(testScore(), "piano")];

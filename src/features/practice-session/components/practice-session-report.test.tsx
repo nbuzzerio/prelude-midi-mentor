@@ -19,6 +19,13 @@ function start(exercises: readonly PracticeExerciseEntry[]): PracticeSessionRunS
 }
 
 describe("Practice Session completed report", () => {
+  it("never labels a target-reached terminal attempt as still in progress", () => {
+    let run = start([entry(0, "only")]);
+    run = practiceSessionRunReducer(run, { type: "UNIT_COMPLETED", runId: "run", exerciseToken: "token", exerciseId: "only", at: 5 })!;
+    const closed = practiceSessionRunReducer(run, { type: "END", runId: "run", exerciseToken: "token", exerciseId: "only", endedAt: 10 }) as CompletedPracticeSessionRun;
+    render(<PracticeSessionCompletedReport onBack={vi.fn()} run={closed} />);
+    expect(screen.getByText("Target reached")).toBeTruthy(); expect(screen.queryByText(/In progress|still open/)).toBeNull();
+  });
   it("keeps authored order, includes never-entered exercises, and uses neutral outcome wording", () => {
     const exercises = [entry(0, "first"), entry(6, "second"), entry(7, "third")];
     const active = start(exercises);

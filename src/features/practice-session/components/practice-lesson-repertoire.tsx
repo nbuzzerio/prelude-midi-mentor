@@ -6,9 +6,10 @@ import type { ContinuousAttempt } from "../../piece-practice/continuous/continuo
 import { acknowledgeRepertoire, type LessonRepertoire, type RepertoireEvidence } from "../practice-lesson-repertoire";
 
 /** Owns only this lesson's conversation. Native performance and date writes stay in their existing owners. */
-export function PracticeLessonRepertoire({ occurrence, active, finished, onFinish, onChange, onPlaying }: Readonly<{
+export function PracticeLessonRepertoire({ occurrence, active, finished, onFinish, onChange, onPlaying, finishLabel, entryFocusAllowed }: Readonly<{
   occurrence: LessonRepertoire; active: boolean; finished: boolean; onFinish: () => void;
   onChange: (evidence: RepertoireEvidence) => void; onPlaying: (playing: boolean) => void;
+  finishLabel?: string; entryFocusAllowed?: () => boolean;
 }>) {
   const [view, setView] = useState<ContinuousView | null>(null);
   const [attempts, setAttempts] = useState<readonly ContinuousAttempt[]>([]);
@@ -31,7 +32,7 @@ export function PracticeLessonRepertoire({ occurrence, active, finished, onFinis
     onFinish();
   };
   return <div className="min-w-0 space-y-3">
-    <RolodexPractice entry={occurrence.entry} onExit={finish} lessonHost={{ active, finished, onView: setView, onAcknowledged: acknowledged, onDates: dateChanged, onProgress: setProgress }} />
+    <RolodexPractice entry={occurrence.entry} onExit={finish} lessonHost={{ active, finished, onView: setView, onAcknowledged: acknowledged, onDates: dateChanged, onProgress: setProgress, finishLabel, entryFocusAllowed }} />
     {!finished && (!view || view.phase === "ready") && !attempts.length && !pending && <button className="min-h-11 rounded border border-zinc-600 px-3 py-2" disabled={!active} onClick={skip} type="button">Skip Repertoire</button>}
   </div>;
 }

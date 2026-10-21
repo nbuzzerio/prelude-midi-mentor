@@ -87,7 +87,7 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
   createSession?: () => ContinuousSession;
   onAcknowledgedAttempt?: (attempt: ContinuousAttempt) => void;
   onView?: (view: ContinuousView) => void;
-  lessonHost?: Readonly<{ active: boolean; onView: (view: ContinuousView) => void }>;
+  lessonHost?: Readonly<{ active: boolean; onView: (view: ContinuousView) => void; finishLabel?: string; entryFocusAllowed?: () => boolean }>;
 }>) {
   const midi = useContext(AppMidiContext);
   const [session] = useState(() => createSession?.() ?? new ContinuousSession(passage, input, store));
@@ -104,7 +104,8 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
   const [reviewMeasure, setReviewMeasure] = useState(passage.start);
   const connected = Boolean(midi?.status === "connected" && midi.connectedInputs.some((i) => i.id === session.input.id));
   const registerConsumer = midi?.registerConsumer;
-  useEffect(() => { playerRef.current?.scrollIntoView?.({ block: "start" }); }, []);
+  const entryFocusAllowed = lessonHost?.entryFocusAllowed;
+  useEffect(() => { if (!entryFocusAllowed || entryFocusAllowed()) playerRef.current?.scrollIntoView?.({ block: "start" }); }, [entryFocusAllowed]);
   useEffect(() => {
     if (!active) session.interrupt("Lesson left the foreground. Replay when ready.");
     const unregister = active ? registerConsumer?.({ rawInputId: session.input.id ?? undefined, onRawMessage: session.rawMessage,
@@ -161,7 +162,7 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
       </>}
       <button className={button} type="button" disabled={!session.canExit() && !(!lessonHost && view.phase === "results" && view.save === "failed")} onClick={() => {
         if (session.canExit() || window.confirm("This result is not saved. Exit and lose its pending in-memory evidence?")) onExit();
-      }}>{lessonHost ? "Finish Lesson" : "Exit Continuous Practice"}</button>
+      }}>{lessonHost ? lessonHost.finishLabel ?? "Finish Lesson" : "Exit Continuous Practice"}</button>
     </div>
     {view.phase === "ready" && <p role="status">Ready — read first. The clock and scoring begin after count-in.</p>}
     {!connected && <p role="alert">Reconnect the selected physical MIDI piano ({session.input.name ?? session.input.id}). Return to range selection to choose a different input.</p>}

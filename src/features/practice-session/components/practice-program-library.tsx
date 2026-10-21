@@ -148,7 +148,7 @@ export default function PracticeProgramLibrary({ createStore = createBrowserStor
   };
   const close = () => { const previous = dialog; setDialog(null); (previous === "guide" ? guideButton : importButton).current?.focus(); };
   return <>
-    {practice && <PracticeProgramPractice active={active} key={`${practice.program.programId}:${practice.program.revision}`} onBusyChange={onBusyChange} onInputChange={onInputChange} onClose={() => setPractice(null)} program={practice.program} morningSelection={practice.startIds} notice={practice.notice} repertoire={practice.repertoire} />}
+    {practice && <PracticeProgramPractice active={active} key={`${practice.program.programId}:${practice.program.revision}`} onBusyChange={onBusyChange} onInputChange={onInputChange} onClose={() => setPractice(null)} program={practice.program} morningSelection={practice.startIds} notice={practice.notice} repertoire={practice.repertoire} repertoirePreference={repertoirePreference} onRepertoirePreferenceChange={enabled => setRepertoirePreference(saveRepertoirePreference({ ...repertoirePreference, enabled }, preferenceStorage))} repertoireStore={repertoireStore} wallNow={now} />}
     <section aria-label="Today's Piano Lesson" className="mb-4 min-w-0 space-y-3 break-words rounded-xl border border-sky-400/40 bg-sky-950/30 p-4" hidden={!!practice}>
       <h2 className="text-2xl font-bold">Today&apos;s Piano Lesson</h2>
       {lesson && <p className="text-sm">Today&apos;s lesson: {lesson.exerciseIds.length} fundamentals{repertoirePreference.enabled && repertoirePreview ? " + one optional Piano repertoire passage" : ""}.</p>}

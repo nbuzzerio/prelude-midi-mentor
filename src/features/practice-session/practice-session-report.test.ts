@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PRACTICE_SESSION_BUILDER_OPTIONS } from "./practice-session-builder-options";
-import { derivePracticeSessionReport } from "./practice-session-report";
+import { derivePracticeSessionReport, practiceSessionOutcomeText } from "./practice-session-report";
 import { practiceSessionRunReducer, type PracticeSessionRunSnapshot, type PracticeSessionRunState } from "./practice-session-runtime";
 import type { PracticeExerciseEntry } from "./practice-session-types";
 
@@ -15,6 +15,19 @@ function start(exercises: readonly PracticeExerciseEntry[], at = 0): PracticeSes
 }
 
 describe("Practice Session report derivation", () => {
+  it("distinguishes an open target-reached snapshot from the subsequently closed native attempt", () => {
+    let state = start([entry(0, "only")]);
+    expect(practiceSessionOutcomeText(derivePracticeSessionReport(state).exercises[0]!)).toBe("In progress — snapshot before attempt closure");
+    state = practiceSessionRunReducer(state, { type: "UNIT_COMPLETED", runId: "run", exerciseToken: "t1", exerciseId: "only", at: 10 })!;
+    const snapshot = derivePracticeSessionReport(state);
+    expect(snapshot.exercises[0]).toMatchObject({ outcome: "in-progress", targetReached: true });
+    expect(practiceSessionOutcomeText(snapshot.exercises[0]!)).toBe("Target reached — attempt still open at export");
+    state = practiceSessionRunReducer(state, { type: "END", runId: "run", exerciseToken: "t1", exerciseId: "only", endedAt: 20 })!;
+    const closed = derivePracticeSessionReport(state);
+    expect(closed.exercises[0]).toMatchObject({ outcome: "completed", targetReached: true });
+    expect(practiceSessionOutcomeText(closed.exercises[0]!)).toBe("Target reached");
+    expect(snapshot.exercises[0]!.outcome).toBe("in-progress");
+  });
   it("exposes final and boundary engine payloads without interpreting them", () => {
     let state = start([entry(0, "only")]);
     const boundary = { engine: "flashcards", schemaVersion: 1, incorrectAttempts: [], completedTargets: [] } as const;

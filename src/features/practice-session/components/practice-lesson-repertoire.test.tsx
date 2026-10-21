@@ -14,6 +14,19 @@ vi.mock("../../piece-practice/rolodex/rolodex-practice", () => ({ RolodexPractic
 afterEach(cleanup);
 const occurrence = freezeLessonRepertoire(createEntry(testScore(), "piano"));
 const ready = { phase: "ready" as const, elapsedMs: 0, pulse: 0, attempt: null, save: "idle" as const, error: null };
+it("passes manual host presentation without changing the daily default", () => {
+  const props = { occurrence, active: true, finished: false, onFinish: vi.fn(), onChange: vi.fn(), onPlaying: vi.fn() };
+  const focus = () => true;
+  const view = render(<PracticeLessonRepertoire {...props} finishLabel="Finish practice" entryFocusAllowed={focus} />);
+  expect(capture.host).toMatchObject({ finishLabel: "Finish practice", entryFocusAllowed: focus });
+  view.rerender(<PracticeLessonRepertoire {...props} />); expect(capture.host?.finishLabel).toBeUndefined();
+});
+it.each(["stopped", "interrupted", "completed"] as const)("retains the acknowledged native %s outcome without fabricating completion", status => {
+  const onChange = vi.fn(), attempt = { ...terminal(), status };
+  render(<PracticeLessonRepertoire occurrence={occurrence} active finished={false} onFinish={vi.fn()} onChange={onChange} onPlaying={vi.fn()} finishLabel="Finish practice" />);
+  act(() => { capture.host!.onAcknowledged(attempt); capture.host!.onView({ ...ready, phase: "results", save: "saved", attempt }); });
+  expect(onChange.mock.lastCall![0]).toMatchObject({ attempts: [{ status }], skipped: false, pending: false });
+});
 function terminal(id = "attempt-one"): ContinuousAttempt {
   return { version: 1, id, revision: 2, passage: occurrence.passage, input: TEST_INPUT, status: "completed", startedAt: "2026-10-20T12:00:00.000Z", endedAt: "2026-10-20T12:01:00.000Z", performanceStartedAt: "2026-10-20T12:00:04.000Z", observedThroughMs: 10000, reason: null, attacks: [], assessment: null, terminalSaveAttempts: 1 };
 }

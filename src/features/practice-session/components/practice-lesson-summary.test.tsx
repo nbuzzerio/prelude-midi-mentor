@@ -50,6 +50,7 @@ it("retains native diagnostics and real print controls behind an expandable sect
   const text = screen.getByLabelText("Native lesson printable Practice Session report").textContent;
   expect(text).toContain("exercise 1 of 3. Single-attempt report only.");
   expect(text).toContain("Exercise 1 of 1");
+  expect(text).toContain("Target reached — attempt still open at export");
   fireEvent(window, new Event("afterprint"));
 });
 
