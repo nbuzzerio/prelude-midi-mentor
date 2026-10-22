@@ -3,9 +3,10 @@ import { Accidental, Beam, Dot, Formatter, Stave, StaveConnector, StaveNote, Sta
 import type { StaffBuilderScore } from "../staff-builder-types";
 import { renderStaffBuilderMeasure } from "./render-staff-builder-measure";
 import { projectStaffBuilderPendingPreview } from "./staff-builder-notation";
-import { generateMelodyExercise } from "@/features/melody/melody-generator";
-import { DEFAULT_MELODY_SETTINGS } from "@/features/melody/melody-types";
+import { buildMelodyDiatonicPitchPool, generateMelodyExercise, MELODY_RHYTHM_TEMPLATES } from "@/features/melody/melody-generator";
+import { DEFAULT_MELODY_SETTINGS, MELODY_KEY_IDS } from "@/features/melody/melody-types";
 import { projectMelodyExerciseToPracticeDisplayScore } from "@/features/melody/melody-display-score";
+import { durationToTicks } from "../staff-builder-time";
 
 function score(): StaffBuilderScore {
   return {
@@ -64,6 +65,87 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it.each(MELODY_KEY_IDS)("keeps complete compact %s measures readable with stable rows in both clefs", keyId => {
+    const heights = new Set<number>();
+    for (const staff of ["treble", "bass"] as const) {
+      const pool = buildMelodyDiatonicPitchPool({ staff, keyId });
+      for (const [templateIndex, template] of MELODY_RHYTHM_TEMPLATES.entries()) {
+        let startTick = 0;
+        const current: StaffBuilderScore = {
+          ...score(), initialKeySignatureId: keyId, ties: [],
+          measures: [{ id: "compact", events: template.map((duration, index) => {
+            const event = {
+              id: `event-${index}`, kind: "notes" as const, staff, startTick,
+              rhythm: { status: "final" as const, duration },
+              pitches: [{ id: `pitch-${index}`, ...pool[(index + templateIndex) % pool.length]! }],
+            };
+            startTick += durationToTicks(duration);
+            return event;
+          }) }],
+        };
+        const before = structuredClone(current);
+        const normal = renderStaffBuilderMeasure(document.createElement("div"), current, 0, { visibleStaff: staff, readingFlowWidth: 192 });
+        const container = document.createElement("div");
+        const result = renderStaffBuilderMeasure(container, current, 0, { visibleStaff: staff, readingFlowWidth: 192, readingFlowCompact: true });
+        heights.add(result.height);
+        expect(result.height).toBeLessThan(180);
+        expect(result.width).toBeLessThan(normal.width);
+        expect(result.projection).toEqual(normal.projection);
+        expect([...result.anchors.authoritativeEvents.keys()]).toEqual(current.measures[0]!.events.map(({ id }) => id));
+        const anchors = [...result.anchors.authoritativeEvents.values()];
+        for (const [index, anchor] of anchors.entries()) {
+          const bounds = anchor.highlightBounds ?? anchor;
+          expect(bounds.x).toBeGreaterThanOrEqual(0);
+          expect(bounds.x + bounds.width).toBeLessThanOrEqual(result.width);
+          expect(bounds.y).toBeGreaterThanOrEqual(0);
+          expect(bounds.y + bounds.height).toBeLessThanOrEqual(result.height);
+          if (index > 0) expect(anchor.onsetX).toBeGreaterThan(anchors[index - 1]!.onsetX);
+          // Geometry prerequisite for a phone preview; browser ink/occlusion
+          // checks remain separate from these deterministic renderer bounds.
+          if (index < 2) expect(bounds.x + bounds.width).toBeLessThanOrEqual(192);
+        }
+        expect(result.anchors.notationControls.timeSignature.x + result.anchors.notationControls.timeSignature.width).toBeLessThan(anchors[0]!.onsetX);
+        expect(container.querySelector("svg")?.getAttribute("viewBox")).toBe(`0 0 ${result.width} ${result.height}`);
+        expect(current).toEqual(before);
+      }
+    }
+    expect(heights.size).toBe(1);
+  });
+
+  it("keeps all legacy layouts unchanged unless the single-staff compact reading option is explicit", () => {
+    const current = score();
+    for (const options of [{}, { visibleStaff: "treble" }, { readingFlowWidth: 200 }] as const) {
+      const normal = renderStaffBuilderMeasure(document.createElement("div"), current, 0, options);
+      expect(renderStaffBuilderMeasure(document.createElement("div"), current, 0, { ...options, readingFlowCompact: true })).toEqual(normal);
+    }
+    const options = { visibleStaff: "treble", readingFlowWidth: 200 } as const;
+    const normal = renderStaffBuilderMeasure(document.createElement("div"), current, 0, options);
+    expect(normal.width).toBe(440);
+    expect(renderStaffBuilderMeasure(document.createElement("div"), current, 0, { ...options, readingFlowCompact: false })).toEqual(normal);
+  });
+
+  it.each(["treble", "bass"] as const)("expands compact %s rows for out-of-range ledger notes and retains preparatory rests", staff => {
+    const practice = projectMelodyExerciseToPracticeDisplayScore(generateMelodyExercise({ ...DEFAULT_MELODY_SETTINGS, staff }, "compact-rest"));
+    const options = { visibleStaff: staff, readingFlowWidth: 192, readingFlowCompact: true };
+    const rest = renderStaffBuilderMeasure(document.createElement("div"), practice, 0, options);
+    const opening = renderStaffBuilderMeasure(document.createElement("div"), practice, 1, options);
+    expect(rest.height).toBe(opening.height);
+    expect(rest.projection.timeSignature).toBe("2/4");
+    expect(rest.projection.staves[staff][0]?.kind).toBe("rest");
+    const current: StaffBuilderScore = { ...score(), ties: [], initialKeySignatureId: "c-major", measures: [{ id: "ledger", events: [{
+      id: "extreme", kind: "notes", staff, startTick: 0,
+      rhythm: { status: "final", duration: "quarter" },
+      pitches: [{ id: "p", letter: "C", accidental: "sharp", octave: staff === "treble" ? 7 : 1, midiNumber: staff === "treble" ? 97 : 25 }],
+    }] }] };
+    const result = renderStaffBuilderMeasure(document.createElement("div"), current, 0, options);
+    const bounds = result.anchors.authoritativeEvents.get("extreme")!.highlightBounds!;
+    expect(result.height).toBeGreaterThan(opening.height);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(result.width);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(result.height);
+  });
+
   it.each(["treble", "bass"] as const)("fits unchanged %s Reading Flow events and signatures at the minimum internal width", staff => {
     for (const keyId of ["c-major", "g-major", "f-major", "a-minor", "d-minor"] as const) {
       const exercise = generateMelodyExercise({ ...DEFAULT_MELODY_SETTINGS, staff, keyId, measureCount: 2 }, `reading-${staff}-${keyId}`);

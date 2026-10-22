@@ -28,6 +28,7 @@ vi.mock("@/hooks/use-app-midi-input", () => ({ useAppMidiInput: (options: typeof
   return { status: "connected", deviceName: "Test Keys", error: null, connectMidi: vi.fn() };
 } }));
 vi.mock("@/features/staff-builder/components/staff-builder-score-view", () => ({ StaffBuilderScoreView: ({ measureIndex, visibleStaff, playbackPosition }: Record<string, unknown>) => <div data-offset={(playbackPosition as { offsetTicks?: number } | undefined)?.offsetTicks} data-staff={visibleStaff}>{Number(measureIndex) === 0 ? "Preparatory rest region" : `Score measure ${Number(measureIndex)}`}</div> }));
+vi.mock("./melody-reading-measure", () => ({ MelodyReadingMeasure: ({ measureIndex, measureCount, staff, offsetTicks, role }: { measureIndex: number; measureCount: number; staff: string; offsetTicks?: number; role: string }) => <figure data-measure-role={role}><figcaption>Measure {measureIndex} of {measureCount}</figcaption><div data-offset={offsetTicks} data-staff={staff}>{`Score measure ${measureIndex}`}</div></figure> }));
 vi.mock("@/components/notation/piano-keyboard", () => ({ default: ({ minMidi, maxMidi, onNotePress, onNoteRelease }: { minMidi: number; maxMidi: number; onNotePress: (midi: number) => void; onNoteRelease: (midi: number) => void }) => <div><span>Keyboard {minMidi}-{maxMidi}</span><button onPointerDown={() => onNotePress(minMidi)} onPointerUp={() => onNoteRelease(minMidi)}>Virtual note</button></div> }));
 
 function fakeAudio() {
@@ -195,7 +196,7 @@ describe("MelodySession", () => {
       expect((screen.getByRole("combobox", { name }) as HTMLSelectElement).value).toBe(value);
     }
     expect((screen.getByRole("checkbox", { name: "Continuous Practice" }) as HTMLInputElement).checked).toBe(true);
-    expect(screen.getAllByText(/Score measure/)).toHaveLength(1);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
     expect(screen.getByText("Keyboard 48-60")).toBeTruthy();
     const score = screen.getByText("Score measure 1");
     view.rerender(<MelodySession initialConfig={{ ...config }} seedFactory={seedFactory} />);
@@ -466,7 +467,7 @@ describe("MelodySession", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Staff" }), { target: { value: "bass" } });
     expect(screen.getByText("Keyboard 48-60")).toBeTruthy();
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "2" } });
-    expect(screen.getAllByText(/Score measure/)).toHaveLength(1);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
     expect(screen.getByText("Measure 1 of 2")).toBeTruthy();
   });
 
@@ -820,13 +821,15 @@ describe("MelodySession", () => {
     expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
   });
 
-  it("keeps one keyboard and one active score/count view for the complete two-measure phrase", () => {
+  it("keeps one keyboard and count guide with both authoritative measures visible before playing", () => {
     const { container } = render(<MelodySession seedFactory={() => "seed"} />);
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "2" } });
     expect(screen.getAllByText(/Keyboard /)).toHaveLength(1);
-    expect(screen.getAllByText(/Score measure/)).toHaveLength(1);
+    expect(screen.getAllByText(/Score measure/)).toHaveLength(2);
     const scroll = container.querySelector(".melody-score-scroll");
     expect(screen.getByText("Measure 1 of 2")).toBeTruthy();
+    expect(screen.getByText("Measure 2 of 2")).toBeTruthy();
+    expect(screen.getByText("Score measure 2").closest("figure")?.getAttribute("data-measure-role")).toBe("upcoming");
     expect(screen.getByLabelText("Melody exercise score and preparatory lead-in").tabIndex).toBe(0);
     expect(scroll?.querySelectorAll(".melody-score-track")).toHaveLength(0);
     expect(scroll?.querySelectorAll('[aria-label="Count guide"]')).toHaveLength(1);
@@ -992,14 +995,22 @@ describe("MelodySession", () => {
     const config = { ...timedConfig, measureCount: 2 as const };
     const exercise = generateMelodyExercise(melodyConfigToSettings(config), "two-measure-follow");
     const view = render(<MelodySession initialConfig={config} createAudioContext={createAudioContext} seedFactory={seedFactory} onPracticeResultChange={results} />);
+    const first = screen.getByText("Score measure 1"), next = screen.getByText("Score measure 2");
+    expect(first.getAttribute("data-offset")).toBeNull(); expect(next.getAttribute("data-offset")).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Ready — Begin Count-in" })); });
     expect(view.container.querySelector('[data-active-display-measure="1"]')).not.toBeNull();
+    expect(screen.getByText("Score measure 1")).toBe(first); expect(screen.getByText("Score measure 2")).toBe(next);
+    expect(next.getAttribute("data-offset")).toBeNull();
     results.mockClear(); audio.setNow(2.1); frame();
     expect(view.container.querySelector('[data-active-display-measure="1"]')).not.toBeNull();
     act(() => midi.options?.onNotePlayed?.(exercise.expectedAttacks[0]!.midiNumber));
     const sourceBefore = screen.getByText(/Input: MIDI/); fireEvent(window, new Event("resize"));
     audio.setNow(6.4); frame();
     expect(view.container.querySelector('[data-active-display-measure="2"]')).not.toBeNull();
+    expect(screen.getByText("Score measure 1")).toBe(first); expect(screen.getByText("Score measure 2")).toBe(next);
+    expect(first.getAttribute("data-offset")).toBeNull(); expect(next.getAttribute("data-offset")).not.toBeNull();
+    expect(first.closest("figure")?.getAttribute("data-measure-role")).toBe("completed");
+    expect(next.closest("figure")?.getAttribute("data-measure-role")).toBe("current");
     expect(screen.getByText(/Input: MIDI/)).toBe(sourceBefore); expect(results).not.toHaveBeenCalled();
     expect(seedFactory).toHaveBeenCalledTimes(1); expect(createAudioContext).toHaveBeenCalledTimes(1);
     audio.setNow(10.8); frame();

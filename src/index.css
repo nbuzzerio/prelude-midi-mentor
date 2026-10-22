@@ -42,12 +42,26 @@ button {
 /* Reading Flow alone opts into a music-stand viewport. The editor/report defaults stay above. */
 .melody-active-score-region { overflow: visible; min-width: 0; }
 .melody-active-score { display: flex; flex-direction: column; min-width: 0; gap: 0.4rem; }
-.melody-active-measure-title { margin: 0; min-height: 1.5rem; font-size: 1rem; font-weight: 600; }
-.melody-active-score .staff-builder-score-view { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
-.melody-active-score .staff-builder-score-interaction-plane { min-width: 0; flex: 1; display: flex; }
-.melody-active-score .staff-builder-notation-scroll { display: flex; align-items: center; width: 100%; min-width: 0; min-height: 22rem; overflow-x: auto; overscroll-behavior-inline: contain; }
-.melody-active-score[data-expanded="true"] .staff-builder-notation-scroll { min-height: 27rem; }
-.melody-active-score .staff-builder-notation-presentation { min-width: 0; flex: 0 0 auto; }
+.melody-reading-rows { display: grid; gap: 0.5rem; min-width: 0; }
+.melody-reading-measure { margin: 0; min-width: 0; border: 1px solid rgb(113 113 122); border-radius: 0.5rem; overflow: hidden; }
+.melody-reading-measure[data-measure-role="current"] { border-color: rgb(56 189 248); }
+.melody-reading-caption { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.15rem 0.5rem; min-height: 1.75rem; font-size: 0.875rem; font-weight: 600; }
+.melody-reading-role { color: rgb(186 230 253); }
+.melody-reading-scroll { width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; background: #fff; color: #111827; }
+.melody-reading-scroll:focus-visible { outline: 3px solid rgb(2 132 199); outline-offset: -3px; }
+.melody-reading-presentation { position: relative; }
+.melody-reading-canvas { position: relative; transform-origin: top left; }
+.melody-reading-canvas svg { display: block; }
+.melody-reading-cursor { position: absolute; pointer-events: none; width: 2px; transform: translateX(-1px); background: rgb(2 132 199 / 80%); }
+.melody-reading-boundary { margin: 0; min-height: 1.25rem; color: rgb(212 212 216); font-size: 0.75rem; }
+.melody-reading-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; }
+.melody-reading-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+.melody-reading-transport { display: flex; align-items: center; min-height: 3rem; }
+.melody-ready-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.melody-ready-controls p { margin: 0; }
+.melody-time-status { min-height: 1.25rem; margin: 0; font-size: 0.875rem; line-height: 1.25rem; }
+@media (max-width: 1023px) { .melody-reading-controls { grid-template-columns: minmax(0, 1fr); } .melody-reading-meta { flex-direction: row; align-items: center; justify-content: space-between; } }
+@media (max-width: 639px) { .melody-reading-transport { min-height: 6rem; } .melody-reading-meta { flex-direction: column; align-items: flex-start; } .melody-time-status { min-height: 2.5rem; } }
 .melody-connection-controls { display: flex; justify-content: flex-end; }
 .melody-play-status { margin: 0; min-height: 1.5rem; }
 .melody-practice > p { margin: 0; font-size: 0.875rem; }
@@ -61,7 +75,7 @@ button {
 @media (max-width: 480px) { .melody-interval-statistic { grid-template-columns: minmax(3.5rem, auto) minmax(0, 1fr) auto; } .melody-interval-statistic > :last-child { grid-column: 2 / -1; } }
 .melody-result-primary-actions { padding-bottom: max(0rem, env(safe-area-inset-bottom)); }
 .melody-mobile-play-context { margin: 0; padding-right: 9rem; color: rgb(212 212 216); font-size: 0.875rem; font-weight: 600; }
-.melody-practice { display: grid; gap: 1rem; min-height: 0; }
+.melody-practice { display: grid; gap: 0.5rem; min-height: 0; }
 .melody-mobile-play { align-content: start; gap: 0.75rem; max-width: none; }
 .melody-mobile-play .melody-settings { order: 3; }
 .melody-mobile-play .melody-practice { min-height: 0; }

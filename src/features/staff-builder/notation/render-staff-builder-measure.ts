@@ -55,6 +55,8 @@ export type StaffBuilderMeasureRenderOptions = StaffBuilderMeasureProjectionOpti
   ghostedStaff?: StaffBuilderStaff;
   /** Reading Flow only: compact single-staff vertical layout and responsive formatting. */
   readingFlowWidth?: number;
+  /** Melody's two-row reading view only; preserves full measures at their natural minimum width. */
+  readingFlowCompact?: boolean;
 }>;
 
 export type StaffBuilderMeasureRenderResult = Readonly<{
@@ -80,12 +82,25 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const visibleStaff = options?.visibleStaff ?? "grand";
   const singleStaff = visibleStaff !== "grand";
   const readingFlow = singleStaff && options?.readingFlowWidth !== undefined;
-  const renderWidth = readingFlow && Number.isFinite(options?.readingFlowWidth) ? Math.max(440, options!.readingFlowWidth!) : RENDER_WIDTH;
-  const baseTrebleY = singleStaff ? readingFlow ? 35 : 95 : TREBLE_Y;
-  const baseBassY = singleStaff ? readingFlow ? 35 : 95 : BASS_Y;
+  const compactReading = readingFlow && options?.readingFlowCompact === true;
+  let renderWidth = readingFlow && Number.isFinite(options?.readingFlowWidth) ? Math.max(compactReading ? 160 : 440, options!.readingFlowWidth!) : RENDER_WIDTH;
+  const staveX = compactReading ? 8 : STAVE_X;
+  const staveRightPadding = compactReading ? 8 : STAVE_RIGHT_PADDING;
+  const baseTrebleY = compactReading ? 0 : singleStaff ? readingFlow ? 35 : 95 : TREBLE_Y;
+  const baseBassY = compactReading ? 0 : singleStaff ? readingFlow ? 35 : 95 : BASS_Y;
+  const pitchSources = [...projection.staves.treble, ...projection.staves.bass].flatMap((item) => item.kind === "notes" ? [{ staff: item.staff, clef: projection.clefs[item.staff], pitches: item.pitches }] : []);
   const vertical = getStaffBuilderVerticalGeometry({
-    pitchSources: [...projection.staves.treble, ...projection.staves.bass].flatMap((item) => item.kind === "notes" ? [{ staff: item.staff, clef: projection.clefs[item.staff], pitches: item.pitches }] : []),
-    baseHeight: readingFlow ? 180 : BASE_RENDER_HEIGHT,
+    // Reserve the whole Melody range, not just this measure, so the two rows stay
+    // fixed while their active state changes. Actual pitches still expand safely.
+    pitchSources: compactReading ? [...pitchSources, {
+      staff: visibleStaff,
+      clef: projection.clefs[visibleStaff],
+      pitches: [
+        { letter: "C", octave: visibleStaff === "treble" ? 4 : 3 },
+        { letter: "C", octave: visibleStaff === "treble" ? 5 : 4 },
+      ],
+    }] : pitchSources,
+    baseHeight: compactReading ? 110 : readingFlow ? 180 : BASE_RENDER_HEIGHT,
     trebleStaveY: baseTrebleY,
     bassStaveY: baseBassY,
     visibleStaff,
@@ -103,24 +118,21 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     draw();
     context.closeGroup();
   };
-  const staveWidth = renderWidth - STAVE_X - STAVE_RIGHT_PADDING;
-  const trebleStave = new Stave(STAVE_X, vertical.trebleStaveY, staveWidth).addClef(projection.clefs.treble);
-  const bassStave = new Stave(STAVE_X, vertical.bassStaveY, staveWidth).addClef(projection.clefs.bass);
-  const clefEndX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
+  const staveWidth = renderWidth - staveX - staveRightPadding;
+  const trebleStave = new Stave(staveX, vertical.trebleStaveY, staveWidth).addClef(projection.clefs.treble);
+  const bassStave = new Stave(staveX, vertical.bassStaveY, staveWidth).addClef(projection.clefs.bass);
+  const signatureEndX = () => compactReading
+    ? (visibleStaff === "bass" ? bassStave : trebleStave).getNoteStartX()
+    : Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
+  const clefEndX = signatureEndX();
   trebleStave.addKeySignature(projection.vexflowKeySignature);
   bassStave.addKeySignature(projection.vexflowKeySignature);
-  const keyEndX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
+  const keyEndX = signatureEndX();
   trebleStave.addTimeSignature(projection.timeSignature);
   bassStave.addTimeSignature(projection.timeSignature);
-  const sharedNoteStartX = Math.max(trebleStave.getNoteStartX(), bassStave.getNoteStartX());
+  const sharedNoteStartX = signatureEndX();
   trebleStave.setNoteStartX(sharedNoteStartX);
   bassStave.setNoteStartX(sharedNoteStartX);
-  if (visibleStaff !== "bass") drawStaff("treble", () => trebleStave.setContext(context).draw());
-  if (visibleStaff !== "treble") drawStaff("bass", () => bassStave.setContext(context).draw());
-  if (!singleStaff) {
-    new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.BRACE).setContext(context).draw();
-    new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
-  }
 
   const trebleVoices = createStaffBuilderVexFlowVoices(projection.voices.treble, projection.timeSignature, projection.clefs.treble);
   const bassVoices = createStaffBuilderVexFlowVoices(projection.voices.bass, projection.timeSignature, projection.clefs.bass);
@@ -134,7 +146,27 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const visibleTrebleVoices = visibleStaff === "bass" ? [] : trebleVoices;
   const visibleBassVoices = visibleStaff === "treble" ? [] : bassVoices;
   const allVoices = [...visibleTrebleVoices, ...visibleBassVoices];
-  formatter.format(allVoices.map(({ voice }) => voice), renderWidth - FORMAT_PADDING);
+  const voices = allVoices.map(({ voice }) => voice);
+  if (compactReading) {
+    const visibleStave = visibleStaff === "bass" ? bassStave : trebleStave;
+    // Measure glyph demand before drawing: narrow screens may scroll a dense
+    // full measure, but sparse measures need not inherit the 440-unit floor.
+    const rhythmicMinimum = formatter.preCalculateMinTotalWidth(voices);
+    const endInset = renderWidth - staveRightPadding - visibleStave.getNoteEndX();
+    renderWidth = Math.max(renderWidth, Math.ceil(sharedNoteStartX + rhythmicMinimum + Stave.defaultPadding + endInset + staveRightPadding));
+    trebleStave.setWidth(renderWidth - staveX - staveRightPadding).setNoteStartX(sharedNoteStartX);
+    bassStave.setWidth(renderWidth - staveX - staveRightPadding).setNoteStartX(sharedNoteStartX);
+    renderer.resize(renderWidth, vertical.height);
+    formatter.format(voices, visibleStave.getNoteEndX() - sharedNoteStartX - Stave.defaultPadding);
+  } else {
+    formatter.format(voices, renderWidth - FORMAT_PADDING);
+  }
+  if (visibleStaff !== "bass") drawStaff("treble", () => trebleStave.setContext(context).draw());
+  if (visibleStaff !== "treble") drawStaff("bass", () => bassStave.setContext(context).draw());
+  if (!singleStaff) {
+    new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.BRACE).setContext(context).draw();
+    new StaveConnector(trebleStave, bassStave).setType(StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
+  }
   if (!options?.ghostedStaff) {
     visibleTrebleVoices.forEach(({ voice }) => voice.draw(context, trebleStave));
     visibleBassVoices.forEach(({ voice }) => voice.draw(context, bassStave));
@@ -176,7 +208,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
     if (staff) drawStaff(staff, draw);
     else draw();
   });
-  if (visibleStaff !== "bass") drawStaff("treble", () => drawStaffBuilderLyricCues(context, lyricCues, noteByEventId, 16, STAVE_X, renderWidth - STAVE_RIGHT_PADDING));
+  if (visibleStaff !== "bass") drawStaff("treble", () => drawStaffBuilderLyricCues(context, lyricCues, noteByEventId, 16, staveX, renderWidth - staveRightPadding));
 
   configureStaffBuilderSvg(container, renderWidth, vertical.height);
   const eventAnchors = createStaffBuilderEventAnchors([...(visibleStaff === "bass" ? [] : trebleRendered), ...(visibleStaff === "treble" ? [] : bassRendered)]);
@@ -198,9 +230,9 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
       positions: temporal.positions,
       timeline: temporal.timeline,
       notationControls: {
-        trebleClef: { x: STAVE_X, y: trebleTop, width: Math.max(12, clefEndX - STAVE_X), height: trebleBottom - trebleTop },
-        grandStaff: { x: Math.max(0, STAVE_X - 18), y: trebleBottom - 8, width: 18, height: Math.max(44, bassTop - trebleBottom + 16) },
-        bassClef: { x: STAVE_X, y: bassTop, width: Math.max(12, clefEndX - STAVE_X), height: bassBottom - bassTop },
+        trebleClef: { x: staveX, y: trebleTop, width: Math.max(12, clefEndX - staveX), height: trebleBottom - trebleTop },
+        grandStaff: { x: Math.max(0, staveX - 18), y: trebleBottom - 8, width: 18, height: Math.max(44, bassTop - trebleBottom + 16) },
+        bassClef: { x: staveX, y: bassTop, width: Math.max(12, clefEndX - staveX), height: bassBottom - bassTop },
         keySignature: { x: keyEndX - keyWidth, y: signatureTop, width: keyWidth, height: signatureBottom - signatureTop },
         timeSignature: { x: keyEndX, y: signatureTop, width: timeWidth, height: signatureBottom - signatureTop },
       },
