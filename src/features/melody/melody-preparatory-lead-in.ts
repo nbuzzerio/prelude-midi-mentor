@@ -24,10 +24,10 @@ export function getMelodyPreparatoryLeadIn(
   }
   if (timeSignature === "3/4" || timeSignature === "4/4") {
     return Object.freeze({
-      durationTicks: STAFF_BUILDER_TICKS_PER_QUARTER * 2,
-      pulseCount: 2,
+      durationTicks: STAFF_BUILDER_TICKS_PER_QUARTER * 3,
+      pulseCount: 3,
       pulseTicks: STAFF_BUILDER_TICKS_PER_QUARTER,
-      restDuration: "half",
+      restDuration: "dotted-half",
     });
   }
   return Object.freeze({

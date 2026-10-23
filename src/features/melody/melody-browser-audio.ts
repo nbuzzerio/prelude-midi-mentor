@@ -2,6 +2,8 @@ import type { MelodyAudioContextLike } from "./melody-metronome";
 
 export type MelodyOwnedAudioContext = MelodyAudioContextLike & Readonly<{
   close?: () => Promise<void>;
+  addEventListener?: (type: "statechange", listener: () => void) => void;
+  removeEventListener?: (type: "statechange", listener: () => void) => void;
 }>;
 
 export function createMelodyBrowserAudioContext(): MelodyOwnedAudioContext {

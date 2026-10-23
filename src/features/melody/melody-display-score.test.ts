@@ -37,7 +37,7 @@ describe("Melody display-score projection", () => {
     expect(score.measures).toHaveLength(measureCount + 1);
     expect(score.measures[0]).toMatchObject({
       id: `${exercise.id}-preparatory-lead-in`,
-      events: [{ kind: "rest", rhythm: { status: "final", duration: "half" } }],
+      events: [{ kind: "rest", rhythm: { status: "final", duration: "dotted-half" } }],
     });
     expect(score.measures.slice(1).flatMap(({ events }) => events).map(({ id }) => id)).toEqual(
       exercise.measures.flatMap(({ events }) => events).map(({ id }) => id),

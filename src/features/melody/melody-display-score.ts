@@ -40,7 +40,7 @@ export function projectMelodyExerciseToPracticeDisplayScore(
     ...target,
     id: `${exercise.id}-practice-display-score`,
     title: "Melody exercise with preparatory lead-in",
-    initialTimeSignature: "2/4",
+    initialTimeSignature: "3/4",
     measures: [
       {
         id: `${exercise.id}-preparatory-lead-in`,

@@ -102,6 +102,7 @@ export default function MelodySession({
   const [audioError, setAudioError] = useState<string | null>(null);
   const [interruptionNotice, setInterruptionNotice] = useState<string | null>(null);
   const [activeTick, setActiveTick] = useState<number | undefined>();
+  const [preparationTick, setPreparationTick] = useState<number | undefined>();
   const [activeVirtual, setActiveVirtual] = useState<ReadonlySet<number>>(EMPTY);
   const [lockedSource, setLockedSource] = useState<"midi" | "virtual" | null>(null);
   const [continuousPractice, setContinuousPractice] = useState(mountConfig.continuousPractice);
@@ -121,6 +122,8 @@ export default function MelodySession({
   const clockRef = useRef<MelodyPerformanceClock | null>(null);
   const audioContextRef = useRef<MelodyOwnedAudioContext | null>(null);
   const recorderRef = useRef<MelodyPerformanceRecorder | null>(null);
+  const pendingContinuationRef = useRef<{ exercise: MelodyExercise; generation: number } | null>(null);
+  const inputOwnedRef = useRef(true);
   const readyAttemptRef = useRef<MelodyAttemptContext | null>(null);
   const readyStartedAtMsRef = useRef<number | null>(null);
   const animationRef = useRef<number | null>(null);
@@ -205,6 +208,7 @@ export default function MelodySession({
 
   const cancelAttempt = useCallback(() => {
     generationRef.current += 1;
+    pendingContinuationRef.current = null;
     readyAttemptRef.current = null;
     clockRef.current?.cancel();
     clockRef.current = null;
@@ -212,9 +216,33 @@ export default function MelodySession({
     if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
     animationRef.current = null;
     setActiveTick(undefined);
+    setPreparationTick(undefined);
     setActiveVirtual(EMPTY);
     setLockedSource(null);
   }, []);
+
+  const stopPlaying = useCallback((reason?: string) => {
+    if (!mountedRef.current || !["ready", "starting", "count-in", "performing"].includes(presentationRef.current)) return;
+    cancelAttempt();
+    setResult(null);
+    if (continuousSessionActiveRef.current) {
+      publishPracticeResult(continuousHistoryRef.current, !!reason);
+      presentationRef.current = "review";
+      enterReview(continuousHistoryRef.current, !!reason);
+    } else {
+      presentationRef.current = "setup";
+      setPresentation("setup");
+    }
+    setInterruptionNotice(reason ?? "Playing stopped. Completed trials were preserved.");
+  }, [cancelAttempt, enterReview, publishPracticeResult]);
+
+  useEffect(() => {
+    const context = audioContextRef.current;
+    if (!context) return;
+    const changed = () => { if (clockRef.current && context.state !== "running") stopPlaying("Playing interrupted because the audio clock stopped. Start deliberately when audio is available."); };
+    context.addEventListener?.("statechange", changed);
+    return () => context.removeEventListener?.("statechange", changed);
+  }, [presentation, stopPlaying]);
 
   presentationRef.current = presentation;
   resultRef.current = result;
@@ -297,6 +325,10 @@ export default function MelodySession({
   ) {
     const clock = clockRef.current;
     if (!clock || generation !== generationRef.current) return;
+    if (audioContextRef.current?.state !== "running") {
+      stopPlaying("Playing interrupted because the audio clock stopped. Start deliberately when audio is available.");
+      return;
+    }
     const now = clock.nowSeconds();
     const phase = getMelodyPerformancePhase(clock, now);
     if (phase === "complete") {
@@ -307,6 +339,7 @@ export default function MelodySession({
       clockRef.current = null;
       recorderRef.current = null;
       setActiveTick(undefined);
+      setPreparationTick(undefined);
       setResult(nextResult);
       resultRef.current = nextResult;
       if (attemptContext.kind === "diagnostic") {
@@ -372,8 +405,10 @@ export default function MelodySession({
       const displayedLeadInTick = reducedMotion
         ? Math.floor(clampedLeadInTick / preparatoryLeadIn.pulseTicks) * preparatoryLeadIn.pulseTicks
         : clampedLeadInTick;
-      setActiveTick(displayedLeadInTick - preparatoryLeadIn.durationTicks);
+      setActiveTick(now < clock.countInStartedAtSeconds ? -preparatoryLeadIn.durationTicks - 1 : displayedLeadInTick - preparatoryLeadIn.durationTicks);
+      setPreparationTick(now >= clock.countInStartedAtSeconds ? clampedLeadInTick : undefined);
     } else {
+      setPreparationTick(undefined);
       setPresentation("performing");
       setStatusMessage("Performance started.");
       const rawTick = ((now - clock.performanceStartedAtSeconds) / clock.quarterBeatSeconds) * STAFF_BUILDER_TICKS_PER_QUARTER;
@@ -387,6 +422,10 @@ export default function MelodySession({
     exerciseToPerform: MelodyExercise,
     attemptContext: MelodyAttemptContext,
   ) => {
+    if (!inputOwnedRef.current) {
+      stopPlaying("Playing interrupted because MIDI input ownership changed.");
+      return;
+    }
     if (presentationRef.current === "starting" || presentationRef.current === "count-in" || presentationRef.current === "performing" || document.visibilityState === "hidden") return;
     readyAttemptRef.current = null;
     cancelAttempt();
@@ -426,7 +465,7 @@ export default function MelodySession({
         setTimerDisplayNowMs(startedAtMs);
       }
       setPresentation("count-in");
-      setActiveTick(-preparatoryLeadIn.durationTicks);
+      setActiveTick(-preparatoryLeadIn.durationTicks - 1);
       setStatusMessage("Preparatory lead-in started.");
       animationRef.current = requestAnimationFrame(() => sampleClock(generation, exerciseToPerform, attemptContext));
     } catch {
@@ -439,6 +478,7 @@ export default function MelodySession({
         return;
       }
       if (continuousSessionActiveRef.current && continuousHistoryRef.current.length > 0) {
+        publishPracticeResult(continuousHistoryRef.current, true);
         enterReview(continuousHistoryRef.current, true);
         setInterruptionNotice("Timed diagnostic interrupted because the next audio clock could not start.");
         setStatusMessage("Timed diagnostic interrupted. Completed trials were preserved.");
@@ -469,6 +509,19 @@ export default function MelodySession({
     setStatusMessage("Ready. Study the opening measure, then begin count-in.");
   };
 
+  const startPreparedContinuation = useEffectEvent(() => {
+    const pending = pendingContinuationRef.current;
+    if (!pending || pending.exercise !== exercise || pending.generation !== generationRef.current || presentationRef.current !== "ready") return;
+    pendingContinuationRef.current = null;
+    const deadline = continuousDeadlineMsRef.current;
+    if (deadline !== null && !canStartMelodyContinuousDiagnosticTrial(deadline, nowMs())) {
+      finishTimedTarget(continuousHistoryRef.current);
+      return;
+    }
+    void beginAttempt(pending.exercise, { kind: "diagnostic" });
+  });
+  useEffect(() => { startPreparedContinuation(); }, [exercise, presentation]);
+
   const start = () => beginAttempt(exercise, { kind: "single" });
 
   const record = useCallback((midiNumber: number, source: "midi" | "virtual") => {
@@ -479,6 +532,8 @@ export default function MelodySession({
   }, []);
   const midi = useAppMidiInput({
     onNotePlayed: (midiNumber) => record(midiNumber, "midi"),
+    onInputConnectionChange: change => { if (change.state === "disconnected") stopPlaying("Playing interrupted because a MIDI input disconnected."); },
+    onOwnershipChange: active => { inputOwnedRef.current = active; if (!active) stopPlaying("Playing interrupted because MIDI input ownership changed."); },
     onSustainPedalChanged: (isDown) => {
       sustainPedalDownRef.current = isDown;
       if (presentationRef.current !== "results") return;
@@ -523,6 +578,7 @@ export default function MelodySession({
     cancelAttempt(); setResult(null); setPresentation("setup"); setStatusMessage("Ready to retry the same melody.");
   };
   const tryAnother = () => {
+    if (presentationRef.current !== "results") return;
     if (continuousSessionActiveRef.current) {
       const deadlineMs = continuousDeadlineMsRef.current;
       if (deadlineMs !== null
@@ -530,9 +586,18 @@ export default function MelodySession({
         finishTimedTarget(continuousHistoryRef.current);
         return;
       }
-      const nextExercise = generateMelodyExercise(settings, seedFactory());
-      setExercise(nextExercise);
-      prepareAttempt({ kind: "diagnostic" });
+      try {
+        const nextExercise = generateMelodyExercise(settings, seedFactory());
+        setExercise(nextExercise);
+        prepareAttempt({ kind: "diagnostic" });
+        pendingContinuationRef.current = { exercise: nextExercise, generation: generationRef.current };
+      } catch {
+        cancelAttempt();
+        publishPracticeResult(continuousHistoryRef.current, true);
+        presentationRef.current = "review";
+        enterReview(continuousHistoryRef.current, true);
+        setInterruptionNotice("Playing interrupted because the next phrase could not be generated. Completed trials were preserved.");
+      }
       return;
     }
     replaceExercise(settings, seedFactory());
@@ -664,13 +729,14 @@ export default function MelodySession({
       {presentation === "starting" && <p>Starting audio…</p>}
       {presentation === "count-in" && <p className="melody-play-status text-sm"><strong>Count-in</strong> · {preparatoryLeadIn.pulseCount} preparatory beats</p>}
       {presentation === "performing" && <p className="melody-play-status text-sm"><strong>Play</strong>{lockedSource ? ` · Input: ${lockedSource === "midi" ? "MIDI" : "On-screen keyboard"}` : ""}</p>}
+      {["starting", "count-in", "performing"].includes(presentation) && <button className="min-h-11 rounded border border-sky-400 px-3" onClick={() => stopPlaying()} type="button">Stop Playing</button>}
       </div>
         <div className="melody-reading-meta">
       {(isHostedFocus || isMobilePlayMode) && <div className="melody-connection-controls"><MidiStatus deviceName={midi.deviceName} error={midi.error} onConnect={midi.connectMidi} status={midi.status} /></div>}
       {continuousPractice && <p className="melody-time-status">{continuousSessionActive && continuousDeadlineMs !== null && presentation !== "setup" ? <>Time remaining: {formatRemainingTime(getMelodyContinuousRemainingMs(continuousDeadlineMs, timerDisplayNowMs))} · Trials completed: {continuousHistory.length}</> : null}</p>}
         </div>
       </div>
-      <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll melody-active-score-region" ref={scoreRegionRef} tabIndex={0}><MelodyActiveScore activeTick={activeTick} displayMeasureIndex={displayMeasureIndex} expanded={!showVirtualKeyboard} measureCount={exercise.measures.length as 1 | 2} measureTick={measureTick} score={score} staff={settings.staff} /></div>
+      <div aria-label="Melody exercise score and preparatory lead-in" className="melody-score-scroll melody-active-score-region" ref={scoreRegionRef} tabIndex={0}><MelodyActiveScore preparationTick={preparationTick} activeTick={activeTick} displayMeasureIndex={displayMeasureIndex} expanded={!showVirtualKeyboard} measureCount={exercise.measures.length as 1 | 2} measureTick={measureTick} score={score} staff={settings.staff} /></div>
       {hostedStart && presentation === "starting" && <div className="space-y-2"><p className="text-sm text-amber-200">If your browser needs another tap to enable audio, continue here. Your saved attempt remains the same.</p><button className="min-h-11 rounded bg-sky-500 px-4 py-2 font-semibold" onClick={() => { void audioContextRef.current?.resume().catch(() => setAudioError("Audio is still unavailable. End this exercise and try again when audio is available.")); }} type="button">Enable audio and continue</button></div>}
       {audioError && <p role="alert" className="text-red-300">{audioError}</p>}
       {interruptionNotice && <p aria-live="polite" className="text-amber-200" role="status">{interruptionNotice}</p>}

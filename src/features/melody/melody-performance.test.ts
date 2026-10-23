@@ -24,16 +24,16 @@ describe("Melody performance recorder", () => {
     expect(evaluateMelodyAttempt(exercise, recorder.getAttacks()).extras).toEqual([]);
   });
 
-  it("captures a slightly early first note within the existing alignment window", () => {
-    const { exercise, recorder, setNow } = setup();
-    setNow(9.5);
-    const attack = recorder.recordAttack(exercise.expectedAttacks[0]!.midiNumber, "midi");
-
-    expect(attack?.relativeTimeMs).toBe(-500);
-    expect(recorder.getLockedSource()).toBe("midi");
-    const result = evaluateMelodyAttempt(exercise, recorder.getAttacks());
-    expect(result.attacks[0]).toMatchObject({ status: "correct", performedAttack: attack });
-    expect(result.missedAttackCount).toBeLessThan(exercise.expectedAttacks.length);
+  it("ignores every preparatory attack, even within the former early window, without claiming a source", () => {
+    const { recorder, setNow } = setup();
+    for (const time of [9.25, 9.5, 9.999999]) {
+      setNow(time);
+      expect(recorder.recordAttack(60, "midi")).toBeNull();
+    }
+    expect(recorder.getLockedSource()).toBeNull();
+    expect(recorder.getAttacks()).toEqual([]);
+    setNow(10);
+    expect(recorder.recordAttack(60, "virtual")?.relativeTimeMs).toBe(0);
   });
 
   it("ignores a first-note pitch before the valid early window", () => {
@@ -49,7 +49,7 @@ describe("Melody performance recorder", () => {
 
   it("evaluates a wrong pitch inside the first-note window instead of discarding it", () => {
     const { exercise, recorder, setNow } = setup();
-    setNow(9.5);
+    setNow(10);
     const attack = recorder.recordAttack(exercise.expectedAttacks[0]!.midiNumber + 1, "virtual");
 
     expect(recorder.getLockedSource()).toBe("virtual");

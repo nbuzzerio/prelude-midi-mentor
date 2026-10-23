@@ -77,8 +77,8 @@ describe("fixed Reading Flow measure rows", () => {
     view.rerender(<MelodyActiveScore {...props} displayMeasureIndex={0} activeTick={-480} measureTick={480} />);
     screen.getAllByTestId("reading-row").forEach((row, index) => expect(row).toBe(rows[index]));
     expect(rows.every(row => !row.hasAttribute("data-offset"))).toBe(true);
-    expect(screen.getByLabelText("Preparatory lead-in").textContent).toBe("12");
-    expect(view.container.querySelector('[aria-current="true"]')?.textContent).toBe("2");
+    expect(screen.getByLabelText("Preparatory lead-in").textContent).toBe("321");
+    expect(view.container.querySelector('[aria-current="true"]')?.textContent).toBe("1");
   });
 
   it("keeps one count guide following native absolute ticks while both measures remain visible", () => {

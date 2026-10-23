@@ -62,6 +62,26 @@ afterEach(() => {
 });
 
 describe("readonly Melody measure", () => {
+  it.each(["treble", "bass"] as const)("anchors three stationary %s preparation pulses to the real opening and retains the SVG into performance", staff => {
+    const { score } = fixture(staff);
+    const props = { score, measureIndex: 1, measureCount: 2 as const, staff, expanded: false, role: "current" as const };
+    const view = render(<MelodyReadingMeasure {...props} />);
+    const svg = view.container.querySelector("svg");
+    const count = renderMeasure.mock.calls.length;
+    for (const [tick, number] of [[0, 3], [480, 2], [960, 1]]) {
+      view.rerender(<MelodyReadingMeasure {...props} preparationTick={tick} />);
+      const marker = view.container.querySelector<HTMLElement>(".melody-reading-cursor");
+      expect(marker?.dataset.cursorX).toBe("100");
+      expect(marker?.dataset.preparing).toBe("true");
+      expect(marker?.dataset.pulsing).toBe("true");
+      expect(screen.getByRole("status", { name: `Count in: ${number}` }).textContent).toBe(String(number));
+      expect(view.container.querySelector("svg")).toBe(svg);
+    }
+    view.rerender(<MelodyReadingMeasure {...props} offsetTicks={0} />);
+    expect(view.container.querySelector<HTMLElement>(".melody-reading-cursor")?.dataset.cursorX).toBe("100");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(renderMeasure).toHaveBeenCalledTimes(count);
+  });
   it.each(["treble", "bass"] as const)("keeps the %s SVG and score unchanged while the cursor and row role advance", staff => {
     const { score } = fixture(staff);
     const before = structuredClone(score);

@@ -3,9 +3,10 @@ import { MelodyCountGuide } from "./melody-count-guide";
 import { MelodyReadingMeasure } from "./melody-reading-measure";
 
 /** Fixed visual windows into the unchanged native score; preview never owns grading. */
-export function MelodyActiveScore({ score, displayMeasureIndex, measureTick, activeTick, staff, measureCount, expanded }: Readonly<{
+export function MelodyActiveScore({ score, displayMeasureIndex, measureTick, activeTick, preparationTick, staff, measureCount, expanded }: Readonly<{
   score: StaffBuilderScore; displayMeasureIndex: number | null; measureTick?: number; activeTick?: number;
   staff: "treble" | "bass"; measureCount: 1 | 2; expanded: boolean;
+  preparationTick?: number;
 }>) {
   const countIn = displayMeasureIndex === 0;
   const index = Math.max(1, displayMeasureIndex ?? 1);
@@ -16,6 +17,7 @@ export function MelodyActiveScore({ score, displayMeasureIndex, measureTick, act
         score={score} measureIndex={measureIndex} measureCount={measureCount} staff={staff} expanded={expanded}
         role={measureIndex < index ? "completed" : measureIndex === index ? "current" : "upcoming"}
         offsetTicks={!countIn && displayMeasureIndex !== null && measureIndex === index ? measureTick : undefined}
+        preparationTick={countIn && measureIndex === 1 ? preparationTick : undefined}
       />)}
     </div>
     <MelodyCountGuide activeAbsoluteTick={activeTick} measureCount={measureCount} showPreparatoryLeadIn={countIn} visibleDisplayMeasure={countIn ? 0 : index} />

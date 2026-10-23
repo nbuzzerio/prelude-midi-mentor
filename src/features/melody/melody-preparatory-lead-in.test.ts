@@ -4,20 +4,20 @@ import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-
 import { getMelodyPreparatoryLeadIn } from "./melody-preparatory-lead-in";
 
 describe("Melody preparatory lead-in", () => {
-  it("uses two quarter-note beats in 4/4", () => {
+  it("uses three quarter-note beats in 4/4", () => {
     expect(getMelodyPreparatoryLeadIn("4/4")).toEqual({
-      durationTicks: STAFF_BUILDER_TICKS_PER_QUARTER * 2,
-      pulseCount: 2,
+      durationTicks: STAFF_BUILDER_TICKS_PER_QUARTER * 3,
+      pulseCount: 3,
       pulseTicks: STAFF_BUILDER_TICKS_PER_QUARTER,
-      restDuration: "half",
+      restDuration: "dotted-half",
     });
   });
 
-  it("uses a stable two-quarter pickup in 3/4", () => {
+  it("uses a stable three-quarter preparation in 3/4", () => {
     expect(getMelodyPreparatoryLeadIn("3/4")).toMatchObject({
-      durationTicks: STAFF_BUILDER_TICKS_PER_QUARTER * 2,
-      pulseCount: 2,
-      restDuration: "half",
+      durationTicks: STAFF_BUILDER_TICKS_PER_QUARTER * 3,
+      pulseCount: 3,
+      restDuration: "dotted-half",
     });
   });
 

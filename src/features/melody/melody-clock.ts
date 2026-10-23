@@ -28,6 +28,7 @@ export async function createMelodyPerformanceClock(
   options: Readonly<{ startLeadSeconds?: number }> = {},
 ): Promise<MelodyPerformanceClock> {
   if (context.state === "suspended") await context.resume();
+  if (context.state !== "running") throw new Error("Melody audio clock is not running.");
   const startLeadSeconds = options.startLeadSeconds ?? MELODY_AUDIO_START_LEAD_SECONDS;
   if (!Number.isFinite(startLeadSeconds) || startLeadSeconds < 0) throw new Error("Melody audio start lead must be non-negative.");
 

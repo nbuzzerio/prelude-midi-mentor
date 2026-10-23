@@ -7,7 +7,7 @@ export function MelodyCountGuide({ measureCount, activeAbsoluteTick, showPrepara
     {showPreparatoryLeadIn && (visibleDisplayMeasure === undefined || visibleDisplayMeasure === 0) && <div aria-label="Preparatory lead-in" className="grid text-center text-sm text-zinc-400" style={{ gridTemplateColumns: `repeat(${leadIn.pulseCount}, minmax(0, 1fr))` }}>
       {Array.from({ length: leadIn.pulseCount }, (_, pulseIndex) => {
         const tick = -leadIn.durationTicks + pulseIndex * leadIn.pulseTicks;
-        return <span aria-current={activeAbsoluteTick !== undefined && activeAbsoluteTick >= tick && activeAbsoluteTick < tick + leadIn.pulseTicks ? "true" : undefined} data-preparatory-tick={tick} key={tick}>{pulseIndex + 1}</span>;
+        return <span aria-current={activeAbsoluteTick !== undefined && activeAbsoluteTick >= tick && activeAbsoluteTick < tick + leadIn.pulseTicks ? "true" : undefined} data-preparatory-tick={tick} key={tick}>{leadIn.pulseCount - pulseIndex}</span>;
       })}
     </div>}
     {Array.from({ length: measureCount }, (_, measureIndex) => measureIndex).filter(index => visibleDisplayMeasure === undefined || visibleDisplayMeasure === index + 1).map(measureIndex => <div className="grid grid-cols-8 text-center text-sm text-zinc-400" key={measureIndex}>

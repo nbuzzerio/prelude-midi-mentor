@@ -1,5 +1,4 @@
 import type { MelodyPerformanceClock } from "./melody-clock";
-import { getMelodyAlignmentCandidateWindowMs } from "./melody-alignment";
 import type { MelodyExercise } from "./melody-types";
 
 export type MelodyInputSource = "midi" | "virtual";
@@ -31,8 +30,8 @@ export function createMelodyPerformanceRecorder(
 ): MelodyPerformanceRecorder {
   let attacks: MelodyPerformedAttack[] = [];
   let lockedSource: MelodyInputSource | null = null;
-  const captureStartsAtSeconds = clock.performanceStartedAtSeconds
-    - getMelodyAlignmentCandidateWindowMs(exercise.settings.tempoBpm) / 1000;
+  // Preparation is visual/audio guidance only, never a performed attack.
+  const captureStartsAtSeconds = clock.performanceStartedAtSeconds;
 
   return Object.freeze({
     recordAttack(midiNumber, source) {

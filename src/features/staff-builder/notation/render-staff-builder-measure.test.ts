@@ -130,7 +130,7 @@ describe("renderStaffBuilderMeasure", () => {
     const rest = renderStaffBuilderMeasure(document.createElement("div"), practice, 0, options);
     const opening = renderStaffBuilderMeasure(document.createElement("div"), practice, 1, options);
     expect(rest.height).toBe(opening.height);
-    expect(rest.projection.timeSignature).toBe("2/4");
+    expect(rest.projection.timeSignature).toBe("3/4");
     expect(rest.projection.staves[staff][0]?.kind).toBe("rest");
     const current: StaffBuilderScore = { ...score(), ties: [], initialKeySignatureId: "c-major", measures: [{ id: "ledger", events: [{
       id: "extreme", kind: "notes", staff, startTick: 0,

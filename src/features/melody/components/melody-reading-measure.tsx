@@ -3,9 +3,10 @@ import { renderStaffBuilderMeasure, type StaffBuilderMeasureRenderResult } from 
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { getMelodyReadingLayout, getMelodyReadingScrollLeft } from "../melody-reading-layout";
 import { resolveMelodyReadingPosition } from "../melody-reading-position";
+import { getMelodyPreparationCue } from "../melody-preparation-cue";
 
 /** A readonly view of an existing authored measure. It owns no input or transport. */
-export const MelodyReadingMeasure = memo(function MelodyReadingMeasure({ score, measureIndex, measureCount, staff, role, offsetTicks, expanded }: Readonly<{
+export const MelodyReadingMeasure = memo(function MelodyReadingMeasure({ score, measureIndex, measureCount, staff, role, offsetTicks, preparationTick, expanded }: Readonly<{
   score: StaffBuilderScore;
   /** Index in the practice projection, whose index zero is preparation. */
   measureIndex: number;
@@ -13,6 +14,7 @@ export const MelodyReadingMeasure = memo(function MelodyReadingMeasure({ score, 
   staff: "treble" | "bass";
   role: "current" | "upcoming" | "completed";
   offsetTicks?: number;
+  preparationTick?: number;
   expanded: boolean;
 }>) {
   const id = useId();
@@ -38,7 +40,8 @@ export const MelodyReadingMeasure = memo(function MelodyReadingMeasure({ score, 
     }));
   }, [score, measureIndex, staff, layout.width]);
   const events = score.measures[measureIndex]?.events ?? [];
-  const geometry = rendered ? resolveMelodyReadingPosition({ anchors: rendered.anchors, events, staff, tick: offsetTicks }) : null;
+  const preparation = getMelodyPreparationCue(preparationTick);
+  const geometry = rendered ? resolveMelodyReadingPosition({ anchors: rendered.anchors, events, staff, tick: preparation ? 0 : offsetTicks }) : null;
   const opening = rendered ? resolveMelodyReadingPosition({ anchors: rendered.anchors, events, staff, tick: 0 }) : null;
   const cursorX = geometry?.x;
   const openingX = opening?.x ?? 0;
@@ -63,7 +66,8 @@ export const MelodyReadingMeasure = memo(function MelodyReadingMeasure({ score, 
       <div className="melody-reading-presentation" data-reading-scale={layout.scale} style={{ width: width * layout.scale, height: height * layout.scale }}>
         <div className="melody-reading-canvas" style={{ width, height, transform: `scale(${layout.scale})` }}>
           <div ref={notation} aria-hidden="true" />
-          {geometry && <div aria-hidden="true" className="melody-reading-cursor" data-cursor-tick={offsetTicks} data-cursor-x={geometry.x} style={{ left: geometry.x, top: cursorTop, height: cursorHeight }} />}
+          {geometry && <div aria-hidden="true" className="melody-reading-cursor" data-preparing={preparation ? "true" : undefined} data-pulsing={preparation?.pulsing ? "true" : undefined} data-cursor-tick={preparation ? 0 : offsetTicks} data-cursor-x={geometry.x} style={{ left: geometry.x, top: cursorTop, height: cursorHeight }} />}
+          {geometry && preparation && <span className="melody-preparation-number" role="status" aria-live="polite" aria-atomic="true" aria-label={`Count in: ${preparation.remaining}`} style={{ left: geometry.x }}>{preparation.remaining}</span>}
         </div>
       </div>
     </div>
