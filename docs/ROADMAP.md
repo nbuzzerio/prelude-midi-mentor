@@ -1,8 +1,8 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
-## Current milestone — v2.9.22 release preparation
+## Current milestone — v2.9.23 release preparation
 
-A1–D and the subsequent Piece Practice UI/UTC test correction are committed through `d0e4a5e`. Checkpoint E verified that baseline's Actions #123 and deployed revision under 2.9.21. The working release candidate is now **2.9.22**; its owner review, commit/push/tag and deployment acceptance are separate gates. Physical MIDI-piano timing and reading comfort remain pending. Automatic qualification/retirement defaults OFF until deliberate owner acceptance for future compatible performances; synthetic QA is insufficient.
+A1–D and the subsequent Piece Practice UI/UTC test correction are committed through `d0e4a5e`. Checkpoint E verified that baseline's Actions #123 and deployed revision under 2.9.21. The inspected baseline is now `43f1cea` / 2.9.22; the working candidate is **2.9.23**, preserving uncommitted F3A and adding What's New sequence 18. Its owner review, commit/push/tag and deployment acceptance are separate gates. Physical MIDI-piano timing and reading comfort remain pending. Automatic qualification/retirement defaults OFF until deliberate owner acceptance for future compatible performances; synthetic QA is insufficient.
 
 - **A1**, committed at `b621843`: physical-MIDI Continuous Tempo for frozen one-to-four-measure passages, constant 3/4, 4/4 or 6/8, 40–120 quarter BPM, Ready/count-in, nonblocking clock, pitch/onset results and exact Replay. Pitch-first remains default. Internal ties, chords and simultaneous staves are supported; ambiguous incoming ties and unsupported constructs reject visibly.
 - **B**, committed at `812b247`: manual Practice Rolodex saving, immutable full-source snapshots, instrument eligibility, compact organization, transactional local storage, backup/import and Piano Practice Now. Source edits/deletion do not alter saved music; unsupported acoustic execution is unavailable.
@@ -86,11 +86,11 @@ Phase 6 was limited to temporary room audio; broader Flow Mode and composition a
 
 ## 2. Continuous / Flow Sight-Reading
 
-**Status:** A1 AUTHORED-PIECE CONTINUOUS PRACTICE IMPLEMENTED. FLOW V2 F1/F2 PRESENTATION IMPLEMENTED AND AUTOMATED/PRODUCTION-BROWSER CHECKS PASSED. OWNER PHYSICAL ACCEPTANCE PENDING; SUSTAINED GENERATED FLOW REMAINS FUTURE WORK.
+**Status:** A1 AUTHORED-PIECE CONTINUOUS PRACTICE IMPLEMENTED. FLOW V2 F1/F2 PRESENTATION IMPLEMENTED; F3A DELIBERATE CONTINUATION AND THREE-BEAT PREPARATION IMPLEMENTED, VALIDATION RECORDED IN TESTING. OWNER PHYSICAL ACCEPTANCE PENDING; SUSTAINED GENERATED FLOW REMAINS FUTURE WORK.
 
 **Purpose:** Support reading ahead, maintaining pulse, continuing through mistakes and sustained reading beyond short trials, with review after a passage/session rather than constant stops.
 
-**Current authorized boundary:** Flow V2 F1/F2 presents the existing one/two authored measures in fixed rows, with upcoming music available before its turn and a cursor tied to engraved note positions. Current/upcoming/completed roles update in place. Ready, two preparatory beats, finite trial timing, explicit Try Another and V2 Review/Repair/report semantics remain unchanged. The verified 1280×800 Focus view shows both staffs; normal laptop and initial phone Ready views still require vertical scrolling. Test/browser evidence and its limits are recorded in TESTING.md; complete the review export, then stop. F3 automatic phrase continuation, longer generated reading and an uninterrupted stream require separate approval; no new MIDI guard, package/release or import/persistence work is included. Physical timing and piano-distance acceptance remain separate owner actions. The earlier Practice Rolodex D boundary and release-preparation records retain their historical scope.
+**Current authorized boundary:** F1/F2 fixed rows and engraved cursor are retained. F3A adds deliberate hands-free continuation within Continuous Practice: pedal/ Try Another starts the next phrase's three-quarter-beat count-in without another Ready click. Initial Ready, finite mode and Review/Repair remain deliberate. The anchored 3-2-1 cue shares native audio time; preparatory attacks are excluded. Stop and health/start-failure fences preserve completed evidence. Hosted target/Bonus/Repeat/acknowledgement rules remain unchanged. F3B gapless music, rolling cross-phrase buffering and new persistence policies require separate approval. Physical Chromebook acceptance remains pending; package/release metadata is unchanged by explicit owner instruction.
 
 **Dependencies:** Melody already supplies a musical clock, continuous MIDI/VKB capture, timing alignment, notation, scoring foundations and nonblocking performance. Practice Sessions' existing Reading Flow label refers to timed Melody practice, not completion of this broader milestone.
 

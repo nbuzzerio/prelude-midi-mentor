@@ -28,6 +28,30 @@ describe("app update presentation state", () => {
     const second = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
     expect(second.result.current.displayed).toEqual([newest]);
   });
+  it("retries a failed 2.9.23 acknowledgement on the next visit and suppresses notes after storage recovers", () => {
+    const previous = APP_UPDATES[16]!;
+    let value = JSON.stringify({ id: previous.id, sequence: previous.sequence });
+    let failing = true;
+    const storage = { getItem: () => value, setItem: (_key: string, next: string) => {
+      if (failing) throw new Error("Storage unavailable");
+      value = next;
+    } };
+    const first = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
+    expect(first.result.current.displayed).toEqual([newest]);
+    act(() => first.result.current.acknowledge());
+    expect(first.result.current.displayed).toEqual([]);
+    first.unmount();
+    failing = false;
+    const retry = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
+    expect(retry.result.current.displayed).toEqual([newest]);
+    act(() => retry.result.current.acknowledge());
+    retry.unmount();
+    const reload = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
+    expect(reload.result.current.displayed).toEqual([]);
+    reload.unmount();
+    const rollback = renderHook(() => useAppUpdate(undefined, APP_UPDATES.slice(0, 17), storage));
+    expect(rollback.result.current.displayed).toEqual([]);
+  });
   it("shows all newer curated entries after an earlier product update was acknowledged", () => {
     const previous = APP_UPDATES[0]!;
     const { result } = renderHook(() => useAppUpdate(undefined, APP_UPDATES, {

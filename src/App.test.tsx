@@ -251,10 +251,15 @@ describe("App focus mode", () => {
     render(<App />);
     const navigation = screen.getByRole("navigation", { name: "Prelude modes" });
     const versionLabel = within(navigation).getByLabelText(`Prelude v${version}`);
-    expect(versionLabel.textContent).toBe(`v${version}`);
+    expect(versionLabel.textContent).toBe(`Prelude v${version}`);
     expect(versionLabel.getAttribute("title")).toBe(`Prelude v${version}`);
-    expect(within(navigation).getByLabelText("Running build").textContent).toBe(`· ${RUNNING_BUILD.label}`);
-    expect(within(navigation).getByLabelText("Running build").getAttribute("title")).toBe(RUNNING_BUILD.detail);
+    const diagnostic = within(navigation).getByLabelText("Running build");
+    expect(diagnostic.textContent).toBe(`${RUNNING_BUILD.label}. ${RUNNING_BUILD.detail}`);
+    expect(diagnostic.getAttribute("title")).toBe(RUNNING_BUILD.detail);
+    const details = diagnostic.closest("details")!;
+    expect(details.open).toBe(false);
+    fireEvent.click(within(details).getByText("Build details"));
+    expect(details.open).toBe(true);
   });
 
   it("shares focus state between the visible control and keyboard shortcut", () => {

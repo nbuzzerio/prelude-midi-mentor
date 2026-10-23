@@ -234,9 +234,12 @@ export default function App({ pwaUpdate }: Readonly<{ pwaUpdate?: PwaUpdateContr
           className="shrink-0 self-center px-1 text-xs text-zinc-500"
           title={`Prelude v${version}`}
         >
-          v{version}
+          Prelude v{version}
         </span>
-        <span aria-label="Running build" title={RUNNING_BUILD.detail} className="min-w-0 self-center text-xs text-zinc-500">· {RUNNING_BUILD.label}</span>
+        <details className="shrink-0 self-center text-xs text-zinc-400">
+          <summary className="cursor-pointer rounded px-1 py-2 focus-visible:outline focus-visible:outline-sky-300">Build details</summary>
+          <p aria-label="Running build" title={RUNNING_BUILD.detail} className="max-w-xs break-words p-2">{RUNNING_BUILD.label}. {RUNNING_BUILD.detail}</p>
+        </details>
       </nav>
 
       <div hidden={practiceSection !== "practice-session"}>

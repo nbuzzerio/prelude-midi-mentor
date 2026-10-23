@@ -2,9 +2,9 @@
 
 This document defines Prelude's release discipline and records the assumptions of the current deployment. It does not replace the automated workflow or the manual QA guidance in [`TESTING.md`](./TESTING.md).
 
-## v2.9.22 candidate and remaining gates
+## v2.9.23 candidate and remaining gates
 
-Checkpoint F prepares **2.9.22** for owner review; it does not deploy or enable qualification. A1–D and UI/CI corrections are committed through `d0e4a5e`. Checkpoint E verified that baseline’s Actions #123 and served revision under 2.9.21. Implementation and release preparation are complete for review, and candidate automated/browser checks passed. Real MIDI-piano acceptance, owner release review/commit/push/tag, the candidate’s Actions result, and actual site/existing installed-PWA activation remain separate pending gates. Candidate checks are in [TESTING.md](TESTING.md).
+This checkpoint prepares **2.9.23** and What's New sequence **18** for owner review, preserving the uncommitted Flow V2 F3A work. The inspected baseline is `master` at `43f1cea`, package 2.9.22. The candidate announces Melody reading/count-in improvements, hands-free deliberate continuation, flexible manual V2 sessions and clearer reports. It does not deploy, tag or enable qualification. Real MIDI-piano acceptance, owner release review/commit/push/tag, the candidate's Actions result, and actual site/existing installed-PWA activation remain separate gates. Local candidate checks are recorded in [TESTING.md](TESTING.md); historical 2.9.22 checks retain their original scope.
 
 Automatic Qualification remains OFF by default. Only deliberate owner confirmation after real physical testing enables future compatible attempts; release metadata, startup and imports cannot grant acceptance or promote provisional history.
 
@@ -13,7 +13,7 @@ Automatic Qualification remains OFF by default. Only deliberate owner confirmati
 Prelude uses Semantic Versioning and annotated Git tags named `vX.Y.Z`.
 
 - `package.json` is the authoritative source for the version displayed in the application UI.
-- Every product-code commit includes a version bump so the visible version can confirm deployment and installed-PWA activation. Use a patch bump by default; a minor or major bump requires explicit owner approval. Documentation-only commits are exempt only when the owner explicitly approves the exemption.
+- For each meaningful owner-approved deployment, increment the semantic app version, add a corresponding What's New announcement, update relevant release history, and verify the displayed version and announcement. Use a patch bump by default; a minor or major bump requires explicit owner approval. Under this owner-approved release convention, not every internal commit needs a separate version bump or announcement.
 - A released package version must match its Git tag: package version `2.6.2` corresponds to tag `v2.6.2`.
 - Follow the owner's patch-default policy for backward-compatible changes; propose a minor release only for explicit owner approval.
 - Breaking product or compatibility changes require explicit review before selecting a major version.
@@ -23,7 +23,7 @@ The owner-approved roadmap documentation consolidation intentionally retains **2
 
 ## Curated Product Updates and Controlled PWA Reload
 
-PWA Update + What's New is implemented in 2.8.8. User-facing entries in `src/features/app-update/app-updates.ts` are curated product updates: several commits may form one entry, and entries are not one-to-one with commits, package versions or tags. Append unique stable IDs and strictly increasing positive sequences; do not renumber published entries. Choose a concise title, publication date and user-facing change bullets, with optional descriptive version. Git SHA may remain diagnostic-only; package version remains authoritative for the visible app version. Curated publication metadata does not assert that Git tagging/deployment has occurred.
+PWA Update + What's New is implemented in 2.8.8. User-facing entries in `src/features/app-update/app-updates.ts` are curated product updates: several internal commits may form one meaningful release announcement. Append unique stable IDs and strictly increasing positive sequences; do not renumber published entries or erase acknowledgement history. New meaningful deployments include the corresponding package version, concise title, publication date and pianist-facing changes. Older entries retain their original optional version metadata. The normal release identity is **Prelude vX.Y.Z** from `package.json`; the embedded Git revision remains available under **Build details** for diagnostics and build verification. Curated publication metadata does not assert that Git tagging/deployment has occurred.
 
 What's New is bundled with the loaded build and checked at startup. Known browser-local history collects all newer entries newest first; missing/malformed/unknown/pruned history shows only newest. `prelude-app-updates-last-seen-v1` stores ID/sequence. Got it, Close and Escape acknowledge the newest actually displayed entry; opening/backdrop clicks do not. Re-reading before writing preserves newer acknowledgments from other tabs/rollbacks. Storage failure allows current-visit dismissal but notes may return. No backend/account or historical reconstruction is involved.
 
@@ -35,9 +35,9 @@ Release/update QA must use two actual production artifacts at the same test orig
 
 ## Pre-Release Validation
 
-Keep Unreleased history accurate while a candidate is being evaluated. The package version still advances with every product-code commit. Before finalizing a release:
+Keep Unreleased history accurate while a candidate is being evaluated. Before finalizing a meaningful release:
 
-1. Confirm the working tree starts clean and the intended commits are on `master`.
+1. Inspect branch, HEAD, index and worktree; preserve and account for any owner-approved uncommitted work in the cumulative review.
 2. Synchronize the README, architecture, roadmap, onboarding, testing, and release-history documentation with actual behavior.
 3. Run the complete automated gate:
 
@@ -48,7 +48,7 @@ Keep Unreleased history accurate while a candidate is being evaluated. The packa
 4. Inspect the production build, including its generated PWA manifest, service worker, navigation fallback, and bundled assets.
 5. Complete the manual desktop, Chromebook, phone/tablet, portrait/landscape, physical-MIDI, virtual-keyboard, accessibility, audio, persistence/import/export, and installed-PWA/offline smoke checks in [`TESTING.md`](./TESTING.md).
 6. Resolve confirmed release blockers and rerun proportionate automated and manual checks.
-7. Only after validation passes, finalize the package version and release notes.
+7. Verify the approved package version and corresponding What's New entry in a fresh profile and a profile that acknowledged the previous release; check dismissal, reload and offline/PWA activation. Let the owner decide staging, commits, pushes, tags and deployment.
 
 ## Release Procedure
 
@@ -95,9 +95,9 @@ If validation, deployment, or installed-PWA verification fails, stop and record 
 
 ## Build identity, compatibility and safe rollback
 
-The UI derives its semantic version from `package.json`. `build/build-revision.ts` independently verifies checkout metadata; CI supplies `PRELUDE_BUILD_REVISION` and requires a matching clean checkout. Never hardcode a release SHA in application source. Local uncommitted builds may show local changes or explicitly unavailable metadata. Verify both version and actual running revision after deployment; a reload prompt alone proves neither.
+The primary UI identity derives its semantic version from `package.json`; the collapsed Build details disclosure retains the embedded revision and full diagnostic explanation. `build/build-revision.ts` independently verifies checkout metadata; CI supplies `PRELUDE_BUILD_REVISION` and requires a matching clean checkout. Never hardcode a release SHA in application source or retrieve Git data at runtime. Local uncommitted builds may show local changes or explicitly unavailable metadata. Verify both version and actual running revision after deployment; a reload prompt alone proves neither.
 
-PWA registration remains prompt-based at `/prelude/`, with hashed assets and generated precache revisions. No manual cache-version edit is needed. What's New snapshots the bundled catalog at startup; service-worker events never open it mid-performance. Sequence 17 has a candidate publication date, not a claim of tagging/deployment. Got it, Close and Escape acknowledge the displayed notice; normal revisits suppress acknowledged entries, while storage failure can cause them to reappear. Reload/Later retains the existing active-work confirmation. Complete/save work and download temporary recordings before a deliberate reload.
+PWA registration remains prompt-based at `/prelude/`, with hashed assets and generated precache revisions. No manual cache-version edit is needed. What's New snapshots the bundled catalog at startup; service-worker events never open it mid-performance. Sequence 18 has a candidate publication date, not a claim of tagging/deployment. Got it, Close and Escape acknowledge the displayed notice; normal revisits suppress acknowledged entries, while storage failure can cause them to reappear. Reload/Later retains the existing active-work confirmation. Complete/save work and download temporary recordings before a deliberate reload.
 
 Staff Builder Score V4 and `.prelude.json`, blocking Piece Practice records, strict Weekly Plan schema 1 / Weekly Program schema 2 and native V2 attempts retain their contracts. Rolodex stores full frozen music and keeps native A1 evidence independent from its date/progress acknowledgements. These are separate database transactions, not an atomic multi-store save; a crash between acknowledgements can leave A1 valid without a Rolodex update. In-memory Retry is not guaranteed after page termination.
 

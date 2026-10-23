@@ -263,7 +263,7 @@ Violin and ocarina Piece Practice offer a default-Off **Record performance audio
 
 # Current Development Focus
 
-Current pending version is **2.9.8**, with **2.9.7 committed**. [ROADMAP.md](./ROADMAP.md) is authoritative: acoustic practice → calibration/analysis → instrument visualizers → later Intonation Search/Practice Coach → Improv. Microphone Staff Builder authoring remains later. QOL/PWA, Flow and Studies continue at appropriate rates. Physical QA and confirmed regression fixes proceed alongside these priorities.
+The current release candidate is **2.9.23** on baseline `43f1cea` / 2.9.22, preserving uncommitted F3A work for owner review. [ROADMAP.md](./ROADMAP.md) is authoritative for current priorities and deferred work. Meaningful owner-approved deployments receive a semantic version and corresponding What's New announcement; the main UI shows Prelude vX.Y.Z, with embedded revision provenance under Build details. See [RELEASING.md](./RELEASING.md). Physical QA and confirmed regression fixes continue alongside musical milestones.
 
 Staff Builder owns its canonical v4 score, authoring/correction, validation, library/drafts, notation and playback projection. Historical storage-key names are not schema declarations. Piece Practice owns blocking runs and durable evidence separately from scores; Targeted Practice is repair inside that engine. Practice Sessions own reusable prescriptions, import and native-engine orchestration; their runtime/report evidence remains transient. Sequences own scale execution and any future hand configuration. No universal engine replaces these domains.
 

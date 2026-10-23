@@ -8,7 +8,7 @@ const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `upd
 describe("curated product updates", () => {
   it("validates the published catalog and limits the first record to the new update feature", () => {
     expect(() => assertAppUpdateCatalog(APP_UPDATES)).not.toThrow();
-    expect(APP_UPDATES).toHaveLength(17);
+    expect(APP_UPDATES).toHaveLength(18);
     expect(APP_UPDATES[0]).toMatchObject({ sequence: 1, version: "2.8.8" });
     expect(APP_UPDATES[0]?.changes.join(" ")).not.toMatch(/tuner|tie|since your last update/i);
     expect(APP_UPDATES[1]).toMatchObject({ sequence: 2, version: "2.9.0", date: "2026-10-06", title: "Practice with violin and ocarina" });
@@ -52,10 +52,9 @@ describe("curated product updates", () => {
     expect(APP_UPDATES[9].changes.join(" ")).toContain("not permanently stored or included in MIDI/JSON backups");
   });
   it("announces the five 2.9.22 improvements with the physical acceptance boundary", () => {
-    expect(version).toBe("2.9.22");
-    const release = APP_UPDATES.at(-1)!;
+    const release = APP_UPDATES[16]!;
     expect(release).toMatchObject({ id: "2026-10-20-repertoire-practice-loop", sequence: 17,
-      version, title: "What's New in Prelude v2.9.22", date: "2026-10-20" });
+      version: "2.9.22", title: "What's New in Prelude v2.9.22", date: "2026-10-20" });
     expect(release.changes).toHaveLength(5);
     expect(release.changes[0]).toMatch(/Continuous-Tempo.*physical MIDI piano.*pitch and onset timing separately/);
     expect(release.changes[1]).toMatch(/Practice Rolodex.*exact saved music, measure range and practice tempo/);
@@ -72,11 +71,35 @@ describe("curated product updates", () => {
     const previous = APP_UPDATES[15]!;
     let saved = JSON.stringify({ id: previous.id, sequence: previous.sequence });
     const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
-    const displayed = unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage));
+    const displayed = unseenAppUpdates(APP_UPDATES.slice(0, 17), readAppUpdateAcknowledgment(storage));
     expect(displayed).toEqual([APP_UPDATES[16]]);
     expect(acknowledgeAppUpdates(storage, displayed)).toBe(true);
-    expect(unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage))).toEqual([]);
+    expect(unseenAppUpdates(APP_UPDATES.slice(0, 17), readAppUpdateAcknowledgment(storage))).toEqual([]);
     expect(unseenAppUpdates(APP_UPDATES.slice(0, 16), readAppUpdateAcknowledgment(storage))).toEqual([]);
+  });
+  it("announces the owner-approved 2.9.23 reading, continuation, session and report improvements", () => {
+    expect(version).toBe("2.9.23");
+    const release = APP_UPDATES.at(-1)!;
+    expect(release).toMatchObject({ id: "2026-10-22-melody-reading-continuation", sequence: 18,
+      version, title: `What's New in Prelude v${version}`, date: "2026-10-22" });
+    expect(release.changes).toHaveLength(4);
+    expect(release.changes[0]).toMatch(/both measures before you start.*cursor aligned with the engraved music/);
+    expect(release.changes[1]).toMatch(/Continuous Practice.*sustain pedal or Try Another.*without another Ready click.*synchronized visual 3–2–1/);
+    expect(release.changes[2]).toMatch(/optional Piano Rolodex.*manually assembled V2.*select or clear the entire exercise pool.*stable layouts.*focus/);
+    expect(release.changes[3]).toContain("distinguish reaching a target from closing the attempt");
+    expect(release.changes.join(" ")).not.toMatch(/gapless|uninterrupted|certified/i);
+  });
+  it("offers only 2.9.23 after acknowledged 2.9.22 and protects its marker from an older cached build", () => {
+    const previous = APP_UPDATES[16]!;
+    let saved = JSON.stringify({ id: previous.id, sequence: previous.sequence });
+    const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    const displayed = unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage));
+    expect(displayed).toEqual([APP_UPDATES[17]]);
+    expect(acknowledgeAppUpdates(storage, displayed)).toBe(true);
+    expect(unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage))).toEqual([]);
+    expect(unseenAppUpdates(APP_UPDATES.slice(0, 17), readAppUpdateAcknowledgment(storage))).toEqual([]);
+    expect(acknowledgeAppUpdates(storage, [previous])).toBe(true);
+    expect(readAppUpdateAcknowledgment(storage)).toEqual({ id: APP_UPDATES[17]!.id, sequence: 18 });
   });
   it("collects multiple missed known updates newest first without changing the catalog", () => {
     expect(unseenAppUpdates(updates, { id: "update-2", sequence: 2 }).map((update) => update.id)).toEqual(["update-4", "update-3"]);

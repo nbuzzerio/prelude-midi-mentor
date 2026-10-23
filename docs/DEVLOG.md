@@ -2,7 +2,13 @@
 
 A high-level release history and record of significant milestones. Candidate/Unreleased records do not assert release, tagging or deployment. Older checkpoint notes retain their original observations and test counts, including their at-the-time pending/staged status; they are historical, not the current worktree state.
 
-## Unreleased — v2.9.22 candidate
+## Unreleased — v2.9.23 candidate
+
+- Prepare package **2.9.23** and What's New sequence **18** without changing dependencies or the lockfile. The primary navigation identifies **Prelude v2.9.23**; a collapsed **Build details** disclosure retains embedded revision diagnostics. Existing update prompts, acknowledgement storage and prior announcements retain their contracts.
+- The announcement covers both-measure Melody preview and engraved cursor, deliberate hands-free Continuous Practice continuation with three synchronized preparatory beats, optional manual V2 Piano Rolodex supplements, whole-pool selection, stable layouts/focus and target-versus-attempt-close reports. F3A remains separate native trials with a count-in, not gapless F3B playback.
+- Preserve the existing uncommitted F3A implementation and evidence. Owner review, Git actions and deployment remain pending; physical piano timing and actual deployed/installed-PWA acceptance are separate checks. The release convention gives meaningful owner-approved deployments a semantic version, corresponding announcement and verified release history; internal commits need not each create a release.
+
+### Prior 2.9.22 release preparation (historical)
 
 - Checkpoint F prepares package **2.9.22** and curated announcement sequence 17 for owner review. Previous announcement records remain intact. No dependency, lockfile, schema, scoring, MIDI/audio or update-lifecycle change is included.
 - Included feature work is already committed: A1 `b621843`, Rolodex B `812b247`, daily repertoire C `9c59f659`, progress/retention D `ba0ecd1`, Piece Practice controls `2c5a603`, UTC test correction `d0e4a5e`. Checkpoint E verified Actions #123 and that last baseline’s deployed bundle under 2.9.21; this is not deployment evidence for 2.9.22.

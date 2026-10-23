@@ -197,6 +197,18 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Progress and Retention: review comparable attempts, work toward three clean pitch-and-onset performances, and revisit passages on a later day. Automatic qualification is off by default and requires explicit owner acceptance with a real MIDI piano. Earlier provisional results never qualify retroactively; physical timing acceptance remains pending.",
     "Better Piece Practice Controls: with MIDI connected, the virtual keyboard hides by default. Optional performance-audio recording is easier to reach, with recording details and exports still available.",
   ],
+}, {
+  id: "2026-10-22-melody-reading-continuation",
+  sequence: 18,
+  title: "What's New in Prelude v2.9.23",
+  date: "2026-10-22",
+  version: "2.9.23",
+  changes: [
+    "Better Melody reading: see both measures before you start, and follow a cursor aligned with the engraved music.",
+    "Hands-free Melody continuation: in Continuous Practice, use the sustain pedal or Try Another to launch the next phrase's count-in without another Ready click. A synchronized visual 3–2–1 countdown marks the opening beat.",
+    "More flexible practice sessions: add an optional Piano Rolodex passage at the end of manually assembled V2 sessions, select or clear the entire exercise pool, and enjoy more stable layouts and improved focus between exercises.",
+    "Clearer reports: individual reports distinguish reaching a target from closing the attempt.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {
