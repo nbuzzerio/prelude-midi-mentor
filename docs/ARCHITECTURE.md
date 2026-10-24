@@ -1,6 +1,10 @@
 # Prelude: MIDI Mentor — ARCHITECTURE
 
-## A1 MIDI input reliability (implementation checkpoint; version held at 2.9.23)
+## v2.9.24 release metadata checkpoint
+
+The owner-reviewed A1 reliability fix is committed at `5e26c2a`. The following metadata-only candidate changes package/UI identity to **2.9.24** and appends What's New sequence **19**, preserving all 18 prior records and browser-local acknowledgement semantics. The popup explains MIDI piano selection/remembering, note confirmation before performing and zero-captured-note warnings. Provider ownership, A1 verification/selection, music, grading, native records, preferences, dependencies and PWA activation logic remain unchanged. Release metadata does not grant physical acceptance or establish deployment.
+
+## A1 MIDI input reliability (committed implementation; version held at 2.9.23 for that checkpoint)
 
 Continuous Tempo, standalone Piano Rolodex and optional V2 Piano repertoire share one feature-owned explicit input preference (`prelude-continuous-midi-input-v1`). Neither connection status nor enumeration order selects a port. The local versioned preference retains only browser ID/name, is validated on read, and never remaps by name. Unavailable, changed or ambiguous identities require deliberate selection or the exact restored identity followed by a fresh note test. Identical names are distinguished by browser ID; ports without usable identities remain visible but disabled. Preference failure leaves an explicit tab-local choice usable. Improv, Melody, pitch-first input and physical timing acceptance keep their separate contracts.
 
@@ -8,7 +12,7 @@ The existing ContinuousPlayer foreground consumer verifies a valid positive-velo
 
 The shared low-level owner retains its API, normalization and arbitration. Failed listener attachment is excluded from connectedInputs and reported as an error; statechange permits retry. A metadata change on the same port object retires its old attachment and publishes disconnection before a new snapshot, preserving existing attachment-generation fences.
 
-ContinuousInputDiagnostic derives a zero-attack warning from the existing terminal assessment, performance-start marker and retained attacks. It appears above native counts in current/saved A1 results and hosted screen/print summaries. It describes possible silence or input selection/connection problems; it cannot prove hardware failure or absence of every MIDI byte. No saved record, assessment, timing window, score spelling, Rolodex qualification, native schema or historical evidence is changed. Owner-approved release metadata for 2.9.24 remains a separate step; package/UI version and What's New stay at 2.9.23 for this checkpoint.
+ContinuousInputDiagnostic derives a zero-attack warning from the existing terminal assessment, performance-start marker and retained attacks. It appears above native counts in current/saved A1 results and hosted screen/print summaries. It describes possible silence or input selection/connection problems; it cannot prove hardware failure or absence of every MIDI byte. No saved record, assessment, timing window, score spelling, Rolodex qualification, native schema or historical evidence is changed. The implementation checkpoint retained package/UI version and What's New at 2.9.23; the subsequent 2.9.24 metadata candidate is described above.
 
 ## Manual V2 repertoire and usability checkpoint
 

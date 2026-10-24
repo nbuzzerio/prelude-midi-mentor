@@ -28,8 +28,8 @@ describe("app update presentation state", () => {
     const second = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
     expect(second.result.current.displayed).toEqual([newest]);
   });
-  it("retries a failed 2.9.23 acknowledgement on the next visit and suppresses notes after storage recovers", () => {
-    const previous = APP_UPDATES[16]!;
+  it("retries a failed current-release acknowledgement on the next visit and suppresses notes after storage recovers", () => {
+    const previous = APP_UPDATES.at(-2)!;
     let value = JSON.stringify({ id: previous.id, sequence: previous.sequence });
     let failing = true;
     const storage = { getItem: () => value, setItem: (_key: string, next: string) => {
@@ -49,7 +49,7 @@ describe("app update presentation state", () => {
     const reload = renderHook(() => useAppUpdate(undefined, APP_UPDATES, storage));
     expect(reload.result.current.displayed).toEqual([]);
     reload.unmount();
-    const rollback = renderHook(() => useAppUpdate(undefined, APP_UPDATES.slice(0, 17), storage));
+    const rollback = renderHook(() => useAppUpdate(undefined, APP_UPDATES.slice(0, -1), storage));
     expect(rollback.result.current.displayed).toEqual([]);
   });
   it("shows all newer curated entries after an earlier product update was acknowledged", () => {

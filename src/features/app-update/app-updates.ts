@@ -209,6 +209,17 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "More flexible practice sessions: add an optional Piano Rolodex passage at the end of manually assembled V2 sessions, select or clear the entire exercise pool, and enjoy more stable layouts and improved focus between exercises.",
     "Clearer reports: individual reports distinguish reaching a target from closing the attempt.",
   ],
+}, {
+  id: "2026-10-24-continuous-midi-input",
+  sequence: 19,
+  title: "What's New in Prelude v2.9.24",
+  date: "2026-10-24",
+  version: "2.9.24",
+  changes: [
+    "Choose your MIDI piano: select the input you play through for Continuous-Tempo Piece Practice and Piano Rolodex. Prelude remembers your choice in this browser.",
+    "Check your connection before performing: play a note and see it arrive before starting the count-in. Replay keeps the same verified input while its connection remains valid.",
+    "Clearer performance results: when no notes were captured during a performance, Prelude shows a warning and asks you to check the selected piano. Your original results stay intact.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

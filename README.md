@@ -485,9 +485,9 @@ For a more detailed technical explanation, see
 
 ---
 
-## Current Status — v2.9.23 release candidate
+## Current Status — v2.9.24 release candidate
 
-The application version is **2.9.23**, derived from `package.json` and shown as **Prelude v2.9.23**. What's New sequence 18 announces Melody reading and hands-free continuation, flexible manual V2 sessions and clearer reports. Embedded Git provenance remains under **Build details**. This release candidate preserves the uncommitted F3A work on baseline `43f1cea`; local preparation does not establish deployment. The owner controls review, staging, commits, pushes, tags and deployed-PWA verification. Meaningful deployments receive an explicit version and announcement; see [RELEASING.md](./docs/RELEASING.md).
+The application version is **2.9.24**, derived from `package.json` and shown as **Prelude v2.9.24**. What's New sequence 19 announces choosing and remembering a MIDI piano, confirming notes arrive before Continuous Tempo, and clear warnings when no performance notes were captured. All 18 prior announcements and their acknowledgement contracts remain intact. The owner-reviewed A1 reliability fix is committed at `5e26c2a`; this checkpoint changes release metadata, tests and documentation only. Embedded Git provenance remains under **Build details**. Local preparation does not establish deployment or physical-piano acceptance. The owner controls review, staging, commits, pushes, tags and deployed-PWA verification; see [RELEASING.md](./docs/RELEASING.md).
 
 Implementation and automated/browser validation are complete for A1–D. **Real MIDI-piano timing and piano-distance acceptance remain pending. Automatic Qualification defaults OFF** and requires deliberate owner acceptance for future compatible attempts; provisional results never qualify retroactively. See [TESTING.md](./docs/TESTING.md) for candidate validation and [RELEASING.md](./docs/RELEASING.md) for the remaining gates. Older checkpoint notes below describe their historical scope, not outstanding authorization or uncommitted feature work.
 
