@@ -7,10 +7,12 @@ import type { ContinuousView } from "../continuous/continuous-session";
 import { AppMidiContext } from "@/components/midi/midi-context";
 import MidiStatus from "@/components/midi/midi-status";
 import { ContinuousPlayer } from "../continuous/continuous-workspace";
+import { ContinuousInputSelector } from "../continuous/continuous-input-selector";
+import { resolveContinuousInput } from "../continuous/continuous-input-preference";
 import { continuousStore } from "../continuous/continuous-store";
 import type { ContinuousAttempt, ContinuousStore } from "../continuous/continuous-types";
 import { playablePassage, playability } from "./rolodex-model";
-import { rolodexButton, rolodexField } from "./rolodex-editor";
+import { rolodexButton } from "./rolodex-editor";
 import { rolodexStore } from "./rolodex-store";
 import type { RolodexEntry, RolodexPractice as PracticeAcknowledgement, RolodexStore } from "./rolodex-types";
 import type { MidiInputInfo } from "@/lib/midi/midi-transport";
@@ -36,8 +38,8 @@ export function RolodexPractice({ entry, store = rolodexStore, attempts = contin
     entryFocused.current = true;
     if (focusAllowed() && document.visibilityState !== "hidden") { heading.current?.focus({ preventScroll: true }); heading.current?.scrollIntoView?.({ block: "nearest" }); }
   }, [focusAllowed]);
-  const [inputId, setInputId] = useState("");
-  const [input, setInput] = useState<MidiInputInfo | null>(() => lessonHost && midi?.status === "connected" ? midi.connectedInputs.find(i => i.id !== null) ?? null : null);
+  const [inputChoice, setSelected] = useState<MidiInputInfo | null>(null);
+  const [input, setInput] = useState<MidiInputInfo | null>(null);
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState<readonly PracticeAcknowledgement[]>([]);
   const [savedProgress, setSavedProgress] = useState<RolodexEntry | null>(null);
@@ -103,8 +105,8 @@ export function RolodexPractice({ entry, store = rolodexStore, attempts = contin
   };
   const unavailable = playability(entry);
   const [passage] = useState(() => { try { return playablePassage(entry); } catch { return null; } });
-  const inputs = midi?.connectedInputs.filter(i => i.id !== null) ?? [];
-  const selected = inputs.find(i => i.id === inputId) ?? (inputId === "" ? inputs[0] : undefined);
+  const inputs = midi?.connectedInputs ?? [];
+  const selected = resolveContinuousInput(inputChoice, inputs);
   return <section className="grid min-w-0 gap-3">
     {!lessonHost?.finished && <h1 ref={heading} tabIndex={-1} className="text-2xl font-bold">{lessonHost ? "Optional Piano repertoire" : "Practice Rolodex"} · {entry.nickname || entry.sourceTitle}</h1>}
     {unavailable && <p role="alert">{unavailable}</p>}
@@ -114,11 +116,10 @@ export function RolodexPractice({ entry, store = rolodexStore, attempts = contin
     {failed.length > 0 && <button type="button" className={rolodexButton} disabled={pending > 0} onClick={() => failed.forEach(retry)}>Retry Rolodex Update ({failed.length})</button>}
     {!input && !lessonHost?.finished && <>
       <p>Measures {entry.start + 1}–{entry.end + 1} · {entry.bpm} quarter BPM · Piano Continuous Tempo. Music comes from the saved snapshot.</p>
-      {midi && <MidiStatus deviceName={midi.deviceName} error={midi.error} status={midi.status} onConnect={() => { void midi.connectMidi(); }} />}
-      <label className="grid gap-1">Physical MIDI piano<select className={rolodexField} value={selected?.id ?? ""} onChange={e => setInputId(e.target.value)}>
-        {!inputs.length && <option value="">No MIDI piano connected</option>}{inputs.map(i => <option key={i.id} value={i.id!}>{i.name ?? i.id}</option>)}</select></label>
+      {midi && <MidiStatus deviceName={selected?.name ?? "MIDI access enabled — choose an input"} error={midi.error} status={midi.status} onConnect={() => { void midi.connectMidi(); }} />}
+      <ContinuousInputSelector inputs={inputs} onSelection={setSelected} disabled={lessonHost?.active === false} />
       <p>Connect a physical MIDI piano and allow MIDI access. Virtual keys and microphones cannot start this profile.</p>
-      <button className={rolodexButton} type="button" disabled={Boolean(unavailable) || !selected || midi?.status !== "connected"} onClick={() => { if (selected && !playability(entry)) setInput(selected); }}>Prepare Saved Passage</button>
+      <button className={rolodexButton} type="button" disabled={Boolean(unavailable) || !selected || midi?.status !== "connected" || lessonHost?.active === false} onClick={() => { if (selected && !playability(entry)) setInput({ ...selected }); }}>Prepare Saved Passage</button>
       <button className={rolodexButton} onClick={exit} type="button" disabled={pending > 0}>{lessonHost ? lessonHost.finishLabel ?? "Finish Lesson" : "Return to Rolodex"}</button>
     </>}
     {input && passage && !unavailable && !lessonHost?.finished && <ContinuousPlayer passage={passage} input={input} store={attempts} onExit={exit} onGuardChange={registerGuard} onAcknowledgedAttempt={acknowledged} onView={observe} lessonHost={lessonHost} />}

@@ -10,11 +10,13 @@ export type ContinuousView = Readonly<{
   phase: "ready" | "starting" | "count-in" | "playing" | "results";
   elapsedMs: number; pulse: number; attempt: ContinuousAttempt | null;
   save: "idle" | "pending" | "saved" | "failed"; error: string | null;
+  /** Ephemeral selected-input verification, never part of saved performance evidence. */
+  midiNote: number | null;
 }>;
 
 /** Feature-local session authority. All async continuations are fenced by generation. */
 export class ContinuousSession {
-  private view: ContinuousView = { phase: "ready", elapsedMs: 0, pulse: 0, attempt: null, save: "idle", error: null };
+  private view: ContinuousView = { phase: "ready", elapsedMs: 0, pulse: 0, attempt: null, save: "idle", error: null, midiNote: null };
   private listeners = new Set<() => void>();
   private generation = 0;
   private audio: MelodyOwnedAudioContext | null = null;
@@ -27,16 +29,20 @@ export class ContinuousSession {
   private capture: ReturnType<typeof createContinuousMidiCapture>;
   constructor(readonly passage: ContinuousPassage, readonly input: MidiInputInfo, private store: ContinuousStore,
     private audioFactory = createMelodyBrowserAudioContext, private calendar = () => new Date().toISOString(),
-    private identity: () => string = () => crypto.randomUUID(), private monotonic = () => performance.now()) { this.capture = createContinuousMidiCapture(input); }
+    private identity: () => string = () => crypto.randomUUID(), private monotonic = () => performance.now()) {
+    this.input = Object.freeze({ ...input });
+    this.capture = createContinuousMidiCapture(this.input);
+  }
   snapshot = () => this.view;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private publish(next: Partial<ContinuousView>) { this.view = { ...this.view, ...next }; this.listeners.forEach((f) => f()); }
   ownershipChanged = (active: boolean) => {
     this.ownership = active;
-    if (!active) this.interrupt("MIDI ownership was lost.");
+    if (!active) { this.invalidateInput(); this.interrupt("MIDI ownership was lost."); }
     if (this.view.phase === "ready") this.publish({ error: active ? null : "MIDI ownership is unavailable. Return to range selection and prepare again." });
   };
   hasOwnership = () => this.ownership;
+  invalidateInput = () => { if (this.view.midiNote !== null) this.publish({ midiNote: null }); };
   private releaseAudio() {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
@@ -45,7 +51,8 @@ export class ContinuousSession {
     if (audio) void audio.close?.().catch(() => undefined);
   }
   begin = () => {
-    if (this.view.phase !== "ready" || !this.ownership || !this.connected || !this.input.id) return;
+    if (this.view.phase !== "ready" || !this.ownership || !this.connected || !this.input.id || this.view.midiNote === null
+      || document.visibilityState === "hidden") return;
     const token = ++this.generation;
     const attempt = this.view.attempt ?? { version: 1, id: this.identity(), revision: 0, passage: this.passage,
       input: { ...this.input }, status: "started", startedAt: this.calendar(), endedAt: null,
@@ -103,6 +110,15 @@ export class ContinuousSession {
     }
   };
   rawMessage = (message: RawMidiMessage) => {
+    if (!this.ownership || !this.connected || document.visibilityState === "hidden") return;
+    if (message.input.id === this.input.id && message.input.name !== this.input.name) { this.disconnect(this.input.id); return; }
+    if (this.view.phase === "ready") {
+      // Use the same validation as performance capture, with an isolated collector.
+      // Testing cannot advance the performance collector or create an attempt.
+      const note = createContinuousMidiCapture(this.input)(message, 0, 0);
+      if (note && this.view.midiNote !== note.midi) this.publish({ midiNote: note.midi });
+      return;
+    }
     const clock = this.clock;
     if (!clock || !this.ownership) return;
     const now = clock.now();
@@ -146,7 +162,7 @@ export class ContinuousSession {
   };
   stop = () => this.finish("stopped", "Stopped by the player.");
   interrupt = (reason: string) => this.finish("interrupted", reason);
-  disconnect = (id: string | null) => { if (id === this.input.id) { this.connected = false; this.interrupt("The selected MIDI piano disconnected. Reconnect before replaying."); } };
+  disconnect = (id: string | null) => { if (id === this.input.id) { this.connected = false; this.invalidateInput(); this.interrupt("The selected MIDI piano disconnected. Reconnect before replaying."); } };
   reconnect = (id: string | null) => { if (id === this.input.id) this.connected = true; };
   replay = () => {
     if (this.view.phase !== "results" || this.view.save !== "saved") return;

@@ -6,11 +6,13 @@ import { ContinuousPlayer, ContinuousWorkspace } from "./continuous-workspace";
 import { ContinuousSession } from "./continuous-session";
 import { projectContinuousPassage } from "./continuous-projection";
 import { raw, TEST_INPUT, testScore } from "./continuous-test-fixtures";
+import { MidiProvider } from "@/components/midi/midi-provider";
+import type { ContinuousAttempt } from "./continuous-types";
 
 vi.mock("./continuous-score", () => ({
   ContinuousScore: ({ measureIndex }: { measureIndex: number }) => <div data-testid="authored-score">Authored measure {measureIndex + 1}</div>,
 }));
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); Reflect.deleteProperty(navigator, "requestMIDIAccess"); });
 function context() {
   let consumer: AppMidiConsumer | undefined;
   const value: AppMidiContextValue = { status: "connected", deviceName: TEST_INPUT.name, error: null, connectedInputs: [TEST_INPUT], connectMidi: vi.fn(async () => {}),
@@ -18,6 +20,78 @@ function context() {
   return { value, consumer: () => consumer };
 }
 describe("continuous workspace and native ownership boundary", () => {
+  it("disables preparation against the current input list while preserving the unavailable explicit preference", () => {
+    const c = context(), score = testScore(), save = vi.fn(async () => {});
+    const tree = (connected: boolean) => <AppMidiContext.Provider value={{ ...c.value, connectedInputs: connected ? [TEST_INPUT] : [{ id: "silent", name: "Silent port" }] }}><ContinuousWorkspace score={score} store={{ save, list: async () => [] }} onExit={vi.fn()} onPitchFirst={vi.fn()} /></AppMidiContext.Provider>;
+    const v = render(tree(true)); fireEvent.change(screen.getByLabelText("Physical MIDI Input"), { target: { value: TEST_INPUT.id } });
+    expect((screen.getByText("Prepare Range") as HTMLButtonElement).disabled).toBe(false);
+    v.rerender(tree(false)); expect((screen.getByText("Prepare Range") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("alert").textContent).toContain("No other port has been substituted"); expect(save).not.toHaveBeenCalled();
+  });
+  it("distinguishes available from verified and clears verification on foreground or ownership loss", () => {
+    const c = context(), p = projectContinuousPassage(testScore(), 0, 1, 60), store = { save: vi.fn(async () => {}), list: async () => [] };
+    const session = new ContinuousSession(p, TEST_INPUT, store);
+    const tree = (active: boolean) => <AppMidiContext.Provider value={c.value}><ContinuousPlayer passage={p} input={TEST_INPUT} store={store} createSession={() => session} onExit={vi.fn()} lessonHost={{ active, onView: vi.fn() }} /></AppMidiContext.Provider>;
+    const v = render(tree(true)); const start = () => screen.getByText("Ready — Begin Count-in") as HTMLButtonElement;
+    expect(start().disabled).toBe(true); expect(screen.getByText(/Input available — play a note/)).toBeTruthy();
+    act(() => c.consumer()?.onRawMessage?.(raw())); expect(start().disabled).toBe(false); expect(screen.getByText("MIDI received: C4")).toBeTruthy();
+    act(() => c.consumer()?.onOwnershipChange?.(false)); expect(start().disabled).toBe(true); expect(session.snapshot().midiNote).toBeNull();
+    v.rerender(tree(false)); expect(c.consumer()).toBeUndefined(); v.rerender(tree(true));
+    act(() => c.consumer()?.onRawMessage?.(raw())); expect(start().disabled).toBe(false); expect(store.save).not.toHaveBeenCalled();
+    v.unmount(); expect(session.snapshot().midiNote).toBeNull(); expect(c.consumer()).toBeUndefined();
+  });
+  it("does not silently accept a different device with the same browser ID", () => {
+    const c = context(), p = projectContinuousPassage(testScore(), 0, 1, 60), store = { save: vi.fn(async () => {}), list: async () => [] };
+    const session = new ContinuousSession(p, TEST_INPUT, store);
+    const tree = (name: string) => <AppMidiContext.Provider value={{ ...c.value, connectedInputs: [{ ...TEST_INPUT, name }] }}><ContinuousPlayer passage={p} input={TEST_INPUT} store={store} createSession={() => session} onExit={vi.fn()} /></AppMidiContext.Provider>;
+    const v = render(tree(TEST_INPUT.name)); act(() => c.consumer()?.onRawMessage?.(raw()));
+    v.rerender(tree("Other device")); expect(session.snapshot().midiNote).toBeNull(); expect(screen.getByRole("alert").textContent).toContain("Reconnect");
+  });
+  it("routes only the deliberately chosen second port through real MIDI transport and keeps ordinary Replay verified", async () => {
+    vi.useFakeTimers();
+    const port = (id: string, name: string) => Object.assign(new EventTarget(), { id, name, state: "connected" });
+    const a = port("silent", "Midi Through Port-0"), b = port("piano", "CH345 MIDI 1");
+    const access = Object.assign(new EventTarget(), { inputs: new Map([[a.id, a], [b.id, b]]) });
+    Object.defineProperty(navigator, "requestMIDIAccess", { configurable: true, value: vi.fn(async () => access) });
+    const audio = { currentTime: 0, state: "running", destination: {}, resume: async () => {}, close: vi.fn(async () => {}),
+      createOscillator: () => ({ frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {}, start() {}, stop() {} }),
+      createGain: () => ({ gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {} }) };
+    vi.stubGlobal("AudioContext", class { constructor() { return audio; } });
+    vi.spyOn(performance, "now").mockImplementation(() => audio.currentTime * 1000);
+    const emit = (input: typeof a, bytes: number[]) => { const e = new Event("midimessage"); Object.defineProperties(e, { data: { value: Uint8Array.from(bytes) }, timeStamp: { value: performance.now() } }); input.dispatchEvent(e); };
+    const records = new Map<string, ContinuousAttempt>(), save = vi.fn(async (r: ContinuousAttempt) => { records.set(r.id, r); });
+    const attachA = vi.spyOn(a, "addEventListener"), attachB = vi.spyOn(b, "addEventListener");
+    render(<MidiProvider><ContinuousWorkspace score={testScore()} store={{ save, list: async () => [...records.values()] }} onExit={vi.fn()} onPitchFirst={vi.fn()} /></MidiProvider>);
+    await act(async () => fireEvent.click(screen.getByText("Connect MIDI")));
+    expect((screen.getByText("Prepare Range") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Physical MIDI Input"), { target: { value: "silent" } }); fireEvent.click(screen.getByText("Prepare Range"));
+    act(() => emit(b, [0x90, 60, 90])); expect((screen.getByText("Ready — Begin Count-in") as HTMLButtonElement).disabled).toBe(true); expect(save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Exit Continuous Practice"));
+    fireEvent.change(screen.getByLabelText("Physical MIDI Input"), { target: { value: "piano" } }); fireEvent.click(screen.getByText("Prepare Range"));
+    act(() => emit(b, [0x9f, 60, 90])); expect(save).not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(screen.getByText("Ready — Begin Count-in")));
+    act(() => { emit(b, [0x90, 60, 90]); audio.currentTime = 4.1; vi.advanceTimersByTime(40);
+      emit(a, [0x90, 99, 90]); emit(b, [0x9f, 60, 90]); emit(b, [0x90, 60, 0]); emit(b, [0x80, 60, 20]); emit(b, [0xbf, 64, 127]);
+      audio.currentTime = 8.1; vi.advanceTimersByTime(40); emit(b, [0x91, 62, 90]); });
+    await act(async () => { audio.currentTime = 13; vi.advanceTimersByTime(40); });
+    const first = [...records.values()][0]!;
+    expect(first.input).toEqual({ id: "piano", name: "CH345 MIDI 1" }); expect(first.attacks).toHaveLength(2); expect(first.assessment?.matched).toBe(2);
+    fireEvent.click(screen.getByText("Replay Same Range")); expect((screen.getByText("Ready — Begin Count-in") as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => fireEvent.click(screen.getByText("Ready — Begin Count-in")));
+    await act(async () => { b.state = "disconnected"; access.dispatchEvent(new Event("statechange")); });
+    expect([...records.values()][1]!.status).toBe("interrupted");
+    await act(async () => { const replacement = port("new-piano", "CH345 MIDI 1"); access.inputs.set(replacement.id, replacement); access.dispatchEvent(new Event("statechange")); });
+    expect((screen.getByText("Replay Same Range") as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { b.state = "connected"; access.dispatchEvent(new Event("statechange")); });
+    fireEvent.click(screen.getByText("Replay Same Range")); expect((screen.getByText("Ready — Begin Count-in") as HTMLButtonElement).disabled).toBe(true);
+    expect(attachA).toHaveBeenCalledTimes(1); expect(attachB).toHaveBeenCalledTimes(2);
+    act(() => emit(b, [0x90, 60, 90])); expect((screen.getByText("Ready — Begin Count-in") as HTMLButtonElement).disabled).toBe(false);
+    const sameIdentityReplacement = port("piano", "CH345 MIDI 1");
+    act(() => { access.inputs.set("piano", sameIdentityReplacement); access.dispatchEvent(new Event("statechange")); });
+    expect((screen.getByText("Ready — Begin Count-in") as HTMLButtonElement).disabled).toBe(true);
+    act(() => emit(sameIdentityReplacement, [0x90, 60, 90]));
+    expect((screen.getByText("Ready — Begin Count-in") as HTMLButtonElement).disabled).toBe(false);
+  });
   it("uses the manual host Finish label without changing Ready, audio or save ownership", () => {
     const c = context(), passage = projectContinuousPassage(testScore(), 0, 1, 60);
     const store = { save: vi.fn(async () => {}), list: async () => [] }, audio = vi.fn(() => { throw Error("not in Ready"); });
@@ -34,6 +108,7 @@ describe("continuous workspace and native ownership boundary", () => {
     let guard: (() => boolean) | null = null;
     const tree = (active: boolean) => <AppMidiContext.Provider value={c.value}><ContinuousPlayer passage={p} input={TEST_INPUT} store={store} onExit={onExit} createSession={() => session} onAcknowledgedAttempt={onAcknowledgedAttempt} onGuardChange={value => { guard = value; }} lessonHost={{ active, onView }} /></AppMidiContext.Provider>;
     const view = render(tree(true));
+    act(() => c.consumer()?.onRawMessage?.(raw()));
     await act(async () => fireEvent.click(screen.getByText("Ready — Begin Count-in")));
     expect(screen.getByText("Result not saved")).toBeTruthy();
     expect((screen.getByText("Finish Lesson") as HTMLButtonElement).disabled).toBe(true);
@@ -58,10 +133,11 @@ describe("continuous workspace and native ownership boundary", () => {
     const c = context(); const save = vi.fn(async () => {});
     render(<AppMidiContext.Provider value={c.value}><ContinuousWorkspace score={testScore("4/4", 6)} onExit={vi.fn()} onPitchFirst={vi.fn()} store={{ save, list: async () => [] }} /></AppMidiContext.Provider>);
     expect(screen.getByLabelText("End measure (inclusive)").querySelectorAll("option")).toHaveLength(4);
+    fireEvent.change(screen.getByLabelText("Physical MIDI Input"), { target: { value: TEST_INPUT.id } });
     fireEvent.click(screen.getByText("Prepare Range"));
     expect(screen.getByText("Ready — Begin Count-in")).toBeTruthy();
     expect(screen.getAllByTestId("authored-score")).toHaveLength(2);
-    c.consumer()?.onRawMessage?.(raw());
+    act(() => c.consumer()?.onRawMessage?.(raw()));
     expect(save).not.toHaveBeenCalled();
   });
   it("does not offer a scored start without physical MIDI", () => {
@@ -73,6 +149,7 @@ describe("continuous workspace and native ownership boundary", () => {
   it("reports an ineligible range before attempting persistence or audio", () => {
     const c = context(); const save = vi.fn(async () => {});
     render(<AppMidiContext.Provider value={c.value}><ContinuousWorkspace score={testScore("2/4")} onExit={vi.fn()} onPitchFirst={vi.fn()} store={{ save, list: async () => [] }} /></AppMidiContext.Provider>);
+    fireEvent.change(screen.getByLabelText("Physical MIDI Input"), { target: { value: TEST_INPUT.id } });
     fireEvent.click(screen.getByText("Prepare Range"));
     expect(screen.getByRole("alert").textContent).toContain("3/4, 4/4 and 6/8");
     expect(save).not.toHaveBeenCalled();
@@ -95,6 +172,7 @@ describe("continuous workspace and native ownership boundary", () => {
     const store = { save: vi.fn(async () => {}), list: async () => [] };
     const session = new ContinuousSession(p, TEST_INPUT, store, () => audio);
     render(<AppMidiContext.Provider value={c.value}><ContinuousPlayer passage={p} input={TEST_INPUT} store={store} onExit={vi.fn()} createSession={() => session} /></AppMidiContext.Provider>);
+    act(() => c.consumer()?.onRawMessage?.(raw()));
     await act(async () => { fireEvent.click(screen.getByText("Ready — Begin Count-in")); });
     expect(screen.getByText(/Count-in ·/)).toBeTruthy();
     await act(async () => { c.consumer()?.onInputConnectionChange?.({ provenance: "input-availability", input: TEST_INPUT, state: "disconnected", receivedAtMs: 1 }); });

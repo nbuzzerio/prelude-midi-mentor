@@ -13,7 +13,7 @@ vi.mock("../../piece-practice/rolodex/rolodex-practice", () => ({ RolodexPractic
 } }));
 afterEach(cleanup);
 const occurrence = freezeLessonRepertoire(createEntry(testScore(), "piano"));
-const ready = { phase: "ready" as const, elapsedMs: 0, pulse: 0, attempt: null, save: "idle" as const, error: null };
+const ready = { phase: "ready" as const, elapsedMs: 0, pulse: 0, attempt: null, save: "idle" as const, error: null, midiNote: null };
 it("passes manual host presentation without changing the daily default", () => {
   const props = { occurrence, active: true, finished: false, onFinish: vi.fn(), onChange: vi.fn(), onPlaying: vi.fn() };
   const focus = () => true;

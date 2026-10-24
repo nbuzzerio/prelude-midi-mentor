@@ -176,7 +176,8 @@ export function useMidi({
       );
       let detachedInput = false;
       for (const [input, { listener, info }] of attachedInputs) {
-        if (!availableInputs.has(input)) {
+        const currentInfo = describeMidiInput(input);
+        if (!availableInputs.has(input) || currentInfo.id !== info.id || currentInfo.name !== info.name) {
           input.removeEventListener("midimessage", listener);
           attachedInputs.delete(input);
           detachedInput = true;
@@ -188,12 +189,14 @@ export function useMidi({
         publishHeldNotes();
       }
       if (detachedInput) resetSustainPedal();
+      let attachmentFailed = false;
       for (const input of availableInputs) {
         if (!attachedInputs.has(input)) {
           const info = describeMidiInput(input);
           const listener: EventListener = (event) => handleMidiMessage(input, info, event as MIDIMessageEvent);
+          try { input.addEventListener("midimessage", listener); }
+          catch { attachmentFailed = true; continue; }
           attachedInputs.set(input, { listener, info });
-          input.addEventListener("midimessage", listener);
           notifyInput(info, "connected");
         }
       }
@@ -202,19 +205,20 @@ export function useMidi({
         && previous.every((info, index) => info.id === nextInputs[index].id && info.name === nextInputs[index].name)
         ? previous : nextInputs);
 
-      const firstInput = Array.from(availableInputs)[0];
+      const firstInput = attachedInputs.keys().next().value;
 
       if (firstInput) {
         setDeviceName(firstInput.name ?? "Unknown MIDI device");
         setStatus("connected");
-        setError(null);
+        setError(attachmentFailed ? "Some MIDI inputs could not be monitored. Reconnect the unavailable input and try again." : null);
       } else {
         heldNotes.clear();
         publishHeldNotes();
         resetSustainPedal();
 
         setDeviceName(null);
-        setStatus("disconnected");
+        setStatus(attachmentFailed ? "error" : "disconnected");
+        if (attachmentFailed) setError("MIDI input listening failed. Reconnect your keyboard and try again.");
       }
     };
 

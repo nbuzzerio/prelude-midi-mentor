@@ -22,3 +22,13 @@ it("presents only native attack evidence with separate practice-date status", ()
   expect(screen.getByText(/practice-date\/progress update failed/)).toBeTruthy();
   expect(screen.getByText(/Physical MIDI · Test physical piano/)).toBeTruthy();
 });
+it("warns about a silent acknowledged performance in hosted screen and print content without changing its counts", () => {
+  const p = occurrence.passage;
+  const attempt = { version: 1 as const, id: "silent", revision: 2, passage: p, input: TEST_INPUT, status: "completed" as const,
+    startedAt: "2026-10-20T12:00:00.000Z", endedAt: "2026-10-20T12:01:00.000Z", performanceStartedAt: "2026-10-20T12:00:04.000Z",
+    observedThroughMs: p.durationMs + p.tailMs, reason: null, attacks: [], assessment: assessContinuous(p, []), terminalSaveAttempts: 1 };
+  const before = JSON.stringify(attempt); render(<PracticeLessonRepertoireSummary evidence={{ ...evidence, attempts: [attempt] }} />);
+  expect(screen.getByText("No MIDI note attacks were captured during this performance.")).toBeTruthy();
+  expect(screen.getByText(/Expected attacks: 2 · Correct pitch: 0 · Missing: 2 · Wrong: 0 · Extra: 0/)).toBeTruthy();
+  expect(JSON.stringify(attempt)).toBe(before);
+});

@@ -9,6 +9,9 @@ import { projectContinuousPassage } from "./continuous-projection";
 import { ContinuousSession, type ContinuousView } from "./continuous-session";
 import { continuousStore } from "./continuous-store";
 import { ContinuousScore } from "./continuous-score";
+import { ContinuousInputSelector } from "./continuous-input-selector";
+import { ContinuousInputDiagnostic } from "./continuous-input-diagnostic";
+import { resolveContinuousInput } from "./continuous-input-preference";
 import type { ContinuousAttempt, ContinuousPassage, ContinuousStore } from "./continuous-types";
 import { createEntry, parseEntry } from "../rolodex/rolodex-model";
 import { RolodexEditor } from "../rolodex/rolodex-editor";
@@ -26,16 +29,17 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
   const [start, setStart] = useState(0);
   const [end, setEnd] = useState(Math.min(1, score.measures.length - 1));
   const [bpm, setBpm] = useState(Math.max(40, Math.min(120, score.tempoBpm)));
-  const [inputId, setInputId] = useState("");
+  const [inputChoice, setSelectedInput] = useState<MidiInputInfo | null>(null);
+  const [frozenInput, setFrozenInput] = useState<MidiInputInfo | null>(null);
   const [frozen, setFrozen] = useState<ContinuousPassage | null>(null);
   const [history, setHistory] = useState<readonly ContinuousAttempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveDraft, setSaveDraft] = useState<RolodexEntry | null>(null);
   const [saveNotice, setSaveNotice] = useState("");
-  const inputs = midi?.connectedInputs.filter((i) => i.id !== null) ?? [];
-  const selectedInput = inputs.find((i) => i.id === inputId) ?? (inputId === "" ? inputs[0] : undefined);
+  const inputs = midi?.connectedInputs ?? [];
+  const selectedInput = resolveContinuousInput(inputChoice, inputs);
   if (saveDraft) return <RolodexEditor entry={saveDraft} onCancel={() => setSaveDraft(null)} onSaved={result => { setSaveDraft(null); setSaveNotice(result.duplicate ? "This passage already exists in Practice Rolodex." : "Passage saved to Practice Rolodex. Open it from the Staff Builder library."); }} />;
-  if (frozen) return <ContinuousPlayer passage={frozen} input={selectedInput ?? { id: inputId || null, name: null }} store={store}
+  if (frozen && frozenInput) return <ContinuousPlayer passage={frozen} input={frozenInput} store={store}
     onExit={() => { setFrozen(null); setHistory(null); }} onGuardChange={onGuardChange} />;
   return <section className="mx-auto grid w-full min-w-0 max-w-6xl gap-4 rounded-xl border border-zinc-700 bg-zinc-900 p-3 text-zinc-100 sm:p-5" aria-labelledby="continuous-title">
     <header><h1 className="text-2xl font-bold" id="continuous-title">Continuous tempo · {score.title}</h1>
@@ -50,11 +54,8 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
       <label className="grid gap-1">Quarter-note BPM (40–120)<input className={field} type="number" min={40} max={120} step={1} value={bpm} onChange={(e) => setBpm(Number(e.target.value))} /></label>
     </div>
     <p>3/4: three quarter pulses. 4/4: four quarter pulses. 6/8: two dotted-quarter pulses; at {bpm} quarter BPM, dotted-quarter tempo is {Number((bpm / 1.5).toFixed(1))}.</p>
-    {midi && <MidiStatus deviceName={midi.deviceName} error={midi.error} status={midi.status} onConnect={() => { void midi.connectMidi(); }} />}
-    <label className="grid max-w-lg gap-1">Physical MIDI piano<select className={field} value={selectedInput?.id ?? ""} onChange={(e) => setInputId(e.target.value)}>
-      {!inputs.length && <option value="">No MIDI piano connected</option>}
-      {inputs.map((i) => <option key={i.id} value={i.id!}>{i.name ?? i.id}</option>)}
-    </select></label>
+    {midi && <MidiStatus deviceName={selectedInput?.name ?? "MIDI access enabled — choose an input"} error={midi.error} status={midi.status} onConnect={() => { void midi.connectMidi(); }} />}
+    <ContinuousInputSelector inputs={inputs} onSelection={setSelectedInput} />
     <p>Connect a MIDI piano by USB, select its input, and allow MIDI access. Microphone, simulation and virtual keys cannot start a scored continuous run.</p>
     {error && <p role="alert">{error}</p>}
     {saveNotice && <p role="status">{saveNotice}</p>}
@@ -63,7 +64,7 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
       catch (e) { setError(e instanceof Error ? e.message : "Check the selected passage."); }
     }}>Save to Practice Rolodex</button>
     <div className="flex flex-wrap gap-3"><button className={primary} disabled={!selectedInput || midi?.status !== "connected"} onClick={() => {
-      try { const p = projectContinuousPassage(score, start, end, bpm); setInputId(selectedInput!.id!); setFrozen(p); setError(null); }
+      try { const p = projectContinuousPassage(score, start, end, bpm); setFrozenInput({ ...selectedInput! }); setFrozen(p); setError(null); }
       catch (e) { setError(e instanceof Error ? e.message : "This range is unavailable."); }
     }} type="button">Prepare Range</button><button className={button} onClick={onExit} type="button">Exit Piece Practice</button></div>
     <details><summary className="cursor-pointer py-2">Local continuous history</summary>
@@ -75,7 +76,7 @@ export function ContinuousWorkspace({ score, onExit, onPitchFirst, onGuardChange
       {history?.map((r) => <details className="my-3 rounded border border-zinc-600 p-3" key={r.id}>
         <summary>{new Date(r.startedAt).toLocaleString()} · Measures {r.passage.start + 1}–{r.passage.end + 1} · {r.passage.bpm} BPM · {r.status === "started" ? "Unfinished / interruption possible — last checkpoint" : r.status}</summary>
         {r.assessment ? <ContinuousResults attempt={r} /> : <p>{r.attacks.length} recorded attacks in the last saved checkpoint; no terminal acknowledgement or complete result.</p>}
-        <button className={button} disabled={!selectedInput} type="button" onClick={() => { setInputId(selectedInput!.id!); setFrozen(projectContinuousPassage(r.passage.score, r.passage.start, r.passage.end, r.passage.bpm, r.passage.policy)); }}>Prepare This Frozen Range</button>
+        <button className={button} disabled={!selectedInput} type="button" onClick={() => { setFrozenInput({ ...selectedInput! }); setFrozen(projectContinuousPassage(r.passage.score, r.passage.start, r.passage.end, r.passage.bpm, r.passage.policy)); }}>Prepare This Frozen Range</button>
       </details>)}
     </details>
   </section>;
@@ -94,6 +95,7 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
   const playerRef = useRef<HTMLElement>(null);
   const view = useSyncExternalStore(session.subscribe, session.snapshot);
   const active = lessonHost?.active ?? true;
+  const [foreground, setForeground] = useState(() => document.visibilityState !== "hidden");
   const notifyView = lessonHost?.onView;
   useEffect(() => { notifyView?.(view); onView?.(view); }, [notifyView, onView, view]);
   const [saveDraft, setSaveDraft] = useState<RolodexEntry | null>(null);
@@ -102,17 +104,26 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
     if (view.phase === "results" && view.save === "saved" && view.attempt) onAcknowledgedAttempt?.(view.attempt);
   }, [view.phase, view.save, view.attempt, onAcknowledgedAttempt]);
   const [reviewMeasure, setReviewMeasure] = useState(passage.start);
-  const connected = Boolean(midi?.status === "connected" && midi.connectedInputs.some((i) => i.id === session.input.id));
+  const connected = Boolean(midi?.status === "connected" && resolveContinuousInput(session.input, midi.connectedInputs));
   const registerConsumer = midi?.registerConsumer;
   const entryFocusAllowed = lessonHost?.entryFocusAllowed;
   useEffect(() => { if (!entryFocusAllowed || entryFocusAllowed()) playerRef.current?.scrollIntoView?.({ block: "start" }); }, [entryFocusAllowed]);
   useEffect(() => {
-    if (!active) session.interrupt("Lesson left the foreground. Replay when ready.");
-    const unregister = active ? registerConsumer?.({ rawInputId: session.input.id ?? undefined, onRawMessage: session.rawMessage,
+    if (!active || !foreground) { session.invalidateInput(); session.interrupt("Practice left the foreground. Replay when ready."); }
+    // Keep this one registration through results/Replay: an intervening owner must
+    // invalidate verification even when no scored capture is running.
+    const unregister = active && foreground ? registerConsumer?.({ rawInputId: session.input.id ?? undefined, onRawMessage: session.rawMessage,
       onOwnershipChange: session.ownershipChanged,
-      onInputConnectionChange: (change) => { if (change.state === "disconnected") session.disconnect(change.input.id); } }) : undefined;
-    const hidden = () => { if (document.visibilityState === "hidden") session.interrupt("Browser background interruption. Replay when ready."); };
-    const leaving = () => session.interrupt("The page was closed, frozen or left.");
+      onInputConnectionChange: (change) => {
+        if (change.state === "disconnected") session.disconnect(change.input.id);
+        else if (change.input.name === session.input.name) session.reconnect(change.input.id);
+      } }) : undefined;
+    const hidden = () => {
+      const visible = document.visibilityState !== "hidden";
+      if (!visible) { session.invalidateInput(); session.interrupt("Browser background interruption. Replay when ready."); }
+      setForeground(visible);
+    };
+    const leaving = () => { session.invalidateInput(); session.interrupt("The page was closed, frozen or left."); setForeground(false); };
     const beforeUnload = (event: BeforeUnloadEvent) => { if (!session.canExit()) { event.preventDefault(); event.returnValue = ""; } };
     document.addEventListener("visibilitychange", hidden);
     document.addEventListener("freeze", leaving);
@@ -126,7 +137,7 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
       window.removeEventListener("pagehide", leaving);
       window.removeEventListener("beforeunload", beforeUnload);
     };
-  }, [registerConsumer, session, active]);
+  }, [registerConsumer, session, active, foreground]);
   useEffect(() => {
     onGuardChange?.(() => {
       if (session.canExit()) return true;
@@ -148,9 +159,9 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
   return <section ref={playerRef} className="mx-auto grid w-full min-w-0 max-w-6xl gap-3 rounded-xl bg-zinc-900 p-3 text-zinc-100" aria-labelledby="continuous-player-title">
     <header className="min-w-0"><h1 id="continuous-player-title" className="truncate text-xl font-bold" title={passage.score.title}>{passage.score.title}</h1>
       <p>Measures {passage.start + 1}–{passage.end + 1} · {passage.meter} · ♩ = {passage.bpm}{passage.meter === "6/8" ? ` · dotted-quarter = ${Number((passage.bpm / 1.5).toFixed(1))} (two pulses per bar)` : ""}</p>
-      <span className="sr-only">Physical MIDI input: {session.input.name ?? session.input.id}</span></header>
+      <p className="break-words">Physical MIDI Input: <strong>{session.input.name ?? "Unnamed MIDI input"}</strong> <span className="text-sm">({session.input.id})</span></p></header>
     <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 bg-zinc-900 py-1">
-      {view.phase === "ready" && <button className={primary} disabled={!connected || !session.hasOwnership()} onClick={() => { playerRef.current?.scrollIntoView?.({ block: "start" }); session.begin(); }} type="button">{view.save === "failed" ? "Retry Start — Begin Count-in" : "Ready — Begin Count-in"}</button>}
+      {view.phase === "ready" && <button className={primary} disabled={!connected || !session.hasOwnership() || view.midiNote === null || !active || !foreground} onClick={() => { playerRef.current?.scrollIntoView?.({ block: "start" }); session.begin(); }} type="button">{view.save === "failed" ? "Retry Start — Begin Count-in" : "Ready — Begin Count-in"}</button>}
       {view.phase === "starting" && <p role="status">Preparing audio and waiting for attempt-start acknowledgement…</p>}
       {view.phase === "count-in" && <p className="text-xl font-bold" role="status">Count-in · {view.pulse || "Ready"} / {passage.pulsesPerBar}</p>}
       {playing && <p className="text-xl font-bold">Playing · Measure {activeIndex + 1} · Pulse {view.pulse} {view.elapsedMs >= passage.durationMs ? "· final association tail" : ""}</p>}
@@ -161,10 +172,16 @@ export function ContinuousPlayer({ passage, input, store, onExit, onGuardChange,
         <span role="status">{view.save === "saved" ? "Result saved locally" : view.save === "failed" ? "Result not saved" : "Saving result…"}</span>
       </>}
       <button className={button} type="button" disabled={!session.canExit() && !(!lessonHost && view.phase === "results" && view.save === "failed")} onClick={() => {
-        if (session.canExit() || window.confirm("This result is not saved. Exit and lose its pending in-memory evidence?")) onExit();
+        if (session.canExit() || window.confirm("This result is not saved. Exit and lose its pending in-memory evidence?")) { session.invalidateInput(); onExit(); }
       }}>{lessonHost ? lessonHost.finishLabel ?? "Finish Lesson" : "Exit Continuous Practice"}</button>
     </div>
     {view.phase === "ready" && <p role="status">Ready — read first. The clock and scoring begin after count-in.</p>}
+    {view.phase === "ready" && <div aria-live="polite" role="status">
+      {view.midiNote !== null ? <p>MIDI received: {formatPiecePracticeMidiPitch(view.midiNote)}</p> : <>
+        <p>{connected ? "Input available — play a note to test connection." : "Selected input unavailable."}</p>
+        <p>No notes received from this input yet. Check the selected port, piano power and MIDI connection, then play a note. Test notes are not scored.</p>
+      </>}
+    </div>}
     {!connected && <p role="alert">Reconnect the selected physical MIDI piano ({session.input.name ?? session.input.id}). Return to range selection to choose a different input.</p>}
     {view.error && <p role="alert">{view.error}</p>}
     {saveNotice && <p role="status">{saveNotice}</p>}
@@ -192,6 +209,7 @@ export function ContinuousResults({ attempt }: Readonly<{ attempt: ContinuousAtt
   const p = attempt.passage;
   return <div className="grid min-w-0 gap-2" aria-label="Continuous results">
     <h2 className="text-xl font-bold">{attempt.status === "completed" ? "Passage complete" : `Attempt ${attempt.status}`}</h2>
+    <ContinuousInputDiagnostic attempt={attempt} />
     <p>Measures {p.start + 1}–{p.end + 1} · {p.meter} · {p.bpm} quarter BPM</p>
     <p>{result.expected} expected pitch attacks · {result.matched} pitch matched · {result.wrong} wrong · {result.missing} missing · {result.extras.length} extra{result.unobserved > 0 ? ` · ${result.unobserved} not fully observed` : ""}</p>
     <p>Correct pitches: {result.onTime} on time · {result.early} early · {result.late} late · {result.uncertain} timing uncertain.</p>

@@ -40,6 +40,23 @@ async function connect(view: { result: { current: { connectMidi: () => Promise<v
 afterEach(() => { cleanup(); Reflect.deleteProperty(navigator, "requestMIDIAccess"); vi.restoreAllMocks(); });
 
 describe("raw MIDI transport fidelity", () => {
+  it("does not advertise failed listener attachments and can recover on a later availability observation", async () => {
+    const port = makeInput(); const env = installAccess([port.input]);
+    port.attach.mockImplementationOnce(() => { throw Error("attachment failed"); });
+    const callback = vi.fn(); const view = renderHook(() => useAppMidiInput({ onRawMessage: callback }), { wrapper: MidiProvider });
+    await connect(view);
+    expect(view.result.current.status).toBe("error"); expect(view.result.current.connectedInputs).toEqual([]);
+    expect(view.result.current.error).toContain("listening failed");
+    act(() => env.change()); expect(view.result.current.status).toBe("connected");
+    act(() => port.emit(bytes(0x90, 60, 90))); expect(callback).toHaveBeenCalledOnce();
+  });
+  it("retires an attachment when metadata changes on the same browser port object", async () => {
+    const port = makeInput(); const env = installAccess([port.input]); const changes: MidiInputConnectionChange[] = [];
+    const view = renderHook(() => useAppMidiInput({ onInputConnectionChange: change => changes.push(change) }), { wrapper: MidiProvider }); await connect(view);
+    Object.assign(port.input, { name: "Replaced input" }); act(() => env.change());
+    expect(changes.slice(-2).map(c => [c.state, c.input.name])).toEqual([["disconnected", "Piano"], ["connected", "Replaced input"]]);
+    expect(view.result.current.connectedInputs[0].name).toBe("Replaced input");
+  });
   it("copies and freezes full source bytes and metadata before normalized delivery", async () => {
     const port = makeInput(); installAccess([port.input]);
     vi.spyOn(performance, "now").mockReturnValue(123.75);

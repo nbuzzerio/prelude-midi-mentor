@@ -2,6 +2,14 @@
 
 A high-level release history and record of significant milestones. Candidate/Unreleased records do not assert release, tagging or deployment. Older checkpoint notes retain their original observations and test counts, including their at-the-time pending/staged status; they are historical, not the current worktree state.
 
+## Unreleased — A1 MIDI input reliability checkpoint (version held at 2.9.23)
+
+- Correct the reproduced silent-first-port path with explicit, conservatively restored Physical MIDI Input selection across Continuous Tempo, Piano Rolodex and optional V2 repertoire. No device names are privileged or rejected. Preference metadata is local and separate from physical timing acceptance.
+- Require a selected-device Note On before the first performance after selection/restoration. Ready shows availability separately from confirmed note activity. Testing creates no performance or audio/storage evidence. Same-session results/Replay keep verification; device loss/replacement, ownership loss and departure invalidate it.
+- Explain zero retained performance attacks in native results, saved review and hosted screen/print summaries while preserving every assessment and saved-record field. Retain existing scoring, timing and Rolodex qualification.
+- Preserve the existing provider arbitration and cross-mode input contracts; bound transport changes to listener failure and metadata-replacement handling. Physical piano, actual device identity and timing acceptance remain pending owner QA. No dependency, version, What's New, Git-history or deployment changes are authorized here. A separate v2.9.24 release proposal follows product review.
+- Final verification passes **23 focused files / 479 tests** and full `pnpm verify` **314 files / 4,514 tests**, plus production/PWA build with **35 precache entries**. Production Chrome passes **14 scenario groups / 0 runtime exceptions**, including standalone A1/Rolodex, manual V2 repertoire, selected-stream capture, saved warnings, disconnect/reconnect and offline preference restoration. Browser QA's stale Prepare state has a focused regression. Detailed logs and physical acceptance limits are recorded in TESTING.
+
 ## Unreleased — v2.9.23 candidate
 
 - Prepare package **2.9.23** and What's New sequence **18** without changing dependencies or the lockfile. The primary navigation identifies **Prelude v2.9.23**; a collapsed **Build details** disclosure retains embedded revision diagnostics. Existing update prompts, acknowledgement storage and prior announcements retain their contracts.

@@ -24,6 +24,7 @@ function setup() {
   const factory = vi.fn(() => audio);
   const session = new ContinuousSession(p, TEST_INPUT, store, factory, () => TEST_DATE, () => `attempt-${++sequence}`, () => audio.currentTime * 1000 - 3100);
   session.ownershipChanged(true);
+  session.rawMessage(raw()); // Explicit unscored selected-input verification.
   const at = (ms: number) => { audio.currentTime = 4.1 + ms / 1000; session.tick(); };
   const finish = () => at(p.durationMs + p.tailMs + 1);
   return { session, p, audio, factory, store, records, at, finish };
@@ -31,6 +32,40 @@ function setup() {
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 describe("continuous session authority and persistence acknowledgements", () => {
+  it("requires a valid selected-device Note On without allocating audio or writing evidence", () => {
+    const s = setup(); s.session.invalidateInput(); s.session.begin();
+    for (const bytes of [[0x80, 60, 30], [0x90, 60, 0], [0xb0, 64, 127], [0x90, 60], [0x90, 60, 200]]) s.session.rawMessage({ ...raw(), bytes });
+    s.session.rawMessage(raw(60, 80, 0, 0, { id: "other", name: "Other" }));
+    expect(s.session.snapshot().midiNote).toBeNull(); expect(s.factory).not.toHaveBeenCalled(); expect(s.store.save).not.toHaveBeenCalled();
+    s.session.rawMessage({ ...raw(), bytes: [0x9f, 60, 90] });
+    expect(s.session.snapshot()).toMatchObject({ midiNote: 60, phase: "ready", attempt: null });
+    expect(s.factory).not.toHaveBeenCalled(); expect(s.store.save).not.toHaveBeenCalled();
+  });
+  it("preserves verification and frozen identity through silent results and Replay without another note", async () => {
+    const s = setup(); s.session.begin(); await flush(); s.finish(); await flush();
+    expect(s.session.snapshot().attempt).toMatchObject({ input: TEST_INPUT, attacks: [], assessment: { missing: 2 } });
+    s.session.replay(); expect(s.session.snapshot().midiNote).toBe(60); s.session.begin(); await flush();
+    expect(s.session.snapshot().phase).toBe("count-in"); expect(s.records.size).toBe(2);
+    expect([...s.records.values()].every(r => r.input.id === TEST_INPUT.id && r.attacks.length === 0)).toBe(true);
+    s.session.stop(); await flush();
+  });
+  it.each(["disconnect", "ownership", "identity"])("invalidates verification after %s even between results and Replay", async reason => {
+    const s = setup(); s.session.begin(); await flush(); s.finish(); await flush();
+    if (reason === "disconnect") { s.session.disconnect(TEST_INPUT.id); s.session.reconnect(TEST_INPUT.id); }
+    else if (reason === "ownership") { s.session.ownershipChanged(false); s.session.ownershipChanged(true); }
+    else s.session.rawMessage({ ...raw(), input: { ...TEST_INPUT, name: "Replaced" } });
+    s.session.replay(); s.session.begin(); expect(s.session.snapshot().phase).toBe("ready"); expect(s.factory).toHaveBeenCalledTimes(1);
+    s.session.reconnect(TEST_INPUT.id); s.session.rawMessage(raw()); s.session.begin(); await flush();
+    expect(s.session.snapshot().phase).toBe("count-in"); s.session.stop(); await flush();
+  });
+  it("rejects background test notes and starts", () => {
+    const s = setup(); s.session.invalidateInput();
+    const previous = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    try {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      s.session.rawMessage(raw()); s.session.begin(); expect(s.session.snapshot().midiNote).toBeNull(); expect(s.factory).not.toHaveBeenCalled();
+    } finally { if (previous) Object.defineProperty(document, "visibilityState", previous); else Reflect.deleteProperty(document, "visibilityState"); }
+  });
   it("waits indefinitely in Ready without audio, scoring, storage or a running timer", () => {
     const s = setup(); s.session.rawMessage(raw()); vi.advanceTimersByTime(60000);
     expect(s.session.snapshot()).toMatchObject({ phase: "ready", elapsedMs: 0, attempt: null });
@@ -86,7 +121,7 @@ describe("continuous session authority and persistence acknowledgements", () => 
     const p = projectContinuousPassage(source, 0, 0, 120);
     const audio = audioFixture();
     const session = new ContinuousSession(p, TEST_INPUT, { save: async () => {}, list: async () => [] }, () => audio, () => TEST_DATE, () => "last-onset", () => -1100);
-    session.ownershipChanged(true); session.begin(); await flush();
+    session.ownershipChanged(true); session.rawMessage(raw()); session.begin(); await flush();
     audio.currentTime = 2.1 + 2.1; session.tick(); session.rawMessage(raw());
     expect(session.snapshot().attempt!.attacks).toHaveLength(1);
     audio.currentTime = 4.4; session.tick(); await flush();
@@ -169,7 +204,7 @@ describe("continuous session authority and persistence acknowledgements", () => 
   it("does not race a disconnected piano into a scored start and can start after reconnecting", async () => {
     const s = setup(); s.session.disconnect(TEST_INPUT.id); s.session.begin();
     expect(s.factory).not.toHaveBeenCalled();
-    s.session.reconnect(TEST_INPUT.id); s.session.begin(); await flush();
+    s.session.reconnect(TEST_INPUT.id); s.session.rawMessage(raw()); s.session.begin(); await flush();
     expect(s.session.snapshot().phase).toBe("count-in"); s.session.stop(); await flush();
   });
   it("interrupts a failed checkpoint and retains evidence for terminal saving", async () => {

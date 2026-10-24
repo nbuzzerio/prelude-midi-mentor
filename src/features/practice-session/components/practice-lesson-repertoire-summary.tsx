@@ -1,4 +1,5 @@
 import { RolodexProgressPanel } from "../../piece-practice/rolodex/rolodex-progress-panel";
+import { ContinuousInputDiagnostic } from "../../piece-practice/continuous/continuous-input-diagnostic";
 import type { RepertoireEvidence } from "../practice-lesson-repertoire";
 
 export function PracticeLessonRepertoireSummary({ evidence }: Readonly<{ evidence: RepertoireEvidence }>) {
@@ -9,6 +10,7 @@ export function PracticeLessonRepertoireSummary({ evidence }: Readonly<{ evidenc
     {!evidence.attempts.length && <p>{evidence.pending ? "Repertoire evidence pending — no acknowledged terminal result yet." : evidence.skipped ? "Deliberately skipped — no performance." : "Not performed."}</p>}
     {evidence.attempts.map((attempt, index) => <section className="practice-session-print-block" key={attempt.id}>
       <h4 className="font-semibold">Performance {index + 1} · {attempt.status} · A1 result saved locally</h4>
+      <ContinuousInputDiagnostic attempt={attempt} />
       {!attempt.performanceStartedAt && <p>Performance did not begin; no played phrase is inferred.</p>}
       {attempt.assessment && <>
         <p>Expected attacks: {attempt.assessment.expected} · Correct pitch: {attempt.assessment.matched} · Missing: {attempt.assessment.missing} · Wrong: {attempt.assessment.wrong} · Extra: {attempt.assessment.extras.length}</p>
