@@ -3,7 +3,7 @@ import type { MidiInputInfo, RawMidiMessage } from "@/lib/midi/midi-transport";
 import { assessContinuous } from "./continuous-assessment";
 import { createContinuousClock, type ContinuousClock } from "./continuous-clock";
 import { createContinuousMidiCapture } from "./continuous-midi";
-import { CONTINUOUS_MAX_ATTACKS } from "./continuous-store";
+import { admitContinuousPassage, continuousBudget, continuousAttackBytes, CONTINUOUS_MAX_ATTACKS, CONTINUOUS_MAX_RECORD_BYTES } from "./continuous-budget";
 import type { ContinuousAttempt, ContinuousPassage, ContinuousStore } from "./continuous-types";
 
 export type ContinuousView = Readonly<{
@@ -27,11 +27,14 @@ export class ContinuousSession {
   private connected = true;
   private performanceCutoffMs = Infinity;
   private capture: ReturnType<typeof createContinuousMidiCapture>;
+  private retainedBytes = 0;
+  private terminalBytes: number;
   constructor(readonly passage: ContinuousPassage, readonly input: MidiInputInfo, private store: ContinuousStore,
     private audioFactory = createMelodyBrowserAudioContext, private calendar = () => new Date().toISOString(),
     private identity: () => string = () => crypto.randomUUID(), private monotonic = () => performance.now()) {
     this.input = Object.freeze({ ...input });
     this.capture = createContinuousMidiCapture(this.input);
+    this.terminalBytes = continuousBudget(passage, this.input).terminalBytes;
   }
   snapshot = () => this.view;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -53,6 +56,8 @@ export class ContinuousSession {
   begin = () => {
     if (this.view.phase !== "ready" || !this.ownership || !this.connected || !this.input.id || this.view.midiNote === null
       || document.visibilityState === "hidden") return;
+    try { admitContinuousPassage(this.passage, this.input); }
+    catch (error) { this.publish({ error: error instanceof Error ? error.message : "Select a shorter range." }); return; }
     const token = ++this.generation;
     const attempt = this.view.attempt ?? { version: 1, id: this.identity(), revision: 0, passage: this.passage,
       input: { ...this.input }, status: "started", startedAt: this.calendar(), endedAt: null,
@@ -131,6 +136,11 @@ export class ContinuousSession {
       || attack.timeMs > this.passage.durationMs + this.passage.tailMs) return;
     const attempt = this.view.attempt!;
     if (attempt.attacks.length >= CONTINUOUS_MAX_ATTACKS) { this.finish("interrupted", "The 2,048-attack evidence limit was reached."); return; }
+    const bytes = continuousAttackBytes(attack);
+    if (this.terminalBytes + this.retainedBytes + bytes > CONTINUOUS_MAX_RECORD_BYTES) {
+      this.finish("interrupted", "The 2 MiB evidence budget was reached. Captured notes are retained; select a shorter range before replaying."); return;
+    }
+    this.retainedBytes += bytes;
     this.publish({ attempt: { ...attempt, attacks: [...attempt.attacks, attack] } });
   };
   private finish(status: ContinuousAttempt["status"], reason: string | null) {
@@ -168,6 +178,7 @@ export class ContinuousSession {
     if (this.view.phase !== "results" || this.view.save !== "saved") return;
     ++this.generation;
     this.capture = createContinuousMidiCapture(this.input);
+    this.retainedBytes = 0;
     this.publish({ phase: "ready", elapsedMs: 0, pulse: 0, attempt: null, error: null, save: "idle" });
   };
   canExit = () => {

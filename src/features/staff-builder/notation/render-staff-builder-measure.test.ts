@@ -7,6 +7,8 @@ import { buildMelodyDiatonicPitchPool, generateMelodyExercise, MELODY_RHYTHM_TEM
 import { DEFAULT_MELODY_SETTINGS, MELODY_KEY_IDS } from "@/features/melody/melody-types";
 import { projectMelodyExerciseToPracticeDisplayScore } from "@/features/melody/melody-display-score";
 import { durationToTicks } from "../staff-builder-time";
+import { denseScore, measure, note, testScore } from "@/features/piece-practice/continuous/continuous-test-fixtures";
+import { continuousReadingEnvelope, resolveContinuousReadingPosition } from "@/features/piece-practice/continuous/continuous-reading";
 
 function score(): StaffBuilderScore {
   return {
@@ -65,6 +67,35 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("renderStaffBuilderMeasure", () => {
+  it("opts into an intrinsic-width A1 grand staff without changing ordinary renderer defaults", () => {
+    const source = denseScore(2, 3);
+    const container = document.createElement("div");
+    const original = renderStaffBuilderMeasure(container, source, 0);
+    const reading = { width: 280, ...continuousReadingEnvelope(source, 0, 1) };
+    const compact = renderStaffBuilderMeasure(container, source, 0, { grandReading: reading });
+    expect(compact.width).toBeGreaterThan(280); // Scroll rather than crush dense chords.
+    expect(compact.height).toBeLessThan(original.height);
+    for (let tick = 0; tick < 1920; tick += 120) {
+      const cursor = resolveContinuousReadingPosition(compact.anchors, source.measures[0]!.events, tick);
+      expect(cursor).not.toBeNull();
+      const upper = compact.anchors.authoritativeEvents.get(`e0-0-${tick / 120}`)!;
+      const lower = compact.anchors.authoritativeEvents.get(`e0-1-${tick / 120}`)!;
+      expect(cursor!.x).toBeCloseTo(upper.onsetX, 1); expect(upper.onsetX).toBeCloseTo(lower.onsetX, 1);
+    }
+    const restored = renderStaffBuilderMeasure(container, source, 0);
+    expect(restored.width).toBe(original.width); expect(restored.height).toBe(original.height);
+    expect(restored.anchors.timeline).toEqual(original.anchors.timeline);
+  });
+  it("uses a passage-wide ledger-safe envelope with stable heights and staff positions", () => {
+    const source = { ...testScore(), measures: [measure("lo", [note("low", 0, 24, "quarter", "bass")]), measure("hi", [note("high", 0, 108)])] };
+    const grandReading = { width: 410, ...continuousReadingEnvelope(source, 0, 1) };
+    const results = source.measures.map((_, i) => renderStaffBuilderMeasure(document.createElement("div"), source, i, { grandReading }));
+    expect(results[0]!.height).toBe(results[1]!.height);
+    expect(results[0]!.anchors.notationControls.trebleClef.y).toBe(results[1]!.anchors.notationControls.trebleClef.y);
+    for (const result of results) for (const pitch of result.anchors.pitches.values()) {
+      expect(pitch.y).toBeGreaterThanOrEqual(0); expect(pitch.y + pitch.height).toBeLessThanOrEqual(result.height);
+    }
+  });
   it.each(MELODY_KEY_IDS)("keeps complete compact %s measures readable with stable rows in both clefs", keyId => {
     const heights = new Set<number>();
     for (const staff of ["treble", "bass"] as const) {

@@ -8,13 +8,16 @@ describe("continuous canonical passage projection", () => {
     expect(p).toMatchObject({ measureMs: barMs, durationMs: 2 * barMs, pulsesPerBar: count, pulseMs });
     expect(p.expected.map((e) => e.timeMs)).toEqual([0, barMs]);
   });
-  it.each([1, 2, 3, 4])("projects %i complete measures with original identities", (bars) => {
-    const source = testScore("4/4", 8);
+  it.each([1, 2, 3, 4, 8, 16])("projects %i complete measures with original identities", (bars) => {
+    const source = testScore("4/4", 20);
     const p = projectContinuousPassage(source, 3, 3 + bars - 1, 120);
     expect(p.durationMs).toBe(bars * 2000);
     expect(p.expected[0]!.target.sourceMeasureId).toBe("m3");
     expect(p.expected[0]!.target.sourceEventIds).toEqual(["n3"]);
     expect(p.expected[0]!.timeMs).toBe(0);
+  });
+  it("rejects seventeen measures without silently truncating the selected range", () => {
+    expect(() => projectContinuousPassage(testScore("4/4", 20), 1, 17, 40)).toThrow(/sixteen/);
   });
   it.each([[0, 4, 60], [-1, 0, 60], [0, 9, 60], [1, 0, 60], [0, 1, 39], [0, 1, 121], [0, 1, 60.5]])("rejects invalid range/tempo %s %s %s", (start, end, bpm) => {
     expect(() => projectContinuousPassage(testScore(), start, end, bpm)).toThrow();
@@ -47,6 +50,16 @@ describe("continuous canonical passage projection", () => {
     expect(p.score.ties).toEqual(source.ties);
     expect(() => projectContinuousPassage(source, 1, 1, 60)).toThrow(/incoming tie/);
     expect(projectContinuousPassage(source, 0, 0, 60).score.ties).toHaveLength(1);
+  });
+  it("preserves ties and rests across former four-bar boundaries in one sixteen-bar projection", () => {
+    const source = { ...testScore(), measures: Array.from({ length: 16 }, (_, i) => measure(`m${i}`, i === 8 ? [] : [note(`n${i}`, 0, 60, "whole")])),
+      ties: [{ id: "across-old-limit", fromEventId: "n3", fromPitchId: "n3-p", toEventId: "n4", toPitchId: "n4-p" }] };
+    const p = projectContinuousPassage(source, 0, 15, 40);
+    expect(p.expected).toHaveLength(14);
+    expect(p.expected.some(e => e.target.measureIndex === 4 || e.target.measureIndex === 8)).toBe(false);
+    expect(p.expected.find(e => e.target.measureIndex === 5)?.timeMs).toBe(30000);
+    expect(p.durationMs).toBe(96000); expect(p.policy).toEqual(CONTINUOUS_POLICY);
+    expect(() => projectContinuousPassage(source, 4, 15, 40)).toThrow(/incoming tie/);
   });
   it("groups simultaneous cross-staff pitches and collapses physically unobservable unisons", () => {
     const source = { ...testScore(), measures: [measure("m0", [note("u"), note("l", 0, 60, "quarter", "bass")])] };

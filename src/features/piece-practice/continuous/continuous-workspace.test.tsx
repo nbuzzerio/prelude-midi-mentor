@@ -8,6 +8,7 @@ import { projectContinuousPassage } from "./continuous-projection";
 import { raw, TEST_INPUT, testScore } from "./continuous-test-fixtures";
 import { MidiProvider } from "@/components/midi/midi-provider";
 import type { ContinuousAttempt } from "./continuous-types";
+import { assessContinuous } from "./continuous-assessment";
 
 vi.mock("./continuous-score", () => ({
   ContinuousScore: ({ measureIndex }: { measureIndex: number }) => <div data-testid="authored-score">Authored measure {measureIndex + 1}</div>,
@@ -20,6 +21,40 @@ function context() {
   return { value, consumer: () => consumer };
 }
 describe("continuous workspace and native ownership boundary", () => {
+  it("selects exact 16-bar ranges, never truncates a start change and keeps longer music out of Rolodex", () => {
+    const c = context(); render(<AppMidiContext.Provider value={c.value}><ContinuousWorkspace score={testScore("4/4", 20)} store={{ save: vi.fn(), list: async () => [] }} onExit={vi.fn()} onPitchFirst={vi.fn()} /></AppMidiContext.Provider>);
+    fireEvent.click(screen.getByText("16 measures"));
+    expect((screen.getByLabelText("End measure (inclusive)") as HTMLSelectElement).value).toBe("15");
+    expect((screen.getByText("Save to Practice Rolodex") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/currently support 1–4/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Start measure"), { target: { value: "17" } });
+    expect((screen.getByLabelText("End measure (inclusive)") as HTMLSelectElement).value).toBe("15");
+    expect(screen.getByRole("alert").textContent).toContain("not been shortened");
+    expect((screen.getByText("Prepare Range") as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("loads eight history summaries and a single validated detail on demand, without list or eager result rendering", async () => {
+    const passage = projectContinuousPassage(testScore("4/4", 16), 0, 15, 60);
+    const r: ContinuousAttempt = { version: 1, id: "saved-16", revision: 1, passage, input: TEST_INPUT, status: "completed",
+      startedAt: "2026-10-24T00:00:00.000Z", endedAt: "2026-10-24T00:00:00.000Z", performanceStartedAt: "2026-10-24T00:00:00.000Z",
+      observedThroughMs: passage.durationMs + passage.tailMs, reason: null, attacks: [], assessment: assessContinuous(passage, []), terminalSaveAttempts: 1 };
+    const cursor = { startedAt: r.startedAt, id: "old-7" };
+    const store = { save: vi.fn(), list: vi.fn(async () => []), get: vi.fn(async () => r), historyPage: vi.fn(async () => ({
+      entries: Array.from({ length: 8 }, (_, i) => ({ id: i ? `old-${i}` : r.id, startedAt: r.startedAt, start: 0, end: 15, bpm: 60, status: "completed", unavailable: false })), next: cursor })) };
+    render(<ContinuousWorkspace score={passage.score} store={store} onExit={vi.fn()} onPitchFirst={vi.fn()} />);
+    expect(store.historyPage).not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(screen.getByText("Load Saved Attempts")));
+    expect(screen.getAllByText("Review Saved Attempt")).toHaveLength(8);
+    expect(screen.queryByLabelText("Continuous results")).toBeNull(); expect(store.list).not.toHaveBeenCalled(); expect(store.get).not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(screen.getAllByText("Review Saved Attempt")[0]!));
+    expect(store.get).toHaveBeenCalledExactlyOnceWith(r.id); expect(screen.getAllByLabelText("Continuous results")).toHaveLength(1);
+    expect(screen.getByText("No MIDI note attacks were captured during this performance.")).toBeTruthy();
+    expect(screen.queryByText(/Raw retained attack evidence/)).toBeNull();
+    await act(async () => fireEvent.click(screen.getByText("Older Attempts")));
+    expect(store.historyPage).toHaveBeenLastCalledWith(passage.score.id, cursor); expect(screen.queryByLabelText("Continuous results")).toBeNull();
+    store.get.mockRejectedValueOnce(Error("corrupt"));
+    await act(async () => fireEvent.click(screen.getAllByText("Review Saved Attempt")[0]!));
+    expect(screen.getByRole("alert").textContent).toContain("preserved");
+  });
   it("disables preparation against the current input list while preserving the unavailable explicit preference", () => {
     const c = context(), score = testScore(), save = vi.fn(async () => {});
     const tree = (connected: boolean) => <AppMidiContext.Provider value={{ ...c.value, connectedInputs: connected ? [TEST_INPUT] : [{ id: "silent", name: "Silent port" }] }}><ContinuousWorkspace score={score} store={{ save, list: async () => [] }} onExit={vi.fn()} onPitchFirst={vi.fn()} /></AppMidiContext.Provider>;
@@ -132,7 +167,7 @@ describe("continuous workspace and native ownership boundary", () => {
   it("offers a bounded range, tempo, physical input and explicit untimed preparation", () => {
     const c = context(); const save = vi.fn(async () => {});
     render(<AppMidiContext.Provider value={c.value}><ContinuousWorkspace score={testScore("4/4", 6)} onExit={vi.fn()} onPitchFirst={vi.fn()} store={{ save, list: async () => [] }} /></AppMidiContext.Provider>);
-    expect(screen.getByLabelText("End measure (inclusive)").querySelectorAll("option")).toHaveLength(4);
+    expect(screen.getByLabelText("End measure (inclusive)").querySelectorAll("option")).toHaveLength(6);
     fireEvent.change(screen.getByLabelText("Physical MIDI Input"), { target: { value: TEST_INPUT.id } });
     fireEvent.click(screen.getByText("Prepare Range"));
     expect(screen.getByText("Ready — Begin Count-in")).toBeTruthy();

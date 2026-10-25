@@ -38,6 +38,14 @@ export function attack(id: number, midi: number, timeMs: number, uncertaintyMs: 
   return { id, midi, timeMs, uncertaintyMs, channel: 0, velocity: 80, source: "physical-midi", input: TEST_INPUT,
     sourceTimeStampMs: 1000 + timeMs, receivedAtMs: 1000 + timeMs, audioTimeSeconds: timeMs / 1000 };
 }
+/** Fully authored, repeated block chords on both staves, with bounded spelling. */
+export function denseScore(bars = 16, chord = 3, meter: StaffBuilderTimeSignature = "4/4", step = 120): StaffBuilderScore {
+  return { ...testScore(meter, 1), measures: Array.from({ length: bars }, (_, m) => ({ id: `m${m}`,
+    events: (["treble", "bass"] as const).flatMap((staff, s) => Array.from({ length: getMeasureCapacityTicks(meter) / step }, (_, i) => {
+      const e = note(`e${m}-${s}-${i}`, i * step, s ? 36 : 60, step === 120 ? "sixteenth" : step === 240 ? "eighth" : step === 1920 ? "whole" : step === 1440 ? "dotted-half" : "quarter", staff);
+      return { ...e, pitches: Array.from({ length: chord }, (_, p) => ({ ...note(`p${m}-${s}-${i}-${p}`, 0, (s ? 36 : 60) + [0, 4, 7, 11, 14, 17][p]!).pitches[0]!, id: `p${m}-${s}-${i}-${p}` })) };
+    })) })) };
+}
 export function raw(midi = 60, velocity = 80, source = 1000, received = source, input = TEST_INPUT): RawMidiMessage {
   return { provenance: "browser-midi-message", sequence: 1, input, bytes: [0x90, midi, velocity], dataStatus: "available", sourceTimeStampMs: source, receivedAtMs: received };
 }

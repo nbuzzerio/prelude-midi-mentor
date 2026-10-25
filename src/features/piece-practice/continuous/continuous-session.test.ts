@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ContinuousSession } from "./continuous-session";
 import { projectContinuousPassage } from "./continuous-projection";
-import { attack, measure, note, raw, TEST_DATE, TEST_INPUT, testScore } from "./continuous-test-fixtures";
+import { attack, denseScore, measure, note, raw, TEST_DATE, TEST_INPUT, testScore } from "./continuous-test-fixtures";
+import { admitContinuousPassage, continuousBytes, CONTINUOUS_MAX_RECORD_BYTES } from "./continuous-budget";
 import { validateContinuousAttempt } from "./continuous-store";
 import type { ContinuousAttempt } from "./continuous-types";
 
@@ -32,6 +33,57 @@ function setup() {
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 describe("continuous session authority and persistence acknowledgements", () => {
+  it.each(["3/4", "4/4", "6/8"] as const)("captures one unsegmented sixteen-bar %s attempt through count-in and final tail", async meter => {
+    const passage = projectContinuousPassage(testScore(meter, 16), 0, 15, 40), audio = audioFixture();
+    const save = vi.fn(async (r: ContinuousAttempt) => validateContinuousAttempt(r));
+    const session = new ContinuousSession(passage, TEST_INPUT, { save, list: async () => [] }, () => audio, () => TEST_DATE, () => "long-16", () => -10000);
+    session.ownershipChanged(true); session.rawMessage(raw()); session.begin(); await flush();
+    expect(audio.createOscillator).toHaveBeenCalledTimes(17 * passage.pulsesPerBar);
+    session.rawMessage(raw()); expect(session.snapshot().attempt!.attacks).toHaveLength(0);
+    for (const e of passage.expected) {
+      audio.currentTime = .1 + passage.measureMs / 1000 + e.timeMs / 1000;
+      session.tick(); session.rawMessage(raw(e.target.expectedMidiNumbers[0]!));
+    }
+    audio.currentTime = .1 + (passage.measureMs + passage.durationMs + passage.tailMs - 1) / 1000;
+    session.tick(); expect(session.snapshot().phase).toBe("playing");
+    audio.currentTime += .01; session.tick(); await flush();
+    expect(session.snapshot()).toMatchObject({ save: "saved", attempt: { id: "long-16", status: "completed", assessment: { expected: 16, matched: 16, missing: 0 } } });
+    expect(new Set(save.mock.calls.map(([r]) => r.id))).toEqual(new Set(["long-16"]));
+    session.replay(); expect(session.snapshot().midiNote).toBe(60); expect(session.passage).toBe(passage);
+  });
+  it("interrupts at the attack ceiling, retaining exactly 2,048 attacks and no fabricated completion", async () => {
+    const s = setup(); s.session.begin(); await flush(); s.at(1);
+    for (let i = 0; i < 2049; i++) s.session.rawMessage(raw());
+    await flush();
+    expect(s.session.snapshot()).toMatchObject({ phase: "results", save: "saved", attempt: { status: "interrupted" } });
+    expect(s.session.snapshot().attempt!.attacks).toHaveLength(2048);
+    expect(s.session.snapshot().error).toContain("2,048");
+  });
+  it("interrupts before terminal byte overflow, preserving the accepted prefix and exact failed-write Retry", async () => {
+    const passage = projectContinuousPassage(denseScore(16, 2), 0, 15, 40), audio = audioFixture();
+    const input = { ...TEST_INPUT, name: "Long device metadata ".repeat(25) };
+    expect(() => admitContinuousPassage(passage, input)).not.toThrow();
+    const save = vi.fn(async (r: ContinuousAttempt) => { validateContinuousAttempt(r); if (r.status !== "started" && r.terminalSaveAttempts === 1) throw Error("write interrupted"); });
+    const session = new ContinuousSession(passage, input, { save, list: async () => [] }, () => audio, () => TEST_DATE, () => "byte-limit", () => -10000);
+    session.ownershipChanged(true); session.rawMessage(raw(60, 80, 0, 0, input)); session.begin(); await flush();
+    audio.currentTime = 6.6; session.tick();
+    for (let i = 0; i < 2049 && session.snapshot().phase !== "results"; i++) session.rawMessage(raw(60, 80, 0, 0, input));
+    await flush();
+    const interrupted = session.snapshot().attempt!;
+    expect(interrupted.status).toBe("interrupted"); expect(interrupted.reason).toContain("2 MiB");
+    expect(interrupted.attacks.length).toBeGreaterThan(1024); expect(interrupted.attacks.length).toBeLessThan(2048);
+    expect(continuousBytes(interrupted)).toBeLessThan(CONTINUOUS_MAX_RECORD_BYTES);
+    expect(session.snapshot().save).toBe("failed"); session.retrySave(); await flush();
+    expect(session.snapshot().save).toBe("saved");
+    expect(session.snapshot().attempt).toMatchObject({ id: "byte-limit", attacks: interrupted.attacks, assessment: interrupted.assessment, terminalSaveAttempts: 2 });
+  });
+  it("ignores a late checkpoint failure after an acknowledged terminal result", async () => {
+    const s = setup(); s.session.begin(); await flush();
+    const checkpoint = deferred(); s.store.save.mockImplementationOnce(() => checkpoint.promise); s.at(2100);
+    s.session.stop(); await flush(); const terminal = s.session.snapshot().attempt;
+    checkpoint.reject(Error("late write")); await flush();
+    expect(s.session.snapshot()).toMatchObject({ phase: "results", save: "saved", attempt: terminal });
+  });
   it("requires a valid selected-device Note On without allocating audio or writing evidence", () => {
     const s = setup(); s.session.invalidateInput(); s.session.begin();
     for (const bytes of [[0x80, 60, 30], [0x90, 60, 0], [0xb0, 64, 127], [0x90, 60], [0x90, 60, 200]]) s.session.rawMessage({ ...raw(), bytes });

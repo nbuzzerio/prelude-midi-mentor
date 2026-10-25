@@ -1,5 +1,13 @@
 # Prelude: MIDI Mentor — Rolling Roadmap
 
+## P2A — standalone longer passages, pending owner review
+
+Working package remains **2.9.24** at the owner's explicit instruction. P2A implements exact contiguous **1–16-measure standalone** ranges, budgeted whole-passage capture/assessment, two visible grand-staff slots with one prepared replacement, Focus Staff and paged saved history. MIDI verification, policy v1 and musical clocks remain unchanged. Piano Rolodex, Today's Piano Lesson and manual V2 repertoire retain **1–4 measures**. Physical Chromebook/piano acceptance remains pending.
+
+Proposed next deployment identity: **2.9.25**, with a separately approved What's New entry: “Practice up to 16 selected measures at your chosen tempo, with current and upcoming grand-staff music kept in view.” No package/announcement/tag/deployment change is part of P2A. P2B optional room recording and P2C performance reports require their own implementation approvals. Melody F3B remains outside this milestone.
+
+The earlier milestones below retain their historical scope.
+
 ## Current milestone — v2.9.23 release preparation
 
 A1–D and the subsequent Piece Practice UI/UTC test correction are committed through `d0e4a5e`. Checkpoint E verified that baseline's Actions #123 and deployed revision under 2.9.21. The inspected baseline is now `43f1cea` / 2.9.22; the working candidate is **2.9.23**, preserving uncommitted F3A and adding What's New sequence 18. Its owner review, commit/push/tag and deployment acceptance are separate gates. Physical MIDI-piano timing and reading comfort remain pending. Automatic qualification/retirement defaults OFF until deliberate owner acceptance for future compatible performances; synthetic QA is insufficient.
@@ -33,7 +41,7 @@ The following systems exist today. Pending physical QA does not make their imple
 | Ear Training | Ascending/descending melodic-interval identification, explicit replay, statistics, and pedal-to-Play-Prompt. Other aural tasks remain future work. |
 | Melody | Seeded monophonic one/two-measure 4/4 reading, count-in/metronome, continuous capture, nonblocking performance, alignment, separate Pitch/Movement/Timing results, timed review and repair. Flow V2 F1/F2 adds fixed authored-measure look-ahead and an engraved-position cursor; finite trials and explicit Try Another remain. Full native evidence is memory-only; sustained Flow remains future work. |
 | Staff Builder | Application-owned score authoring, notes/chords/rests/rhythm/ties/context/annotations, capture and correction, derived polyphony, playback, local library/drafts, validated Save, score import/export, duplication, Lyric Cues, display clefs, and printable Study View. Committed 2.9.15 adds direct library Study View and a transient editing lock. Study View is score presentation, not Guided Studies. |
-| Piece Practice | Default blocking pitch-attack practice, excerpts, Staff Focus, ordinary/rolled checks, diagnostics, reports and existing IndexedDB recovery. A1 adds a separate physical-MIDI continuous-tempo owner for one-to-four-measure saved passages, fixed musical time, pitch/onset assessment, bounded acknowledged attempts and frozen-range Replay. Physical piano acceptance is pending. |
+| Piece Practice | Default blocking pitch-attack practice, excerpts, Staff Focus, ordinary/rolled checks, diagnostics, reports and existing IndexedDB recovery. A1 adds a separate physical-MIDI continuous-tempo owner; P2A extends standalone ranges to sixteen measures while repertoire remains at four, fixed musical time, pitch/onset assessment, bounded acknowledged attempts and frozen-range Replay. Physical piano acceptance is pending. |
 | Targeted Practice | Provisional evidence-led repair inside Piece Practice: transparent measure recommendations, original-snapshot single-measure runs, and in-tab original/latest count comparison. Ordinary runs persist; navigation/comparison links do not. No adaptive coaching or mastery score. |
 | Practice Sessions | Reusable browser-local prescriptions across Flashcards, Sequences, Ear Training and timed Melody; native targets, Scale Repertoire, Bonus/Skip/End, stable hosted Mobile Play, comprehensive authored-order reports including never-entered work, and browser printing. Runtime evidence remains memory-only. |
 | Weekly Practice import | Reduced nine-concept interchange, curriculum metadata, validation/translation/schema/examples, paste/upload preview and atomic import into the unsaved library, plus a Copy-for-AI guide. No weekly scheduler, cloud AI service, or report history. |

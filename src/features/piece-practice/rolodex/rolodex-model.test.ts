@@ -3,6 +3,15 @@ import { createEntry, editEntry, musicKey, parseEntry, playablePassage, playabil
 import { testScore } from "../continuous/continuous-test-fixtures";
 
 describe("immutable Rolodex prescriptions", () => {
+  it("retains its independent four-bar boundary for create/edit/import despite longer standalone A1 ranges", () => {
+    const score = testScore("4/4", 16);
+    const four = createEntry(score, "piano", 8, 11, 60);
+    expect(playablePassage(four)).toMatchObject({ start: 8, end: 11 });
+    expect(() => createEntry(score, "piano", 0, 15, 60)).toThrow(/range/);
+    expect(() => editEntry(four, { end: 15 })).toThrow(/range/);
+    expect(() => parseEntry({ ...four, end: 15 })).toThrow(/range/);
+    expect(four.score.measures).toHaveLength(16);
+  });
   it("captures full source, original identities and inclusive measure numbers", () => {
     const source = testScore("4/4", 6), entry = createEntry(source, "piano", 3, 4, 72);
     expect(entry.score).toEqual(source); expect(entry.score).not.toBe(source);

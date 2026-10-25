@@ -1,11 +1,12 @@
 import { assessContinuous } from "./continuous-assessment";
 import { projectContinuousPassage } from "./continuous-projection";
-import type { ContinuousAttempt, ContinuousStore } from "./continuous-types";
+import type { ContinuousAttempt, ContinuousStore, ContinuousHistorySummary, ContinuousHistoryCursor } from "./continuous-types";
+import { CONTINUOUS_MAX_ATTACKS, CONTINUOUS_MAX_RECORD_BYTES } from "./continuous-budget";
+export { CONTINUOUS_MAX_ATTACKS, CONTINUOUS_MAX_RECORD_BYTES } from "./continuous-budget";
 
 export const CONTINUOUS_DB = "prelude-continuous-piece-v1";
 export const CONTINUOUS_RETENTION = 64;
-export const CONTINUOUS_MAX_ATTACKS = 2048;
-export const CONTINUOUS_MAX_RECORD_BYTES = 768 * 1024;
+export const CONTINUOUS_HISTORY_PAGE_SIZE = 8;
 
 /** Fail closed: unrecognized/corrupt records are preserved, never silently replaced. */
 export function validateContinuousAttempt(value: ContinuousAttempt): void {
@@ -77,6 +78,56 @@ export function validateContinuousReplacement(previous: ContinuousAttempt, next:
 }
 
 export const continuousStore: ContinuousStore = {
+  async get(id) {
+    const db = await open();
+    try {
+      return await new Promise<ContinuousAttempt | null>((resolve, reject) => {
+        const tx = db.transaction("attempts", "readonly");
+        const read = tx.objectStore("attempts").get(id);
+        tx.oncomplete = () => {
+          try { if (read.result === undefined) resolve(null); else { validateContinuousAttempt(read.result); resolve(read.result as ContinuousAttempt); } }
+          catch { reject(Error("This saved attempt is unavailable or inconsistent. Its evidence has been preserved.")); }
+        };
+        tx.onabort = tx.onerror = () => reject(tx.error ?? Error("Cannot read this saved attempt."));
+      });
+    } finally { db.close(); }
+  },
+  async historyPage(scoreId, before) {
+    const db = await open();
+    try {
+      return await new Promise((resolve, reject) => {
+        const entries: ContinuousHistorySummary[] = [];
+        let next: ContinuousHistoryCursor | null = null;
+        let inspected = 0;
+        const tx = db.transaction("attempts", "readonly");
+        // Only one cursor value is cloned at a time. Do not project/assess the
+        // ledger: full validation belongs to the explicitly selected detail.
+        const read = tx.objectStore("attempts").index("startedAt").openCursor(
+          before ? IDBKeyRange.upperBound(before.startedAt) : null, "prev");
+        read.onsuccess = () => {
+          const cursor = read.result;
+          if (!cursor) return;
+          const id = String(cursor.primaryKey);
+          if (before && String(cursor.key) === before.startedAt && id >= before.id) { cursor.continue(); return; }
+          const r = cursor.value as ContinuousAttempt;
+          inspected++;
+          if (r?.passage?.score?.id === scoreId || !r?.passage?.score?.id) {
+            const unavailable = r?.id !== id || r.version !== 1 || !Number.isFinite(Date.parse(r.startedAt))
+              || !Number.isInteger(r.passage?.start) || !Number.isInteger(r.passage?.end)
+              || !["started", "completed", "stopped", "failed", "interrupted"].includes(r.status);
+            entries.push({ id, startedAt: String(cursor.key), start: r?.passage?.start ?? 0,
+              end: r?.passage?.end ?? 0, bpm: r?.passage?.bpm ?? 0, status: r?.status ?? "unavailable", unavailable });
+          }
+          // Bound reads, not only matches. A ledger belonging to other pieces
+          // must not deserialize all 64 large records to produce an empty page.
+          if (inspected === CONTINUOUS_HISTORY_PAGE_SIZE) { next = { startedAt: String(cursor.key), id }; return; }
+          cursor.continue();
+        };
+        tx.oncomplete = () => resolve({ entries, next });
+        tx.onabort = tx.onerror = () => reject(tx.error ?? Error("Cannot read continuous history."));
+      });
+    } finally { db.close(); }
+  },
   async save(attempt) {
     validateContinuousAttempt(attempt);
     const db = await open();

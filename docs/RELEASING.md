@@ -2,6 +2,12 @@
 
 This document defines Prelude's release discipline and records the assumptions of the current deployment. It does not replace the automated workflow or the manual QA guidance in [`TESTING.md`](./TESTING.md).
 
+## P2A implementation review and proposed 2.9.25
+
+P2A starts from clean `master` / `76ba6c04f1b5a06005787821893644a30baf4dd4`, package **2.9.24**. That is the inspected local baseline, not evidence of deployment or Chromebook activation. The owner explicitly holds package 2.9.24 and all What's New entries during this implementation checkpoint. After code/physical acceptance, propose **2.9.25**, next sequence **20**, announcing longer selected passages and current/upcoming grand-staff reading. Release metadata needs separate approval; no Git or deployment action is authorized here.
+
+Rollback requires care: the unchanged version-1 A1 database can now contain 5–16-measure or 768 KiB–2 MiB records. Older app builds reject those values. Do not clear or rewrite the ledger to make an old build accept it; preserve the data, close older tabs and use a compatible build. Existing old-client validation fails closed on incompatible records, including retention/replacement. No downgrade conversion or schema migration is implemented. The full-source 256 KiB, captured-attack 2,048 and 64-record bounds remain; browser quota can fail independently. Physical MIDI timing, read-ahead comfort and actual installed-PWA activation remain owner gates.
+
 ## v2.9.24 candidate and remaining gates
 
 This metadata-only checkpoint prepares **2.9.24** and What's New sequence **19** for owner review. The inspected baseline is clean `master` at `5e26c2a5e3601f6fb0fe7bcc1db1267a4c8d6a7a`, package 2.9.23, containing the committed, owner-reviewed A1 MIDI reliability fix. The candidate announces explicitly choosing and remembering a MIDI piano, confirming notes arrive before performing, and a clear warning when no performance notes were captured. The first 18 entries, acknowledgement storage and all musical/input/persistence behavior remain unchanged. The announcement's October 24 candidate date does not assert publication, tagging or deployment.

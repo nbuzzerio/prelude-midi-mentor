@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* A1 only: fixed physical slots; a prepared replacement has no layout/focus. */
+.continuous-reading { display: grid; position: relative; gap: 12px; min-width: 0; align-items: start; }
+.continuous-reading[data-columns="2"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.continuous-reading-slot { min-width: 0; }
+.continuous-reading-prepared { position: absolute; visibility: hidden; pointer-events: none; height: 0; overflow: hidden; }
+.continuous-player-focus { position: fixed; inset: 0; z-index: 45; max-width: none; height: 100dvh; overflow: auto; border-radius: 0; align-content: start; }
+.continuous-player-focus > header h1 { font-size: 1rem; }
+.continuous-player-focus > header > p:last-child { font-size: .875rem; }
+
 :root {
   --background: #0a0a0a;
   --foreground: #ededed;

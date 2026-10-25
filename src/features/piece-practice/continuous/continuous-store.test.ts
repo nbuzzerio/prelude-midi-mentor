@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { assessContinuous } from "./continuous-assessment";
 import { projectContinuousPassage } from "./continuous-projection";
 import { continuousStore, validateContinuousAttempt, validateContinuousReplacement } from "./continuous-store";
@@ -13,6 +13,34 @@ function record(): ContinuousAttempt {
     reason: null, attacks, assessment: assessContinuous(passage, attacks), terminalSaveAttempts: 1 };
 }
 describe("continuous attempt evidence validation", () => {
+  it("bounds a history page to eight inspected records even when every record belongs to another piece", async () => {
+    const records = Array.from({ length: 64 }, (_, i) => ({ ...record(), id: `other-${i}`, startedAt: new Date(Date.UTC(2026, 9, 24, 0, 0, 63 - i)).toISOString() }));
+    let valuesRead = 0;
+    const close = vi.fn();
+    const tx = { oncomplete: null as (() => void) | null, onabort: null, onerror: null,
+      objectStore: () => ({ index: () => ({ openCursor: () => {
+        let index = 0;
+        const read = { result: null as { key: string; primaryKey: string; value: ContinuousAttempt; continue: () => void } | null, onsuccess: null as (() => void) | null };
+        const step = () => {
+          let advanced = false;
+          const value = records[index++];
+          read.result = value ? { key: value.startedAt, primaryKey: value.id, get value() { valuesRead++; return value; },
+            continue() { advanced = true; queueMicrotask(step); } } : null;
+          read.onsuccess?.();
+          if (!advanced) queueMicrotask(() => tx.oncomplete?.());
+        };
+        queueMicrotask(step); return read;
+      } }) }) };
+    vi.stubGlobal("indexedDB", { open: () => {
+      const request = { result: { transaction: () => tx, close }, onsuccess: null as (() => void) | null };
+      queueMicrotask(() => request.onsuccess?.()); return request;
+    } });
+    try {
+      const page = await continuousStore.historyPage!("absent-piece");
+      expect(page.entries).toEqual([]); expect(page.next).toEqual({ startedAt: records[7]!.startedAt, id: records[7]!.id });
+      expect(valuesRead).toBe(8); expect(close).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllGlobals(); }
+  });
   it("round trips terminal provenance, raw attacks and associations without depending on the source library", () => {
     const r = record();
     expect(() => validateContinuousAttempt(JSON.parse(JSON.stringify(r)))).not.toThrow();
@@ -40,6 +68,8 @@ describe("continuous attempt evidence validation", () => {
   it("fails closed when native IndexedDB is unavailable", async () => {
     await expect(continuousStore.save(record())).rejects.toThrow(/unavailable/);
     await expect(continuousStore.list()).rejects.toThrow(/unavailable/);
+    await expect(continuousStore.get!("attempt")).rejects.toThrow(/unavailable/);
+    await expect(continuousStore.historyPage!("piece")).rejects.toThrow(/unavailable/);
   });
   it("accepts idempotent acknowledgement and retry metadata for the same terminal evidence", () => {
     const r = record();

@@ -1,5 +1,14 @@
 # Dev Log
 
+## Unreleased — P2A implementation, package held at 2.9.24
+
+- Begin from clean `master` / `76ba6c04f1b5a06005787821893644a30baf4dd4`. Owner approval covers P2A only and explicitly holds release metadata. No package, announcement, dependency, Git-history or deployment change is included. Proposed next release is 2.9.25, subject to separate owner approval.
+- Extend standalone Continuous Tempo to exact contiguous 1–16-measure ranges, preserving full frozen source, policy v1, physical MIDI verification, one whole-passage assessment, audio clock, count-in/tail and Retry/Replay provenance. Keep Rolodex and daily/manual V2 repertoire at 1–4 measures; longer standalone music cannot be silently shortened into a prescription.
+- Admit expected demand and conservative terminal growth before Ready. Raise only the native record cap to 2 MiB; retain 256 KiB source, 2,048 captured attacks and 64 records. Live byte/count guards interrupt visibly with the accepted prefix and exact Retry. Historical reconstruction and saved record/database versions remain unchanged.
+- Add a two-slot grand-staff reader with one hidden prepared replacement, stable upcoming SVGs, passage-wide ledger/lyric bounds, actual engraved onset cursor, readable-scale scrolling and feature-owned Focus Staff. Shared renderer defaults remain unchanged. History inspects at most eight records per page and loads one full validated result on demand; raw evidence mounts only when expanded.
+- Older builds can reject new longer/larger records. Preserve evidence and use a compatible build; no downgrade conversion, database migration, P2B microphone recording or P2C PDF report is included. Physical Chromebook/piano timing, read-ahead comfort and installed-PWA acceptance remain separate owner gates. Validation evidence is recorded in TESTING.
+- Verification passes **35 focused files / 496 tests**, full `pnpm verify` **317 files / 4,546 tests**, and a **35-entry** production/PWA build. Chrome passes **26 scenario groups / six layout viewports / 24 screenshots / zero application exceptions**, including a 96-second 40 BPM take, 1,024 captured/matched attacks, larger-record retention/paging, offline saved review, cross-mode ownership and Focus keyboard controls. Desktop evidence does not grant physical acceptance. The implementation remains unstaged for owner code review.
+
 A high-level release history and record of significant milestones. Candidate/Unreleased records do not assert release, tagging or deployment. Older checkpoint notes retain their original observations and test counts, including their at-the-time pending/staged status; they are historical, not the current worktree state.
 
 ## Unreleased — v2.9.24 candidate

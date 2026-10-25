@@ -19,7 +19,7 @@ import {
   type StaffBuilderPitchAnchor,
   type StaffBuilderTemporalGeometry,
 } from "./staff-builder-vexflow-rendering";
-import { getStaffBuilderVerticalGeometry } from "./staff-builder-vertical-geometry";
+import { getStaffBuilderVerticalGeometry, type StaffBuilderVerticalPitchSource } from "./staff-builder-vertical-geometry";
 import { drawStaffBuilderTie } from "./draw-staff-builder-tie";
 import { drawStaffBuilderLyricCues, getStaffBuilderLyricCues, STAFF_BUILDER_LYRIC_LANE_RESERVATION } from "./staff-builder-lyric-cues";
 
@@ -57,6 +57,8 @@ export type StaffBuilderMeasureRenderOptions = StaffBuilderMeasureProjectionOpti
   readingFlowWidth?: number;
   /** Melody's two-row reading view only; preserves full measures at their natural minimum width. */
   readingFlowCompact?: boolean;
+  /** A1 only. Natural-width grand staff with a stable passage-wide envelope. */
+  grandReading?: Readonly<{ width: number; pitchSources: readonly StaffBuilderVerticalPitchSource[]; topLaneReservation: number }>;
 }>;
 
 export type StaffBuilderMeasureRenderResult = Readonly<{
@@ -83,11 +85,13 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const singleStaff = visibleStaff !== "grand";
   const readingFlow = singleStaff && options?.readingFlowWidth !== undefined;
   const compactReading = readingFlow && options?.readingFlowCompact === true;
+  const grandReading = !singleStaff ? options?.grandReading : undefined;
   let renderWidth = readingFlow && Number.isFinite(options?.readingFlowWidth) ? Math.max(compactReading ? 160 : 440, options!.readingFlowWidth!) : RENDER_WIDTH;
+  if (grandReading && Number.isFinite(grandReading.width)) renderWidth = Math.max(280, grandReading.width);
   const staveX = compactReading ? 8 : STAVE_X;
   const staveRightPadding = compactReading ? 8 : STAVE_RIGHT_PADDING;
-  const baseTrebleY = compactReading ? 0 : singleStaff ? readingFlow ? 35 : 95 : TREBLE_Y;
-  const baseBassY = compactReading ? 0 : singleStaff ? readingFlow ? 35 : 95 : BASS_Y;
+  const baseTrebleY = grandReading ? 20 : compactReading ? 0 : singleStaff ? readingFlow ? 35 : 95 : TREBLE_Y;
+  const baseBassY = grandReading ? 120 : compactReading ? 0 : singleStaff ? readingFlow ? 35 : 95 : BASS_Y;
   const pitchSources = [...projection.staves.treble, ...projection.staves.bass].flatMap((item) => item.kind === "notes" ? [{ staff: item.staff, clef: projection.clefs[item.staff], pitches: item.pitches }] : []);
   const vertical = getStaffBuilderVerticalGeometry({
     // Reserve the whole Melody range, not just this measure, so the two rows stay
@@ -99,12 +103,12 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
         { letter: "C", octave: visibleStaff === "treble" ? 4 : 3 },
         { letter: "C", octave: visibleStaff === "treble" ? 5 : 4 },
       ],
-    }] : pitchSources,
-    baseHeight: compactReading ? 110 : readingFlow ? 180 : BASE_RENDER_HEIGHT,
+    }] : grandReading ? [...pitchSources, ...grandReading.pitchSources] : pitchSources,
+    baseHeight: grandReading ? 235 : compactReading ? 110 : readingFlow ? 180 : BASE_RENDER_HEIGHT,
     trebleStaveY: baseTrebleY,
     bassStaveY: baseBassY,
     visibleStaff,
-    topLaneReservation: visibleStaff !== "bass" && lyricCues.length > 0 ? STAFF_BUILDER_LYRIC_LANE_RESERVATION : 0,
+    topLaneReservation: Math.max(grandReading?.topLaneReservation ?? 0, visibleStaff !== "bass" && lyricCues.length > 0 ? STAFF_BUILDER_LYRIC_LANE_RESERVATION : 0),
   });
   container.replaceChildren();
   const renderer = new Renderer(container, Renderer.Backends.SVG);
@@ -147,7 +151,7 @@ export function renderStaffBuilderMeasure(container: HTMLDivElement, score: Staf
   const visibleBassVoices = visibleStaff === "treble" ? [] : bassVoices;
   const allVoices = [...visibleTrebleVoices, ...visibleBassVoices];
   const voices = allVoices.map(({ voice }) => voice);
-  if (compactReading) {
+  if (compactReading || grandReading) {
     const visibleStave = visibleStaff === "bass" ? bassStave : trebleStave;
     // Measure glyph demand before drawing: narrow screens may scroll a dense
     // full measure, but sparse measures need not inherit the 440-unit floor.

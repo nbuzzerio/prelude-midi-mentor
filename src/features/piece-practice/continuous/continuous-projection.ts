@@ -2,6 +2,7 @@ import { parseStaffBuilderScore } from "@/features/staff-builder/persistence/sta
 import { STAFF_BUILDER_TICKS_PER_QUARTER } from "@/features/staff-builder/staff-builder-time";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import type { ContinuousPassage, ContinuousPolicy } from "./continuous-types";
+import { CONTINUOUS_MAX_MEASURES } from "./continuous-budget";
 
 export const CONTINUOUS_POLICY: ContinuousPolicy = Object.freeze({ version: 1,
   associationCapMs: 400, associationPulse: 0.5, associationGap: 0.45,
@@ -20,8 +21,8 @@ function freeze<T>(value: T): T {
 export function projectContinuousPassage(source: unknown, start: number, end: number, bpm: number,
   policy: ContinuousPolicy = CONTINUOUS_POLICY): ContinuousPassage {
   if (!Number.isInteger(bpm) || bpm < 40 || bpm > 120) throw Error("Choose 40–120 quarter-note BPM.");
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end - start > 3) {
-    throw Error("Choose one to four complete measures.");
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end - start >= CONTINUOUS_MAX_MEASURES) {
+    throw Error("Choose one to sixteen complete measures.");
   }
   const parsed = parseStaffBuilderScore(source);
   if (!parsed.ok) throw Error("The source score is invalid. Correct it in Staff Builder before practicing.");

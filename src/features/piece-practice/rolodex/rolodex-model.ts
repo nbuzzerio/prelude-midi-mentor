@@ -6,6 +6,7 @@ import { projectStaffBuilderPieceForPractice } from "../piece-practice-projectio
 import { CONTINUOUS_MAX_SCORE_BYTES, CONTINUOUS_POLICY, projectContinuousPassage } from "../continuous/continuous-projection";
 import type { RolodexEntry, RolodexInstrument, RolodexPractice, RolodexSourceInstrument } from "./rolodex-types";
 
+export const ROLODEX_MAX_MEASURES = 4;
 export const ROLODEX_LIMITS = Object.freeze({ entries: 256, scoreBytes: CONTINUOUS_MAX_SCORE_BYTES,
   recordBytes: 384 * 1024, totalBytes: 64 * 1024 * 1024, backupBytes: 64 * 1024 * 1024 });
 export const instruments: readonly RolodexInstrument[] = ["piano", "violin", "ocarina"];
@@ -41,7 +42,7 @@ export function parseEntry(value: unknown): RolodexEntry {
     || !e.eligibleInstruments.every(instrument) || new Set(e.eligibleInstruments).size !== e.eligibleInstruments.length
     || !instrument(e.practiceInstrument) || !e.eligibleInstruments.includes(e.practiceInstrument)
     || e.mode !== "continuous" || !integer(e.bpm) || e.bpm < 40 || e.bpm > 120
-    || !integer(e.start) || !integer(e.end) || e.end < e.start || e.end - e.start > 3) throw Error("Invalid Rolodex settings or range.");
+    || !integer(e.start) || !integer(e.end) || e.end < e.start || e.end - e.start >= ROLODEX_MAX_MEASURES) throw Error("Invalid Rolodex settings or range.");
   const p = e.policy;
   if (!p || p.version !== 1 || [p.associationCapMs, p.associationPulse, p.associationGap, p.onTimeCapMs, p.onTimePulse, p.onTimeGap].some(v => !Number.isFinite(v) || v <= 0)
     || p.associationGap >= 0.5 || p.onTimeGap > p.associationGap || p.onTimeCapMs > p.associationCapMs || p.onTimePulse > p.associationPulse) throw Error("Unsupported assessment policy.");

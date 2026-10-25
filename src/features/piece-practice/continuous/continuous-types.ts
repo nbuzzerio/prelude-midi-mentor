@@ -45,4 +45,16 @@ export type ContinuousAttempt = Readonly<{
 export type ContinuousStore = Readonly<{
   save: (attempt: ContinuousAttempt) => Promise<void>;
   list: () => Promise<readonly ContinuousAttempt[]>;
+  historyPage?: (scoreId: string, before?: ContinuousHistoryCursor) => Promise<ContinuousHistoryPage>;
+  get?: (id: string) => Promise<ContinuousAttempt | null>;
+}>;
+
+/** Read models only; no database/record schema changes. */
+export type ContinuousHistoryCursor = Readonly<{ startedAt: string; id: string }>;
+export type ContinuousHistorySummary = Readonly<{
+  id: string; startedAt: string; start: number; end: number; bpm: number; status: string;
+  unavailable: boolean;
+}>;
+export type ContinuousHistoryPage = Readonly<{
+  entries: readonly ContinuousHistorySummary[]; next: ContinuousHistoryCursor | null;
 }>;
