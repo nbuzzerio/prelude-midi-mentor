@@ -1,5 +1,63 @@
 # Prelude: MIDI Mentor — Testing
 
+## Improv Musical Insights V1
+
+Implementation starts from clean `master` at `6ca081142fd930c9c0990ff2ae149858404190bb`, with version/announcement metadata explicitly held at **2.9.24**. The pre-implementation Improv baseline passes **16 files / 505 tests**. Studio worktree status and branch changes were inspected read-only; A1/PDF, Rolodex, Melody and Ear Training remain outside this change.
+
+Analysis tests reuse existing persisted schema-v1/v2 fixtures and cover tonal alternatives, chromatic/sparse input, complete held/broken chords, pedal overlap, polyphony, repeated/transposed interval-rhythm patterns, pauses versus rests, timing/continuity anomalies and immutable export evidence. Worker/hook tests cover unavailable/failure states, Strict Mode cleanup and stale completion fencing. Review tests cover explicit selection without audio, passage replay, keyboard navigation and replacement. Replay tests cover exact half-open ranges, absolute musical position, preceding note ownership, channel/pedal context, pause seams and the existing cancellation routes.
+
+Local production browser QA reuses the existing CDP and isolated-profile utilities. `.dev/improv-insights-fixtures.mjs` generates backups through the real persisted test fixtures and unchanged encoder; `.dev/improv-insights-browser.mjs` restores them through the actual application and exercises the emitted worker, review and replay. Evidence lives under `.dev/qa-runs/improv-insights-*`, with a pointer in `.dev/improv-insights/browser-results.json`. These scripts and profiles are ignored local QA artifacts, not a new product test framework.
+
+Initial V1 focused Improv validation passes **23 files / 589 tests**. Full `pnpm verify` passes **324 files / 4,630 tests**, including lint, TypeScript and production/PWA generation. There are **84 additional tests** versus the clean baseline. Existing notices remain: one acoustic-input cleanup-ref lint warning, jsdom Canvas/media limitations, React test diagnostics and large-chunk/plugin-timing build notices. No test was removed or weakened. Process-local `CI=true`, `TZ=UTC`, `pnpm_config_verify_deps_before_run=false`, `pnpm_config_update_notifier=false` and `npm_config_offline=true` prevent implicit dependency refresh during validation. Logs are `.dev/improv-insights/focused.log`, `focused.json`, and `verify.log`.
+
+Initial V1 local **Chrome 156.0.8078.49** production QA passes **11 scenario groups / six viewports / 13 screenshots / zero runtime exceptions** in `.dev/qa-runs/improv-insights-PLIrK4/`. The actual app imports legacy and paused backups into native IndexedDB, computes findings in the emitted worker, navigates with keyboard selection without autoplay, explicitly replays bounded passages, cancels playback, and renders conservative minor/chromatic/sparse/empty states. Musical Insights has no internal clipping or horizontal overflow at **1366×768, 1280×800, 1024×768, 768×1024, 375×812 and 320×768**. Desktop, narrow and dense screenshots were inspected. The initial two harness attempts opened IndexedDB before lazy Improv initialized, creating an empty isolated test database; the harness now waits for actual library initialization. Those failures are retained as QA harness evidence and did not require product/storage changes.
+
+Production offline reload recomputes saved insights with the cached worker and starts native sampled-piano passage playback; saved collection/take/chunk evidence is equal before and after review/replay. The new **18.62 kB worker** is included in the existing PWA cache policy, now **36 precache entries / 8,170.91 KiB**. Existing main and VexFlow assets remain under the unchanged per-file ceiling. No browser capture, microphone or provider permission is requested by analysis.
+
+The initial V1 dense browser scenario imports a fully checkpoint-persisted, encoder-validated legacy fixture with **100,000 MIDI events / 50,000 note attacks** through the actual restore UI, then analyzes it offline. Worker construction-to-result time was **412.4 ms**, including a **100.1 ms main-thread structured-clone transfer**, with **30 main-thread timer ticks** during that interval. This verifies continued event-loop progress during analysis, not zero transfer/load cost or a Chromebook timing guarantee. The unit stress fixture separately expands a persisted seed to isolate analyzer cost from fake-IndexedDB checkpoint copying; the browser fixture exercises the full native saved-take path. Rendering and retained findings remain bounded independently of full-journal statistics.
+
+Suggested owner-controlled release: **2.9.25**. Suggested What's New entry: “Explore saved Improv and First-Take performances with offline Musical Insights, evidence-based observations, and passage replay.” Package metadata and published announcements remain unchanged.
+
+Physical acceptance remains necessary: play sustained and broken harmonies, repeated/transposed figures, dense two-hand material and intentional pauses on the actual MIDI piano; compare observations with the recorded passage and audible replay. Check pedal-boundary behavior, note releases, velocity response and cancellation on the Chromebook, desktop and phone. Inspect narrow touch ergonomics, screen-reader reading/focus, piano-distance readability, installed-PWA offline reopening, and real device load. Synthetic browser input does not establish acoustic fidelity, physical timing accuracy, reliable inferred musical intent or formal key/phrase identification.
+
+### Owner-review corrections: controller evidence and distinguishable figures
+
+The controller regressions distinguish harmless nominal-note controls and parameter selectors from pitch-affecting data entry, independent bend/modulation recovery, persistent unknown tuning, and CC64/66/69 pedal context. Notes already affected remain ineligible after recovery; new notes may recover without resetting unrelated uncertainty. Channel-local controller changes cannot fragment trustworthy harmony or motifs on another channel. Pitch-bent attacks remain in physical-note statistics but cannot support tonal candidates. Initial tuning, instrument mappings and sounding pitches remain unverified; unsupported controls/system data retain conservative uncertainty.
+
+Motif regressions retain suppression of same-direction semitone/whole-tone runs, including varied-rhythm scales, while admitting repeated ascending/descending figures with distinctive leaps and appropriate rhythm. Uniform repeated leaps require contrasting rhythm. Accepted groups receive deterministic Figure 1, Figure 2, etc. labels. A real-engine review integration test checks both groups' occurrences, evidence, selection without autoplay and unchanged explicit passage ranges.
+
+Final focused Improv validation passes **23 files / 643 tests**. Full `pnpm verify` passes **324 files / 4,684 tests**, lint, TypeScript and production/PWA generation: **54 additional tests** since initial V1. Existing warnings listed above remain; no tests were removed or weakened. Logs are `.dev/improv-insights/owner-review-focused.log`, `owner-review-focused.json` and `owner-review-verify.log`. SHA-256 checks confirm all **15 protected files** unchanged for this follow-up, including package/announcement/lockfile, worker/hook, capture, persistence, timing, exports and replay (`owner-review-preservation.json`).
+
+Final **Chrome 156.0.8078.49** production QA passes **14 scenario groups / six viewports / 15 screenshots / zero runtime exceptions** in `.dev/qa-runs/improv-insights-7oqrsB/`. It repeats native saved-review, selection, replay, cancellation, conservative empty/ambiguous states and offline checks; adds distinct figure occurrences/evidence, insufficient bent material, and new-note recovery after bend center. All six layouts retain no Musical Insights clipping or horizontal overflow. Narrow figure/evidence and bent-uncertainty screenshots were visually inspected. The existing global Update ready notice can overlap lower content on narrow screens; this follow-up does not change that notice.
+
+Production offline reload recomputes findings and replays passages with stored MIDI unchanged. The **21.65 kB worker** remains precached under the unchanged policy (**36 entries / 8,174.00 KiB**). The native-import **100,000-event / 50,000-attack** fixture completes offline in **349.6 ms**, including **82.3 ms** main-thread transfer, with **28 timer ticks** during analysis. These local desktop timings do not certify physical Chromebook performance. Physical piano/controller mapping, audible replay, touch, screen reader and installed-PWA acceptance remain outstanding as described above.
+
+This follow-up changes exactly the evidence, tonal and pattern modules and their three test files; aggregate limitation text; the Insights component and its integration test; and `README.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`. The complete uncommitted V1 candidate remains summarized below. Version **2.9.25** remains proposed; metadata remains **2.9.24**. No Studio-owned files or replay/worker contracts change.
+
+### Musical Insights changed-file handoff
+
+All product/test paths below are relative to `src/features/improv/`. Each paired test file is listed explicitly; no dependency, version, announcement, capture, persistence, export or Studio-owned file is changed.
+
+| Files | Responsibility |
+| --- | --- |
+| `insights/improv-insight-evidence.ts`, `insights/improv-insight-evidence.test.ts` | Full-journal physical note/pedal evidence, recoverable channel-local controller eligibility, timing reliability, activity/rests, overview and continuity regressions. |
+| `insights/improv-tonal-insights.ts`, `insights/improv-tonal-insights.test.ts` | Major/minor profile ranking, pitch-uncertain attack exclusion and recovery, uncertainty, conventional labels and tonal fixtures. |
+| `insights/improv-harmonic-insights.ts`, `insights/improv-harmonic-insights.test.ts` | Complete held/arpeggiated chord sets, merged regions, root alternatives and ambiguity fixtures. |
+| `insights/improv-pattern-insights.ts`, `insights/improv-pattern-insights.test.ts` | Five-note interval/rhythm recurrence, transposition, scale suppression versus distinctive directional figures, deterministic group numbering, overlap suppression and boundary fixtures. |
+| `insights/improv-musical-insights.ts`, `insights/improv-musical-insights.test.ts` | Immutable version-1 aggregate, output caps, accurate motif/tonal limitation text, raw/export preservation and maximum-event stress coverage. |
+| `insights/improv-insights.worker.ts` | Disposable offline worker entry point and success/failure response. |
+| `hooks/use-improv-insights.ts`, `hooks/use-improv-insights.test.tsx` | Worker ownership, per-take lifecycle, stale-result fencing and failure/unavailable handling. |
+| `components/improv-insights.tsx`, `components/improv-insights.test.tsx` | Musical evidence disclosures, tonal alternatives, numbered-figure occurrence/evidence integration, paginated keyboard timeline, selection and explicit replay. |
+| `components/improv-take-review.tsx` | Saved-review integration, full desktop width, selected passage, staff navigation and offscreen reveal. |
+| `components/improv-performance-staff.test.tsx` | Review selection, repeated navigation, retained keyboard focus and existing staff/replay regressions. |
+| `improv-replay.ts`, `improv-replay.test.ts` | Optional half-open passage scheduling, preceding note ownership, pedal/pause context, cleanup and immutability regressions. |
+| `hooks/use-improv-replay.ts`, `hooks/use-improv-replay.test.tsx` | Passage forwarding, replacement/completion and invalid-range cleanup. |
+| `components/improv-workspace.tsx`, `components/improv-workspace.test.tsx` | Guarded passage replay wiring and both whole/selected replay across existing cancellation routes. |
+| Repository `README.md` | User workflow, offline behavior and evidence limitations. |
+| `docs/ARCHITECTURE.md` | Analysis policies, worker ownership, limits and passage contract. |
+| `docs/ROADMAP.md` | Improv candidate status and continuing exclusions. |
+| `docs/TESTING.md` | Validation evidence, physical acceptance and this file-by-file handoff. |
+
 ## P2A — longer standalone passages and grand-staff reading
 
 Baseline: clean `master`, `76ba6c04f1b5a06005787821893644a30baf4dd4`, package 2.9.24. The owner explicitly holds package/What's New metadata during implementation. Physical MIDI-piano/Chromebook acceptance remains pending.

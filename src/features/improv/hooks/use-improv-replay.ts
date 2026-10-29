@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createImprovReplay, type ImprovReplayTransport } from "../improv-replay";
+import { createImprovReplay, type ImprovReplayRange, type ImprovReplayTransport } from "../improv-replay";
 import { createImprovPianoVoices } from "../improv-piano-voices";
 import type { ImprovLoadedTake } from "../improv-library";
 
@@ -9,10 +9,10 @@ export function useImprovReplay() {
   const [transport, setTransport] = useState<ImprovReplayTransport | null>(null);
   const stop = useCallback(() => { generation.current++; engine.current?.dispose(); engine.current = null; setPlaying(false); }, []);
   useEffect(() => () => { generation.current++; engine.current?.dispose(); engine.current = null; }, []);
-  const play = (take: ImprovLoadedTake) => {
+  const play = (take: ImprovLoadedTake, range?: ImprovReplayRange) => {
     stop(); const token = generation.current; setError("");
     try {
-      engine.current = createImprovReplay(createImprovPianoVoices()); const run = engine.current.play(take); setTransport(run.transport); setPlaying(true);
+      engine.current = createImprovReplay(createImprovPianoVoices()); const run = engine.current.play(take, range); setTransport(run.transport); setPlaying(true);
       void run.completion.then((result) => {
         if (generation.current !== token) return;
         setPlaying(false); engine.current?.dispose(); engine.current = null;

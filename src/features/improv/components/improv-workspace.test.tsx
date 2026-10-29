@@ -13,11 +13,15 @@ import { performanceFixture } from "../improv-test-fixture";
 import { encodeImprovBackup } from "../improv-backup";
 import { improvMidiBlob } from "../improv-midi-export";
 import { exportPreferences } from "@/lib/files/export-preferences";
+import { analyzeImprovTake, type ImprovMusicalInsights } from "../insights/improv-musical-insights";
 type UseMidiOptions = Parameters<typeof useMidi>[0];
 
 const midi = vi.hoisted(() => ({ options: null as UseMidiOptions | null, owners: 0, connect: vi.fn(),
   inputs: [{ id: "piano", name: "Room piano" }, { id: "other", name: "Other keys" }] as { id: string | null; name: string }[] }));
 const sound = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn(), dispose: vi.fn(), fail: false }));
+const insights = vi.hoisted(() => ({ result: null as ImprovMusicalInsights | null }));
+vi.mock("../hooks/use-improv-insights", () => ({ useImprovInsights: () => insights.result
+  ? { status: "ready", insights: insights.result } : { status: "unavailable" } }));
 vi.mock("@/hooks/use-midi", () => ({ useMidi(options: UseMidiOptions) {
   midi.options = options;
   useEffect(() => { midi.owners++; return () => { midi.owners--; }; }, []);
@@ -36,7 +40,7 @@ const setGuard = (value: ImprovDepartureGuard | null) => { guard = value; };
 beforeEach(() => {
   fake = new FakeImprovIndexedDb(); library = new IndexedDbImprovLibrary({ factory: fake.factory }); sequence = 0; guard = null;
   midi.inputs = [{ id: "piano", name: "Room piano" }, { id: "other", name: "Other keys" }]; midi.owners = 0;
-  sound.fail = false; vi.clearAllMocks();
+  sound.fail = false; insights.result = null; vi.clearAllMocks();
   vi.stubGlobal("structuredClone", globalThis.structuredClone);
   Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createUrl });
@@ -486,14 +490,22 @@ describe("playing-first Improv workspace", () => {
     fireEvent.click(screen.getByText(/Take history and library/)); fireEvent.click(await screen.findByRole("button", { name: "Review Take 1" }));
     await screen.findByRole("button", { name: "Replay take" }); expect((await reopened.listCollections())[0].nextTakeNumber).toBe(2);
   });
-  it.each(["stop", "background", "freeze", "visibility", "review", "collection", "departure", "unmount"])("cancels replay and releases voices on %s", async (action) => {
-    const f = await performanceFixture([{}], { end: 30_000 }); const view = mount({ supplied: f.lib });
+  it.each(["stop", "background", "freeze", "visibility", "review", "collection", "departure", "unmount"].flatMap(action =>
+    ["whole take", "selected passage"].map(scope => ({ action, scope }))))("cancels $scope replay and releases voices on $action", async ({ action, scope }) => {
+    const f = await performanceFixture([{}], { end: 30_000 });
+    if (scope === "selected passage") insights.result = analyzeImprovTake(f.loaded);
+    const view = mount({ supplied: f.lib });
     const evidence = encodeImprovBackup(await f.lib.exportCollection("book"));
     await waitFor(() => expect(screen.getByRole("option", { name: "Disney book" })).toBeTruthy());
     fireEvent.change(screen.getByLabelText("Piece"), { target: { value: "book" } }); fireEvent.click(screen.getByText(/Take history and library/));
-    fireEvent.click(await screen.findByRole("button", { name: "Review Take 1" })); fireEvent.click(await screen.findByRole("button", { name: "Replay take" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review Take 1" }));
+    if (scope === "selected passage") {
+      fireEvent.click(await screen.findByRole("button", { name: /phrase 1/i })); expect(sound.start).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Replay selected passage" }));
+    } else fireEvent.click(await screen.findByRole("button", { name: "Replay take" }));
     await waitFor(() => expect(sound.start).toHaveBeenCalledOnce()); expect(sound.start.mock.calls[0][0]).toMatchObject({ pitch: 60, velocity: 90 });
     expect((screen.getByRole("slider", { name: "Review time position" }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Start Take" }) as HTMLButtonElement).disabled).toBe(true);
     if (action === "stop") fireEvent.click(screen.getByRole("button", { name: "Stop Playback" }));
     if (action === "background") act(() => window.dispatchEvent(new Event("pagehide")));
     if (action === "freeze") act(() => document.dispatchEvent(new Event("freeze")));
@@ -504,6 +516,7 @@ describe("playing-first Improv workspace", () => {
     if (action === "unmount") view.unmount();
     await waitFor(() => expect(sound.dispose).toHaveBeenCalledOnce()); expect(sound.stop).toHaveBeenCalledOnce();
     const reader = action === "unmount" ? new IndexedDbImprovLibrary({ factory: f.fake.factory }) : f.lib;
+    expect(await reader.loadTake(f.loaded.record.takeId)).toEqual(f.loaded);
     expect(encodeImprovBackup(await reader.exportCollection("book"))).toBe(evidence);
     if (action === "unmount") reader.close();
     if (["stop", "background", "freeze", "visibility"].includes(action)) expect((screen.getByRole("slider", { name: "Review time position" }) as HTMLInputElement).disabled).toBe(false);

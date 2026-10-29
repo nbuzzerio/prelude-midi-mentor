@@ -9,6 +9,8 @@ export type ImprovReplaySound = Readonly<{
 }>;
 export type ImprovReplayScheduler = Readonly<{ now: () => number; after: (delayMs: number, callback: () => void) => () => void }>;
 export type ImprovReplayResult = "completed" | "cancelled" | "failed";
+/** Half-open passage in the take's compressed musical milliseconds. */
+export type ImprovReplayRange = Readonly<{ startMs: number; endMs: number }>;
 /** Read-only musical position; shares the event scheduler's origin and compressed projection. */
 export type ImprovReplayTransport = Readonly<{ takeId: string; positionMs: () => number; active: () => boolean }>;
 
@@ -22,39 +24,59 @@ export function createImprovReplay(sound: ImprovReplaySound, scheduler: ImprovRe
   if (!Number.isSafeInteger(maxVoices) || maxVoices < 1 || maxVoices > IMPROV_REPLAY_MAX_VOICES) throw new Error("Invalid Improv replay voice limit.");
   let disposed = false; let activeStop: (() => void) | null = null;
   const stop = () => { activeStop?.(); activeStop = null; };
-  const play = (take: ImprovLoadedTake) => {
+  const play = (take: ImprovLoadedTake, range?: ImprovReplayRange) => {
     if (disposed) throw new Error("Improv replay is disposed.");
-    requireLoadedTake(take); stop();
+    requireLoadedTake(take);
     const timing = projectImprovTiming(take);
+    const startMs = range ? range.startMs : 0, endMs = range ? range.endMs : timing.durationMs;
+    if (range && (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || startMs >= endMs || endMs > timing.durationMs)) {
+      throw new Error("Invalid Improv replay range.");
+    }
+    stop();
     const rawEvents = take.chunks.flatMap((chunk) => chunk.events);
     const projected: readonly ImprovProjectionStep[] = timing.steps ?? rawEvents.map((_, i) => ({ event: i, atMs: timing.events[i].atMs, paused: false, represented: true }));
     const ignored: { sequence: number; reason: string }[] = [];
     const events: (ImprovProjectionStep & { restore?: readonly (readonly [number, number])[] })[] = [];
     const observedPedal = new Map<number, number>();
+    // Counts, rather than silent voices, bound prefix state to MIDI channel/pitch pairs.
+    const precedingHeld = new Map<string, number>(); const pedal = new Set<number>();
     // Excluded context is interpreted once before the replay clock starts, never as a
     // potentially huge same-tick batch during playback after a long pause.
     for (const step of projected) {
       if ("control" in step) {
-        events.push(step.control.kind === "resume" ? { ...step, restore: [...observedPedal.entries()] } : step);
+        if (step.atMs < startMs) {
+          if (step.control.kind === "pause") { precedingHeld.clear(); pedal.clear(); }
+          if (step.control.kind === "resume") for (const [channel, value] of observedPedal) if (value >= 64) pedal.add(channel);
+        } else if (!range || step.atMs < endMs) events.push(step.control.kind === "resume" ? { ...step, restore: [...observedPedal.entries()] } : step);
       } else {
         const event = rawEvents[step.event], decoded = decodeImprovMessage(event.raw);
         if (decoded.kind === "channel" && decoded.command === 0xb0 && decoded.bytes[1] === 64) observedPedal.set(decoded.channel!, decoded.bytes[2]);
         if (!step.represented) ignored.push({ sequence: event.sequence, reason: step.paused ? "intentional-pause-context" : "cross-pause-release" });
-        else events.push(step);
+        else if (step.atMs < startMs) {
+          if (decoded.kind !== "channel") continue;
+          const [, pitch, value] = decoded.bytes; const channel = decoded.channel!; const key = `${channel}:${pitch}`;
+          if (decoded.command === 0x90 && value > 0) precedingHeld.set(key, (precedingHeld.get(key) ?? 0) + 1);
+          else if (decoded.command === 0x80 || (decoded.command === 0x90 && value === 0)) {
+            const count = precedingHeld.get(key) ?? 0;
+            if (count > 1) precedingHeld.set(key, count - 1); else precedingHeld.delete(key);
+          } else if (decoded.command === 0xb0 && pitch === 64) {
+            if (value >= 64) pedal.add(channel); else pedal.delete(channel);
+          }
+        } else if (!range || step.atMs < endMs) events.push(step);
       }
     }
     const generated: { kind: string; atMs: number | null }[] = [];
     const startedAtMs = scheduler.now();
     if (!Number.isFinite(startedAtMs)) throw new Error("Improv replay clock is unavailable.");
     const voices = new Set<ImprovReplayVoice>(); const held = new Map<string, ImprovReplayVoice[]>();
-    const sustained = new Map<number, Set<ImprovReplayVoice>>(); const pedal = new Set<number>();
+    const sustained = new Map<number, Set<ImprovReplayVoice>>();
     let settled = false; let cancelTimer: (() => void) | null = null; let index = 0;
-    let position = 0;
+    let position = startMs;
     const positionMs = () => {
       if (!settled) {
         try {
           const now = scheduler.now();
-          if (Number.isFinite(now) && now >= startedAtMs) position = Math.max(position, Math.min(timing.durationMs, now - startedAtMs));
+          if (Number.isFinite(now) && now >= startedAtMs) position = Math.max(position, Math.min(endMs, startMs + now - startedAtMs));
         } catch { /* A read cannot reschedule or fail playback; retain the last valid position. */ }
       }
       return position;
@@ -66,15 +88,15 @@ export function createImprovReplay(sound: ImprovReplaySound, scheduler: ImprovRe
     const finish = (result: ImprovReplayResult) => {
       if (settled) return;
       positionMs();
-      if (result === "completed") position = timing.durationMs;
+      if (result === "completed") position = endMs;
       settled = true; cancelTimer?.(); cancelTimer = null;
-      if (take.record.schemaVersion === 2 && (voices.size || pedal.size)) generated.push({
-        kind: result === "completed" ? "terminal-cleanup" : "replay-stop-cleanup",
-        atMs: result === "completed" ? timing.durationMs : null,
+      if ((range || take.record.schemaVersion === 2) && (voices.size || pedal.size)) generated.push({
+        kind: result === "completed" ? range ? "range-end-cleanup" : "terminal-cleanup" : "replay-stop-cleanup",
+        atMs: result === "completed" ? endMs : null,
       });
       // Continue cleanup if an injected/browser voice throws; one bad voice must not strand others.
       for (const voice of voices) { try { voice.release(); } catch { result = "failed"; } }
-      voices.clear(); held.clear(); sustained.clear(); pedal.clear();
+      voices.clear(); held.clear(); precedingHeld.clear(); sustained.clear(); pedal.clear();
       if (activeStop === cancel) activeStop = null;
       resolve(result);
     };
@@ -84,7 +106,7 @@ export function createImprovReplay(sound: ImprovReplaySound, scheduler: ImprovRe
       if ("control" in step) {
         if (step.control.kind === "pause") {
           for (const voice of [...voices]) release(voice);
-          held.clear(); sustained.clear(); pedal.clear(); generated.push({ kind: "pause-boundary-cleanup", atMs: step.atMs });
+          held.clear(); precedingHeld.clear(); sustained.clear(); pedal.clear(); generated.push({ kind: "pause-boundary-cleanup", atMs: step.atMs });
         }
         if (step.control.kind === "resume") for (const [channel, value] of step.restore ?? []) if (value >= 64) {
           pedal.add(channel); generated.push({ kind: "resume-observed-controller-restore", atMs: step.atMs });
@@ -101,6 +123,11 @@ export function createImprovReplay(sound: ImprovReplaySound, scheduler: ImprovRe
         void voice.started.then((ok) => { if (!settled && !ok) finish("failed"); }, () => { if (!settled) finish("failed"); });
         void voice.ended?.then(() => { voices.delete(voice); }, () => { if (!settled) finish("failed"); });
       } else if (decoded.command === 0x80 || (decoded.command === 0x90 && value === 0)) {
+        const preceding = precedingHeld.get(key) ?? 0;
+        if (preceding > 0) {
+          if (preceding > 1) precedingHeld.set(key, preceding - 1); else precedingHeld.delete(key);
+          return;
+        }
         const voice = held.get(key)?.shift();
         if (!voice) { ignored.push({ sequence: event.sequence, reason: "unmatched-release" }); return; }
         if (pedal.has(channel)) { const group = sustained.get(channel) ?? new Set(); group.add(voice); sustained.set(channel, group); }
@@ -116,11 +143,11 @@ export function createImprovReplay(sound: ImprovReplaySound, scheduler: ImprovRe
       try {
         const now = scheduler.now();
         if (!Number.isFinite(now) || now < startedAtMs) { finish("failed"); return; }
-        const elapsed = now - startedAtMs;
+        const elapsed = startMs + now - startedAtMs;
         while (!settled && index < events.length && events[index].atMs <= elapsed) deliver(index++);
         if (settled) return;
-        if (index === events.length && elapsed >= timing.durationMs) { finish("completed"); return; }
-        const nextAt = index < events.length ? events[index].atMs : timing.durationMs;
+        if (index === events.length && elapsed >= endMs) { finish("completed"); return; }
+        const nextAt = index < events.length ? events[index].atMs : endMs;
         cancelTimer = scheduler.after(Math.max(0, nextAt - elapsed), pump);
       } catch { finish("failed"); }
     };

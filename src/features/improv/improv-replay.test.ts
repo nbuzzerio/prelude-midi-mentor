@@ -25,6 +25,124 @@ function sound(started: () => Promise<boolean> = () => Promise.resolve(true)) {
 }
 function setup(started?: () => Promise<boolean>) { const c = clock(); const s = sound(started); return { ...c, ...s, engine: createImprovReplay(s.adapter, c.scheduler) }; }
 
+describe("explicit passage replay", () => {
+  it("starts at the absolute compressed position, includes start attacks and excludes end attacks", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 199 }, { receivedAtMs: 200, bytes: [0x90, 64, 80] },
+      { receivedAtMs: 250, bytes: [0x90, 67, 90] }, { receivedAtMs: 300, bytes: [0x90, 72, 90] }]);
+    const before = structuredClone(loaded); const s = setup(); s.setNow(10_000);
+    const range = Object.freeze({ startMs: 100, endMs: 200 }); const run = s.engine.play(loaded, range);
+    expect(run.transport.positionMs()).toBe(100); expect(run.startedAtMs).toBe(10_000);
+    expect(s.attack.mock.calls.map(([note]) => note.pitch)).toEqual([64]);
+    s.advance(10_050); expect(run.transport.positionMs()).toBe(150);
+    expect(s.attack.mock.calls.map(([note]) => note.pitch)).toEqual([64, 67]);
+    s.advance(10_100); await expect(run.completion).resolves.toBe("completed");
+    expect(run.transport.positionMs()).toBe(200); expect(run.transport.active()).toBe(false);
+    expect(s.voices.every(v => v.release.mock.calls.length === 1)).toBe(true);
+    expect(run.generated()).toEqual([{ kind: "range-end-cleanup", atMs: 200 }]);
+    s.advance(20_000); expect(s.attack).toHaveBeenCalledTimes(2); expect(run.transport.positionMs()).toBe(200);
+    expect(loaded).toEqual(before); expect(range).toEqual({ startMs: 100, endMs: 200 });
+  });
+  it.each([
+    { startMs: -1, endMs: 100 }, { startMs: 100, endMs: 100 }, { startMs: 200, endMs: 100 },
+    { startMs: 0, endMs: 401 }, { startMs: NaN, endMs: 100 }, { startMs: 0, endMs: NaN },
+    { startMs: Infinity, endMs: 100 }, { startMs: 0, endMs: Infinity },
+  ])("rejects invalid bounds before starting audio: %j", async range => {
+    const { loaded } = await performanceFixture([{}]); const s = setup();
+    expect(() => s.engine.play(loaded, range)).toThrow(/Invalid Improv replay range/);
+    expect(s.attack).not.toHaveBeenCalled(); expect(s.tasks.size).toBe(0);
+  });
+  it("retains selected silence without resurrecting a note already held or sustained", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 100, bytes: [0xb0, 64, 127] },
+      { receivedAtMs: 110 }, { receivedAtMs: 120, bytes: [0x80, 60, 0] }, { receivedAtMs: 130, bytes: [0x90, 64, 80] }]);
+    const s = setup(); const run = s.engine.play(loaded, { startMs: 100, endMs: 300 });
+    expect(run.transport.positionMs()).toBe(100); expect(s.attack).not.toHaveBeenCalled();
+    s.advance(199); expect(run.transport.active()).toBe(true); s.advance(200);
+    await expect(run.completion).resolves.toBe("completed"); expect(s.attack).not.toHaveBeenCalled();
+    expect(run.transport.positionMs()).toBe(300);
+  });
+  it("consumes old overlapping key releases per channel before releasing fresh same-pitch attacks", async () => {
+    const { loaded } = await performanceFixture([
+      { receivedAtMs: 100 }, { receivedAtMs: 110 }, { receivedAtMs: 120, bytes: [0x91, 60, 90] },
+      { receivedAtMs: 200 }, { receivedAtMs: 200, bytes: [0x91, 60, 90] },
+      { receivedAtMs: 210, bytes: [0x80, 60, 0] }, { receivedAtMs: 220, bytes: [0x91, 60, 0] },
+      { receivedAtMs: 230, bytes: [0x90, 60, 0] }, { receivedAtMs: 240, bytes: [0x81, 60, 0] },
+      { receivedAtMs: 250, bytes: [0x80, 60, 0] },
+    ]);
+    const s = setup(); const run = s.engine.play(loaded, { startMs: 100, endMs: 300 });
+    expect(s.attack).toHaveBeenCalledTimes(2); s.advance(30);
+    expect(s.voices.every(v => v.release.mock.calls.length === 0)).toBe(true);
+    s.advance(40); expect(s.voices[0].release).not.toHaveBeenCalled(); expect(s.voices[1].release).toHaveBeenCalledOnce();
+    s.advance(50); expect(s.voices[0].release).toHaveBeenCalledOnce(); s.advance(200);
+    await expect(run.completion).resolves.toBe("completed"); expect(run.ignored()).toEqual([]);
+  });
+  it("carries only observed pedal state into the range and releases sustained voices per channel", async () => {
+    const { loaded } = await performanceFixture([
+      { receivedAtMs: 100, bytes: [0xb0, 64, 127] }, { receivedAtMs: 100, bytes: [0xb1, 64, 127] },
+      { receivedAtMs: 200 }, { receivedAtMs: 200, bytes: [0x91, 64, 90] },
+      { receivedAtMs: 210, bytes: [0x80, 60, 0] }, { receivedAtMs: 210, bytes: [0x81, 64, 0] },
+      { receivedAtMs: 220, bytes: [0xb0, 64, 63] }, { receivedAtMs: 230, bytes: [0xb1, 64, 0] },
+    ]);
+    const s = setup(); const run = s.engine.play(loaded, { startMs: 100, endMs: 300 }); s.advance(10);
+    expect(s.voices.every(v => v.release.mock.calls.length === 0)).toBe(true);
+    s.advance(20); expect(s.voices[0].release).toHaveBeenCalledOnce(); expect(s.voices[1].release).not.toHaveBeenCalled();
+    s.advance(30); expect(s.voices[1].release).toHaveBeenCalledOnce(); run.stop();
+  });
+  it.each([399, 400, 450])("uses pause context and filters ghost releases with range starting at %i ms", async startMs => {
+    const p = pauseSteps(500, 10_500);
+    const { loaded } = await pausePerformanceFixture([{ atMs: 200 }, p[0], p[1],
+      { atMs: 1000, bytes: [0xb0, 64, 127] }, { atMs: 1100, bytes: [0x90, 70, 90] }, ...p.slice(2),
+      { atMs: 10_600 }, { atMs: 10_650, bytes: [0x80, 60, 0] },
+      { atMs: 10_700, bytes: [0x80, 60, 0] }, { atMs: 10_750, bytes: [0xb0, 64, 0] },
+    ], 11_000);
+    const before = structuredClone(loaded); const s = setup(); const run = s.engine.play(loaded, { startMs, endMs: 800 });
+    s.advance(600 - startMs); expect(s.attack.mock.calls.map(([note]) => note.pitch)).toEqual([60]);
+    expect(s.voices[0].release).not.toHaveBeenCalled(); s.advance(650 - startMs); expect(s.voices[0].release).toHaveBeenCalledOnce();
+    s.advance(800 - startMs); await expect(run.completion).resolves.toBe("completed");
+    expect(run.transport.positionMs()).toBe(800); expect(run.ignored().map(e => e.reason)).toContain("cross-pause-release");
+    expect(loaded).toEqual(before);
+  });
+  it("pre-scans a large held prefix without spending audio capacity or scheduling a prefix burst", async () => {
+    const { loaded } = await performanceFixture([...Array.from({ length: 5000 }, () => ({ receivedAtMs: 100 })),
+      { receivedAtMs: 200 }, { receivedAtMs: 210, bytes: [0x80, 60, 0] }]);
+    const c = clock(); const s = sound(); const run = createImprovReplay(s.adapter, c.scheduler, { maxVoices: 1 }).play(loaded, { startMs: 100, endMs: 300 });
+    expect(s.attack).toHaveBeenCalledOnce(); expect(c.tasks.size).toBe(1);
+    c.advance(10); expect(s.voices[0].release).not.toHaveBeenCalled(); c.advance(200);
+    await expect(run.completion).resolves.toBe("completed"); expect(s.voices[0].release).toHaveBeenCalledOnce(); expect(c.tasks.size).toBe(0);
+  });
+  it("cleans selected voices across a pause seam and honors pedal-up observed during the pause", async () => {
+    const p = pauseSteps(500, 10_500);
+    const { loaded } = await pausePerformanceFixture([{ atMs: 150, bytes: [0xb0, 64, 127] }, { atMs: 200 },
+      p[0], p[1], { atMs: 1000, bytes: [0xb0, 64, 0] }, ...p.slice(2),
+      { atMs: 10_600, bytes: [0x90, 64, 90] }, { atMs: 10_700, bytes: [0x80, 64, 0] },
+    ], 11_000);
+    const s = setup(); const run = s.engine.play(loaded, { startMs: 100, endMs: 800 });
+    expect(s.attack).toHaveBeenCalledOnce(); s.advance(300); expect(s.voices[0].release).toHaveBeenCalledOnce();
+    s.advance(500); expect(s.attack).toHaveBeenCalledTimes(2); expect(s.voices[1].release).toHaveBeenCalledOnce();
+    s.advance(700); await expect(run.completion).resolves.toBe("completed");
+    expect(run.generated()).toEqual([{ kind: "pause-boundary-cleanup", atMs: 400 }]);
+    const afterSeam = s.engine.play(loaded, { startMs: 500, endMs: 800 }); s.advance(800);
+    expect(s.voices[2].release).toHaveBeenCalledOnce(); afterSeam.stop();
+  });
+  it("replaces ranges, freezes cancelled absolute positions and ignores stale callbacks/failures", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 200 }, { receivedAtMs: 300 }]);
+    let resolve!: (ok: boolean) => void; const s = setup(() => new Promise<boolean>(done => { resolve = done; }));
+    const first = s.engine.play(loaded, { startMs: 100, endMs: 300 }); const stale = [...s.tasks][0].callback; const oldResolve = resolve;
+    s.advance(20); const next = s.engine.play(loaded, { startMs: 200, endMs: 400 });
+    stale(); oldResolve(false); await Promise.resolve(); await expect(first.completion).resolves.toBe("cancelled");
+    expect(first.transport.positionMs()).toBe(120); expect(next.transport.positionMs()).toBe(200);
+    expect(s.voices[0].release).toHaveBeenCalledOnce(); expect(s.voices[1].release).not.toHaveBeenCalled();
+    resolve(true); s.advance(220); await expect(next.completion).resolves.toBe("completed");
+    expect(next.transport.positionMs()).toBe(400); expect(s.tasks.size).toBe(0);
+  });
+  it("retains failure and live voice limit cleanup inside a selected range", async () => {
+    const { loaded } = await performanceFixture([{ receivedAtMs: 200 }, { receivedAtMs: 200 }]);
+    const c = clock(); const s = sound(); const engine = createImprovReplay(s.adapter, c.scheduler, { maxVoices: 1 });
+    const run = engine.play(loaded, { startMs: 100, endMs: 300 }); await expect(run.completion).resolves.toBe("failed");
+    expect(s.attack).toHaveBeenCalledOnce(); expect(s.voices[0].release).toHaveBeenCalledOnce(); expect(c.tasks.size).toBe(0);
+    expect(run.transport.positionMs()).toBe(100); expect(run.generated()).toEqual([{ kind: "replay-stop-cleanup", atMs: null }]);
+  });
+});
+
 describe("explicit MIDI piano replay", () => {
   it("reads the scheduler anchor through leading/trailing silence, freezes Stop and restarts at zero", async () => {
     const { loaded } = await performanceFixture([{ receivedAtMs: 1200 }, { receivedAtMs: 1300, bytes: [0x80, 60, 0] }], { end: 5100 });

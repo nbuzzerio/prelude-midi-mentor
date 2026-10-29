@@ -12,6 +12,26 @@ vi.mock("../improv-piano-voices", () => ({ createImprovPianoVoices: () => ({
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); sound.fail = false; });
 
 describe("replay transport ownership", () => {
+  it("forwards selected bounds, cancels replacement ranges and freezes absolute completion", async () => {
+    const take = (await performanceFixture([{ receivedAtMs: 200 }, { receivedAtMs: 300 }], { end: 5100 })).loaded;
+    vi.useFakeTimers(); let now = 10_000; vi.spyOn(performance, "now").mockImplementation(() => now);
+    const { result } = renderHook(() => useImprovReplay());
+    act(() => result.current.play(take, { startMs: 100, endMs: 300 })); const old = result.current.transport!;
+    expect(old.positionMs()).toBe(100); now += 50;
+    act(() => result.current.play(take, { startMs: 200, endMs: 400 })); const next = result.current.transport!;
+    await act(async () => { await Promise.resolve(); });
+    expect(result.current.playing).toBe(true); expect(old.positionMs()).toBe(150); expect(next.positionMs()).toBe(200);
+    now += 200; await act(async () => { vi.advanceTimersByTime(200); await Promise.resolve(); });
+    expect(result.current.playing).toBe(false); expect(next.positionMs()).toBe(400);
+    expect(sound.release).toHaveBeenCalledTimes(2); expect(sound.dispose).toHaveBeenCalledTimes(2); expect(vi.getTimerCount()).toBe(0);
+  });
+  it("reports invalid ranges and disposes their adapter without starting playback", async () => {
+    const take = (await performanceFixture([{}])).loaded;
+    const { result } = renderHook(() => useImprovReplay());
+    act(() => result.current.play(take, { startMs: 300, endMs: 200 }));
+    expect(result.current.playing).toBe(false); expect(result.current.error).toMatch(/unavailable/);
+    expect(result.current.transport).toBeNull(); expect(sound.release).not.toHaveBeenCalled(); expect(sound.dispose).toHaveBeenCalledOnce();
+  });
   it("publishes one stable run reader, freezes Stop, restarts and retains natural completion", async () => {
     const take = (await performanceFixture([{ receivedAtMs: 100 }], { end: 5100 })).loaded;
     vi.useFakeTimers(); let now = 10_000; vi.spyOn(performance, "now").mockImplementation(() => now);

@@ -8,6 +8,8 @@ import { createImprovTimeline, timelineFromTake } from "../improv-timeline";
 import type { ImprovReplayTransport } from "../improv-replay";
 import { createImprovTakeRecorder } from "../improv-take-recorder";
 import { fixtureContext, fixtureInput, fixtureObservation, performanceFixture } from "../improv-test-fixture";
+import * as insightsHook from "../hooks/use-improv-insights";
+import { analyzeImprovTake } from "../insights/improv-musical-insights";
 
 const context = { type: "no-key" } as const;
 beforeEach(() => vi.useFakeTimers());
@@ -109,6 +111,38 @@ describe("bounded rolling grand staff", () => {
 });
 
 describe("saved time-window review", () => {
+  it("navigates insights without audio, reselects the same passage, replays explicitly and resets per take", async () => {
+    const take = (await performanceFixture([{ receivedAtMs: 200, bytes: [0x90, 60, 90] }, { receivedAtMs: 300, bytes: [0x80, 60, 0] },
+      { receivedAtMs: 20_100, bytes: [0x90, 67, 90] }, { receivedAtMs: 21_100, bytes: [0x80, 67, 0] }], { end: 30_100 })).loaded;
+    const original = structuredClone(take);
+    const insights = { ...analyzeImprovTake(take), harmony: [], rests: [], motifs: [], phrases: [{ startMs: 20_000, endMs: 21_000, noteAttacks: 1, reason: "Key-down gap" }] };
+    vi.spyOn(insightsHook, "useImprovInsights").mockReturnValue({ status: "ready", insights });
+    const props = { take, playing: false, disabled: false, error: "", onPlay: vi.fn(), onStop: vi.fn(), onMidi: vi.fn(), context };
+    const view = render(<ImprovTakeReview {...props} />);
+    const passage = screen.getByRole("button", { name: /Possible phrase 1/ });
+    const region = screen.getByRole("group", { name: "Review staff and navigation" });
+    const reveal = vi.fn(); Object.assign(region, { scrollIntoView: reveal });
+    vi.spyOn(region, "getBoundingClientRect").mockReturnValue({ top: -500, bottom: -100 } as DOMRect);
+    passage.focus();
+    fireEvent.click(passage); expect(props.onPlay).not.toHaveBeenCalled();
+    expect(reveal).toHaveBeenCalledWith({ block: "start", behavior: "instant" }); expect(document.activeElement).toBe(passage);
+    expect(screen.getByRole("button", { name: "Replay selected passage" }).compareDocumentPosition(screen.getByRole("heading", { name: "Musical timeline" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect((screen.getByRole("slider") as HTMLInputElement).value).toBe("20000");
+    expect(staff().querySelector('[data-pitch="67"]')).toBeTruthy();
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "1000" } });
+    fireEvent.click(passage); expect((screen.getByRole("slider") as HTMLInputElement).value).toBe("20000");
+    expect(reveal).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Replay selected passage" })); expect(props.onPlay).toHaveBeenLastCalledWith({ startMs: 20_000, endMs: 21_000 });
+    const transport = { takeId: take.record.takeId, positionMs: () => 20_000, active: () => true };
+    view.rerender(<ImprovTakeReview {...props} playing transport={transport} />);
+    expect(staff().getAttribute("data-playhead-ms")).toBe("20000"); expect((screen.getByRole("slider") as HTMLInputElement).disabled).toBe(true);
+    view.rerender(<ImprovTakeReview {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replay take" })); expect(props.onPlay).toHaveBeenLastCalledWith();
+    const next = structuredClone(take); Reflect.set(next.record, "takeId", "other-insights-take");
+    view.rerender(<ImprovTakeReview {...props} take={next} />);
+    expect(screen.queryByRole("button", { name: "Replay selected passage" })).toBeNull();
+    expect((screen.getByRole("slider") as HTMLInputElement).value).toBe("0"); expect(take).toEqual(original);
+  });
   it("moves archived replay geometry without per-frame queries or React commits and retains saved trail lengths", async () => {
     const take = (await performanceFixture([{ receivedAtMs: 200 }, { receivedAtMs: 20_100, bytes: [0x80, 60, 0] }], { end: 60_100 })).loaded;
     const model = timelineFromTake(take); const query = vi.spyOn(model, "view"); const f = fixture(); const commits = vi.fn();

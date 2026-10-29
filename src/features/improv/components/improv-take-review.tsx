@@ -1,20 +1,20 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { summarizeImprovTake } from "../improv-performance";
 import type { ImprovLoadedTake } from "../improv-library";
 import { IMPROV_BUTTON } from "./improv-library-view";
 import type { FreeplayNotationContext } from "@/features/freeplay/freeplay-notation";
 import { timelineFromTake } from "../improv-timeline";
 import { ImprovPerformanceStaff } from "./improv-performance-staff";
-import type { ImprovReplayTransport } from "../improv-replay";
+import type { ImprovReplayRange, ImprovReplayTransport } from "../improv-replay";
+import { useImprovInsights } from "../hooks/use-improv-insights";
+import { ImprovInsights, type ImprovInsightSelection } from "./improv-insights";
 
-function ReviewTimeline({ take, context, playing, transport }: { take: ImprovLoadedTake; context: FreeplayNotationContext; playing: boolean; transport?: ImprovReplayTransport | null }) {
+function ReviewTimeline({ take, context, playing, following, position, windowChanged, navigate }: {
+  take: ImprovLoadedTake; context: FreeplayNotationContext; playing: boolean;
+  following: ImprovReplayTransport | null; position: number; windowChanged: (left: number) => void; navigate: (left: number) => void;
+}) {
   const model = useMemo(() => timelineFromTake(take), [take]);
   const source = useCallback(() => model, [model]);
-  const [position, setPosition] = useState(0);
-  const [detached, setDetached] = useState<ImprovReplayTransport | null>(null);
-  const following = transport && transport.takeId === take.record.takeId && detached !== transport ? transport : null;
-  const windowChanged = useCallback((left: number) => setPosition(left), []);
-  const navigate = (left: number) => { if (!playing) { setDetached(transport ?? null); setPosition(left); } };
   const duration = model.elapsed(0); const maximum = Math.max(0, duration - 1000);
   return <div className="mt-3 rounded-lg border border-white/10">
     <ImprovPerformanceStaff source={source} context={context} positionMs={following ? undefined : position} replay={following} onWindowChange={windowChanged} />
@@ -30,25 +30,49 @@ function ReviewTimeline({ take, context, playing, transport }: { take: ImprovLoa
   </div>;
 }
 
-export function ImprovTakeReview({ take, context, playing, disabled, error, onPlay, onStop, onMidi, transport }: Readonly<{
+type ReviewProps = Readonly<{
   take: ImprovLoadedTake | null; playing: boolean; disabled: boolean; error: string;
   context: FreeplayNotationContext;
   transport?: ImprovReplayTransport | null;
-  onPlay: () => void; onStop: () => void; onMidi: () => void;
-}>) {
-  const summary = useMemo(() => take ? summarizeImprovTake(take) : null, [take]);
-  if (!take || !summary) return null;
-  return <details className="rounded-xl border border-white/10 bg-white/5 p-3" open>
+  onPlay: (range?: ImprovReplayRange) => void; onStop: () => void; onMidi: () => void;
+}>;
+
+export function ImprovTakeReview(props: ReviewProps) {
+  return props.take ? <TakeReviewBody key={props.take.record.takeId} {...props} take={props.take} /> : null;
+}
+
+function TakeReviewBody({ take, context, playing, disabled, error, onPlay, onStop, onMidi, transport }: ReviewProps & { take: ImprovLoadedTake }) {
+  const summary = useMemo(() => summarizeImprovTake(take), [take]);
+  const insights = useImprovInsights(take);
+  const [position, setPosition] = useState(0);
+  const [selection, setSelection] = useState<ImprovInsightSelection | null>(null);
+  const staffRegion = useRef<HTMLDivElement>(null);
+  const [detached, setDetached] = useState<ImprovReplayTransport | null>(null);
+  const following = transport && transport.takeId === take.record.takeId && detached !== transport ? transport : null;
+  const windowChanged = useCallback((left: number) => setPosition(left), []);
+  const navigate = (left: number) => {
+    if (!playing) { setDetached(transport ?? null); setPosition(Math.max(0, Math.min(left, summary.projectedDurationMs - 1000))); }
+  };
+  return <details className="rounded-xl border border-white/10 bg-white/5 p-3 lg:col-span-2" open>
     <summary className="cursor-pointer py-2 font-semibold">Review Take {take.record.number}{take.record.number === 1 ? " · Original first attempt" : ""}</summary>
     <p className="mt-2 text-sm text-zinc-300">{take.record.status === "recording" ? "Saved prefix of an unfinished capture" : take.record.status} · Descriptive observations, without a reference score or accuracy grade.</p>
     {take.record.captureFailure && <p className="mt-2 text-amber-200">Capture stopped at the unsaved-data safety limit. Review contains the committed prefix.</p>}
     <div className="mt-3 flex flex-wrap gap-2">
-      <button className={`${IMPROV_BUTTON} bg-sky-700`} disabled={disabled || playing} onClick={onPlay}>Replay take</button>
+      <button className={`${IMPROV_BUTTON} bg-sky-700`} disabled={disabled || playing} onClick={() => onPlay()}>Replay take</button>
       <button className={IMPROV_BUTTON} disabled={!playing} onClick={onStop}>Stop Playback</button>
       <button className={IMPROV_BUTTON} disabled={disabled} onClick={onMidi}>Download MIDI</button>
     </div>
     {error && <p className="mt-2 text-red-200" role="alert">{error}</p>}
-    <ReviewTimeline key={take.record.takeId} take={take} context={context} playing={playing} transport={transport} />
+    <div ref={staffRegion} role="group" aria-label="Review staff and navigation">
+      <ReviewTimeline take={take} context={context} playing={playing} following={following} position={position} windowChanged={windowChanged} navigate={navigate} />
+    </div>
+    <ImprovInsights state={insights} selection={selection} playing={playing} disabled={disabled} onReplay={onPlay}
+      onSelect={item => {
+        if (playing) return;
+        setSelection(item); navigate(item.startMs);
+        const region = staffRegion.current, bounds = region?.getBoundingClientRect();
+        if (bounds && (bounds.top < 0 || bounds.bottom > window.innerHeight)) region?.scrollIntoView?.({ block: "start", behavior: "instant" });
+      }} />
     <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
       <div><dt className="text-zinc-400">Musical duration</dt><dd>{(summary.projectedDurationMs / 1000).toFixed(1)} s{summary.observedBoundaryDurationMs === null ? " · uncertain end / saved prefix" : ""}</dd></div>
       <div><dt className="text-zinc-400">Actual elapsed duration</dt><dd>{summary.observedBoundaryDurationMs === null ? "Unknown end · saved prefix" : `${(summary.observedBoundaryDurationMs / 1000).toFixed(1)} s`}</dd></div>
