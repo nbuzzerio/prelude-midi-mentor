@@ -1,12 +1,68 @@
 import { describe, expect, it } from "vitest";
 import { rolodexSuggestions } from "./rolodex-suggestions";
-import { createPiecePracticeRun, PiecePracticeRunWriteCoordinator } from "../persistence/piece-practice-runs";
+import { createPiecePracticeRun, parsePiecePracticeRun, PiecePracticeRunWriteCoordinator } from "../persistence/piece-practice-runs";
 import { parseEntry } from "./rolodex-model";
 import { createPiecePracticeSession, getCurrentPiecePracticeTarget, submitPiecePracticeAttempt, skipCurrentPiecePracticeTarget, restartCurrentPiecePracticeMeasure } from "../piece-practice-session";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { testScore } from "../continuous/continuous-test-fixtures";
 
 describe("optional retained-run suggestions", () => {
+  function observed(signal: "mistake" | "skip" | "restart" | "slow") {
+    const score = testScore("4/4", 2);
+    const projection = projectStaffBuilderPieceForPractice(score);
+    if (!projection.ok) throw Error("fixture");
+    const created = createPiecePracticeSession(projection.piece, { startMeasureIndex: 0, startedAtMs: 0 });
+    if (!created.ok) throw Error("fixture");
+    let state = created.state;
+    const play = (midi: number, atMs: number) => {
+      const target = getCurrentPiecePracticeTarget(projection.piece, state)!;
+      state = submitPiecePracticeAttempt(projection.piece, state, {
+        targetId: target.id, attempt: { attackMidiNumbers: [midi] }, atMs,
+      }).state;
+    };
+    play(60, 100);
+    if (signal === "mistake") play(61, 200);
+    if (signal === "restart") state = restartCurrentPiecePracticeMeasure(projection.piece, state, 200);
+    if (signal === "skip") state = skipCurrentPiecePracticeTarget(projection.piece, state, 300).state;
+    else play(62, signal === "slow" ? 10000 : 300);
+    expect(state.status).toBe("piece-complete");
+    const record = { ...createPiecePracticeRun(score, state, 10001), runId: signal };
+    expect(parsePiecePracticeRun(record).ok).toBe(true);
+    return record;
+  }
+
+  it.each([
+    ["mistake", "skip"], ["skip", "restart"], ["restart", "slow"],
+  ] as const)("ranks durable %s evidence ahead of %s evidence in either input order", (higher, lower) => {
+    const high = observed(higher), low = observed(lower);
+    const reasons = {
+      mistake: "1 mistakes, 0 skipped targets, 0 restarts, 0 recorded slow responses",
+      skip: "0 mistakes, 1 skipped targets, 0 restarts, 0 recorded slow responses",
+      restart: "0 mistakes, 0 skipped targets, 1 restarts, 0 recorded slow responses",
+      slow: "0 mistakes, 0 skipped targets, 0 restarts, 1 recorded slow responses",
+    };
+    for (const records of [[low, high], [high, low]]) {
+      const entries = rolodexSuggestions(JSON.parse(JSON.stringify(records)));
+      expect(entries).toHaveLength(1);
+      expect(entries[0].evidence).toEqual({ runId: higher, measureIndex: 1, reasons: reasons[higher] });
+      expect(entries[0].score).toEqual(high.sourceScore);
+      expect(entries[0].measureIds).toEqual([high.sourceScore.measures[1].id]);
+    }
+  });
+
+  it("rejects stale source identities and evidence referring to a different source measure", () => {
+    const record = observed("mistake");
+    const stale = { ...record, sourceScoreUpdatedAt: "2000-01-01T00:00:00.000Z" };
+    const mismatched = { ...record, checkpoint: { ...record.checkpoint,
+      mistakeEvidence: record.checkpoint.mistakeEvidence.map(item => ({ ...item, sourceMeasureId: "removed-measure" })),
+    } };
+    for (const invalid of [stale, mismatched]) {
+      expect(parsePiecePracticeRun(invalid).ok).toBe(false);
+      expect(rolodexSuggestions([invalid])).toEqual([]);
+      expect(rolodexSuggestions([invalid, record])[0].evidence?.runId).toBe("mistake");
+    }
+  });
+
   function retained(runId: string, restarts: readonly number[], score = testScore("4/4", restarts.length)) {
     const projection = projectStaffBuilderPieceForPractice(score);
     if (!projection.ok) throw Error("fixture");
