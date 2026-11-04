@@ -1,7 +1,7 @@
 # Rolodex ranking review evidence
 
 This follow-up addresses the missing-evidence review of candidate
-`7af21bbbca0f0b0b1376d9432397aef8e4bc3306`, not PR-RC-02. No concrete code
+`7d8b3b118944f92670b025cc034e6302aa9aa7ac`, not PR-RC-02. No concrete code
 defect was recorded. Existing implementation and assertions are preserved.
 
 ## Binding and limits
@@ -45,7 +45,7 @@ The existing file contains 12 cases (the first row expands to three).
 | ranks all durable candidates before capping, independently of input order | Strong later measures survive the cap; reverse input gives indexes 3, 2, 0; exact counts, source score and measure IDs. |
 | deduplicates source measures without adding counts and breaks run ties stably | Repeated runs/measures produce two entries, stable run a attribution, restart count remains one. |
 | keeps distinct frozen source snapshots and their measure references | Revised frozen score remains distinct; exact score, source timestamp and measure IDs. |
-| preserves ranked provenance through durable run storage and entry serialization | Coordinator with Map backend and JSON round trips retains selected run, counts, score and measure ID. Not IndexedDB/browser reload coverage. |
+| preserves ranked provenance after recreating the run coordinator and serializing the entry | A new coordinator reads two serialized records from a shared Map backend; two deduplicated suggestions survive, with the strongest first. Entry round trip retains selected run, exact counts, score and measure ID. Not IndexedDB/browser reload coverage. |
 | caps suggestions at three and retains the exact completed run score and factual skips | Three entries, stable measure ordering, exact frozen score and factual skip attribution. |
 | ignores unavailable, corrupt and unsupported evidence | Null, malformed and future-version records yield no entries. |
 | does not fabricate difficulty for a completed clean performance | Real completed clean session yields no suggestion. |
@@ -97,7 +97,30 @@ delegated to Human QA.
    does not read protected source or external host logs, change evidence
    limits, or modify host tooling. No project-source edit can settle this.
 
-No product files, tests, shared types, UI or music policy change is proposed.
+## Second follow-up diagnosis
+
+The recorded failure is missing review evidence, not a failing build or an
+identified ranking defect. This follow-up strengthens the existing persistence
+test by recreating the coordinator and decoding stored JSON on every read.
+This closes the specific same-coordinator limitation of that test without
+claiming browser persistence. Existing assertions are retained, with explicit
+record and suggestion counts added. No production behavior changes.
+
+The browser contract was queried again and still contains no suites. Only
+`run verify` is enrolled for verification; no verbose-reporter permission is
+inferred and the previously rejected command is not retried. Named execution
+proof still requires Studio to enroll a focused verbose invocation for
+`src/features/piece-practice/rolodex/rolodex-suggestions.test.ts` and attach its
+output to the checkpoint. Source-packet limits and historical records cannot
+be repaired by changing project tests or copying protected evidence.
+
+Current working-tree `pnpm run verify` passed through Studio, exit 0,
+verification `5b1b5dfd5a4e4674ad095727f097c3eb`. Returned output was truncated;
+fresh exact suite counts and named suggestion PASS lines are not reported
+here. The earlier counts are not substituted for current execution evidence.
+The CxR exporter exited 1 without output; no artifact was confirmed.
+
+No product files, shared types, UI or music policy change is proposed.
 There is no product-code version bump in this evidence-only follow-up; package
 and lockfile edits remain prohibited by the ticket. Acceptance and progression
 remain subject to the unresolved host/provenance decisions above.

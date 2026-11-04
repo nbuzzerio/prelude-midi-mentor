@@ -113,17 +113,24 @@ describe("optional retained-run suggestions", () => {
     }
   });
 
-  it("preserves ranked provenance through durable run storage and entry serialization", async () => {
-    const records = new Map<string, unknown>();
-    const store = new PiecePracticeRunWriteCoordinator({
-      list: async () => [...records.values()],
-      put: async record => { records.set(record.runId, JSON.parse(JSON.stringify(record))); },
+  it("preserves ranked provenance after recreating the run coordinator and serializing the entry", async () => {
+    const records = new Map<string, string>();
+    const openStore = () => new PiecePracticeRunWriteCoordinator({
+      list: async () => [...records.values()].map(value => JSON.parse(value) as unknown),
+      put: async record => { records.set(record.runId, JSON.stringify(record)); },
       discard: async id => { records.delete(id); },
     });
+    const store = openStore();
     await store.save(retained("weak", [0, 0]));
     const strong = retained("strong", [0, 2]);
     await store.save(strong);
-    const [suggestion] = rolodexSuggestions(await store.list());
+    const reopenedStore = openStore();
+    expect(reopenedStore).not.toBe(store);
+    const loadedRecords = await reopenedStore.list();
+    expect(loadedRecords).toHaveLength(2);
+    const suggestions = rolodexSuggestions(loadedRecords);
+    expect(suggestions).toHaveLength(2);
+    const [suggestion] = suggestions;
     const reloaded = parseEntry(JSON.parse(JSON.stringify(suggestion)));
     expect(reloaded.evidence).toEqual({ runId: "strong", measureIndex: 1,
       reasons: "0 mistakes, 1 skipped targets, 2 restarts, 0 recorded slow responses" });
