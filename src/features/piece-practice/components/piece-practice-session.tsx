@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import MidiStatus from "@/components/midi/midi-status";
 import PianoKeyboard from "@/components/notation/piano-keyboard";
 import { StaffBuilderScoreView, type StaffBuilderEventHighlight } from "@/features/staff-builder/components/staff-builder-score-view";
@@ -384,19 +384,19 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
   }
 
   return <>
-    {sessionState.status === "piece-complete" && recommendationRun?.status === "completed" && isRunDurable(recommendationRun, saveProgress)
-      && <PostPracticeRecommendations key={`${recommendationRun.runId}:${recommendationRun.revision}`} run={recommendationRun} runStore={runStore} />}
     {secondaryStorageWarning && <p role="alert">An earlier active run could not be updated in storage. Its last saved evidence remains available.</p>}
     {saveProgress.runId !== null && saveProgress.failedRevision === saveProgress.requestedRevision && sessionState.status !== "piece-complete"
       && <p role="alert">Practice is continuing, but crash or reload recovery is currently unavailable for this run.</p>}
     {recoveredNotice && <div role="status"><strong>Recovered practice session</strong>{sessionState.inputConfiguration?.mode === "microphone" ? <p>Restored from the last saved checkpoint, paused with microphone off. Press Start Listening, leave a brief quiet gap, then re-articulate.</p> : <><p>Restored from the last saved checkpoint. MIDI key state and any in-progress chord or roll were reset.</p><button onClick={() => { commitState(resumePiecePracticeClock(sessionRef.current!, now())); setRecoveredNotice(false); }} type="button">Resume Practice</button></>}</div>}
-    <ActivePiecePracticeSession acceptedTarget={acceptedTarget} microphoneAvailable={microphoneAvailable} acousticRunId={saveProgress.runId ?? "new"} registerAudioGuard={registerAudioGuard} targetedPractice={{ review: targetedPracticeReview, latestResults: targetedPracticeResults.map((result) => result.state), unsavedMeasureIndices: targetedPracticeResults.filter((result) => !result.saved).map((result) => result.state.startMeasureIndex), notice: targetedPracticeNotice, error: targetedPracticeError, onPractice: startTargetedPractice, onReturn: returnToTargetedPractice }} completionSaveState={sessionState.status === "piece-complete"
+    <ActivePiecePracticeSession recommendations={sessionState.status === "piece-complete" && recommendationRun?.status === "completed" && isRunDurable(recommendationRun, saveProgress)
+      ? <PostPracticeRecommendations key={`${recommendationRun.runId}:${recommendationRun.revision}`} run={recommendationRun} runStore={runStore} /> : null} acceptedTarget={acceptedTarget} microphoneAvailable={microphoneAvailable} acousticRunId={saveProgress.runId ?? "new"} registerAudioGuard={registerAudioGuard} targetedPractice={{ review: targetedPracticeReview, latestResults: targetedPracticeResults.map((result) => result.state), unsavedMeasureIndices: targetedPracticeResults.filter((result) => !result.saved).map((result) => result.state.startMeasureIndex), notice: targetedPracticeNotice, error: targetedPracticeError, onPractice: startTargetedPractice, onReturn: returnToTargetedPractice }} completionSaveState={sessionState.status === "piece-complete"
       ? saveProgress.runId !== null && saveProgress.persistedRevision >= saveProgress.requestedRevision ? "saved" : saveProgress.failedRevision === saveProgress.requestedRevision ? "failed" : "saving"
       : null} displayScore={displayScore} exitAwaitingSave={exitAwaitingSave} now={now} onExit={exitPractice} onRestartPiece={restartWholePiece} onSessionStateChange={commitState} piece={assessedPiece} resetHeldOnMount={Boolean(recoveredRun && recoveredRun.status === "active")} sessionState={sessionState} />
   </>;
 }
 
 type ActivePiecePracticeSessionProps = Readonly<{
+  recommendations: ReactNode;
   acceptedTarget: AcceptedTarget | null;
   microphoneAvailable: boolean;
   acousticRunId: string;
@@ -443,7 +443,7 @@ function AcousticPiecePracticeOwner(props: ActivePiecePracticeSessionProps) {
   usePiecePracticeRecordingGuard(controller.recording, props.registerAudioGuard);
   return <PiecePracticeSessionView {...props} input={{ kind: "microphone", controller }} />;
 }
-function PiecePracticeSessionView({ acceptedTarget, completionSaveState, displayScore, exitAwaitingSave, targetedPractice, now, onExit, onRestartPiece, onSessionStateChange, piece, sessionState, input, microphoneAvailable }: ActivePiecePracticeSessionProps & Readonly<{ input: SessionInput }>) {
+function PiecePracticeSessionView({ recommendations, acceptedTarget, completionSaveState, displayScore, exitAwaitingSave, targetedPractice, now, onExit, onRestartPiece, onSessionStateChange, piece, sessionState, input, microphoneAvailable }: ActivePiecePracticeSessionProps & Readonly<{ input: SessionInput }>) {
   const { enterMobilePlay, exitMobilePlay, isMobilePlayMode } = useMobilePlay();
   const [keyboardChoice, setKeyboardChoice] = useState<boolean | null>(null);
   const showKeyboard = keyboardChoice ?? (input.kind === "keyboard" && input.controller.status !== "connected");
@@ -547,6 +547,7 @@ function PiecePracticeSessionView({ acceptedTarget, completionSaveState, display
         <div><dt className="text-sm text-zinc-400">Mistakes</dt><dd className="text-xl font-bold">{progress.incorrectAttemptCount}</dd></div>
         <div><dt className="text-sm text-zinc-400">Elapsed</dt><dd className="text-xl font-bold">{formatElapsed(progress.elapsedMs)}</dd></div>
       </dl>
+      {recommendations}
       <PiecePracticeResults displayScore={displayScore} piece={piece} rangeText={rangeText} state={sessionState} title={piece.title} />
       {input.kind === "microphone" && <><PiecePracticeRecordingControls pieceTitle={piece.title} listening={false} recording={input.controller.recording} /><AcousticAnalysisExportControls control={input.controller.analysis} capturing={false} /></>}
       {input.kind === "keyboard" && <PiecePracticeRecordingControls pieceTitle={piece.title} listening={input.audio.capturing} recording={input.audio.recording} keyboard={input.audio} />}

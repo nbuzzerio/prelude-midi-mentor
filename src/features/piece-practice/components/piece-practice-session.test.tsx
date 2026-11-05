@@ -232,7 +232,7 @@ function completedSavedRun() {
   return { score, piece: projected.piece, record: createPiecePracticeRun(score, state, 50) };
 }
 
-it("offers contextual recommendations only after actual session completion storage acknowledgement", async () => {
+it("offers contextual recommendations inside Mobile Play only after actual session completion storage acknowledgement", async () => {
   vi.spyOn(rolodexStore, "list").mockResolvedValue({ entries: [], unavailableCount: 0 });
   const { store, resolveCompletion } = heldCompletionStore();
   const save = vi.spyOn(rolodexStore, "save");
@@ -241,11 +241,20 @@ it("offers contextual recommendations only after actual session completion stora
   render(<PiecePracticeSession piece={projected.piece} sourceScore={score} onExit={vi.fn()} runStore={store} now={() => 65_000} />);
   expect(screen.queryByRole("region", { name: "Recommended next practice" })).toBeNull();
   fireEvent.click(screen.getByText("Start Practice"));
+  fireEvent.click(screen.getByRole("button", { name: "Mobile Play" }));
   completeBySkipping();
   expect(screen.queryByRole("region", { name: "Recommended next practice" })).toBeNull();
   await act(async () => { resolveCompletion(); });
   const panel = await screen.findByRole("region", { name: "Recommended next practice" });
   expect(await within(panel).findAllByRole("button", { name: /Inspect measure/ })).not.toHaveLength(0);
+  expect(panel.closest(".mobile-play-mode")).toBe(screen.getByRole("heading", { name: "Piece complete" }).closest(".mobile-play-mode"));
+  const inspect = within(panel).getAllByRole("button", { name: /Inspect measure/ })[0];
+  inspect.focus();
+  expect(document.activeElement).toBe(inspect);
+  fireEvent.click(inspect);
+  expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Save to Practice Rolodex" }));
+  fireEvent.click(screen.getByText("Cancel"));
+  await waitFor(() => expect(document.activeElement).toBe(within(panel).getByRole("heading", { name: "Recommended next practice" })));
   fireEvent.click(within(panel).getByText("Return to results"));
   expect(screen.getByRole("region", { name: "Piece Practice results" })).toBeTruthy();
   expect(store.records.at(-1)?.status).toBe("completed");

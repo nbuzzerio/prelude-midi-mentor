@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { FakeImprovIndexedDb } from "../../improv/persistence/improv-indexeddb-fake";
-import { createPiecePracticeRun, IndexedDbPiecePracticeRunStore } from "../persistence/piece-practice-runs";
+import { createPiecePracticeRun, IndexedDbPiecePracticeRunStore, parsePiecePracticeRun } from "../persistence/piece-practice-runs";
 import { createPiecePracticeSession, getCurrentPiecePracticeTarget, submitPiecePracticeAttempt } from "../piece-practice-session";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { testScore } from "../continuous/continuous-test-fixtures";
@@ -55,7 +55,16 @@ it("durable completion to inspection to explicit manual save preserves the origi
   expect(saved[0].measureIds).toEqual([run.sourceScore.measures[1].id]);
   expect(await runStore.list()).toEqual([run]);
   view.unmount();
-  render(<PostPracticeRecommendations run={run} runStore={runStore} />);
+  runStore = new IndexedDbPiecePracticeRunStore();
+  const parsed = parsePiecePracticeRun((await runStore.list())[0]);
+  if (!parsed.ok) throw Error("reload failed native validation");
+  const reloadedRun = parsed.record;
+  expect(reloadedRun).toEqual(run);
+  expect((await rolodexStore.list()).entries).toEqual(saved);
+  const duplicate = await rolodexStore.save(saved[0], null);
+  expect(duplicate.entry).toEqual(saved[0]);
+  expect((await rolodexStore.list()).entries).toHaveLength(1);
+  render(<PostPracticeRecommendations run={reloadedRun} runStore={runStore} />);
   await screen.findByText(/No remaining recommendations/);
   expect(screen.queryByRole("button", { name: /Inspect/ })).toBeNull();
 });

@@ -255,3 +255,74 @@ Current-ticket executed evidence (working tree at admitted checkpoint):
   lint, type checking, 325 test files / 4,713 tests, and production build.
   Existing acoustic-hook lint and jsdom canvas warnings remain; no packages
   were changed. Browser acceptance remains NOT_RUN, independent of this pass.
+
+## PR-RC-04 verification and experience handoff
+
+Admission: Studio identifies branch `studio/pr_006`, integration `master`, baseline
+`aa34323d7ed2c4c710b6a5504cba270b7961c885`, checkpoint
+`940a704e92aa96ea940adee111c431d96a10bdbd`. Execution below is working-tree
+verification based on that checkpoint, not a committed-candidate approval.
+
+The retained Mobile Play defect is repaired: the single recommendation panel
+now renders inside the completed-session surface, through a private React node
+prop. Input ownership, completion acknowledgement, ranking and storage contracts
+are unchanged. No release metadata, dependencies or deployment changes.
+
+Reused automated assertion map (paths relative to `src/features/piece-practice`):
+
+| File / named case | Exact objective assertions |
+| --- | --- |
+| `components/piece-practice-session.test.tsx`: offers contextual recommendations inside Mobile Play only after actual session completion storage acknowledgement | Native completion by skip actions; no offers before write acknowledgement; panel shares the completion overlay ancestor; inspect control accepts DOM focus; editor heading receives focus; Cancel restores recommendation heading focus; return retains results; no automatic Rolodex save. |
+| `rolodex/post-practice-recommendations.test.tsx`: durable completion to inspection to explicit manual save preserves the original result and provenance on reload | Native wrong-note completion persisted through production store with fake IndexedDB; no save before confirmation; saved sourceScore, run ID, measure index, reasons and measure IDs match; recreate run store and validate decoded result with native parser; original result deeply unchanged; reopened Rolodex equals saved entries; repeated same-entry save leaves one entry; remount suppresses saved recommendation. |
+| `rolodex/rolodex-suggestions.test.ts`: ranks all durable candidates before capping, independently of input order; deduplicates source measures without adding counts and breaks run ties stably | Both input orders produce [3,2,0]; exact reasons and score/measure attribution; duplicate runs produce only source measures 0/1 attributed to stable run a, without summed counts. |
+| Same file: rejects stale source identities and evidence referring to a different source measure; rechecks exact frozen attribution and rejects missing, changed or out-of-range evidence | Reject stale/mismatched identity, missing and changed evidence, invented reasons and excluded evidence measure. Existing corruption, clean, unfinished and silence cases reject fabricated difficulty. |
+| Same file: suppresses saved and dismissed prescriptions before the cap using storage identity; preserves ranked provenance after recreating the run coordinator and serializing the entry | Archived saved and declined prescriptions excluded before cap; reconstructed coordinator reads serialized records, retains exact strongest run, score and source measure. |
+| Same file: persists suggested provenance only after transaction acknowledgement and preserves it on retry and duplicate save | Quota failure leaves no entry; held commit remains unacknowledged; retry preserves attribution; equivalent new suggestion reports duplicate and leaves one entry; original run unchanged. |
+| `rolodex/post-practice-recommendations.test.tsx`: cancel, return and decline; honest empty state; offers nothing for parameterized invalid evidence; revalidates removed evidence before saving | No writes on cancel/decline/return; focus restoration; clean completion empty state; missing/unfinished/cancelled/fabricated/stale/read failure/unreadable Rolodex show alert without Inspect; evidence removed at confirmation prevents save; failed write retains result and retry creates one entry. |
+| `rolodex/rolodex-editor.test.tsx`, `rolodex/rolodex-library.test.tsx` | Reused 5 editor and 9 library cases: manual instrument confirmation, exact retry payload, concurrent and acknowledged repeat fencing, review/cancel no-write, focus return, dismissal/reload, provenance and failed-read clearing. |
+
+Executed focused Studio run `00e5a623a300459db986ca534b2772ad` PASSED:
+5 files / 132 tests: session 92, recommendations 11, ranking 15, editor 5,
+library 9. Command: `pnpm exec vitest run` followed by the five files above.
+Returned output names files, not individual passing cases; the assertion map
+identifies executed bodies, but separately named per-case PASS output remains
+MISSING. No verbose-reporter authority is inferred.
+
+Retained intermediate full-profile run `3fae0a52ee5341d7af063ee1136e0c1e`
+FAILED, exit 1. Returned bounded output omitted failing diagnostics; no cause or
+exact counts are inferred. Test-source work was still in progress at that run;
+it is not final candidate evidence. A focused request made while it was pending
+was not executed because Studio disallows overlapping host verification.
+
+MISSING / NOT_RUN: no browser suites were enrolled by `browser-contract`.
+Actual browser reload, Tab/Shift-Tab and Enter/Space interaction, accessibility
+inspection/announcements, small-screen geometry/overflow, and offline navigation
+are unverified. DOM focus/containment and fake IndexedDB reconstruction do not
+establish these. Separate owner decision proposed: enroll a bounded Studio
+browser acceptance suite for completion -> inspect -> confirm -> reload at
+narrow and desktop viewports, accessibility/keyboard traversal, and cached
+startup with network disabled. These objective checks are not Human QA tasks.
+
+PWA source asserts base `/prelude/`, prompt updates and scoped index fallback.
+Existing `src/lib/pwa/register-service-worker.test.ts` tests lifecycle notification
+deduplication, explicit reload consent, rejection/timeout and hidden/offline
+update behavior using mocked workers. This is lifecycle coverage, not proof of
+browser cache availability or an actual offline launch.
+
+Historical provenance, ambiguous pinned interpretations, protected build source,
+and bounded independent-review packet disclosures remain unresolved; this turn
+does not reconstruct or waive them. Supplemental test declaration discovery was
+performed across all twelve listed files; complete body-level independent
+inspection is not claimed. No protected source or external evidence was read.
+
+Human Experience Review questions only: Does the recommendation placement feel
+natural after completion in Mobile Play? Is inspecting and returning to results
+comfortable? Does the explicit save confirmation match your expectation of
+keeping a passage for later? Functional missing evidence remains above.
+
+Final full-profile Studio run `e00d1d6d5a094f93959190aab4c834f8` PASSED
+`pnpm run verify`: lint, type checking, 325 test files / 4,713 tests, production
+build. PWA generateSW emitted `dist/sw.js` and Workbox, precaching 36 entries
+(8179.65 KiB). This confirms generation, not offline browser operation. Existing
+jsdom canvas warnings remain. Documentation was updated after this code check;
+no product or test edits followed the passing run.
