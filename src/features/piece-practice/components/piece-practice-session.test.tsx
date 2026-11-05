@@ -15,6 +15,7 @@ import type { CaptureOptions, CaptureStreamLease } from "@/lib/audio/monophonic/
 import { createPitchStabilizer } from "@/lib/audio/monophonic/pitch-stabilizer";
 import type { PitchSnapshot } from "@/lib/audio/monophonic/pitch-analysis-types";
 import * as analysisBrowser from "@/features/acoustic-analysis/acoustic-analysis-browser";
+import { rolodexStore } from "../rolodex/rolodex-store";
 
 const mocks = vi.hoisted(() => ({
   midiStatus: "connected" as "connected" | "disconnected",
@@ -230,6 +231,26 @@ function completedSavedRun() {
   if (state.status !== "piece-complete") throw new Error("Fixture did not complete");
   return { score, piece: projected.piece, record: createPiecePracticeRun(score, state, 50) };
 }
+
+it("offers contextual recommendations only after actual session completion storage acknowledgement", async () => {
+  vi.spyOn(rolodexStore, "list").mockResolvedValue({ entries: [], unavailableCount: 0 });
+  const { store, resolveCompletion } = heldCompletionStore();
+  const save = vi.spyOn(rolodexStore, "save");
+  const score = realisticPolyphonicScore(), projected = projectStaffBuilderPieceForPractice(score);
+  if (!projected.ok) throw Error("fixture");
+  render(<PiecePracticeSession piece={projected.piece} sourceScore={score} onExit={vi.fn()} runStore={store} now={() => 65_000} />);
+  expect(screen.queryByRole("region", { name: "Recommended next practice" })).toBeNull();
+  fireEvent.click(screen.getByText("Start Practice"));
+  completeBySkipping();
+  expect(screen.queryByRole("region", { name: "Recommended next practice" })).toBeNull();
+  await act(async () => { resolveCompletion(); });
+  const panel = await screen.findByRole("region", { name: "Recommended next practice" });
+  expect(await within(panel).findAllByRole("button", { name: /Inspect measure/ })).not.toHaveLength(0);
+  fireEvent.click(within(panel).getByText("Return to results"));
+  expect(screen.getByRole("region", { name: "Piece Practice results" })).toBeTruthy();
+  expect(store.records.at(-1)?.status).toBe("completed");
+  expect(save).not.toHaveBeenCalled();
+});
 
 function start(source = piece(), measure = 1, endMeasure: number | null = null) {
   const rendered = render(<PiecePracticeSession now={() => 65_000} onExit={vi.fn()} piece={source} runStore={runStore()} />);

@@ -187,3 +187,71 @@ Executed current-ticket verification:
   the failing case/diagnostics. No cause is invented. The final focused and full
   runs pass; the intermediate failure remains part of the evidence history.
 - Browser suite execution remains NOT_RUN. No dependencies were changed.
+
+## PR-RC-03 contextual completed-session recommendations
+
+`PiecePracticeSession` mounts `PostPracticeRecommendations` only for a completed
+run whose revision has a storage acknowledgement. The panel reads that exact
+validated revision back from the run store and reads Rolodex before deriving
+offers. It uses the existing native ranking and attribution without changing
+scoring, source snapshots, schemas or music behavior. Read failures and missing
+or changed results produce an unavailable state, never fallback offers.
+
+Each measure displays its recorded signal counts and source run. Inspection
+reuses `RolodexEditor`, including its instrument confirmation, frozen score
+preview, evidence revalidation, retry identity and repeated-write fence. The
+editor now accepts the session's existing run store; its default is unchanged.
+Cancel, decline and return leave results mounted. Declines last for this results
+visit. Saved prescriptions are suppressed on reload. Layout uses existing
+wrapping controls and responsive editor styles; focus returns to the panel
+heading after inspection or decline.
+
+Automated assertion map:
+
+- `components/piece-practice-session.test.tsx`: actual session completion by
+  native skip actions exposes no panel before the completion write resolves;
+  acknowledgement enables contextual offers, return retains results, no
+  Rolodex save occurs automatically.
+- `rolodex/post-practice-recommendations.test.tsx`: native note attempts create
+  a completed mistake fixture, saved/reloaded through the production run store
+  with fake IndexedDB. Inspection cannot save before confirmation; confirmed
+  save/reload retains the exact sourceScore, evidence run/measure/reasons and
+  source measure IDs. Reloaded original durable result remains deeply equal.
+  Separate cases cover clean completion, missing/unfinished/cancelled/fabricated
+  evidence, read failure, removed evidence at confirmation, write failure/retry,
+  saved suppression, cancellation/decline, and DOM focus restoration.
+- Existing editor, library, ranking and persistence regressions remain in the
+  full verify suite, including the repeated-confirmation fence.
+
+Browser-contract discovery again returned no enrolled suites. Actual browser
+Tab/Shift-Tab traversal, Enter/Space activation, focus restoration, accessible
+name/announcement inspection, narrow viewport overflow and browser reload
+remain NOT_RUN. DOM checks and fake IndexedDB do not establish those browser
+properties. Separate owner decision: enroll a bounded browser acceptance suite
+and runtime through Studio; no dependency or runtime permission is inferred.
+Historical provenance, protected-source and named-case reporting gaps remain
+unresolved independently. Version proposal remains 2.9.25 for Studio to handle;
+direct package edits remain prohibited.
+
+Current-ticket executed evidence (working tree at admitted checkpoint):
+
+- Focused Studio run `9fce267b172b41b188e2dd125f7deb8f` PASSED: five files,
+  132 tests (recommendations 11, session 92, ranking 15, editor 5, library 9).
+  This includes the assertion map above. Host success output is file-level;
+  individual named passing-case output remains unavailable.
+- Intermediate full run `a941ededbd5040a1b36aa38cdd4caf7e` FAILED on the new
+  render-time ref read. Replaced that read with a save-progress state snapshot.
+- Intermediate full run `1c30256b93fc4f4bb2fe2d57e9dc2e6f` FAILED: 2 files
+  failed / 323 passed; 4 tests failed / 4,707 passed. Focused run
+  `b109d6b556a24b978dae0b28e081fb9f` reproduced those four failures. New test
+  setup reused a cached run-store connection across IndexedDB fixtures, and
+  the session test used a manually assembled piece rejected by native parsing.
+  Isolated production store instances and a validated score projection fixed
+  the fixtures without weakening assertions or changing native contracts.
+- Two subsequent session-only diagnostic executions also retained the one
+  fixture failure before that fixture correction. The focused run above passes
+  all 132 tests after correction; historical failures remain FAILED.
+- Final Studio run `fdfd6b801e0d455d95d1f651e040b97d` PASSED `pnpm run verify`:
+  lint, type checking, 325 test files / 4,713 tests, and production build.
+  Existing acoustic-hook lint and jsdom canvas warnings remain; no packages
+  were changed. Browser acceptance remains NOT_RUN, independent of this pass.

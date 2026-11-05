@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { piecePracticeRunStore } from "../persistence/piece-practice-runs";
+import { piecePracticeRunStore, type PiecePracticeRunStore } from "../persistence/piece-practice-runs";
 import { validateSuggestion } from "./rolodex-suggestions";
 import { ContinuousScore } from "../continuous/continuous-score";
 import { editEntry, instruments, parseEntry, playability } from "./rolodex-model";
@@ -8,8 +8,9 @@ import type { RolodexEntry, RolodexInstrument, RolodexSaveResult, RolodexSourceI
 
 export const rolodexButton = "min-h-11 rounded-lg border border-zinc-500 px-3 py-2 font-semibold disabled:opacity-40";
 export const rolodexField = "min-h-11 min-w-0 rounded border border-zinc-500 bg-zinc-950 p-2";
-export function RolodexEditor({ entry, existing = false, store = rolodexStore, onSaved, onCancel }: Readonly<{
+export function RolodexEditor({ entry, existing = false, store = rolodexStore, runStore = piecePracticeRunStore, onSaved, onCancel }: Readonly<{
   entry: RolodexEntry; existing?: boolean; store?: RolodexStore;
+  runStore?: PiecePracticeRunStore;
   onSaved: (result: RolodexSaveResult) => void; onCancel: () => void;
 }>) {
   const [draft, setDraft] = useState(entry);
@@ -29,7 +30,7 @@ export function RolodexEditor({ entry, existing = false, store = rolodexStore, o
         pending.current = existing ? edited : parseEntry({ ...edited, revision: 1, prescriptionRevision: 1 });
       }
       if (!existing && pending.current.origin === "evidence-suggested") {
-        validateSuggestion(pending.current, await piecePracticeRunStore.list());
+        validateSuggestion(pending.current, await runStore.list());
       }
       const result = await store.save(pending.current, existing ? entry.revision : null);
       acknowledged.current = true;

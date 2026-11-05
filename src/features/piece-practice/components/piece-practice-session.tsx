@@ -33,6 +33,7 @@ import {
 } from "../piece-practice-session";
 import type { PiecePracticeAttackedPitch, PiecePracticePiece } from "../piece-practice-types";
 import { PiecePracticeResults } from "./piece-practice-results";
+import { PostPracticeRecommendations } from "../rolodex/post-practice-recommendations";
 import { PiecePracticeTargetedPractice, PiecePracticeTargetedPracticeComparisonView } from "./piece-practice-targeted-practice";
 import { comparePiecePracticeTargetedPractice, selectPiecePracticeTargetedPractice } from "../piece-practice-targeted-practice";
 import { formatPiecePracticeMidiPitch } from "../piece-practice-evidence";
@@ -109,6 +110,7 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
     if (acceptanceTimer.current !== null) clearTimeout(acceptanceTimer.current);
   }, []);
   const runRef = useRef<PiecePracticeRunRecordV2 | null>(recoveredRun ?? null);
+  const [recommendationRun, setRecommendationRun] = useState<PiecePracticeRunRecordV2 | null>(recoveredRun ?? null);
   const [saveProgress, setSaveProgress] = useState<RunSaveProgress>(() => ({
     runId: recoveredRun?.runId ?? null,
     requestedRevision: (recoveredRun?.revision ?? 0) + (recoveredRun?.status === "active" && sessionState?.status === "piece-complete" ? 1 : 0),
@@ -129,7 +131,7 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
 
   const acousticEligibility = selectedInput.mode === "microphone" ? getAcousticEligibility(assessedPiece, selectedStartMeasure, selectedEndMeasure) : { eligible: true as const };
 
-  const updateProgress = (next: RunSaveProgress) => { progressRef.current = next; setSaveProgress(next); };
+  const updateProgress = (next: RunSaveProgress) => { progressRef.current = next; setSaveProgress(next); setRecommendationRun(runRef.current); };
   const persist = (record: PiecePracticeRunRecordV2) => {
     const previous = progressRef.current;
     updateProgress({ runId: record.runId, requestedRevision: record.revision,
@@ -382,6 +384,8 @@ export function PiecePracticeSession({ piece, sourceScore, recoveredRun, runStor
   }
 
   return <>
+    {sessionState.status === "piece-complete" && recommendationRun?.status === "completed" && isRunDurable(recommendationRun, saveProgress)
+      && <PostPracticeRecommendations key={`${recommendationRun.runId}:${recommendationRun.revision}`} run={recommendationRun} runStore={runStore} />}
     {secondaryStorageWarning && <p role="alert">An earlier active run could not be updated in storage. Its last saved evidence remains available.</p>}
     {saveProgress.runId !== null && saveProgress.failedRevision === saveProgress.requestedRevision && sessionState.status !== "piece-complete"
       && <p role="alert">Practice is continuing, but crash or reload recovery is currently unavailable for this run.</p>}
