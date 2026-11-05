@@ -124,3 +124,66 @@ No product files, shared types, UI or music policy change is proposed.
 There is no product-code version bump in this evidence-only follow-up; package
 and lockfile edits remain prohibited by the ticket. Acceptance and progression
 remain subject to the unresolved host/provenance decisions above.
+
+## PR-RC-02 current-source checkpoint
+
+The owner explicitly authorized bounded implementation and documented-risk
+progression at checkpoint `6b69b4814210f95064e46da3c65d28fad16cce90`.
+This turn inspected the actual selector, parser/checkpoint validation, hydration,
+session diagnostic delegation, evidence derivation, projection, synthetic
+fixtures, Rolodex types/model, editor, library and transaction planner before
+implementation. These usable source contracts permit this ticket's work;
+they do not reconstruct historical inspection or excluded-instance records.
+
+Missing behavior implemented:
+
+- Suppress saved prescriptions (including archived entries) using the existing
+  storage `prescriptionKey`, and visit-local dismissed prescriptions, before
+  the three-suggestion cap. Dismissal writes no data and resets on leaving the
+  library. Native ranking and frozen-score/source-measure deduplication remain.
+- Load suggestions only after reading both evidence and saved entries; discard
+  old offers during reload or on failure. Unreadable saved records prevent offers.
+- Before every new suggested save/retry, re-read durable runs and rederive the
+  exact selected run/measure/reasons against its frozen score. Missing, invalid
+  or changed attribution blocks the write. Range edits must retain the evidence
+  measure. Mutable library-source edits/deletions do not invalidate frozen music.
+- Retain manual confirmation and pending-payload retry identity, fence successful
+  repeat confirmation, focus the editor heading, and restore focus to the visible
+  suggestion loader after review/cancel/save or dismissal.
+
+Objective assertion locations:
+
+| File | Assertions |
+| --- | --- |
+| `rolodex-suggestions.test.ts` | Existing ranking, ties, stale identity, corrupt/unfinished/clean evidence and coordinator reconstruction; new saved/dismissed suppression before cap; exact attribution recheck and out-of-range rejection; IndexedDB-fake quota failure, commit acknowledgement, reload provenance and duplicate save with unchanged original run. |
+| `rolodex-editor.test.tsx` | Explicit instrument confirmation; failed-write retry retains exact payload; concurrent and acknowledged repeat clicks write once; accessible heading focus; failed evidence reads and missing evidence never call save. |
+| `rolodex-library.test.tsx` | Review/cancel never writes; heading and return focus; dismissal survives suggestion reload; confirmed save retains serialized score/measure/evidence and disappears from offers; failed evidence reload clears old offers. |
+
+No storage schema, public model, durable completion, scoring, MIDI, worker or
+music-theory contract changes. Product version remains `2.9.24`: repository
+guidance proposes patch `2.9.25`, but this ticket prohibits direct manifest and
+lockfile edits. Studio must reconcile the version requirement before committing.
+
+Browser contract discovery returned no suites and only the existing verify
+command. Real-browser reload, keyboard traversal, screen-reader announcements
+and responsive rendering remain NOT_RUN. DOM focus and accessible names are
+automated assertions, not real-browser accessibility certification. Studio must
+separately enroll a bounded browser suite/runtime to produce that evidence;
+subjective Human QA does not replace it. Historical packet/protected-source and
+named-output gaps above remain host review concerns, not facts inferred from
+the present implementation.
+
+Executed current-ticket verification:
+
+- Focused Studio run `c92a595f723f4923a28ba6b369e3a45d` passed all three
+  assertion files above: suggestions 15, editor 5, library 9 (29 total).
+- Final `pnpm run verify`, Studio run `2c2d1baa143f44788f94ff779ad9700a`,
+  passed lint, type checking, 324 test files / 4,701 tests and production build.
+  This is working-tree evidence at the admitted checkpoint, not clean-commit
+  acceptance. The host output reports file-level rather than individual-case
+  results; named-case execution output remains unavailable.
+- Retained intermediate result `7436ce1237e44fa7814f605df5f1128d` FAILED:
+  1 test failed, 4,699 passed in 324 files. Its bounded returned output omitted
+  the failing case/diagnostics. No cause is invented. The final focused and full
+  runs pass; the intermediate failure remains part of the evidence history.
+- Browser suite execution remains NOT_RUN. No dependencies were changed.

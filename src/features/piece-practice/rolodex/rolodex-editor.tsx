@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { piecePracticeRunStore } from "../persistence/piece-practice-runs";
+import { validateSuggestion } from "./rolodex-suggestions";
 import { ContinuousScore } from "../continuous/continuous-score";
 import { editEntry, instruments, parseEntry, playability } from "./rolodex-model";
 import { rolodexStore } from "./rolodex-store";
@@ -14,9 +16,11 @@ export function RolodexEditor({ entry, existing = false, store = rolodexStore, o
   const [confirmed, setConfirmed] = useState(existing);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const pending = useRef<RolodexEntry | null>(null), writing = useRef(false);
+  const acknowledged = useRef(false), heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { heading.current?.focus(); }, []);
   const update = (changes: Partial<RolodexEntry>) => { setDraft(d => ({ ...d, ...changes })); pending.current = null; setError(""); };
   const save = async () => {
-    if (writing.current || !confirmed) return;
+    if (writing.current || acknowledged.current || !confirmed) return;
     writing.current = true; setBusy(true); setError("");
     try {
       if (!pending.current) {
@@ -24,7 +28,11 @@ export function RolodexEditor({ entry, existing = false, store = rolodexStore, o
           eligibleInstruments: draft.eligibleInstruments, practiceInstrument: draft.practiceInstrument, bpm: draft.bpm, status: draft.status, priority: draft.priority });
         pending.current = existing ? edited : parseEntry({ ...edited, revision: 1, prescriptionRevision: 1 });
       }
+      if (!existing && pending.current.origin === "evidence-suggested") {
+        validateSuggestion(pending.current, await piecePracticeRunStore.list());
+      }
       const result = await store.save(pending.current, existing ? entry.revision : null);
+      acknowledged.current = true;
       onSaved(result);
     } catch (e) { setError(e instanceof Error ? e.message : "Save failed. Existing passages were preserved."); }
     finally { writing.current = false; setBusy(false); }
@@ -34,7 +42,7 @@ export function RolodexEditor({ entry, existing = false, store = rolodexStore, o
   try { unavailable = playability(editEntry(entry, { start: draft.start, end: draft.end, bpm: draft.bpm, eligibleInstruments: draft.eligibleInstruments, practiceInstrument: draft.practiceInstrument })); }
   catch (e) { unavailable = e instanceof Error ? e.message : "Check passage settings."; }
   return <section className="grid min-w-0 gap-4 rounded-xl border border-zinc-600 bg-zinc-900 p-4 text-zinc-100" aria-label={existing ? "Edit Rolodex passage" : "Save to Practice Rolodex"}>
-    <h2 className="text-xl font-bold">{existing ? "Edit passage" : "Save to Practice Rolodex"}</h2>
+    <h2 ref={heading} tabIndex={-1} className="text-xl font-bold">{existing ? "Edit passage" : "Save to Practice Rolodex"}</h2>
     <p>{entry.sourceTitle} · Frozen source, original measure numbers. Saving does not require a performance or MIDI connection.</p>
     {entry.evidence && <p>Suggested from a saved pitch-first run: {entry.evidence.reasons}. Adjust the range before saving.</p>}
     <fieldset disabled={busy} className="grid min-w-0 gap-3">

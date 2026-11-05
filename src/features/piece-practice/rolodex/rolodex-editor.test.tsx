@@ -4,8 +4,9 @@ import { RolodexEditor } from "./rolodex-editor";
 import { createEntry } from "./rolodex-model";
 import { testScore } from "../continuous/continuous-test-fixtures";
 import type { RolodexStore } from "./rolodex-types";
+import { piecePracticeRunStore } from "../persistence/piece-practice-runs";
 vi.mock("../continuous/continuous-score", () => ({ ContinuousScore: ({ measureIndex }: { measureIndex: number }) => <div>Authored measure {measureIndex + 1}</div> }));
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const store = (save: RolodexStore["save"]): RolodexStore => ({ save, list: async () => ({ entries: [], unavailableCount: 0 }), remove: async () => {}, importEntries: async () => {}, acknowledge: async () => {} });
 describe("manual passage editor", () => {
   it("requires explicit instrument confirmation and no MIDI or performance", async () => {
@@ -26,6 +27,22 @@ describe("manual passage editor", () => {
     expect(saved).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText("Saving passage…")); expect(save).toHaveBeenCalledTimes(1);
     await act(async () => finish()); expect(saved).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("Save Passage"));
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+  it("focuses the review heading and never writes a suggestion when evidence cannot be read", async () => {
+    const entry = { ...createEntry(testScore(), "piano", 0, 0), origin: "evidence-suggested" as const,
+      evidence: { runId: "gone", measureIndex: 0, reasons: "1 mistakes" } };
+    const save = vi.fn(), saved = vi.fn();
+    const list = vi.spyOn(piecePracticeRunStore, "list").mockRejectedValueOnce(Error("Read failed")).mockResolvedValue([]);
+    render(<RolodexEditor entry={entry} store={store(save)} onSaved={saved} onCancel={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Save to Practice Rolodex" }));
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText(/I confirm/)); fireEvent.click(screen.getByText("Save Passage"));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", expect.stringContaining("Read failed"));
+    fireEvent.click(screen.getByText("Retry Save Passage"));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("evidence changed or is unavailable"));
+    expect(list).toHaveBeenCalledTimes(2); expect(save).not.toHaveBeenCalled(); expect(saved).not.toHaveBeenCalled();
   });
   it("keeps the same identity and frozen payload through failed Save and Retry", async () => {
     const entry = createEntry(testScore(), "piano"), saved = vi.fn();

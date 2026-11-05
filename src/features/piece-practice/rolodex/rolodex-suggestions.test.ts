@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { rolodexSuggestions } from "./rolodex-suggestions";
+import { describe, expect, it, vi } from "vitest";
+import { FakeImprovIndexedDb } from "../../improv/persistence/improv-indexeddb-fake";
+import { rolodexStore } from "./rolodex-store";
+import { rolodexSuggestions, validateSuggestion } from "./rolodex-suggestions";
 import { createPiecePracticeRun, parsePiecePracticeRun, PiecePracticeRunWriteCoordinator } from "../persistence/piece-practice-runs";
-import { parseEntry } from "./rolodex-model";
+import { parseEntry, prescriptionKey } from "./rolodex-model";
 import { createPiecePracticeSession, getCurrentPiecePracticeTarget, submitPiecePracticeAttempt, skipCurrentPiecePracticeTarget, restartCurrentPiecePracticeMeasure } from "../piece-practice-session";
 import { projectStaffBuilderPieceForPractice } from "../piece-practice-projection";
 import { testScore } from "../continuous/continuous-test-fixtures";
@@ -88,6 +90,49 @@ describe("optional retained-run suggestions", () => {
       expect(suggestions[0].score).toEqual(strong.sourceScore);
       expect(suggestions[0].measureIds).toEqual([strong.sourceScore.measures[3].id]);
     }
+  });
+
+  it("suppresses saved and dismissed prescriptions before the cap using storage identity", () => {
+    const run = retained("ranked", [4, 3, 2, 1, 0]);
+    const [saved, dismissed] = rolodexSuggestions([run]);
+    const result = rolodexSuggestions([run], [{ ...saved, status: "archived", id: "saved" }], new Set([prescriptionKey(dismissed)]));
+    expect(result.map(e => e.start)).toEqual([2, 3, 4]);
+    for (const entry of result) expect(() => validateSuggestion(entry, [run])).not.toThrow();
+    expect(rolodexSuggestions([run], [], new Set([prescriptionKey(saved)]))[0].start).toBe(1);
+  });
+
+  it("rechecks exact frozen attribution and rejects missing, changed or out-of-range evidence", () => {
+    const run = observed("mistake"), [entry] = rolodexSuggestions([run]);
+    expect(() => validateSuggestion(parseEntry(JSON.parse(JSON.stringify(entry))), [run])).not.toThrow();
+    for (const records of [[], [null], [{ ...run, status: "active" }], [observed("skip")]]) {
+      expect(() => validateSuggestion(entry, records)).toThrow(/evidence changed or is unavailable/);
+    }
+    expect(() => validateSuggestion({ ...entry, evidence: { ...entry.evidence!, reasons: "Invented" } }, [run])).toThrow(/evidence changed/);
+    expect(() => validateSuggestion(parseEntry({ ...entry, start: 0, end: 0, measureIds: ["m0"], measureNumbers: [1] }), [run])).toThrow(/Keep the evidence measure/);
+    expect(run.sourceScore).toEqual(entry.score);
+    expect(run.status).toBe("completed");
+  });
+
+  it("persists suggested provenance only after transaction acknowledgement and preserves it on retry and duplicate save", async () => {
+    const fake = new FakeImprovIndexedDb(); vi.stubGlobal("indexedDB", fake.factory);
+    try {
+      const run = observed("mistake"), [entry] = rolodexSuggestions([run]);
+      const original = JSON.stringify(run);
+      fake.commitError = "QuotaExceededError";
+      await expect(rolodexStore.save(entry, null)).rejects.toThrow();
+      expect((await rolodexStore.list()).entries).toEqual([]);
+      const hold = fake.holdNextCommit(); let acknowledged = false;
+      const saving = rolodexStore.save(entry, null).then(result => { acknowledged = true; return result; });
+      await vi.waitFor(() => expect(hold.ready()).toBe(true)); expect(acknowledged).toBe(false);
+      hold.release(); await saving;
+      const restored = (await rolodexStore.list()).entries[0];
+      expect(restored.score).toEqual(run.sourceScore); expect(restored.evidence).toEqual(entry.evidence);
+      expect(restored.measureIds).toEqual(["m1"]);
+      const duplicate = await rolodexStore.save(rolodexSuggestions([run])[0], null);
+      expect(duplicate).toEqual({ entry: restored, duplicate: true });
+      expect((await rolodexStore.list()).entries).toHaveLength(1);
+      expect(JSON.stringify(run)).toBe(original);
+    } finally { vi.unstubAllGlobals(); }
   });
 
   it("deduplicates source measures without adding counts and breaks run ties stably", () => {

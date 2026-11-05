@@ -7,7 +7,7 @@ import type { DownloadSnapshot } from "@/lib/files/browser-download";
 import type { StaffBuilderScore } from "@/features/staff-builder/staff-builder-types";
 import { piecePracticeRunStore } from "../persistence/piece-practice-runs";
 import { exportBackup, parseBackup, prepareImport } from "./rolodex-backup";
-import { editEntry, instruments, playability, ROLODEX_LIMITS, sourceStatus } from "./rolodex-model";
+import { editEntry, instruments, playability, prescriptionKey, ROLODEX_LIMITS, sourceStatus } from "./rolodex-model";
 import { RolodexEditor, rolodexButton, rolodexField } from "./rolodex-editor";
 import { RolodexPractice } from "./rolodex-practice";
 import { rolodexStore, reactivateRolodex, savePhysicalAcceptance } from "./rolodex-store";
@@ -33,6 +33,19 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
   const [imported, setImported] = useState<readonly RolodexEntry[] | null>(null), [remap, setRemap] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [suggestions, setSuggestions] = useState<readonly RolodexEntry[] | null>(null);
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const suggestionLock = useRef(false), suggestionLoader = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  const hadEditor = useRef(Boolean(initialDraft)), libraryHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (editor) hadEditor.current = true;
+    else if (hadEditor.current) {
+      (returnFocus.current ? suggestionLoader.current : libraryHeading.current)?.focus();
+      returnFocus.current = false; hadEditor.current = false;
+    }
+  }, [editor]);
   const reload = useCallback(async () => {
     const listing = await store.list(); setEntries(listing.entries); setAcceptance(listing.acceptance ?? null); setUnavailable(listing.unavailableCount); setLoaded(true);
   }, [store]);
@@ -66,7 +79,7 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
     && (piece === "all" || e.sourceId === piece) && (!priority || e.priority)
     && (status === "all" || (status === "active" ? (e.status === "needs-practice" || e.status === "improving") && progressState(e, acceptance).stage !== "mastered" : status === "mastered" ? progressState(e, acceptance).stage === "mastered" : e.status === status)));
   return <section className="mx-auto grid w-full min-w-0 max-w-6xl gap-4 rounded-xl bg-zinc-900 p-3 text-zinc-100 sm:p-5" aria-label="Practice Rolodex">
-    <header><h1 className="text-2xl font-bold">Practice Rolodex</h1><p>{entries.filter(e => (e.status === "needs-practice" || e.status === "improving") && progressState(e, acceptance).stage !== "mastered").length} active passages · your saved musical challenges</p></header>
+    <header><h1 ref={libraryHeading} tabIndex={-1} className="text-2xl font-bold">Practice Rolodex</h1><p>{entries.filter(e => (e.status === "needs-practice" || e.status === "improving") && progressState(e, acceptance).stage !== "mastered").length} active passages · your saved musical challenges</p></header>
     <p>Save a passage from the Staff Builder piece library or Continuous Tempo range selection. Frozen music stays here if the original changes.</p>
     <button className={rolodexButton} type="button" disabled={busy} onClick={onExit}>Return to Piece Library</button>
     {notice && <p role="status">{notice}</p>}
@@ -130,12 +143,20 @@ export function RolodexLibrary({ sources, initialDraft, store = rolodexStore, on
         }}>Confirm Import</button><button className={rolodexButton} disabled={busy} type="button" onClick={() => setImported(null)}>Cancel Import</button>
       </div>}
     </details>
-    <details><summary className="min-h-11 cursor-pointer py-2">Optional suggestions from saved pitch-first practice</summary>
-      <button type="button" className={rolodexButton} onClick={() => {
-        void piecePracticeRunStore.list().then(records => setSuggestions(rolodexSuggestions(records))).catch(() => setError("Saved recommendations are unavailable; manual saving is still available."));
+    <details open={suggestionsOpen} onToggle={event => setSuggestionsOpen(event.currentTarget.open)}><summary className="min-h-11 cursor-pointer py-2">Optional suggestions from saved pitch-first practice</summary>
+      <p>Review and confirm each save. Dismissals last until you leave this library. Completing practice never saves a passage automatically.</p>
+      <button ref={suggestionLoader} type="button" className={rolodexButton} disabled={busy || loadingSuggestions || !loaded || unavailable > 0} onClick={() => {
+        if (suggestionLock.current) return;
+        suggestionLock.current = true; setSuggestionsOpen(true); setLoadingSuggestions(true); setSuggestions(null);
+        void Promise.all([piecePracticeRunStore.list(), store.list()]).then(([records, listing]) => {
+          if (listing.unavailableCount) throw Error("Unreadable Rolodex records");
+          setEntries(listing.entries); setSuggestions(rolodexSuggestions(records, listing.entries, dismissed));
+        }).catch(() => setError("Saved recommendations are unavailable; manual saving is still available."))
+          .finally(() => { suggestionLock.current = false; setLoadingSuggestions(false); });
       }}>Load Saved Suggestions</button>
+      {loadingSuggestions && <p role="status">Loading saved suggestions…</p>}
       {suggestions?.length === 0 && <p>No retained completed-run recommendations.</p>}
-      {suggestions?.map(entry => <div key={entry.id} className="my-3 rounded border border-zinc-600 p-3"><p>{entry.sourceTitle} · Measure {entry.start + 1}: {entry.evidence?.reasons}</p><button type="button" className={rolodexButton} onClick={() => setEditor({ entry, existing: false })}>Save Suggested Passage to Rolodex</button></div>)}
+      {suggestions?.filter(entry => !dismissed.has(prescriptionKey(entry)) && !entries.some(saved => prescriptionKey(saved) === prescriptionKey(entry))).map(entry => <div key={entry.id} className="my-3 rounded border border-zinc-600 p-3"><p>{entry.sourceTitle} · Measure {entry.start + 1}: {entry.evidence?.reasons}</p><button type="button" className={rolodexButton} disabled={busy || !loaded || unavailable > 0} onClick={() => { returnFocus.current = true; setEditor({ entry, existing: false }); }}>Save Suggested Passage to Rolodex</button><button type="button" className={rolodexButton} aria-label={`Dismiss suggestion for ${entry.sourceTitle}, measure ${entry.start + 1}`} onClick={() => { setDismissed(previous => new Set([...previous, prescriptionKey(entry)])); setNotice("Suggestion dismissed for this library visit. No passage was saved."); suggestionLoader.current?.focus(); }}>Dismiss Suggestion</button></div>)}
     </details>
     {download && <DownloadDialog snapshot={download} onCancel={() => setDownload(null)} onRequested={name => { setDownload(null); setNotice(`Download requested: ${name}`); }} onSaved={name => { setDownload(null); setNotice(`Backup saved: ${name}`); }} />}
   </section>;
