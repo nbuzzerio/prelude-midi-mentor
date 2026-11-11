@@ -1415,6 +1415,8 @@ Vite evaluates build/build-revision.ts at compile time. It reads HEAD and cleanl
 
 ### Physical piano QA — Checkpoint 5
 
+Historical checkpoint: the Melody paragraph below records the earlier two-beat preparation. Flow V2 F3A supersedes that count with three quarter-note beats and the display-only preparatory measure described in the current Melody section above; the authored 4/4 exercise remains unchanged.
+
 Practice Session print controls portal their feature-owned document directly into document.body. Print CSS scoped to that direct child removes sibling app roots with display:none, then flows the report statically at page width. The former visibility:hidden application retained layout space while the absolutely positioned report inherited mounted/fixed containers, producing trailing empty PDF pages. Other feature printing retains its existing CSS.
 
 PracticeLessonSummary passes its existing teaching overview to PracticeLessonPrintControls. The printable queue joins exact occurrence/exercise identities through lessonSummaryRows and uses only acknowledged closed records. It reuses lessonExerciseFeedback and optional individual ExerciseDiagnostics without fabricating a combined native run or querying program/date history. Pending writes/errors/unclosed attempts block printing. Prescribed target metrics remain distinct from overall and Bonus evidence. Native report selection options and filename lifecycle remain native. Full-queue summaries/native journals are memory-only and unavailable after reload; saved individual attempts remain in the existing history. No executor, database, persisted schema or recovery changes are introduced.

@@ -79,7 +79,7 @@ Prelude already contains multiple working feature domains. The rolling roadmap e
 
 # Current Status
 
-Nine top-level modes/tools are implemented: Flashcards, Sequences, Free Play, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Staff Builder also launches Piece Practice and its Targeted Practice workflow.
+Ten top-level modes/tools are implemented: Flashcards, Sequences, Free Play, Improv, Ear Training, Melody, Staff Builder, Practice Sessions, MIDI Diagnostic and Chromatic Tuner. Staff Builder also launches Piece Practice and its Targeted Practice workflow.
 
 Completed features include:
 
@@ -218,7 +218,7 @@ Violin and ocarina Piece Practice offer a default-Off **Record performance audio
 ## Melody
 
 - Seeded monophonic one/two-measure 4/4 exercises with Web Audio count-in and continuous MIDI/VKB capture
-- Two-quarter-beat preparatory display lead-in before authored and scored material
+- Three-quarter-beat preparatory display lead-in before authored and scored material
 - Independent Pitch, Movement, and attack-Timing results with a read-only Pitch-result staff
 - Timed diagnostic sessions with interruption-safe Session Review and targeted repair retries
 - Immutable original diagnostic evidence, separate accumulated retry evidence, and original-versus-latest comparison
