@@ -8,7 +8,7 @@ const updates: readonly AppUpdate[] = [1, 2, 3, 4].map((sequence) => ({ id: `upd
 describe("curated product updates", () => {
   it("validates the published catalog and limits the first record to the new update feature", () => {
     expect(() => assertAppUpdateCatalog(APP_UPDATES)).not.toThrow();
-    expect(APP_UPDATES).toHaveLength(19);
+    expect(APP_UPDATES).toHaveLength(20);
     expect(APP_UPDATES[0]).toMatchObject({ sequence: 1, version: "2.8.8" });
     expect(APP_UPDATES[0]?.changes.join(" ")).not.toMatch(/tuner|tie|since your last update/i);
     expect(APP_UPDATES[1]).toMatchObject({ sequence: 2, version: "2.9.0", date: "2026-10-06", title: "Practice with violin and ocarina" });
@@ -100,11 +100,10 @@ describe("curated product updates", () => {
     expect(acknowledgeAppUpdates(storage, [previous])).toBe(true);
     expect(readAppUpdateAcknowledgment(storage)).toEqual({ id: APP_UPDATES[17]!.id, sequence: 18 });
   });
-  it("announces the three reviewed MIDI reliability improvements for the authoritative package version", () => {
-    expect(version).toBe("2.9.24");
-    const release = APP_UPDATES.at(-1)!;
-    expect(release).toMatchObject({ id: "2026-10-24-continuous-midi-input", sequence: 19, version,
-      title: `What's New in Prelude v${version}`, date: "2026-10-24" });
+  it("preserves the three reviewed MIDI reliability improvements for 2.9.24", () => {
+    const release = APP_UPDATES[18]!;
+    expect(release).toMatchObject({ id: "2026-10-24-continuous-midi-input", sequence: 19, version: "2.9.24",
+      title: "What's New in Prelude v2.9.24", date: "2026-10-24" });
     expect(release.changes).toHaveLength(3);
     expect(release.changes[0]).toMatch(/Choose your MIDI piano.*select the input.*Continuous-Tempo.*Piano Rolodex.*remembers your choice in this browser/);
     expect(release.changes[1]).toMatch(/play a note.*before starting the count-in.*Replay keeps the same verified input/);
@@ -115,13 +114,33 @@ describe("curated product updates", () => {
     const previous = APP_UPDATES[17]!, newest = APP_UPDATES[18]!;
     let saved = JSON.stringify({ id: previous.id, sequence: previous.sequence });
     const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    const displayed = unseenAppUpdates(APP_UPDATES.slice(0, 19), readAppUpdateAcknowledgment(storage));
+    expect(displayed).toEqual([newest]);
+    expect(acknowledgeAppUpdates(storage, displayed)).toBe(true);
+    expect(unseenAppUpdates(APP_UPDATES.slice(0, 19), readAppUpdateAcknowledgment(storage))).toEqual([]);
+    expect(unseenAppUpdates(APP_UPDATES.slice(0, 18), readAppUpdateAcknowledgment(storage))).toEqual([]);
+    expect(acknowledgeAppUpdates(storage, [previous])).toBe(true);
+    expect(readAppUpdateAcknowledgment(storage)).toEqual({ id: newest.id, sequence: 19 });
+  });
+  it("announces Piece Library search for the authoritative package version", () => {
+    const release = APP_UPDATES.at(-1)!;
+    expect(release).toMatchObject({ id: "2026-11-06-piece-library-search", sequence: 20, version,
+      title: `What's New in Prelude v${version}`, date: "2026-11-06" });
+    expect(release.changes).toEqual([
+      "Find saved music faster with Piece Library title search, matching counts, and a clear action that keeps your selected sorting.",
+    ]);
+  });
+  it("offers only the search update after acknowledged 2.9.24 and protects its marker from that cached build", () => {
+    const previous = APP_UPDATES[18]!, newest = APP_UPDATES[19]!;
+    let saved = JSON.stringify({ id: previous.id, sequence: previous.sequence });
+    const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
     const displayed = unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage));
     expect(displayed).toEqual([newest]);
     expect(acknowledgeAppUpdates(storage, displayed)).toBe(true);
     expect(unseenAppUpdates(APP_UPDATES, readAppUpdateAcknowledgment(storage))).toEqual([]);
-    expect(unseenAppUpdates(APP_UPDATES.slice(0, 18), readAppUpdateAcknowledgment(storage))).toEqual([]);
+    expect(unseenAppUpdates(APP_UPDATES.slice(0, 19), readAppUpdateAcknowledgment(storage))).toEqual([]);
     expect(acknowledgeAppUpdates(storage, [previous])).toBe(true);
-    expect(readAppUpdateAcknowledgment(storage)).toEqual({ id: newest.id, sequence: 19 });
+    expect(readAppUpdateAcknowledgment(storage)).toEqual({ id: newest.id, sequence: 20 });
   });
   it("collects multiple missed known updates newest first without changing the catalog", () => {
     expect(unseenAppUpdates(updates, { id: "update-2", sequence: 2 }).map((update) => update.id)).toEqual(["update-4", "update-3"]);

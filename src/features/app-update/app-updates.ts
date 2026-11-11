@@ -220,6 +220,15 @@ export const APP_UPDATES: readonly AppUpdate[] = [{
     "Check your connection before performing: play a note and see it arrive before starting the count-in. Replay keeps the same verified input while its connection remains valid.",
     "Clearer performance results: when no notes were captured during a performance, Prelude shows a warning and asks you to check the selected piano. Your original results stay intact.",
   ],
+}, {
+  id: "2026-11-06-piece-library-search",
+  sequence: 20,
+  title: "What's New in Prelude v2.9.25",
+  date: "2026-11-06",
+  version: "2.9.25",
+  changes: [
+    "Find saved music faster with Piece Library title search, matching counts, and a clear action that keeps your selected sorting.",
+  ],
 }];
 
 export function assertAppUpdateCatalog(updates: readonly AppUpdate[]): void {

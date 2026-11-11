@@ -46,7 +46,7 @@ The existing violin beginner preflight offers a locally remembered ±1–30-cent
 
 Saved-take replay moves the blue playhead through the existing performance staff and follows it in a bounded 12-second desktop or 6-second narrow review window. The cursor uses the MIDI replay scheduler's musical time, which already excludes intentional capture pauses. Play restarts at zero; Stop and failures retain the last valid position, and completion retains the projected duration. Manual review navigation returns when playback stops. Notes, key-down trails, original Take 1 and MIDI/JSON evidence remain unchanged. Sampled piano audio timing is approximate; the display does not infer a score or grade the performance.
 
-### Improv Musical Insights V1 (implementation candidate; version held at 2.9.24)
+### Improv Musical Insights V1 (implementation candidate)
 
 Open a saved Improv or First-Take performance to explore **Musical Insights**. A local Web Worker analyzes the complete committed MIDI evidence and presents pitch-class and velocity distributions, activity and key-down observations, competing major/minor tonal possibilities, conservative chord outlines, possible phrases, and repeated or transposed five-note figures. Findings include their supporting observations and limitations. Sparse or chromatic playing can remain explicitly insufficient or ambiguous; these are descriptive hypotheses, not an accuracy grade or an AI lesson.
 
@@ -141,10 +141,13 @@ The trace uses actual observations in 100 ms bins, a four-second diagnostic ring
 - Automatic same-staff polyphony and authored upward rolled/arpeggiated chords
 - Deterministic event, measure, position, and piece playback
 - Local project persistence, draft recovery, structural validation, and validated Save
+- Piece Library title search with matching counts, clear action, and preserved sorting
 - Study View with score annotations and multi-system presentation
 - Per-piece `.prelude.json` download and schema-validated import for local backup and recovery
 - Full-piece, treble-range, and bass-range duplication without changing the source piece
 - Responsive desktop, Chromebook, and mobile interaction
+
+Use **Search pieces** in the Piece Library to find a title without changing the selected sort. Matching ignores case and surrounding search whitespace; Clear search restores the full list and returns focus to the search field. Your search and sort are retained when you visit a saved piece's Study View. Search resets when you leave the library for editing, practice, Rolodex, or another mode.
 
 ### Blocking Piece Practice
 
@@ -189,7 +192,7 @@ Microphone mode uses the same detector for violin and ocarina; those choices des
 - Continuous, non-blocking one- or two-measure sight-reading in treble or bass
 - C/G/F major and A/D natural minor at 50, 60, 70, or 80 BPM
 - Physical MIDI and momentary on-screen-keyboard input
-- Count-in/metronome timing and a two-quarter-beat preparatory display lead-in
+- Count-in/metronome timing and a three-quarter-beat preparatory display lead-in
 - Independent Pitch, Movement, and attack-Timing scores
 - Pitch-result staff: green correct, dashed light blue missed, red wrong pitch; timing is scored separately
 - Seeded Retry Same and Try Another exercises
@@ -268,7 +271,7 @@ The goal is to connect three ideas:
 
 ## How It Works
 
-Prelude currently provides nine complementary top-level modes/tools:
+Prelude currently provides ten complementary top-level modes/tools:
 
 ```text
 Flashcards
@@ -279,6 +282,9 @@ Sequences
 
 Free Play
     └── View live notation while practicing without grading
+
+Improv
+    └── Record, replay, and review local MIDI improvisations
 
 Ear Training
     └── Identify ascending and descending melodic intervals by sound
@@ -499,9 +505,9 @@ For a more detailed technical explanation, see
 
 ---
 
-## Current Status — v2.9.24 release candidate
+## Current Status — v2.9.25 release candidate
 
-The application version is **2.9.24**, derived from `package.json` and shown as **Prelude v2.9.24**. What's New sequence 19 announces choosing and remembering a MIDI piano, confirming notes arrive before Continuous Tempo, and clear warnings when no performance notes were captured. All 18 prior announcements and their acknowledgement contracts remain intact. The owner-reviewed A1 reliability fix is committed at `5e26c2a`; this checkpoint changes release metadata, tests and documentation only. Embedded Git provenance remains under **Build details**. Local preparation does not establish deployment or physical-piano acceptance. The owner controls review, staging, commits, pushes, tags and deployed-PWA verification; see [RELEASING.md](./docs/RELEASING.md).
+The application version is **2.9.25**, derived from `package.json` and shown as **Prelude v2.9.25**. What's New sequence 20 announces Piece Library title search, matching counts, and a clear action that preserves sorting. All 19 prior announcements and their acknowledgement contracts remain intact. The search feature uses local presentation state and preserves saved scores, musical behavior, and feature ownership. Embedded Git provenance remains under **Build details**. Local preparation does not establish deployment or physical-piano acceptance. The owner controls review, staging, commits, pushes, tags and deployed-PWA verification; see [RELEASING.md](./docs/RELEASING.md).
 
 Implementation and automated/browser validation are complete for A1–D. **Real MIDI-piano timing and piano-distance acceptance remain pending. Automatic Qualification defaults OFF** and requires deliberate owner acceptance for future compatible attempts; provisional results never qualify retroactively. See [TESTING.md](./docs/TESTING.md) for candidate validation and [RELEASING.md](./docs/RELEASING.md) for the remaining gates. Older checkpoint notes below describe their historical scope, not outstanding authorization or uncommitted feature work.
 

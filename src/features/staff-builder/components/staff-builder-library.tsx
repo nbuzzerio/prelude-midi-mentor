@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { StaffBuilderPiecePracticeMetadata } from "../persistence/staff-builder-schema";
 import type { StaffBuilderDuplicationMode } from "../staff-builder-duplication";
 import { sortStaffBuilderLibraryPieces, type StaffBuilderLibrarySort } from "../staff-builder-library-sorting";
@@ -21,11 +21,27 @@ export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByP
   onSavePassage?: (piece: StaffBuilderScore) => void;
 }>) {
   const importInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const mutationOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const searchId = useId();
+  const [search, setSearch] = useState("");
   const [sort, setSort] = useState<StaffBuilderLibrarySort>("recently-played");
   const sortedPieces = useMemo(
     () => sortStaffBuilderLibraryPieces({ pieces, practiceMetadataByPieceId }, sort),
     [pieces, practiceMetadataByPieceId, sort],
   );
+  const query = search.trim().toLowerCase();
+  const visiblePieces = useMemo(
+    () => query ? sortedPieces.filter((piece) => piece.title.toLowerCase().includes(query)) : sortedPieces,
+    [query, sortedPieces],
+  );
+  useLayoutEffect(() => {
+    const opener = mutationOpenerRef.current;
+    mutationOpenerRef.current = null;
+    if (opener && !opener.isConnected && (!document.activeElement || document.activeElement === document.body)) {
+      searchInputRef.current?.focus();
+    }
+  });
   return (
     <section className="staff-builder-panel" aria-labelledby="staff-builder-library-title">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -45,9 +61,23 @@ export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByP
           if (file) onImportFile(file);
         }} ref={importInputRef} type="file" />
       </div>
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="min-w-0 flex-1 basis-44 text-sm sm:max-w-xs" htmlFor={searchId}>
+          Search pieces
+          <input aria-describedby={`${searchId}-results`} className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2" id={searchId} onChange={(event) => setSearch(event.target.value)} ref={searchInputRef} type="search" value={search} />
+        </label>
+        {search.length > 0 && <button className="staff-builder-secondary-button min-h-11" onClick={() => {
+          setSearch("");
+          searchInputRef.current?.focus();
+        }} type="button">Clear search</button>}
+      </div>
+      <p aria-atomic="true" aria-live="polite" className="mt-2 text-sm text-zinc-300" id={`${searchId}-results`}>
+        {query ? `${visiblePieces.length} of ` : ""}{pieces.length} {pieces.length === 1 ? "piece" : "pieces"}
+      </p>
       {pieces.length === 0 ? <p>No Staff Builder pieces yet.</p> : (
+        visiblePieces.length === 0 ? <p>No matching pieces. Try another title or clear the search.</p> :
         <ul className="staff-builder-library-list">
-          {sortedPieces.map((piece) => {
+          {visiblePieces.map((piece) => {
             const practiceEligible = validateStaffBuilderScore(piece).length === 0;
             const practiceReasonId = `staff-builder-practice-reason-${piece.id}`;
             return (
@@ -71,12 +101,18 @@ export function StaffBuilderLibrary({ activePieceId, pieces, practiceMetadataByP
                       ] as const).map(([mode, label]) => <button className="staff-builder-secondary-button text-left" key={mode} onClick={() => onDuplicate(piece.id, mode)} type="button">{label}</button>)}
                     </div>
                   </details>
-                  <button aria-label={`Rename ${piece.title}`} className="staff-builder-secondary-button" onClick={() => {
+                  <button aria-label={`Rename ${piece.title}`} className="staff-builder-secondary-button" onClick={(event) => {
                     const title = window.prompt(`Rename ${piece.title}`, piece.title);
-                    if (title?.trim()) onRename(piece.id, title);
+                    if (title?.trim()) {
+                      mutationOpenerRef.current = event.currentTarget;
+                      onRename(piece.id, title);
+                    }
                   }} type="button">Rename</button>
-                  <button aria-label={`Delete ${piece.title}`} className="staff-builder-danger-button" onClick={() => {
-                    if (window.confirm(`Delete ${piece.title}? This cannot be undone.`)) onDelete(piece.id);
+                  <button aria-label={`Delete ${piece.title}`} className="staff-builder-danger-button" onClick={(event) => {
+                    if (window.confirm(`Delete ${piece.title}? This cannot be undone.`)) {
+                      mutationOpenerRef.current = event.currentTarget;
+                      onDelete(piece.id);
+                    }
                   }} type="button">Delete</button>
                 </div>
               </li>

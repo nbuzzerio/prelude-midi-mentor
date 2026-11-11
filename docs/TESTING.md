@@ -1,5 +1,33 @@
 # Prelude: MIDI Mentor — Testing
 
+## Piece Library title search — 2.9.25
+
+Owner-approved scope: local Piece Library title search, matching count, clear action, preserved sorting, and focus recovery after a confirmed Rename/Delete removes its result. The owner separately approved the two app-update catalog/test files required for the approved **2.9.25** patch version. No staging, commits, tags, pushes, or deployment are part of this implementation.
+
+Search performs a case-insensitive title substring match after trimming surrounding query whitespace. Filtering keeps the original saved score objects and existing sort order. Empty libraries and nonempty libraries with no matches have distinct feedback, and Import remains available. The count uses an explicit polite, atomic live region. Clear returns focus to the search field; a confirmed Rename/Delete returns focus there only when its button disappeared and focus fell to the document body. A matching rename, cancellation, or deliberate focus change preserves focus.
+
+Query and sort remain local to the mounted library. Saved-piece Study View hides that same library, preserving its state and opener; entering the editor, Practice, Rolodex, or another top-level mode can unmount it and reset the query. There are no schema, music-rule, shared-type, MIDI/audio, navigation-owner, or persistence changes.
+
+Focused validation passes **4 files / 108 tests**, native exit 0: the library component, Staff Builder session, app-update catalog, and App integration tests. The library file retains its original five tests and adds nine public-behavior cases; the catalog adds two cases for the search announcement and acknowledgment protection from an older cached build. The initial integration run exposed the existing download test's single-status expectation; the search count now uses its independent `aria-live` region, preserving the existing download status and test.
+
+Full `pnpm verify` passes **325 files / 4,724 tests**, native exit 0, including lint, TypeScript, production build, and PWA generation. This adds **11 tests** to the audited 4,713-test baseline without removing or weakening existing coverage. The focused 108 tests are a subset of the full suite. Non-failing diagnostics remain: the existing acoustic-input cleanup-ref lint warning, jsdom Canvas/media limitations, and build plugin-timing/large-chunk notices. PWA generation retains 36 precache entries, now 8,181.24 KiB.
+
+Logs: `.dev/piece-library-search-focused.log` and `.dev/piece-library-search-verify.log`. Commands use process-local `CI=true`, `TZ=UTC`, `pnpm_config_verify_deps_before_run=false`, `pnpm_config_update_notifier=false`, and `npm_config_offline=true`, with explicit native exit-code capture.
+
+Independent review compared the catalog with `HEAD`: all first 19 published entries are exactly unchanged, the catalog validator accepts all 20, and the new entry matches `package.json`. Search/source identity and focus behavior were inspected separately. Fresh browser layout, touch, and screen-reader announcements remain unverified: the audit's browser host was unavailable and automatic approval review rejected opening Brave without a stated reason; no alternate browser path was used to bypass that rejection. Manual acceptance should include narrow layouts, typing/clearing, a rename leaving the filter, and returning from Study View with the original query/sort/focus.
+
+| Changed file | Responsibility |
+| --- | --- |
+| `src/features/staff-builder/components/staff-builder-library.tsx` | Local search/filtering, accessible count/clear controls, and confirmed-mutation focus recovery |
+| `src/features/staff-builder/components/staff-builder-library.test.tsx` | Nine regression cases for matching, empty states, clearing, sorting, exact source callbacks, incoming library changes, and focus |
+| `src/features/app-update/app-updates.ts` | Append the owner-approved sequence-20 search announcement without changing prior entries |
+| `src/features/app-update/app-updates.test.ts` | Preserve historical release/acknowledgment assertions and verify the new package-matched entry and cached-build protection |
+| `package.json` | Approved semantic patch version 2.9.25; visible UI version continues to derive from this field |
+| `README.md` | Search workflow and current candidate/version description; earlier audit corrections retained |
+| `docs/TESTING.md` | Validation evidence, scope, remaining manual acceptance, and this file-by-file handoff |
+
+Earlier audit-only changes to `docs/ARCHITECTURE.md`, `docs/ONBOARDING.md`, and the three documents under `docs/audits/` remain in the working tree and were not expanded by this feature. Their audit evidence describes the inspected 2.9.24 baseline.
+
 ## Improv Musical Insights V1
 
 Implementation starts from clean `master` at `6ca081142fd930c9c0990ff2ae149858404190bb`, with version/announcement metadata explicitly held at **2.9.24**. The pre-implementation Improv baseline passes **16 files / 505 tests**. Studio worktree status and branch changes were inspected read-only; A1/PDF, Rolodex, Melody and Ear Training remain outside this change.
