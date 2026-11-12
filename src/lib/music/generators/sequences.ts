@@ -576,7 +576,23 @@ function generateArpeggioTarget({
     clef,
     direction: "ascending",
     enabledNoteCategories,
-  });
+  }).filter((startingMidiNumber) =>
+    // Check spelling before selecting a root. In particular, B augmented
+    // requires F-double-sharp; substituting G would change its written fifth.
+    getTheoryRootLetterCandidates(startingMidiNumber).some((rootLetter) => {
+      try {
+        ARPEGGIO_SEMITONE_PATTERNS[arpeggio].forEach((semitones, index) => {
+          createTheoryPracticeNote(
+            startingMidiNumber + semitones,
+            shiftNoteLetter(rootLetter, ARPEGGIO_DIATONIC_PATTERNS[arpeggio][index]),
+          );
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }),
+  );
 
   if (eligibleStartingMidiNumbers.length === 0) {
     throw new Error(

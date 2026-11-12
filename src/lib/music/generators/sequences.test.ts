@@ -14,6 +14,7 @@ import type {
 } from "../chord-progressions";
 
 import { isNaturalMidiNumber } from "../note-utils";
+import { NOTE_RANGES } from "@/data/note-ranges";
 import {
   SEQUENCE_DEFAULT_STEP_DURATION_TICKS,
   SEQUENCE_DEFAULT_TIMING,
@@ -792,4 +793,99 @@ describe("theory spelling", () => {
       }
     }).not.toThrow();
   });
+});
+
+// Independent spelling oracle: only natural roots or the two ordinary accidental
+// spellings may be selected, and every chord tone must use its required letter.
+const ARPEGGIO_CASES = [
+  ["major", [0, 4, 7, 12]],
+  ["minor", [0, 3, 7, 12]],
+  ["diminished", [0, 3, 6, 12]],
+  ["augmented", [0, 4, 8, 12]],
+  ["dominant-seventh", [0, 4, 7, 10, 12]],
+  ["major-seventh", [0, 4, 7, 11, 12]],
+  ["minor-seventh", [0, 3, 7, 10, 12]],
+] as const;
+const LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
+const NATURAL_PITCHES = [0, 2, 4, 5, 7, 9, 11];
+function expectedSpellings(root: number, pattern: readonly number[]) {
+  const naturalIndex = NATURAL_PITCHES.indexOf(root % 12);
+  const rootLetters = naturalIndex >= 0 ? [naturalIndex] : NATURAL_PITCHES
+    .flatMap((pitch, index) => [1, 11].includes((root - pitch + 12) % 12) ? [index] : []);
+  const degrees = pattern.length === 4 ? [0, 2, 4, 7] : [0, 2, 4, 6, 7];
+  return rootLetters.flatMap((letter) => {
+    const notes = pattern.map((offset, index) => {
+      const letterIndex = (letter + degrees[index]) % 7;
+      const midiNumber = root + offset;
+      const difference = (midiNumber - NATURAL_PITCHES[letterIndex] + 12) % 12;
+      if (![0, 1, 11].includes(difference)) return null;
+      const accidental = difference === 11 ? -1 : difference;
+      return {
+        midiNumber,
+        name: LETTERS[letterIndex] + (accidental === 1 ? "♯" : accidental === -1 ? "♭" : ""),
+        octave: (midiNumber - NATURAL_PITCHES[letterIndex] - accidental) / 12 - 1,
+      };
+    });
+    return notes.every((note) => note !== null) ? [notes] : [];
+  });
+}
+
+const CLEFS = ["treble", "bass"] as const;
+const ARPEGGIO_DIRECTIONS = ["ascending", "descending", "ascending-descending"] as const;
+function arpeggioOptions(clef: typeof CLEFS[number], quality: SequenceArpeggio,
+  direction: SequenceArpeggioDirection, categories: readonly ("naturals" | "accidentals")[]): ExistingSequenceTargetOptions {
+  return {
+    exerciseType: "arpeggios", clef,
+    enabledArpeggios: new Set([quality]), enabledArpeggioDirections: new Set([direction]),
+    enabledNoteCategories: new Set(categories), enabledDirections: new Set(["ascending"]),
+    enabledIntervals: new Set(["major-third"]), enabledScales: ENABLED_SCALES,
+    enabledScaleDirections: ENABLED_SCALE_DIRECTIONS,
+  };
+}
+
+describe("arpeggio root eligibility regression", () => {
+  it.each(CLEFS.flatMap((clef) => ARPEGGIO_DIRECTIONS.map((direction) => [clef, direction] as const)))(
+    "excludes unsupported B augmented before selection: %s %s", (clef, direction) => {
+      // Previously the seventh of eight natural candidates was B (MIDI 71/47).
+      vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0)
+        .mockReturnValueOnce(6.5 / 8).mockReturnValue(0);
+      const target = generateExistingSequenceTarget(arpeggioOptions(clef, "augmented", direction, ["naturals"]));
+      expect(target.steps.flatMap((step) => step.notes).every((note) => note.name !== "B")).toBe(true);
+      expect(target.name.primary).toBe("Augmented arpeggio");
+    },
+  );
+
+  it.each(CLEFS.flatMap((clef) => ARPEGGIO_CASES.flatMap(([quality, pattern]) =>
+    ARPEGGIO_DIRECTIONS.flatMap((direction) =>
+      ([["naturals"], ["accidentals"], ["naturals", "accidentals"]] as const)
+        .map((categories) => ({ clef, quality, pattern, direction, categories }))))))(
+    "enumerates every eligible root and spelling: $clef $quality $direction $categories",
+    ({ clef, quality, pattern, direction, categories }) => {
+      const { minMidi, maxMidi } = NOTE_RANGES[clef];
+      const candidates = Array.from({ length: maxMidi - minMidi - 11 }, (_, i) => minMidi + i)
+        .filter((root) => categories.some((category) => category === (NATURAL_PITCHES.includes(root % 12) ? "naturals" : "accidentals")));
+      const eligible = candidates.filter((root) => expectedSpellings(root, pattern).length > 0);
+      expect(eligible.length).toBeGreaterThan(0); // No supported empty selection needs recovery.
+      expect(candidates.filter((root) => !eligible.includes(root))).toEqual(
+        quality === "augmented" ? candidates.filter((root) => root % 12 === 11) : [],
+      );
+      const random = vi.spyOn(Math, "random");
+      eligible.forEach((root, rootIndex) => {
+        expectedSpellings(root, pattern).forEach((ascending, spellingIndex, spellings) => {
+          random.mockReset().mockReturnValueOnce(0).mockReturnValueOnce(0)
+            .mockReturnValueOnce((rootIndex + 0.5) / eligible.length)
+            .mockReturnValue((spellingIndex + 0.5) / spellings.length);
+          const target = generateExistingSequenceTarget(arpeggioOptions(clef, quality, direction, categories));
+          const descending = [...ascending].reverse();
+          const expected = direction === "ascending" ? ascending : direction === "descending"
+            ? descending : [...ascending, ...descending.slice(1)];
+          expect(target.clef).toBe(clef);
+          expect(target.steps.map((step) => step.notes)).toEqual(expected.map((note) => [note]));
+          expect(target.steps.every((step) => step.durationTicks === SEQUENCE_DEFAULT_STEP_DURATION_TICKS)).toBe(true);
+          expect(target.timing).toEqual(SEQUENCE_DEFAULT_TIMING);
+          expect(target.steps.flatMap((step) => step.notes).every((note) => note.midiNumber >= minMidi && note.midiNumber <= maxMidi)).toBe(true);
+        });
+      });
+    },
+  );
 });
